@@ -58,6 +58,29 @@ class HandoffTests(unittest.TestCase):
 
             shutil.rmtree(root)
 
+    def test_request_rejects_trellis_runtime_evidence(self) -> None:
+        root = self.make_root()
+        try:
+            runtime = root / ".trellis/.runtime/brief.json"
+            runtime.parent.mkdir(parents=True)
+            runtime.write_text("{}\n", encoding="utf-8")
+            request = root / "request.json"
+            request.write_text(json.dumps({
+                "session_label": "fixture",
+                "facts": ["fixture"],
+                "evidence_paths": [".trellis/.runtime/brief.json"],
+                "next_action": "continue",
+                "blockers": [],
+                "risks": [],
+                "validation": [],
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(handoff.ContractError, "non-runtime"):
+                handoff._request(root, request)
+        finally:
+            import shutil
+
+            shutil.rmtree(root)
+
 
 if __name__ == "__main__":
     unittest.main()

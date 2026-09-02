@@ -192,6 +192,8 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any]) -> None:
         raise ContractError("handoff verified context is invalid")
     evidence_paths = _text_list(verified["evidence_paths"], "verified.evidence_paths", 32)
     for relative in evidence_paths:
+        if relative == ".trellis/.runtime" or relative.startswith(".trellis/.runtime/"):
+            raise ContractError("evidence_paths must exclude Trellis runtime files")
         target = _project_file(root, relative, "evidence path")
         if not target.is_file():
             raise ContractError("evidence path is missing or unsafe: %s" % relative)
