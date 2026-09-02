@@ -8,7 +8,7 @@ description: Validate a Trellis worker's candidate evidence report before the ma
 Use the executable validator on a report assigned by the Trellis runtime:
 
 ```bash
-python3 .agents/skills/evidence-report/scripts/validate_report.py <report.json> \
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/evidence-report/scripts/validate_report.py" <report.json> \
   --task <task-id> --batch <batch-id> --instance <instance-id>
 ```
 

@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workflow_contracts import ContractError, report_summary, validate_report  # noqa: E402
 
 

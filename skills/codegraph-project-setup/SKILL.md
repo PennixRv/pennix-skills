@@ -23,7 +23,7 @@ description: Use only when the user explicitly asks to enable or prepare CodeGra
 从当前工作目录调用脚本的只读模式：
 
 ```sh
-python3 ~/.codex/skills/codegraph-project-setup/scripts/prepare_project.py
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/codegraph-project-setup/scripts/prepare_project.py"
 ```
 
 脚本会输出 Git 项目根、worktree 类型、当前 `codegraph.json` 状态和拟修改的 unified diff。它的默认模式不写文件。
@@ -47,13 +47,13 @@ python3 ~/.codex/skills/codegraph-project-setup/scripts/prepare_project.py
 向用户展示脚本输出的完整差异。只有用户确认后，才使用同一项目根执行：
 
 ```sh
-python3 ~/.codex/skills/codegraph-project-setup/scripts/prepare_project.py --apply
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/codegraph-project-setup/scripts/prepare_project.py" --apply
 ```
 
 若要增加其他运行目录，必须逐项明确传入：
 
 ```sh
-python3 ~/.codex/skills/codegraph-project-setup/scripts/prepare_project.py \
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/codegraph-project-setup/scripts/prepare_project.py" \
   --extra-exclude '.some-tool/' --apply
 ```
 

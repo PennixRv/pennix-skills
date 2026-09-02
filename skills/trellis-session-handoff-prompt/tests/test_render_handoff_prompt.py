@@ -7,6 +7,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,15 +36,25 @@ class RenderHandoffPromptTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="handoff-prompt-")
         self.root = Path(self.temp.name).resolve()
-        helper = self.root / renderer.PROJECT_HELPER
+        self.codex_home = self.root / "codex"
+        helper = self.codex_home / renderer.USER_HELPER
         helper.parent.mkdir(parents=True)
         helper.write_text("# fixture\n", encoding="utf-8")
         handoff = self.root / renderer.HANDOFF_PATH
         handoff.parent.mkdir(parents=True, exist_ok=True)
         handoff.write_text(json.dumps(payload()) + "\n", encoding="utf-8")
+        self.environment = mock.patch.dict(os.environ, {"CODEX_HOME": str(self.codex_home)})
+        self.environment.start()
 
     def tearDown(self) -> None:
+        self.environment.stop()
         self.temp.cleanup()
+
+    def test_user_skill_helper_is_used_without_project_copy(self) -> None:
+        completed = SimpleNamespace(returncode=0, stdout=json.dumps({"status": "ready"}), stderr="")
+        with mock.patch.object(renderer.subprocess, "run", return_value=completed) as run:
+            renderer._read_payload(self.root)
+        self.assertEqual(Path(run.call_args.args[0][1]), self.codex_home / renderer.USER_HELPER)
 
     def test_ready_null_task_prompt_is_bounded_and_explains_normal_state(self) -> None:
         completed = SimpleNamespace(returncode=0, stdout=json.dumps({"status": "ready"}), stderr="")

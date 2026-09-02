@@ -5,11 +5,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared"))
-from workflow_contracts import ContractError, validate_report  # noqa: E402
+def _contract_path() -> Path:
+    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
+    candidates = (
+        codex_home / "skills/evidence-report/scripts",
+        Path(__file__).resolve().parents[2] / "evidence-report/scripts",
+    )
+    for candidate in candidates:
+        if (candidate / "workflow_contracts.py").is_file():
+            return candidate
+    raise RuntimeError("evidence-report Skill is required")
+
+
+def _load_contract():
+    sys.path.insert(0, str(_contract_path()))
+    from workflow_contracts import ContractError, validate_report  # noqa: E402
+
+    return ContractError, validate_report
 
 
 def main() -> int:
@@ -19,6 +35,7 @@ def main() -> int:
     parser.add_argument("--risk", choices=("major", "critical"), required=True)
     args = parser.parse_args()
     try:
+        ContractError, validate_report = _load_contract()
         primary = validate_report(args.primary)
         counter = validate_report(args.counter, primary["task_id"], primary["batch_id"])
         if primary["status"] != "complete" or counter["status"] != "complete":
@@ -47,7 +64,7 @@ def main() -> int:
             "verdict": counter["review_verdict"],
         }, ensure_ascii=True, sort_keys=True))
         return 0
-    except ContractError as exc:
+    except (ValueError, RuntimeError) as exc:
         print(json.dumps({"status": "insufficient_independent_review", "reason": str(exc)}, ensure_ascii=True))
         return 2
 

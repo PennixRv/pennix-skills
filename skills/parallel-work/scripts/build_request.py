@@ -5,11 +5,38 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workflow_contracts import ContractError, _text, _text_list, load_json_file  # noqa: E402
+
+
+def write_output(path: Path, content: str) -> None:
+    if path.exists() and (path.is_symlink() or not path.is_file()):
+        raise ContractError("output must be a regular file")
+    for parent in (path.parent, *path.parent.parents):
+        if parent.is_symlink():
+            raise ContractError("output parent must not contain a symbolic path")
+        if parent == Path(parent.anchor) or parent == Path("."):
+            break
+    if path.parent.exists() and not path.parent.is_dir():
+        raise ContractError("output parent must be a regular directory")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".%s." % path.name, dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, mode)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def main() -> int:
@@ -48,7 +75,7 @@ def main() -> int:
             }
         encoded = json.dumps(result, ensure_ascii=True, indent=2) + "\n"
         if args.output:
-            args.output.write_text(encoded, encoding="utf-8")
+            write_output(args.output, encoded)
         else:
             sys.stdout.write(encoded)
         return 0

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,11 +15,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workflow_contracts import ContractError, SECRET_RE, _text, _text_list, canonical, digest, load_json_file  # noqa: E402
 
 
 HANDOFF = ".trellis/session-handoff.json"
+SHA256_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 AUTHORIZATION = {
     "source": "current_user_explicit_request",
     "attestation": "coordinator_asserted_not_runtime_verified",
@@ -27,9 +29,28 @@ AUTHORIZATION = {
 
 def _root(value: str) -> Path:
     root = Path(value).resolve()
-    if not root.is_dir() or not (root / ".trellis").is_dir():
+    trellis = root / ".trellis"
+    if not root.is_dir() or trellis.is_symlink() or not trellis.is_dir():
         raise ContractError("project root must contain .trellis")
     return root
+
+
+def _project_file(root: Path, relative: str, label: str) -> Path:
+    candidate = root / relative
+    relative_path = Path(relative)
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise ContractError("%s must be project-relative" % label)
+    cursor = root
+    for part in relative_path.parts:
+        cursor /= part
+        if cursor.is_symlink():
+            raise ContractError("%s contains a symbolic path: %s" % (label, relative))
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ContractError("%s resolves outside the project: %s" % (label, relative)) from exc
+    return resolved
 
 
 def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
@@ -59,9 +80,10 @@ def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
     task_path = Path(str(selected.get("dir", "")))
     if task_path.is_absolute() or ".." in task_path.parts or not str(task_path).startswith(".trellis/tasks/"):
         raise ContractError("active task path is unsafe")
-    task_dir = (root / task_path).resolve()
-    if not task_dir.is_dir() or task_dir.is_symlink():
+    task_candidate = _project_file(root, task_path.as_posix(), "active task path")
+    if not task_candidate.is_dir():
         raise ContractError("active task directory is unavailable")
+    task_dir = task_candidate
     files: List[tuple[str, str]] = []
     for path in sorted(task_dir.rglob("*")):
         if path.is_symlink() or not path.is_file():
@@ -109,6 +131,105 @@ def _payload_digest(payload: Dict[str, Any]) -> str:
     return digest({key: value for key, value in payload.items() if key != "integrity"})
 
 
+def _digest_text(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not SHA256_DIGEST.fullmatch(value):
+        raise ContractError("%s is invalid" % label)
+    return value
+
+
+def _validate_payload_shape(root: Path, payload: Dict[str, Any]) -> None:
+    expected = {
+        "schema_version", "kind", "created_at", "project", "work_context", "source",
+        "verified", "pending", "governance", "memory_projection", "authorization", "integrity",
+    }
+    if set(payload) != expected:
+        raise ContractError("handoff fields are invalid")
+    if payload["schema_version"] != 3 or payload["kind"] != "trellis-session-handoff":
+        raise ContractError("handoff schema is unsupported")
+    _text(payload["created_at"], "created_at", 128)
+
+    project = payload["project"]
+    if not isinstance(project, dict) or set(project) != {"name", "identity_digest"}:
+        raise ContractError("handoff project is invalid")
+    if _text(project["name"], "project.name", 256) != root.name:
+        raise ContractError("handoff project does not match the current root")
+    if project["identity_digest"] != digest({"name": root.name, "marker": ".trellis"}):
+        raise ContractError("handoff project identity is invalid")
+
+    context = payload["work_context"]
+    if not isinstance(context, dict) or set(context) != {"task"}:
+        raise ContractError("handoff work context is invalid")
+    task = context["task"]
+    if task is not None:
+        if not isinstance(task, dict) or set(task) != {"id", "path", "status", "material_digest"}:
+            raise ContractError("handoff task is invalid")
+        _text(task["id"], "task.id", 256)
+        task_path = _text(task["path"], "task.path", 1024)
+        if not task_path.startswith(".trellis/tasks/") or "/archive/" in task_path:
+            raise ContractError("handoff task path is invalid")
+        _digest_text(task["material_digest"], "task.material_digest")
+        _text(task["status"], "task.status", 64)
+
+    source = payload["source"]
+    if not isinstance(source, dict) or set(source) != {"session_label", "git", "evidence_digest"}:
+        raise ContractError("handoff source is invalid")
+    _text(source["session_label"], "source.session_label", 128)
+    _digest_text(source["evidence_digest"], "source.evidence_digest")
+    git = source["git"]
+    if not isinstance(git, dict) or set(git) != {"branch", "head", "worktree_state", "dirty_paths_digest", "scope"}:
+        raise ContractError("handoff source git is invalid")
+    for field in ("branch", "head"):
+        if git[field] is not None:
+            _text(git[field], "source.git.%s" % field, 256)
+    if git["worktree_state"] not in {"clean", "dirty"}:
+        raise ContractError("handoff source git state is invalid")
+    _digest_text(git["dirty_paths_digest"], "source.git.dirty_paths_digest")
+    if git["scope"] != {"mode": "full", "paths": []}:
+        raise ContractError("handoff source git scope is invalid")
+
+    verified = payload["verified"]
+    if not isinstance(verified, dict) or set(verified) != {"facts", "evidence_paths", "validation"}:
+        raise ContractError("handoff verified context is invalid")
+    evidence_paths = _text_list(verified["evidence_paths"], "verified.evidence_paths", 32)
+    for relative in evidence_paths:
+        target = _project_file(root, relative, "evidence path")
+        if not target.is_file():
+            raise ContractError("evidence path is missing or unsafe: %s" % relative)
+    if source["evidence_digest"] != digest(evidence_paths):
+        raise ContractError("handoff evidence digest does not match")
+    _text_list(verified["facts"], "verified.facts", 24)
+    validation = verified["validation"]
+    if not isinstance(validation, list) or len(validation) > 16:
+        raise ContractError("verified.validation must be a list of at most 16 entries")
+    for index, item in enumerate(validation):
+        if not isinstance(item, dict) or set(item) != {"command", "result"}:
+            raise ContractError("verified.validation[%d] fields are invalid" % index)
+        _text(item["command"], "verified.validation[%d].command" % index, 512)
+        _text(item["result"], "verified.validation[%d].result" % index, 512)
+
+    pending = payload["pending"]
+    if not isinstance(pending, dict) or set(pending) != {"next_action", "blockers", "risks"}:
+        raise ContractError("handoff pending context is invalid")
+    _text(pending["next_action"], "pending.next_action", 512)
+    _text_list(pending["blockers"], "pending.blockers", 16)
+    _text_list(pending["risks"], "pending.risks", 16)
+
+    if payload["governance"] != {"mode": "none", "batch": None}:
+        raise ContractError("handoff governance is invalid")
+    memory = payload["memory_projection"]
+    if not isinstance(memory, dict) or set(memory) != {"local", "archive_refs", "openviking"}:
+        raise ContractError("handoff memory projection is invalid")
+    for field in ("local", "archive_refs", "openviking"):
+        _text_list(memory[field], "memory_projection.%s" % field, 32)
+    if payload["authorization"] != AUTHORIZATION:
+        raise ContractError("handoff authorization is invalid")
+    integrity = payload["integrity"]
+    if not isinstance(integrity, dict) or set(integrity) != {"payload_digest", "source_digest"}:
+        raise ContractError("handoff integrity is invalid")
+    _digest_text(integrity["payload_digest"], "integrity.payload_digest")
+    _digest_text(integrity["source_digest"], "integrity.source_digest")
+
+
 def _request(root: Path, path: Path) -> Dict[str, Any]:
     value = load_json_file(path, 64 * 1024)
     required = {"session_label", "facts", "evidence_paths", "next_action", "blockers", "risks", "validation"}
@@ -119,8 +240,8 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
         candidate = Path(relative)
         if candidate.is_absolute() or ".." in candidate.parts or str(candidate).startswith(".trellis/.runtime/"):
             raise ContractError("evidence_paths must be project-relative non-runtime paths")
-        target = root / candidate
-        if target.is_symlink() or not target.is_file():
+        target = _project_file(root, relative, "evidence path")
+        if not target.is_file():
             raise ContractError("evidence path is missing or unsafe: %s" % relative)
     validation = value["validation"]
     if not isinstance(validation, list) or len(validation) > 16:
@@ -168,22 +289,12 @@ def build(root: Path, request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def validate(root: Path, payload: Dict[str, Any]) -> str:
-    if set(payload) != {"schema_version", "kind", "created_at", "project", "work_context", "source", "verified", "pending", "governance", "memory_projection", "authorization", "integrity"}:
-        raise ContractError("handoff fields are invalid")
-    if payload["schema_version"] != 3 or payload["kind"] != "trellis-session-handoff":
-        raise ContractError("handoff schema is unsupported")
-    if payload["authorization"] != AUTHORIZATION:
-        raise ContractError("handoff authorization is invalid")
+    _validate_payload_shape(root, payload)
     integrity = payload["integrity"]
-    if not isinstance(integrity, dict) or set(integrity) != {"payload_digest", "source_digest"}:
-        raise ContractError("handoff integrity is invalid")
     if integrity["payload_digest"] != _payload_digest(payload):
         raise ContractError("handoff payload digest does not match")
-    task = payload["work_context"].get("task") if isinstance(payload["work_context"], dict) else None
     current = _source(root, _task_snapshot(root))
     recorded = payload["source"]
-    if not isinstance(recorded, dict) or set(recorded) != {"session_label", "git", "evidence_digest"}:
-        raise ContractError("handoff source is invalid")
     if recorded["git"] != current["git"]:
         return "changed"
     if integrity["source_digest"] != current["digest"]:

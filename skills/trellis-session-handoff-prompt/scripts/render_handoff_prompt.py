@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -12,7 +13,7 @@ from typing import Any, Mapping, Sequence
 
 
 HANDOFF_PATH = ".trellis/session-handoff.json"
-PROJECT_HELPER = ".agents/skills/session-handoff/scripts/handoff.py"
+USER_HELPER = "skills/session-handoff/scripts/handoff.py"
 MAX_PAYLOAD_BYTES = 64 * 1024
 MAX_PROJECT_ROOT_BYTES = 2048
 MAX_TASK_PATH_BYTES = 1024
@@ -38,10 +39,16 @@ def _safe_text(value: Any, label: str, maximum: int) -> str:
 
 
 def _helper_path(project_root: Path) -> Path:
-    helper = project_root / PROJECT_HELPER
-    if helper.is_symlink() or not helper.is_file():
-        raise PromptError("project session-handoff helper is unavailable")
-    return helper
+    raw_home = os.environ.get("CODEX_HOME")
+    codex_home = Path(raw_home).expanduser() if raw_home else Path.home() / ".codex"
+    candidates = (
+        codex_home / USER_HELPER,
+        Path(__file__).resolve().parents[2] / "session-handoff" / "scripts" / "handoff.py",
+    )
+    for helper in candidates:
+        if not helper.is_symlink() and helper.is_file():
+            return helper
+    raise PromptError("user session-handoff helper is unavailable")
 
 
 def _read_payload(project_root: Path) -> Mapping[str, Any]:

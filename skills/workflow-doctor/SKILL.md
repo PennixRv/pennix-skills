@@ -8,7 +8,7 @@ description: Diagnose the local Trellis fork, project Skills, top-level workflow
 Run the read-only diagnostic from the project root:
 
 ```bash
-python3 .agents/skills/workflow-doctor/scripts/doctor.py --project-root .
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/workflow-doctor/scripts/doctor.py" --project-root .
 ```
 
 The output is a bounded JSON summary of required project files, the local Trellis checkout, package identity, and any
