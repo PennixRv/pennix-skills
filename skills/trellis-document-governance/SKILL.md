@@ -45,7 +45,7 @@ description: Use before creating or updating Trellis workflow, spec, task, resea
 6. 写完后运行确定性的结构检查：
 
    ```bash
-   python3 .agents/skills/trellis-document-governance/scripts/check_structure.py \
+   python3 "$CODEX_HOME/skills/trellis-project-document-governance/scripts/check_structure.py" \
      --root . --paths <changed-file-or-directory>...
    git diff --check
    ```
@@ -59,9 +59,9 @@ description: Use before creating or updating Trellis workflow, spec, task, resea
 
    ```bash
    python3 .trellis/scripts/task.py archive <task-dir> --no-commit
-   python3 .agents/skills/trellis-document-governance/scripts/check_structure.py \
+   python3 "$CODEX_HOME/skills/trellis-project-document-governance/scripts/check_structure.py" \
      --root . --paths <actual-archive-directory>
-   python3 .agents/skills/trellis-document-governance/scripts/check_structure.py \
+   python3 "$CODEX_HOME/skills/trellis-project-document-governance/scripts/check_structure.py" \
      --root . --tracked-markdown --links-only --max-files 1000
    git diff --check
    ```
@@ -73,17 +73,10 @@ description: Use before creating or updating Trellis workflow, spec, task, resea
    Trellis 上游已修复。随后再单独完成语义审查，记录实际目录、命令、结果和未确认项。
    更新模板或恢复会话后，重新检查链接、索引、活动任务路径和本 Skill 是否仍可达。项目级
    Skill 位于 bundled Skill 之外，不修改公共 bundled Skill 的正文。
-9. 当前项目的 `check_structure.py` 是已物化副本。修改全局
-   `/home/penn/.codex/skills/trellis-project-document-governance/` 的同一检查器行为时，必须明确
-   同步本副本，并运行：
+9. 结构检查器由用户级 `trellis-project-document-governance` Skill 提供。修改其行为时，
+   直接在用户级 Skills 源码仓库完成并运行该 Skill 的测试；项目不维护第二个检查器副本。
 
-   ```bash
-   cmp -s /home/penn/.codex/skills/trellis-project-document-governance/scripts/check_structure.py \
-     .agents/skills/trellis-document-governance/scripts/check_structure.py
-   ```
-
-   只有比较通过、全局测试通过且本项目以副本完成实际检查后，才能声称当前项目已继承该行为。
-   这不是其他项目自动更新的声明；其他已物化副本必须由各自项目单独核验。
+   不能把用户级 Skill 的测试结果扩展为其他项目的自动更新声明；其他项目按各自安装状态核验。
 
 ## 检查结果的表达
 
