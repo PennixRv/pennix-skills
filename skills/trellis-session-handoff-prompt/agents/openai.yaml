@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trellis 交接提示词"
+  short_description: "只为已核验的正式交接生成有界的新会话入口。"
+  default_prompt: "Use $trellis-session-handoff-prompt only after an explicit handoff request and a ready validation."

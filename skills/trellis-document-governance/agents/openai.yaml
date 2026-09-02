@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trellis 文档治理"
+  short_description: "按项目规则生产并验收 Trellis 文档资产内容"
+  default_prompt: "Use $trellis-document-governance before creating or reviewing Trellis documentation assets."

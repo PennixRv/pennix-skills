@@ -1,0 +1,3 @@
+interface:
+  display_name: "Parallel Work"
+  short_description: "Prepare bounded independent Trellis candidate work"

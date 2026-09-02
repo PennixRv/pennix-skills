@@ -1,0 +1,7 @@
+interface:
+  display_name: "CodeGraph 项目启用"
+  short_description: "按项目边界安全建立并核验 CodeGraph 代码索引"
+  default_prompt: "使用 $codegraph-project-setup 检查并启用当前项目的 CodeGraph 索引。"
+
+policy:
+  allow_implicit_invocation: false

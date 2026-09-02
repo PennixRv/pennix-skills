@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Plugin 安全更新"
+  short_description: "事务化刷新、安装并跨重启验证 Hook 与 MCP"
+  default_prompt: "使用 $codex-plugin-update 安全刷新并更新这个含 Hook 的 Codex Plugin，重启后验证 Hook 与 MCP。"

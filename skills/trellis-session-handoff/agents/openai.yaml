@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trellis Session Handoff"
+  short_description: "Create and validate bounded Trellis main-session handoffs."
+  default_prompt: "Create or validate a formal handoff for the current Trellis coordinator session."
