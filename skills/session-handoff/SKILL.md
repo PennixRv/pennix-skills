@@ -11,14 +11,14 @@ handle. Those events do not authorize a handoff.
 When the current user explicitly requests formal handoff, prepare a small request JSON outside the canonical destination and run:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/session-handoff/scripts/handoff.py" --project-root . \
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/session-handoff/scripts/handoff.py" --project-root . \
   write --request <request.json> --explicit-user-request
 ```
 
 The helper records only a bounded task/Git/evidence snapshot and requires the explicit flag. To inspect it later without writing:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/session-handoff/scripts/handoff.py" --project-root . validate
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/session-handoff/scripts/handoff.py" --project-root . validate
 ```
 
 `ready` is a validation result, not authorization to implement. `changed`, `absent`, or `recovery_required` must be handled by
@@ -28,7 +28,7 @@ conversation, credentials, cache, or runtime ledger.
 When the user also asks for the new-session entry prompt, render it only after `validate` reports `ready`:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/session-handoff/scripts/render_handoff_prompt.py" \
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/session-handoff/scripts/render_handoff_prompt.py" \
   --project-root <absolute-project-root>
 ```
 

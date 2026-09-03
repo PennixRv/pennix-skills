@@ -1,0 +1,3 @@
+interface:
+  display_name: "Pennix Skills 安装"
+  short_description: "显式安装或更新私有 Pennix Skills 组合"

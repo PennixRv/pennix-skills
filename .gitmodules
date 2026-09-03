@@ -1,0 +1,3 @@
+[submodule "skills/fast-context"]
+	path = skills/fast-context
+	url = https://github.com/PennixRv/fast-context-skill.git
