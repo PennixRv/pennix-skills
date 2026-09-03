@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
 
@@ -19,12 +21,12 @@ SECRET_RE = re.compile(
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 REPORT_REQUIRED = {
     "schema_version", "result_id", "task_id", "batch_id", "role_id", "instance_id",
-    "status", "scope", "evidence", "findings",
+    "status", "scope", "lens", "evidence_method", "evidence", "findings",
 }
 REPORT_OPTIONAL = {
     "observations", "uncertainties", "recommendations", "tool_summary",
-    "error", "review_round", "review_of", "review_relation", "review_lens",
-    "review_verdict", "evidence_refs", "coverage", "question", "content_digest",
+    "error", "review_round", "review_of", "review_relation", "review_verdict",
+    "evidence_refs", "coverage", "question", "content_digest",
 }
 
 
@@ -73,6 +75,32 @@ def load_json_file(path: Path, maximum_bytes: int = MAX_REPORT_BYTES) -> Dict[st
     return value
 
 
+def write_json_file(path: Path, payload: Dict[str, Any]) -> None:
+    if path.exists() and (path.is_symlink() or not path.is_file()):
+        raise ContractError("output must be a regular file")
+    for parent in (path.parent, *path.parent.parents):
+        if parent.is_symlink():
+            raise ContractError("output parent must not contain a symbolic path")
+        if parent == Path(parent.anchor) or parent == Path("."):
+            break
+    if path.parent.exists() and not path.parent.is_dir():
+        raise ContractError("output parent must be a regular directory")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".%s." % path.name, dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, mode)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _validate_evidence(value: Any) -> Tuple[list[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     if not isinstance(value, list) or len(value) > 256:
         raise ContractError("evidence must be a list of at most 256 entries")
@@ -111,14 +139,17 @@ def validate_report(
     expected_batch: Optional[str] = None,
     expected_instance: Optional[str] = None,
     expected_scope: Optional[Sequence[str]] = None,
+    expected_role: Optional[str] = None,
+    expected_lens: Optional[str] = None,
+    expected_evidence_method: Optional[str] = None,
 ) -> Dict[str, Any]:
     payload = load_json_file(path)
     unknown = set(payload) - REPORT_REQUIRED - REPORT_OPTIONAL
     missing = REPORT_REQUIRED - set(payload)
     if unknown or missing:
         raise ContractError("report fields invalid; missing=%s unknown=%s" % (sorted(missing), sorted(unknown)))
-    if payload.get("schema_version") != 2:
-        raise ContractError("report schema_version must be 2")
+    if payload.get("schema_version") != 3:
+        raise ContractError("report schema_version must be 3")
     for field in ("result_id", "task_id", "batch_id", "role_id", "instance_id"):
         _text(payload[field], "report.%s" % field, 256)
     if expected_task is not None and payload["task_id"] != expected_task:
@@ -127,6 +158,8 @@ def validate_report(
         raise ContractError("report batch_id does not match the expected batch")
     if expected_instance is not None and payload["instance_id"] != expected_instance:
         raise ContractError("report instance_id does not match the expected instance")
+    if expected_role is not None and payload["role_id"] != expected_role:
+        raise ContractError("report role_id does not match the expected role")
     if payload["status"] not in {"complete", "incomplete", "blocked", "error"}:
         raise ContractError("report.status is invalid")
     scope = _text_list(payload["scope"], "report.scope", 64)
@@ -134,6 +167,12 @@ def validate_report(
         raise ContractError("report.scope must not be empty")
     if expected_scope is not None and scope != list(expected_scope):
         raise ContractError("report.scope must exactly preserve the assigned scope")
+    lens = _text(payload["lens"], "report.lens", 256)
+    if expected_lens is not None and lens != expected_lens:
+        raise ContractError("report lens does not match the expected lens")
+    evidence_method = _text(payload["evidence_method"], "report.evidence_method", 2048)
+    if expected_evidence_method is not None and evidence_method != expected_evidence_method:
+        raise ContractError("report evidence_method does not match the expected evidence method")
     evidence, by_id = _validate_evidence(payload["evidence"])
     if payload["status"] == "complete" and not evidence:
         raise ContractError("complete reports require at least one evidence entry")
@@ -158,7 +197,14 @@ def validate_report(
         raise ContractError("error reports require an error field")
     if "error" in payload:
         _text(payload["error"], "report.error", 8192)
-    review_fields = {"review_round", "review_of", "review_relation", "review_lens", "review_verdict", "evidence_refs", "coverage"}
+    review_fields = {
+        "review_round",
+        "review_of",
+        "review_relation",
+        "review_verdict",
+        "evidence_refs",
+        "coverage",
+    }
     review_present = review_fields.intersection(payload)
     if review_present and not review_fields.issubset(payload):
         raise ContractError("review metadata must be complete when present")
@@ -168,7 +214,6 @@ def validate_report(
         review_of = _text_list(payload["review_of"], "review_of", 64)
         if not review_of or payload["review_relation"] not in {"independent", "supports", "refutes", "uncertain"}:
             raise ContractError("review relation is invalid")
-        _text(payload["review_lens"], "review_lens", 256)
         if payload["review_verdict"] not in {"supports", "refutes", "uncertain"}:
             raise ContractError("review_verdict is invalid")
         refs = _text_list(payload["evidence_refs"], "evidence_refs", 64)
@@ -193,8 +238,11 @@ def report_summary(payload: Dict[str, Any]) -> Dict[str, Any]:
         "task_id": payload["task_id"],
         "batch_id": payload["batch_id"],
         "instance_id": payload["instance_id"],
+        "role_id": payload["role_id"],
         "status": payload["status"],
         "scope": payload["scope"],
+        "lens": payload["lens"],
+        "evidence_method": payload["evidence_method"],
         "finding_count": len(payload["findings"]),
     }
     if "review_verdict" in payload:

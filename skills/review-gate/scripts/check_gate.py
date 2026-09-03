@@ -12,8 +12,8 @@ from pathlib import Path
 def _contract_path() -> Path:
     codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
     candidates = (
-        codex_home / "skills/evidence-report/scripts",
         Path(__file__).resolve().parents[2] / "evidence-report/scripts",
+        codex_home / "skills/pennix-skills/evidence-report/scripts",
     )
     for candidate in candidates:
         if (candidate / "workflow_contracts.py").is_file():
@@ -48,8 +48,8 @@ def main() -> int:
             raise ContractError("counter report must identify the primary result in review_of")
         if counter.get("review_relation") != "independent":
             raise ContractError("counter report must declare an independent review relation")
-        if counter.get("review_lens") in {None, primary.get("review_lens")}:
-            raise ContractError("counter report must use a distinct review_lens")
+        if counter["lens"] == primary["lens"]:
+            raise ContractError("counter report must use a distinct assigned lens")
         primary_evidence_ids = {item["id"] for item in primary["evidence"]}
         counter_evidence_ids = {item["id"] for item in counter["evidence"]}
         if primary_evidence_ids & counter_evidence_ids:

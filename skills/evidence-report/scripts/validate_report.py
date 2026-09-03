@@ -19,9 +19,21 @@ def main() -> int:
     parser.add_argument("--batch")
     parser.add_argument("--instance")
     parser.add_argument("--scope", action="append")
+    parser.add_argument("--role")
+    parser.add_argument("--lens")
+    parser.add_argument("--evidence-method")
     args = parser.parse_args()
     try:
-        payload = validate_report(args.report, args.task, args.batch, args.instance, args.scope)
+        payload = validate_report(
+            args.report,
+            expected_task=args.task,
+            expected_batch=args.batch,
+            expected_instance=args.instance,
+            expected_scope=args.scope,
+            expected_role=args.role,
+            expected_lens=args.lens,
+            expected_evidence_method=args.evidence_method,
+        )
     except ContractError as exc:
         print(json.dumps({"status": "invalid", "reason": str(exc)}, ensure_ascii=True))
         return 2

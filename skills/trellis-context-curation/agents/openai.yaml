@@ -1,6 +1,0 @@
-interface:
-  display_name: "Trellis 上下文整理"
-  short_description: "整理 Trellis 规格、研究资料与任务上下文，降低无效加载"
-  default_prompt: "使用 $trellis-context-curation 整理当前 Trellis 项目的规格、研究资料和任务上下文。"
-policy:
-  allow_implicit_invocation: false
