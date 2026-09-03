@@ -10,9 +10,10 @@
 
 ```bash
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo PennixRv/pennix-skills --path skills/evidence-report skills/review-gate skills/parallel-work
+  --repo PennixRv/pennix-skills --path \
+  skills/codegraph-project-setup skills/evidence-report skills/parallel-work skills/review-gate \
+  skills/session-handoff skills/trellis-context-curation skills/trellis-research-record skills/workflow-doctor
 ```
 
-把路径替换为需要的 Skill。`review-gate` 需要同时安装 `evidence-report`，因为它复用同一
-报告合同；源码变更应先提交并推送本仓库，再重新安装对应 Skill。安装副本不是源码编辑位置，
-也不生成第二份版本或状态事实。
+可按需删减路径；`review-gate` 需要同时安装 `evidence-report`，因为它复用同一报告合同。源码变更应先提交并
+推送本仓库，再重新安装对应 Skill。安装副本不是源码编辑位置，也不生成第二份版本或状态事实。

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +12,7 @@ from typing import Any, Mapping, Sequence
 
 
 HANDOFF_PATH = ".trellis/session-handoff.json"
-USER_HELPER = "skills/session-handoff/scripts/handoff.py"
+SCRIPT_PATH = Path(__file__).with_name("handoff.py")
 MAX_PAYLOAD_BYTES = 64 * 1024
 MAX_PROJECT_ROOT_BYTES = 2048
 MAX_TASK_PATH_BYTES = 1024
@@ -38,21 +37,15 @@ def _safe_text(value: Any, label: str, maximum: int) -> str:
     return value
 
 
-def _helper_path(project_root: Path) -> Path:
-    raw_home = os.environ.get("CODEX_HOME")
-    codex_home = Path(raw_home).expanduser() if raw_home else Path.home() / ".codex"
-    candidates = (
-        codex_home / USER_HELPER,
-        Path(__file__).resolve().parents[2] / "session-handoff" / "scripts" / "handoff.py",
-    )
-    for helper in candidates:
-        if not helper.is_symlink() and helper.is_file():
-            return helper
-    raise PromptError("user session-handoff helper is unavailable")
+def _helper_path() -> Path:
+    helper = SCRIPT_PATH
+    if helper.is_symlink() or not helper.is_file():
+        raise PromptError("session-handoff helper is unavailable")
+    return helper
 
 
 def _read_payload(project_root: Path) -> Mapping[str, Any]:
-    helper = _helper_path(project_root)
+    helper = _helper_path()
     try:
         result = subprocess.run(
             [sys.executable, str(helper), "--project-root", str(project_root), "validate"],
@@ -119,7 +112,9 @@ def render(project_root: Path, payload: Mapping[str, Any]) -> str:
     next_action = _safe_text(pending.get("next_action"), "handoff next action", MAX_NEXT_ACTION_BYTES)
     return (
         f"在 {json.dumps(root_text, ensure_ascii=False)} 新开 Codex 会话。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
-        f"`$trellis-session-handoff` 对 `{HANDOFF_PATH}` 重跑 `handoff validate`；只有 receipt 为 `ready` 才继续。\n"
+        f"`$session-handoff` 对 `{HANDOFF_PATH}` 重跑 `handoff validate`；只有 receipt 为 `ready` 才继续。\n"
+        "receipt 为 `ready` 后，使用 `$trellis-start` 重新读取当前项目状态；若确认存在活动 task，再使用 "
+        "`$trellis-continue` 选择当前 workflow step。\n"
         f"已验证导航（不覆盖新用户指令或 Trellis/Issue/Git 事实）：task={_task_text(payload)}；next_action={json.dumps(next_action, ensure_ascii=False)}。\n"
         "若 receipt 不是 `ready`，停止自动推进，按该状态重新核验项目事实。"
     )
@@ -133,7 +128,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(render(project_root, payload))
         return 0
     except (OSError, PromptError) as exc:
-        print(f"trellis-session-handoff-prompt: {exc}", file=sys.stderr)
+        print(f"session-handoff: {exc}", file=sys.stderr)
         return 2
 
 

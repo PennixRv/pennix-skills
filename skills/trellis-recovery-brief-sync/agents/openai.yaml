@@ -1,6 +1,0 @@
-interface:
-  display_name: "Trellis RecoveryBrief 协调"
-  short_description: "仅在已确认的 Trellis 语义闸门同步受控 RecoveryBrief"
-  default_prompt: "在当前有效 Trellis 任务的正式交接前，使用 $trellis-recovery-brief-sync 同步受控 RecoveryBrief。"
-policy:
-  allow_implicit_invocation: true

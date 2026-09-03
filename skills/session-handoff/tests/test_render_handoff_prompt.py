@@ -7,7 +7,6 @@ import contextlib
 import importlib.util
 import io
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,25 +35,18 @@ class RenderHandoffPromptTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="handoff-prompt-")
         self.root = Path(self.temp.name).resolve()
-        self.codex_home = self.root / "codex"
-        helper = self.codex_home / renderer.USER_HELPER
-        helper.parent.mkdir(parents=True)
-        helper.write_text("# fixture\n", encoding="utf-8")
         handoff = self.root / renderer.HANDOFF_PATH
         handoff.parent.mkdir(parents=True, exist_ok=True)
         handoff.write_text(json.dumps(payload()) + "\n", encoding="utf-8")
-        self.environment = mock.patch.dict(os.environ, {"CODEX_HOME": str(self.codex_home)})
-        self.environment.start()
 
     def tearDown(self) -> None:
-        self.environment.stop()
         self.temp.cleanup()
 
-    def test_user_skill_helper_is_used_without_project_copy(self) -> None:
+    def test_colocated_skill_helper_is_used(self) -> None:
         completed = SimpleNamespace(returncode=0, stdout=json.dumps({"status": "ready"}), stderr="")
         with mock.patch.object(renderer.subprocess, "run", return_value=completed) as run:
             renderer._read_payload(self.root)
-        self.assertEqual(Path(run.call_args.args[0][1]), self.codex_home / renderer.USER_HELPER)
+        self.assertEqual(Path(run.call_args.args[0][1]), renderer.SCRIPT_PATH)
 
     def test_ready_null_task_prompt_is_bounded_and_explains_normal_state(self) -> None:
         completed = SimpleNamespace(returncode=0, stdout=json.dumps({"status": "ready"}), stderr="")
@@ -63,6 +55,8 @@ class RenderHandoffPromptTests(unittest.TestCase):
         rendered = renderer.render(self.root, prompt)
         self.assertIn("无活动 task（正常", rendered)
         self.assertIn("只有 receipt 为 `ready` 才继续", rendered)
+        self.assertIn("`$session-handoff`", rendered)
+        self.assertIn("`$trellis-start`", rendered)
         self.assertLess(len(rendered.encode("utf-8")), 2048)
 
     def test_ready_task_path_is_rendered_as_navigation_data(self) -> None:
@@ -73,6 +67,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
             rendered = renderer.render(self.root, renderer._read_payload(self.root))
         self.assertIn('task=".trellis/tasks/demo"', rendered)
         self.assertIn("不覆盖新用户指令", rendered)
+        self.assertIn("`$trellis-continue`", rendered)
 
     def test_non_ready_receipt_never_emits_a_prompt(self) -> None:
         completed = SimpleNamespace(returncode=2, stdout=json.dumps({"status": "changed"}), stderr="")
