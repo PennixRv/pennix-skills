@@ -5,7 +5,7 @@ description: Use only when the user explicitly asks to enable or prepare CodeGra
 
 # CodeGraph 项目启用
 
-此 Skill 是 homewsl 的项目启用适配器，基于 CodeGraph `v1.5.0`。它只在用户明确要求启用或准备当前项目的 CodeGraph 时使用；不负责全局安装、MCP 注册、上游安装器或日常代码检索。
+此 Skill 是本工作流的项目启用适配器，基于 CodeGraph `v1.5.0`。它只在用户明确要求启用或准备当前项目的 CodeGraph 时使用；不负责全局安装、MCP 注册、上游安装器或日常代码检索。
 
 ## 硬性边界
 
@@ -81,4 +81,4 @@ env DO_NOT_TRACK=1 codegraph status --json
 - MCP 返回的源码可能有索引滞后提示；出现提示时，直接读取列出的文件确认实时内容。
 - CodeGraph 不能替代编译器、测试、lint 或 Trellis 的任务事实。
 
-上游 MCP 初始化指引和上游 `AGENTS.md` marker 不复制到本 Skill。上游指引面向通用 Agent 与原生子代理，而 homewsl 的全局规则明确不使用 Codex 原生子代理；本 Skill 只承担项目初始化的安全流程。
+上游 MCP 初始化指引和上游 `AGENTS.md` marker 不复制到本 Skill。上游指引面向通用 Agent 与原生子代理，而本工作流的全局规则明确不使用 Codex 原生子代理；本 Skill 只承担项目初始化的安全流程。

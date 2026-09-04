@@ -19,7 +19,7 @@
 - `src/installer/targets/codex.ts`：Codex 安装器只支持 global 目标，会替换自己拥有的 `[mcp_servers.codegraph]` 表。
 - `src/installer/instructions-template.ts`：安装器写入 marker-fenced `AGENTS.md` 区块，主要覆盖没有 MCP 初始化指引的原生子代理或非 MCP harness。
 
-homewsl 不运行该安装器，也不复制该 marker。全局 `AGENTS.md` 只保留项目条件、边界和 Skill 入口；MCP 初始化指引由 CodeGraph 服务自己提供。
+本工作流不运行该安装器，也不复制该 marker。全局 `AGENTS.md` 只保留项目条件、边界和 Skill 入口；MCP 初始化指引由 CodeGraph 服务自己提供。
 
 ## 版本更新门禁
 

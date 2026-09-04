@@ -28,6 +28,8 @@ direct `skills/<name>/SKILL.md`, and installs the collection to
   When initialization needs a missing object, it may retrieve only the commit
   already pinned by the checkout's Gitlink.
 - Use `--check` to verify the source collection and submodule state without
-  changing the installation directory.
+  changing the installation directory. Every submodule must match its pinned
+  Gitlink and have no uncommitted content; the parent checkout may otherwise
+  be the explicit source the user selected.
 - The destination is owned only by this collection. Do not use this helper to
   install an unrelated standalone Skill.

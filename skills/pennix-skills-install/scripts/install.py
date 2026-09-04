@@ -89,6 +89,14 @@ def ensure_submodules(source: Path, initialize: bool) -> None:
         joined = "; ".join(unresolved)
         raise InstallError(f"Submodule checkout is not pinned and ready: {joined}")
 
+    for line in status_lines:
+        fields = line[1:].strip().split(maxsplit=2)
+        if len(fields) < 2:
+            raise InstallError(f"Unable to resolve submodule path: {line}")
+        submodule = source / fields[1]
+        if run_git(submodule, "status", "--porcelain").strip():
+            raise InstallError(f"Submodule checkout has uncommitted changes: {fields[1]}")
+
 
 def read_skill_name(skill_directory: Path) -> str:
     skill_md = skill_directory / "SKILL.md"

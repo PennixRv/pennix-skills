@@ -2,6 +2,7 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "install.py"
@@ -71,6 +72,14 @@ class InstallSkillsTest(unittest.TestCase):
                 MODULE.install_skills([("alpha", alpha)], destination)
 
             self.assertFalse(destination.exists())
+
+    def test_submodule_validation_rejects_uncommitted_content(self):
+        source = Path("/tmp/pennix-skills-source")
+        submodule_status = " 0123456789012345678901234567890123456789 skills/fast-context (heads/main)\n"
+
+        with mock.patch.object(MODULE, "run_git", side_effect=[submodule_status, " M SKILL.md\n"]):
+            with self.assertRaisesRegex(MODULE.InstallError, "uncommitted changes: skills/fast-context"):
+                MODULE.ensure_submodules(source, initialize=False)
 
 
 if __name__ == "__main__":

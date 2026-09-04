@@ -29,6 +29,18 @@ def git_state(path: Path) -> Dict[str, Any]:
     return {"status": "pass", "branch": lines[0] if lines else "", "dirty": max(len(lines) - 1, 0)}
 
 
+def malformed_project_skill_dirs(root: Path) -> list[str]:
+    """Return direct project Skill directories that cannot be discovered."""
+    skills_root = root / ".agents/skills"
+    if not skills_root.is_dir():
+        return []
+    return [
+        path.relative_to(root).as_posix()
+        for path in sorted(skills_root.iterdir(), key=lambda item: item.name)
+        if path.is_dir() and not path.name.startswith(".") and not (path / "SKILL.md").is_file()
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-root", required=True, type=Path)
@@ -52,7 +64,12 @@ def main() -> int:
             package_scope = "invalid"
     legacy_profile = root / ".trellis/codex-workflow.json"
     stale_paths = [legacy_profile.relative_to(root).as_posix()] if legacy_profile.is_file() else []
-    status = "pass" if all(item["status"] == "pass" for item in checks) and trellis_state["status"] == "pass" else "degraded"
+    malformed_skills = malformed_project_skill_dirs(root)
+    status = "pass" if (
+        all(item["status"] == "pass" for item in checks)
+        and trellis_state["status"] == "pass"
+        and not malformed_skills
+    ) else "degraded"
     output = {
         "status": status,
         "project_root": str(root),
@@ -60,6 +77,7 @@ def main() -> int:
         "trellis": trellis_state,
         "package_scope": package_scope,
         "stale_workflow_paths": stale_paths,
+        "malformed_project_skill_dirs": malformed_skills,
         "mutated": False,
     }
     print(json.dumps(output, ensure_ascii=True, sort_keys=True))
