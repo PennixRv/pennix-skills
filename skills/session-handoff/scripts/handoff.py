@@ -342,6 +342,7 @@ def main() -> int:
             temporary = Path(handle.name)
             json.dump(payload, handle, ensure_ascii=True, indent=2, sort_keys=True)
             handle.write("\n")
+        os.chmod(temporary, 0o600)
         os.replace(temporary, destination)
         emit("write", "ready")
         return 0
