@@ -1,3 +1,0 @@
-interface:
-  display_name: "Session Handoff"
-  short_description: "Create, validate, or render explicit handoffs"

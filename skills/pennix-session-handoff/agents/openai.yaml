@@ -1,0 +1,3 @@
+interface:
+  display_name: "Pennix Session Handoff"
+  short_description: "Create and validate explicit timestamped handoffs"

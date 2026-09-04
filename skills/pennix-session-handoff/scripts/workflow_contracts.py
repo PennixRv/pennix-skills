@@ -12,6 +12,7 @@ from typing import Any, Dict
 SECRET_RE = re.compile(
     r"(?:-----BEGIN [A-Z0-9 ]+ PRIVATE KEY-----|"
     r"bearer\s+[A-Za-z0-9._~+/=-]{20,}|"
+    r"\b(?:sk|th)-[A-Za-z0-9_-]{20,}|"
     r"(?:api[_-]?key|password|secret)\s*[:=]\s*[A-Za-z0-9._~+/=-]{20,})",
     re.IGNORECASE,
 )
