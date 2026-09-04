@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pennix 工作流路由"
+  short_description: "按职责和调用语义选择工作流组件与工具"
+  default_prompt: "使用 $pennix-workflow-routing 判断当前跨组件请求的唯一责任组件、工具路径和事实核验边界。"
