@@ -58,6 +58,8 @@ class HandoffTests(unittest.TestCase):
         ]
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False).encode("utf-8") + b"\n")
+            if record is records[1]:
+                handle.write(b"\0" * 16 + b"\n")
         handle.close()
         self.addCleanup(path.unlink, missing_ok=True)
         return path
@@ -121,6 +123,7 @@ class HandoffTests(unittest.TestCase):
         self.assertTrue(any(item["kind"] == "user" for item in payload["conversation"]["candidates"]))
         self.assertEqual([item["state"] for item in payload["conversation"]["timeline"]], ["corrected", "accepted"])
         self.assertEqual(payload["conversation"]["timeline"][1]["supersedes_event_index"], 1)
+        self.assertEqual(payload["conversation"]["coverage"]["omissions"][0]["kind"], "nul_padding_record")
         self.assertNotIn("must not enter handoff", json.dumps(payload, ensure_ascii=False))
         self.assertNotIn("th-abcdefghijklmnopqrstuvwx", json.dumps(payload, ensure_ascii=False))
         validated = self.run_cli(root, "validate", "--handoff", relative)

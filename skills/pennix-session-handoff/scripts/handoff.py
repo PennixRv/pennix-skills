@@ -34,6 +34,8 @@ MAX_CANDIDATES = 48
 MAX_TEXT_BYTES = 1200
 MAX_UNKNOWN_SPANS = 32
 MAX_TRACKED_TOOL_IDS = 2048
+MAX_TRACKED_TOPICS = 512
+MAX_REPEAT_KEYS = 2048
 AUTHORIZATION = {
     "source": "current_user_explicit_request",
     "attestation": "coordinator_asserted_not_runtime_verified",
@@ -279,6 +281,8 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
         unknown: Dict[str, int] = {}
         unknown_spans: list[Dict[str, Any]] = []
         omissions: list[Dict[str, Any]] = []
+        topic_overflow = 0
+        repeat_overflow = 0
 
         def keep(items: list[Dict[str, Any]], item: Dict[str, Any]) -> None:
             if len(items) >= MAX_CANDIDATES:
@@ -305,8 +309,18 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             line_number += 1
             byte_start = offset
             offset += len(raw_line)
+            hasher.update(raw_line)
             if not raw_line.strip():
-                hasher.update(raw_line)
+                continue
+            if raw_line.rstrip(b"\r\n") and not raw_line.rstrip(b"\r\n").replace(b"\0", b""):
+                omissions.append({
+                    "kind": "nul_padding_record",
+                    "line": line_number,
+                    "byte_start": byte_start,
+                    "byte_end": offset,
+                    "bytes": len(raw_line),
+                    "record_sha256": "sha256:" + hashlib.sha256(raw_line).hexdigest(),
+                })
                 continue
             try:
                 record = json.loads(raw_line.decode("utf-8"))
@@ -314,7 +328,6 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                 raise ContractError("rollout JSONL record is invalid at line %d" % line_number) from exc
             if not isinstance(record, dict):
                 raise ContractError("rollout record is not an object at line %d" % line_number)
-            hasher.update(raw_line)
             record_count += 1
             record_type = str(record.get("type", "unknown"))
             payload = record.get("payload")
@@ -329,12 +342,18 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                     topic = _topic_key(message_text)
                     if topic:
                         repeat_key = topic + "\0" + hashlib.sha256(message_text.encode("utf-8")).hexdigest()
-                        repeated[repeat_key] = repeated.get(repeat_key, 0) + 1
-                        item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeated[repeat_key] > 1 else _timeline_state(message_text), "event_index": event_index, "summary": message_text, "source": source, "repeat_count": repeated[repeat_key]}
-                        if topic in latest_by_topic:
-                            item["supersedes_event_index"] = latest_by_topic[topic]
-                        latest_by_topic[topic] = event_index
-                        keep(timeline, item)
+                        if repeat_key not in repeated and len(repeated) >= MAX_REPEAT_KEYS:
+                            repeat_overflow += 1
+                        else:
+                            repeated[repeat_key] = repeated.get(repeat_key, 0) + 1
+                        if topic not in latest_by_topic and len(latest_by_topic) >= MAX_TRACKED_TOPICS:
+                            topic_overflow += 1
+                        else:
+                            item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeated.get(repeat_key, 1) > 1 else _timeline_state(message_text), "event_index": event_index, "summary": message_text, "source": source, "repeat_count": repeated.get(repeat_key, 1)}
+                            if topic in latest_by_topic:
+                                item["supersedes_event_index"] = latest_by_topic[topic]
+                            latest_by_topic[topic] = event_index
+                            keep(timeline, item)
                 continue
             if record_type != "response_item" or not isinstance(payload, dict):
                 count(unknown, record_type)
@@ -388,6 +407,8 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
         "source_bytes_at_capture": capture_size, "capture_end": capture_end, "record_count": record_count,
         "event_count": event_index, "excluded": excluded, "unknown": unknown, "omissions": omissions,
         "unknown_spans": unknown_spans,
+        "topic_overflow": topic_overflow,
+        "repeat_overflow": repeat_overflow,
         "incomplete_tool_calls": sorted(set(tool_calls) ^ set(tool_results))[:32],
     }
     return {
