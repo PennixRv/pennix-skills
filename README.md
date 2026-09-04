@@ -6,6 +6,10 @@
 对应测试。`skills/fast-context` 是独立 `fast-context-skill` 组件的 Git submodule：该组件
 继续拥有 CLI、测试和 npm 发布，本仓库只固定其在私有 Skills 组合中的版本。
 
+`codex-hook-registration` 只负责将经过审查的用户级 Hook 片段合并到
+`${CODEX_HOME:-$HOME/.codex}/hooks.json`，并提供显式的 `config.toml` 内联 Hook 迁移预览/应用。
+它不管理 Trellis 项目 Hook、插件 Hook 或 Codex 的 `[hooks.state]` 信任状态。
+
 首次引导可使用 Codex 官方 `skill-installer` 安装不依赖子模块的安装 Skill：
 
 ```bash
