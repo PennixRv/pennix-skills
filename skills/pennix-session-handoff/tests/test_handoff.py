@@ -50,6 +50,7 @@ class HandoffTests(unittest.TestCase):
         records = [
             {"type": "event_msg", "timestamp": "2026-09-04T01:00:00Z", "payload": {"type": "user_message", "message": "审查 `pennix-session-handoff`，不要复制 rollout。"}},
             {"type": "response_item", "timestamp": "2026-09-04T01:00:01Z", "payload": {"type": "reasoning", "encrypted_content": "must not enter handoff"}},
+            {"type": "compacted", "timestamp": "2026-09-04T01:00:01Z", "payload": {"type": "compacted", "replacement_history": ["must not be expanded"]}},
             {"type": "event_msg", "timestamp": "2026-09-04T01:00:02Z", "payload": {"type": "agent_message", "message": "已完成本地核验，下一步运行测试。"}},
             {"type": "response_item", "timestamp": "2026-09-04T01:00:03Z", "payload": {"type": "function_call", "name": "shell", "call_id": "call-1", "arguments": "hidden"}},
             {"type": "response_item", "timestamp": "2026-09-04T01:00:04Z", "payload": {"type": "function_call_output", "call_id": "call-1", "output": "passed"}},
@@ -124,6 +125,8 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual([item["state"] for item in payload["conversation"]["timeline"]], ["corrected", "accepted"])
         self.assertEqual(payload["conversation"]["timeline"][1]["supersedes_event_index"], 1)
         self.assertEqual(payload["conversation"]["coverage"]["omissions"][0]["kind"], "nul_padding_record")
+        self.assertEqual(payload["conversation"]["coverage"]["excluded"]["compacted"], 1)
+        self.assertEqual(len(payload["conversation"]["coverage"]["compacted_spans"]), 1)
         self.assertNotIn("must not enter handoff", json.dumps(payload, ensure_ascii=False))
         self.assertNotIn("th-abcdefghijklmnopqrstuvwx", json.dumps(payload, ensure_ascii=False))
         validated = self.run_cli(root, "validate", "--handoff", relative)

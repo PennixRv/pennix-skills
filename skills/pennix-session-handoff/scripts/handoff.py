@@ -281,6 +281,7 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
         unknown: Dict[str, int] = {}
         unknown_spans: list[Dict[str, Any]] = []
         omissions: list[Dict[str, Any]] = []
+        compacted_spans: list[Dict[str, Any]] = []
         topic_overflow = 0
         repeat_overflow = 0
 
@@ -334,6 +335,18 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             source = {"line": line_number, "byte_start": byte_start, "byte_end": offset, "record_type": record_type, "record_sha256": "sha256:" + hashlib.sha256(raw_line).hexdigest()}
             if isinstance(record.get("timestamp"), str):
                 source["timestamp"] = _short_text(record["timestamp"], 128)
+            payload_type = payload.get("type") if isinstance(payload, dict) else None
+            if record_type == "compacted" or payload_type == "compacted":
+                count(excluded, "compacted")
+                if len(compacted_spans) < MAX_UNKNOWN_SPANS:
+                    compacted_spans.append({
+                        "line": line_number,
+                        "byte_start": byte_start,
+                        "byte_end": offset,
+                        "bytes": len(raw_line),
+                        "record_sha256": source["record_sha256"],
+                    })
+                continue
             role, message_text = _event_message(record_type, payload)
             if role and message_text:
                 event_index += 1
@@ -407,6 +420,7 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
         "source_bytes_at_capture": capture_size, "capture_end": capture_end, "record_count": record_count,
         "event_count": event_index, "excluded": excluded, "unknown": unknown, "omissions": omissions,
         "unknown_spans": unknown_spans,
+        "compacted_spans": compacted_spans,
         "topic_overflow": topic_overflow,
         "repeat_overflow": repeat_overflow,
         "incomplete_tool_calls": sorted(set(tool_calls) ^ set(tool_results))[:32],
