@@ -1,0 +1,3 @@
+{"file": "skills/tavily-hikari/SKILL.md", "reason": "Defines the source-specific availability and fallback contract."}
+{"file": "skills/pennix-workflow-routing/SKILL.md", "reason": "Defines the cross-component route that must remain consistent."}
+{"file": ".trellis/config.yaml", "reason": "Pins this task's execution to the inline Codex mode."}

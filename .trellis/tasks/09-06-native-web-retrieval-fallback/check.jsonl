@@ -1,0 +1,3 @@
+{"file": "skills/tavily-hikari/SKILL.md", "reason": "Verify the Hikari-first and one-fallback behavior."}
+{"file": "skills/pennix-workflow-routing/SKILL.md", "reason": "Verify routing has no conflicting substitute-provider rule."}
+{"file": ".trellis/config.yaml", "reason": "Verify Codex dispatch remains explicit and inline."}
