@@ -27,7 +27,7 @@ example `$HOME/.agents/skills/pennix-skills`:
 
 ```bash
 PENNIX_SKILLS_ROOT="${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}"
-python3 "$PENNIX_SKILLS_ROOT/pennix-skills-install/scripts/install.py" \
+python3 "/path/to/pennix-skills/skills/pennix-skills-install/scripts/install.py" \
   --source "/path/to/pennix-skills" \
   --dest "$PENNIX_SKILLS_ROOT"
 ```
