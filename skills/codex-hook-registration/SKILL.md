@@ -47,14 +47,14 @@ The fragment must use the native Codex shape, for example:
 Validate without changing the host:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/codex-hook-registration/scripts/register.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/codex-hook-registration/scripts/register.py" \
   validate --fragment "/path/to/reviewed-hooks.json"
 ```
 
 Merge idempotently into the user-level file:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/codex-hook-registration/scripts/register.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/codex-hook-registration/scripts/register.py" \
   merge --fragment "/path/to/reviewed-hooks.json"
 ```
 
@@ -69,7 +69,7 @@ If a component already added `[[hooks.<event>]]` tables to the user
 `config.toml`, preview the migration first:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/codex-hook-registration/scripts/register.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/codex-hook-registration/scripts/register.py" \
   migrate
 ```
 
@@ -78,7 +78,7 @@ all other TOML sections remain untouched. After reviewing the preview, apply
 the migration explicitly:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/codex-hook-registration/scripts/register.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/codex-hook-registration/scripts/register.py" \
   migrate --apply
 ```
 

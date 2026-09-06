@@ -51,7 +51,7 @@ of silently overwriting history.
 Run:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/pennix-session-handoff/scripts/handoff.py" --project-root . \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" --project-root . \
   write --request <request.json> --explicit-user-request
 ```
 
@@ -70,7 +70,7 @@ not upload rollout content or call external models.
 To inspect one package later without writing, use the exact emitted path:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/pennix-session-handoff/scripts/handoff.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" \
   --project-root . validate --handoff .trellis/session-handoffs/<handoff-id>/session-handoff.json
 ```
 
@@ -87,7 +87,7 @@ When the user also asks for the new-session entry prompt, render it only after
 that exact `validate` reports `ready`:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/pennix-session-handoff/scripts/render_handoff_prompt.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/render_handoff_prompt.py" \
   --project-root <absolute-project-root> \
   --handoff .trellis/session-handoffs/<handoff-id>/session-handoff.json
 ```

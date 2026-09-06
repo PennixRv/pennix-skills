@@ -9,11 +9,18 @@ import os
 import sys
 from pathlib import Path
 
-def _contract_path() -> Path:
+def _installed_collection_root() -> Path:
+    configured = os.environ.get("PENNIX_SKILLS_ROOT")
+    if configured:
+        return Path(configured).expanduser()
     codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
+    return codex_home / "skills" / "pennix-skills"
+
+
+def _contract_path() -> Path:
     candidates = (
         Path(__file__).resolve().parents[2] / "evidence-report/scripts",
-        codex_home / "skills/pennix-skills/evidence-report/scripts",
+        _installed_collection_root() / "evidence-report/scripts",
     )
     for candidate in candidates:
         if (candidate / "workflow_contracts.py").is_file():

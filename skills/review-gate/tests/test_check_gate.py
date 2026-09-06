@@ -4,15 +4,22 @@
 from __future__ import annotations
 
 import json
+import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SKILL = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL / "scripts/check_gate.py"
+MODULE_SPEC = importlib.util.spec_from_file_location("review_gate_check_gate", SCRIPT)
+MODULE = importlib.util.module_from_spec(MODULE_SPEC)
+assert MODULE_SPEC.loader is not None
+MODULE_SPEC.loader.exec_module(MODULE)
 
 
 def report(*, result_id: str, instance: str, lens: str, evidence_id: str) -> dict[str, object]:
@@ -41,6 +48,17 @@ def report(*, result_id: str, instance: str, lens: str, evidence_id: str) -> dic
 
 
 class CheckGateTests(unittest.TestCase):
+    def test_collection_root_accepts_explicit_host_path(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"PENNIX_SKILLS_ROOT": "/tmp/host/.agents/skills/pennix-skills"},
+            clear=False,
+        ):
+            self.assertEqual(
+                MODULE._installed_collection_root(),
+                Path("/tmp/host/.agents/skills/pennix-skills"),
+            )
+
     def run_gate(self, primary: Path, counter: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, "-B", str(SCRIPT), "--primary", str(primary), "--counter", str(counter), "--risk", "major"],

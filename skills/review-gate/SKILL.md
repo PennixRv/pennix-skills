@@ -9,7 +9,7 @@ Skills from the same `pennix-skills` revision before using this gate.
 For a required second view, run:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/review-gate/scripts/check_gate.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/review-gate/scripts/check_gate.py" \
   --primary <primary-report.json> --counter <counter-report.json> --risk major
 ```
 

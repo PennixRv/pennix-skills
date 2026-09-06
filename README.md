@@ -10,7 +10,9 @@
 `${CODEX_HOME:-$HOME/.codex}/hooks.json`，并提供显式的 `config.toml` 内联 Hook 迁移预览/应用。
 它不管理 Trellis 项目 Hook、插件 Hook 或 Codex 的 `[hooks.state]` 信任状态。
 
-首次引导可使用 Codex 官方 `skill-installer` 安装不依赖子模块的安装 Skill：
+首次引导可使用 Codex 官方 `skill-installer` 安装不依赖子模块的安装 Skill。下面的
+`--dest` 是当前宿主的默认发现位置；如果宿主使用其他用户级 Skill 发现根，可以显式
+选择一个以 `skills/pennix-skills` 结尾的目标，例如 `.agents/skills/pennix-skills`：
 
 ```bash
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
@@ -25,8 +27,18 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/pennix-skills-install/
   --source "/path/to/pennix-skills"
 ```
 
+显式选择其他发现根时，将集合根保存到 `PENNIX_SKILLS_ROOT`，再传给 `--dest`：
+
+```bash
+PENNIX_SKILLS_ROOT="${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}"
+python3 "/path/to/pennix-skills/skills/pennix-skills-install/scripts/install.py" \
+  --source "/path/to/pennix-skills" \
+  --dest "$PENNIX_SKILLS_ROOT"
+```
+
 该命令只在显式安装请求时运行。它初始化 checkout 已固定的 submodule，并将每个直接
-`skills/<name>/` 物化到 `${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/<name>/`。它不新建
+`skills/<name>/` 物化到所选集合根下的 `<name>/`；未传 `--dest` 时使用
+`${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/`。它不新建
 源码 checkout、不切换分支、不选择版本，也不更新已固定的组件版本；若本地缺少对象，初始化
 submodule 只会取得当前 Gitlink 固定的提交。安装副本不是源码编辑位置，也不生成第二份版本或
 状态事实。

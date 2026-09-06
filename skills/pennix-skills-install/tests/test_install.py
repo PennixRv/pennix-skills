@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -60,6 +61,23 @@ class InstallSkillsTest(unittest.TestCase):
     def test_destination_must_be_collection_root(self):
         with self.assertRaises(MODULE.InstallError):
             MODULE.resolve_destination("/tmp/not-a-pennix-install")
+
+    def test_destination_accepts_host_selected_agents_skills_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            alpha = self.make_skill(source, "alpha")
+            destination = root / ".agents" / "skills" / "pennix-skills"
+
+            self.assertEqual(MODULE.resolve_destination(str(destination)), destination)
+            MODULE.install_skills([("alpha", alpha)], destination)
+
+            self.assertTrue((destination / "alpha" / "SKILL.md").is_file())
+
+    def test_default_destination_remains_codex_home_relative(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict(os.environ, {"CODEX_HOME": temporary}, clear=False):
+                self.assertEqual(MODULE.default_destination(), Path(temporary) / "skills" / "pennix-skills")
 
     def test_install_rejects_symbolic_links(self):
         with tempfile.TemporaryDirectory() as temporary:

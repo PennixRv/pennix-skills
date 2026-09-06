@@ -177,7 +177,14 @@ def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, help="Path to the pennix-skills checkout")
-    parser.add_argument("--dest", help="Codex discovery destination (defaults to $CODEX_HOME/skills/pennix-skills)")
+    parser.add_argument(
+        "--dest",
+        help=(
+            "selected host Skill discovery destination; must be a "
+            "pennix-skills directory under a skills directory "
+            "(defaults to $CODEX_HOME/skills/pennix-skills)"
+        ),
+    )
     parser.add_argument("--check", action="store_true", help="Validate source and submodules without installing")
     return parser.parse_args(argv)
 

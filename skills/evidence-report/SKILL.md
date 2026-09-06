@@ -11,14 +11,14 @@ facts. The coordinator captures that one wrapper after the send event's `seq`:
 
 ```bash
 trellis channel messages <channel> --raw > <events.jsonl>
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/evidence-report/scripts/extract_channel_report.py" \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/evidence-report/scripts/extract_channel_report.py" \
   --events <events.jsonl> --worker <worker> --after-seq <send-seq> --output <report.json>
 ```
 
 Then use the executable validator:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/evidence-report/scripts/validate_report.py" <report.json> \
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/evidence-report/scripts/validate_report.py" <report.json> \
   --task <task-id> --batch <batch-id> --instance <instance-id> --role <role-id> \
   --lens <assigned-lens> --evidence-method <assigned-evidence-method>
 ```
