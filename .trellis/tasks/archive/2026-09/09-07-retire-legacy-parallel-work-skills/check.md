@@ -14,5 +14,7 @@
 
 ## 发布后验收
 
-- 待本提交推送后，使用显式安装器重装到当前用户选择的 Skills collection root，并确认安装副本和项目
-  路由不再发现旧协议。
+- 提交 `0f334cd` 已推送至 `PennixRv/pennix-skills` 的 `main`。
+- 已通过显式安装器将该 revision 原子重装到
+  `/home/penn/.codex/skills/pennix-skills`；安装副本只包含 9 个保留 Skill，确认不含
+  `parallel-work`、`evidence-report` 或 `review-gate`。
