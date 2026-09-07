@@ -20,7 +20,9 @@ INSTALLABLE_ENTRIES = {
     "LICENSE",
     "NOTICE",
     "README.md",
+    "UPSTREAM.md",
     "package.json",
+    "package-lock.json",
     "agents",
     "assets",
     "references",
@@ -150,6 +152,28 @@ def copy_skill(source: Path, destination: Path) -> None:
             shutil.copy2(source_entry, target_entry)
 
 
+def install_grok_search_dependency(stage: Path) -> None:
+    package = stage / "grok-search"
+    if not package.is_dir():
+        return
+
+    try:
+        result = subprocess.run(
+            ["npm", "ci", "--omit=dev", "--ignore-scripts"],
+            cwd=package,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError as error:
+        raise InstallError("grok-search requires npm on the target host") from error
+
+    if result.returncode:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown npm error"
+        raise InstallError(f"Unable to install grok-search dependencies: {detail}")
+
+
 def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix=".pennix-skills-stage-", dir=destination.parent))
@@ -157,6 +181,7 @@ def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
     try:
         for skill_name, skill_source in skills:
             copy_skill(skill_source, stage / skill_name)
+        install_grok_search_dependency(stage)
 
         if destination.exists():
             backup = destination.parent / f".pennix-skills-backup-{uuid.uuid4().hex}"

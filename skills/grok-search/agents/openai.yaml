@@ -1,0 +1,3 @@
+interface:
+  display_name: "Grok Search"
+  short_description: "Grok-first web retrieval with self-hosted Tavily support"

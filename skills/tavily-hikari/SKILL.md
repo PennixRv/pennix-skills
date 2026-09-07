@@ -1,16 +1,20 @@
 ---
 name: tavily-hikari
-description: Use the Hikari-backed tvly-hikari CLI for current web search, URL extraction, bounded site mapping or crawling, and multi-source research; 在需要互联网检索或网页内容时使用。 Do not use for local repository lookup, Fast Context semantic code candidates, or a route that requires a specific official source or tool.
+description: Use the self-hosted Hikari-backed tvly-hikari CLI for Tavily-specific search, URL extraction, bounded mapping/crawling, or the one direct fallback after Grok Search is unavailable. Do not use for local repository lookup, ordinary Grok-first retrieval, or a route that requires a specific official source or tool.
 metadata:
   short-description: Hikari-backed Tavily web retrieval
 ---
 
 # Tavily Hikari
 
-Use the configured `tvly-hikari` CLI for current external information. It routes official Tavily CLI
-operations through the user's Hikari endpoint and returns structured results. Prefer it over generic web
-search for ordinary online retrieval, while preserving any system, user, or task requirement to use a
-specific official source or tool.
+Use the configured `tvly-hikari` CLI only for Tavily-specific operations or a
+confirmed single fallback from `grok-search`. It routes official Tavily CLI
+operations through the user's self-hosted Hikari endpoint and returns
+structured results. Ordinary online retrieval starts with `grok-search`.
+
+The configured endpoint must be the user's self-hosted Hikari deployment.
+Until that configuration exists, treat this route as unavailable; do not use a
+pre-existing public Hikari endpoint.
 
 ## Boundary
 
@@ -19,10 +23,9 @@ specific official source or tool.
 - Hikari access tokens begin with `th-`; they are not Tavily API keys. Never request, print, copy, commit,
   or reconfigure a token. Do not read the Hikari config file. `tvly-hikari config show` is permitted only
   for a user-requested, masked diagnostic.
-- This Skill does not install or upgrade `tvly`, configure Hikari, enable MCP, add Hooks, or start another
-  external provider. Its only fallback is the current session's native Codex web retrieval, under the bounded
-  conditions below. If `tvly-hikari doctor` reports an unavailable prerequisite, keep the diagnostic masked and
-  use that fallback once when it is available.
+- This Skill does not install or upgrade `tvly`, configure Hikari, enable MCP,
+  add Hooks, or start another external provider. It does not fall back to
+  public Hikari, Firecrawl, or Codex native web retrieval.
 - Hikari is a third-party service. Search queries, target URLs, and the configured access token are sent
   to its endpoint. Keep queries and targets relevant to the user's request; do not submit secrets, local
   paths, private documents, or unrelated personal data. Do not set `--client-name` automatically: it can
@@ -47,22 +50,16 @@ specific official source or tool.
 Read [the operation reference](references/operations.md) before using map, crawl, or research, and whenever
 the basic search/extract command needs option selection, saved output, or failure handling.
 
-## Single Fallback
+## Failure Boundary
 
-- Use Hikari first for ordinary external retrieval. A correctly formed operation that returns an upstream or
-  network error, quota response, timeout, unavailable prerequisite, command failure caused by the source, or
-  malformed response makes Hikari unavailable for that request.
-- Correct a local invocation or usage error first. An unsupported option, missing required argument, or malformed
-  local command does not by itself authorize fallback.
-- After one confirmed availability failure, use the current session's native Codex web retrieval exactly once for
-  the same bounded request. Preserve explicit source, freshness, privacy, and scope constraints, and state that
-  the route changed without reproducing sensitive diagnostics. Do not retry Hikari, run both paths in parallel,
-  alter Hikari configuration, or select a third provider.
-- Native retrieval substitutes only for bounded search and known-page reading. For map, crawl, or research, reduce
-  the fallback to the smallest necessary sequence of bounded search and page reads; do not claim equivalent
-  Hikari-specific semantics.
-- A system, user, or task instruction requiring a specific retrieval tool or source overrides this default. If the
-  native tool is unavailable too, report the retrieval gap and stop.
+- A correctly formed operation that returns an upstream/network error, quota
+  response, timeout, unavailable prerequisite, source-caused command failure,
+  or malformed response is unavailable for that request.
+- Correct an unsupported option, missing argument, or malformed local command
+  first. It does not authorize a provider change.
+- Do not retry, parallel-run, alter Hikari configuration, or select another
+  provider. Report the bounded retrieval gap. A system, user, or task
+  instruction requiring a specific source/tool remains higher priority.
 
 ## Execution And Evidence
 
@@ -76,5 +73,6 @@ the basic search/extract command needs option selection, saved output, or failur
   context, scope, and material uncertainty in any conclusion. In an initialized Trellis project, use its
   bundled `trellis-research-record` for verified task-relevant findings; raw result dumps and token-bearing
   configuration never enter task artifacts.
-- Treat an availability failure as an operational diagnostic, not a factual result. Apply the Single Fallback
-  policy instead of retrying in a loop, changing configuration, or silently rotating providers.
+- Treat an availability failure as an operational diagnostic, not a factual
+  result. Do not hide it with retries, configuration changes, or provider
+  rotation.
