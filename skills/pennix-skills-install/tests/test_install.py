@@ -44,7 +44,8 @@ class InstallSkillsTest(unittest.TestCase):
     def test_source_collection_excludes_retired_parallel_protocol_skills(self):
         names = {name for name, _ in MODULE.discover_skills(SOURCE_ROOT)}
 
-        self.assertTrue({"pennix-workflow-routing", "trellis-research-record"}.issubset(names))
+        self.assertTrue({"pennix-trellis-setup", "pennix-workflow-routing"}.issubset(names))
+        self.assertNotIn("trellis-research-record", names)
         self.assertFalse({"parallel-work", "evidence-report", "review-gate"} & names)
 
     def test_install_copies_runtime_assets_and_replaces_managed_root(self):

@@ -73,8 +73,8 @@ the basic search/extract command needs option selection, saved output, or failur
   reusable artifact or an approved task path requires it; do not write retrieval output into a project by
   default.
 - Treat search, extract, map, crawl, and research output as external evidence. Preserve source URLs, date
-  context, scope, and material uncertainty in any conclusion. For task-relevant research, record verified
-  findings through `trellis-research-record`; raw result dumps and token-bearing configuration never enter
-  task artifacts.
+  context, scope, and material uncertainty in any conclusion. In an initialized Trellis project, use its
+  bundled `trellis-research-record` for verified task-relevant findings; raw result dumps and token-bearing
+  configuration never enter task artifacts.
 - Treat an availability failure as an operational diagnostic, not a factual result. Apply the Single Fallback
   policy instead of retrying in a loop, changing configuration, or silently rotating providers.
