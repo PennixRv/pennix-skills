@@ -1,3 +1,0 @@
-interface:
-  display_name: "Evidence Report"
-  short_description: "Validate bounded candidate evidence reports"

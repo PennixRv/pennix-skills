@@ -7,6 +7,7 @@ from unittest import mock
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "install.py"
+SOURCE_ROOT = Path(__file__).parents[3]
 SPEC = importlib.util.spec_from_file_location("pennix_skills_install", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -39,6 +40,12 @@ class InstallSkillsTest(unittest.TestCase):
             )
             with self.assertRaises(MODULE.InstallError):
                 MODULE.discover_skills(root)
+
+    def test_source_collection_excludes_retired_parallel_protocol_skills(self):
+        names = {name for name, _ in MODULE.discover_skills(SOURCE_ROOT)}
+
+        self.assertTrue({"pennix-workflow-routing", "trellis-research-record"}.issubset(names))
+        self.assertFalse({"parallel-work", "evidence-report", "review-gate"} & names)
 
     def test_install_copies_runtime_assets_and_replaces_managed_root(self):
         with tempfile.TemporaryDirectory() as temporary:

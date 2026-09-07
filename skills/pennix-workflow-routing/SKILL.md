@@ -44,8 +44,8 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 - `OpenViking` 只承接用户明确要求的外部持久知识；它不是 Trellis 任务事实、当前项目文件或普通会话记忆的替代品。
 - CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置使用 `codegraph-project-setup`，不因普通检索自动初始化，
   linked Git worktree 不使用 CodeGraph。
-- `parallel-work` 只为确有独立证据价值的工作准备有界 Trellis 候选请求；`evidence-report` 校验候选报告，`review-gate`
-  校验重大候选的独立复核。主会话保留项目事实、验收和 Git，工作节点不实施、不改权威资产、不控制生命周期、不再次派发。
+- 确有独立证据价值的工作遵循当前项目选择的 Trellis `subnode` procedure。Trellis 维护其 brief、持久化报告和
+  Channel 生命周期；主会话保留项目事实、验收和 Git，不把该合同复制为用户级 Skill。
 - `trellis-research-record` 将核验后的研究事实、候选、不确定项和下一动作写入当前 task；它不是第二套事实台账。
 - `pennix-session-handoff` 只处理用户明确要求的正式交接；`pennix-skills-install` 只处理用户明确要求的组合安装/更新；
   `codex-hook-registration` 只处理审查后的用户级 Hook 片段。不要从普通路由请求推导这些高影响动作的授权。
