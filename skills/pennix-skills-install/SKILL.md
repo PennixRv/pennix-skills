@@ -11,14 +11,16 @@ Install the complete private Skill collection from a known local
 `pennix-skills` checkout. This is an explicit deployment action, not an
 ordinary-session setup step.
 
-Run the installed helper with the exact source checkout. The default collection
-root is `${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/`; callers may set
+Run the helper from the exact source checkout, so an older installed copy never
+limits a collection upgrade. The default collection root is
+`${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/`; callers may set
 `PENNIX_SKILLS_ROOT` to another host-selected collection root:
 
 ```bash
 PENNIX_SKILLS_ROOT="${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}"
-python3 "$PENNIX_SKILLS_ROOT/pennix-skills-install/scripts/install.py" \
-  --source "/path/to/pennix-skills"
+python3 "/path/to/pennix-skills/skills/pennix-skills-install/scripts/install.py" \
+  --source "/path/to/pennix-skills" \
+  --dest "$PENNIX_SKILLS_ROOT"
 ```
 
 The default is only a default, not the only supported discovery root. When the
