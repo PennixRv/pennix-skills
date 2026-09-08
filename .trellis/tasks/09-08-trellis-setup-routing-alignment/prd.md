@@ -21,12 +21,12 @@ Pin the released Pennix Trellis workflow version and keep workflow component com
 
 ## Acceptance Criteria
 
-- [ ] Setup examples/defaults resolve `codex-subnode-channel` from `v0.6.24`.
-- [ ] The routing Skill draws the direct-component boundary without an
+- [x] Setup examples/defaults resolve `codex-subnode-channel` from `v0.6.24`.
+- [x] The routing Skill draws the direct-component boundary without an
   unnecessary per-tool blacklist or new coordination mechanism.
-- [ ] Existing focused validation passes and the pushed collection installs
+- [x] Existing focused validation passes and the pushed collection installs
   atomically through its current installer.
-- [ ] Setup and routing remain normally implicitly discoverable without an
+- [x] Setup and routing remain normally implicitly discoverable without an
   added dispatcher, while high-impact Skills retain their explicit boundaries.
 
 ## Constraints
@@ -34,3 +34,15 @@ Pin the released Pennix Trellis workflow version and keep workflow component com
 - Do not add a user-level RecoveryBrief coordinator, alter the handoff schema,
   access context-mode storage, or take responsibility for Trellis workflow
   lifecycle.
+
+## Verification
+
+- `python3 /home/penn/.codex/skills/.system/skill-creator/scripts/quick_validate.py`
+  passed for both changed Skills.
+- The collection's native installer `--check` validated all 10 Skills from
+  this source checkout.
+- Fresh `trellis init --codex --yes --workflow codex-subnode-channel
+  --workflow-source gh:PennixRv/marketplace#v0.6.24` created the managed
+  project assets, including the bundled research-record Skill, without a
+  `.new` workflow file. Existing-project workflow selection remains subject to
+  Trellis's native local-edit protection.
