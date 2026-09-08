@@ -1,6 +1,6 @@
 ---
 name: pennix-trellis-setup
-description: Initialize, refresh, or select a Trellis workflow for a Codex project through the native Trellis CLI. Use when the user asks to set up Trellis or a custom Trellis workflow in the current project; do not use to modify Trellis source or project-specific workflow rules.
+description: Initialize, refresh, or select the default Pennix Trellis workflow for a Codex project through the native Trellis CLI. Use when the user asks to set up, initialize, refresh, or select Trellis, the Pennix workflow, or a custom/parallel project workflow; do not use to modify Trellis source or project-specific workflow rules.
 ---
 
 # Pennix Trellis Setup
@@ -15,7 +15,7 @@ task schemas, Channel rules, or workflow lifecycle.
    ```bash
    trellis init --codex --yes \
      --workflow codex-subnode-channel \
-     --workflow-source gh:PennixRv/marketplace#v0.6.23
+     --workflow-source gh:PennixRv/marketplace#v0.6.24
    ```
 
    Pass an explicit alternative selection through the same native command instead of combining it with the Pennix default.

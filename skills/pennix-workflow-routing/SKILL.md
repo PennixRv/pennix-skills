@@ -1,6 +1,6 @@
 ---
 name: pennix-workflow-routing
-description: "Route cross-component Pennix workflow requests by ownership and call semantics across Trellis, context-mode, CodeGraph, Fast Context, web retrieval, Skills, Hook/config, and native tools. Use when a task spans these components or the correct route is unclear; do not use for ordinary single-tool work."
+description: "Route cross-component Pennix workflow requests by ownership and call semantics across Trellis, context-mode, CodeGraph, Fast Context, web retrieval, Skills, Hook/config, and native tools. Use when a task spans or may span these components, or the correct route is unclear; do not use for ordinary single-tool work."
 ---
 
 # Pennix 工作流路由
