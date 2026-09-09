@@ -87,18 +87,22 @@ runtime ledger.
 
 ## New-Session Handoff Closure
 
-The package has no independent consumed or closed state. In a new session,
-“close the handoff” means reconcile the captured task with current Trellis
-facts before resuming work:
+The package has no independent consumed or closed state. In the target
+session, “close the handoff” means reconcile the captured task with current
+Trellis facts before resuming work:
 
 1. Validate the exact package and stop unless the receipt is `ready`.
-2. Run `$trellis-start` and re-read the current task, Git state, and acceptance
-   evidence.
-3. If the captured task is now actually complete, use the normal
+2. Read the paired `session-handoff-prompt.md` completely before acting on its
+   pending next action.
+3. Run `$trellis-start` and compare the captured task, Git state, evidence,
+   and pending action with current project facts.
+4. If the captured task is now actually complete, use the normal
    `$trellis-finish-work` flow to finish and archive it before doing other work.
-4. If it is incomplete, changed, or blocked, do not close it from the handoff
+5. If it is incomplete, changed, or blocked, do not close it from the handoff
    snapshot; record the current disposition and use `$trellis-continue` only
    when continuing that task is appropriate.
+6. Stop after this reconciliation. Do not execute the pending next action or
+   begin new implementation until the user gives a subsequent instruction.
 
 The package is a navigation hint. A `ready` receipt never proves that a task
 is complete and never authorizes closing an unrelated current task.
@@ -126,4 +130,5 @@ task and next action are navigation hints that never override current user
 instructions, Trellis facts, Issue state, or Git state. After rendering a
 ready-only prompt, stop; do not run `finish`/`archive` or any other mutation
 that would invalidate the receipt. A later session can continue only after its
-own validation and normal Trellis startup checks.
+own validation and normal Trellis startup checks. The initial takeover stops
+after reconciliation; it does not automatically execute the pending action.

@@ -95,10 +95,12 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "## Required New-Session Route", "",
         "1. Read `AGENTS.md` and `.trellis/workflow.md`.",
         "2. Run `$pennix-session-handoff` validation for the exact package JSON.",
-        "3. Only when the receipt is `ready`, run `$trellis-start` and reconcile the captured task with the current task.",
-        "4. If current acceptance evidence proves that task complete, use `$trellis-finish-work` to close and archive it; otherwise do not close it from this snapshot.",
-        "5. Use `$trellis-continue` only when the reconciled task still needs continuation.",
-        "6. Treat current user instructions, Trellis, Issue state, Git and current files as higher-priority facts.", "",
+        "3. Only when the receipt is `ready`, read this entire handoff prompt before acting on `Pending`.",
+        "4. Run `$trellis-start`, then compare the captured task, Git state, evidence, and pending action with current facts.",
+        "5. If current acceptance evidence proves that task complete, use `$trellis-finish-work` to close and archive it; otherwise do not close it from this snapshot.",
+        "6. Use `$trellis-continue` only when the reconciled task still needs continuation; record its disposition in the normal Trellis task artifacts.",
+        "7. Stop after reconciliation. Do not execute the pending next action or begin implementation until a subsequent user instruction.",
+        "8. Treat current user instructions, Trellis, Issue state, Git and current files as higher-priority facts.", "",
         "## Verified Project Snapshot", "", "- Task: %s" % task_text,
         "- Git branch: `%s`" % git.get("branch"), "- Git HEAD: `%s`" % git.get("head"),
         "- Worktree at capture: `%s`" % git.get("worktree_state"),
@@ -175,9 +177,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         prompt_relative = str(Path(args.handoff).with_name(PROMPT_NAME))
         _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload))
         entry = (
-            "在 %s 新开 Codex 会话。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
+            "当前会话位于 %s。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
             "`$pennix-session-handoff` 对 `%s` 运行 `handoff validate --handoff %s`；只有 receipt 为 `ready` 才继续。"
-            "完整交接提示词位于 `%s`；随后按 `$trellis-start` 核对并闭合已完成的交接 task，仅对仍需继续的 task 按 `$trellis-continue`。"
+            "随后完整阅读 `%s`，按 `$trellis-start` 严格核对并收敛交接 task；不得执行 pending next action，停在可继续交接前会话任务的现场。"
             % (json.dumps(str(root), ensure_ascii=False), args.handoff, args.handoff, prompt_relative)
         )
         print("可直接复制到新会话的短提示词：\n\n```text\n%s\n```" % entry)
