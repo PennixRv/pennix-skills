@@ -114,7 +114,11 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 
 The renderer atomically creates the paired
 `session-handoff-prompt.md` in the same timestamp directory. Standard output
-contains only the short new-session entry index, not the complete handoff.
+contains only a labeled, fenced short new-session entry prompt, not the
+complete handoff. After a complete `write -> validate=ready -> render`, return
+that standard output unchanged as the final delivery, so the user can copy the
+`text` block directly into a new Codex session. Do not append a summary,
+validation narration, or further command after that block.
 The complete prompt directs the new session to validate again, then use the
 normal `$trellis-start` flow, reconcile the captured task, and only then use
 `$trellis-finish-work` or `$trellis-continue` according to current facts. Its

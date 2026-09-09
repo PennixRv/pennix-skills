@@ -174,12 +174,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = _payload(root, args.handoff)
         prompt_relative = str(Path(args.handoff).with_name(PROMPT_NAME))
         _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload))
-        print(
+        entry = (
             "在 %s 新开 Codex 会话。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
             "`$pennix-session-handoff` 对 `%s` 运行 `handoff validate --handoff %s`；只有 receipt 为 `ready` 才继续。"
             "完整交接提示词位于 `%s`；随后按 `$trellis-start` 核对并闭合已完成的交接 task，仅对仍需继续的 task 按 `$trellis-continue`。"
             % (json.dumps(str(root), ensure_ascii=False), args.handoff, args.handoff, prompt_relative)
         )
+        print("可直接复制到新会话的短提示词：\n\n```text\n%s\n```" % entry)
         return 0
     except (OSError, PromptError) as exc:
         print("pennix-session-handoff: %s" % exc, file=sys.stderr)

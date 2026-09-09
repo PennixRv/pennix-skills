@@ -47,6 +47,8 @@ class RenderHandoffPromptTests(unittest.TestCase):
         relative = self.write()
         rendered = self.run_cli(RENDER, "--handoff", relative)
         self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        self.assertTrue(rendered.stdout.startswith("可直接复制到新会话的短提示词：\n\n```text\n"))
+        self.assertTrue(rendered.stdout.endswith("\n```\n"))
         self.assertIn("$pennix-session-handoff", rendered.stdout)
         prompt = self.root / Path(relative).with_name("session-handoff-prompt.md")
         self.assertTrue(prompt.is_file())
