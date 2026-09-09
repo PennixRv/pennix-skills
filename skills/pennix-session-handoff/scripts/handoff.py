@@ -28,7 +28,6 @@ SHA256_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 HANDOFF_ID = re.compile(r"^\d{8}T\d{12}Z$")
 MAX_REQUEST_BYTES = 96 * 1024
 MAX_PAYLOAD_BYTES = 512 * 1024
-MAX_ROLLOUT_BYTES = 256 * 1024 * 1024
 MAX_RECORD_BYTES = 8 * 1024 * 1024
 MAX_CANDIDATES = 48
 MAX_TEXT_BYTES = 1200
@@ -266,8 +265,6 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
     session_id = raw["session_id"]
     with path.open("rb") as handle:
         start = os.fstat(handle.fileno())
-        if start.st_size > MAX_ROLLOUT_BYTES:
-            raise ContractError("rollout exceeds %d bytes; create a new bounded session before handoff" % MAX_ROLLOUT_BYTES)
         capture_size = start.st_size
         hasher = hashlib.sha256()
         offset = line_number = record_count = event_index = 0
@@ -437,7 +434,7 @@ def _verify_rollout(descriptor: Dict[str, Any]) -> str:
     try:
         path = _regular_file(Path(_text(descriptor.get("path"), "rollout.path", 4096)), "rollout source")
         capture_end = descriptor.get("capture_end")
-        if not isinstance(capture_end, int) or capture_end < 0 or capture_end > MAX_ROLLOUT_BYTES:
+        if not isinstance(capture_end, int) or capture_end < 0:
             raise ContractError("rollout.capture_end is invalid")
         expected = _digest_text(descriptor.get("prefix_sha256"), "rollout.prefix_sha256")
         current = path.stat()
