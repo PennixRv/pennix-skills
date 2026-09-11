@@ -297,6 +297,57 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(finalized.returncode, 0, finalized.stderr)
         self.assertEqual(json.loads(finalized.stdout)["state"]["source"], "archive_verified")
 
+    def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:
+        root = self.make_git_root(with_task=True)
+        self.addCleanup(shutil.rmtree, root)
+        task_script = root / ".trellis/scripts/task.py"
+        task_script.write_text(
+            "import json, os, sys\n"
+            "args = sys.argv[1:]\n"
+            "target = os.environ.get('TRELLIS_CONTEXT_ID') == 'target'\n"
+            "task = None if target else {'id': 'fixture-task', 'dir': '.trellis/tasks/demo', 'status': 'in_progress'}\n"
+            "if args == ['current', '--json']:\n"
+            "    print(json.dumps({'current_task': task, 'source': 'session:' + ('target' if target else 'source')}))\n"
+            "elif args and args[0] == 'ownership':\n"
+            "    op = args[1]\n"
+            "    with open('.trellis/.runtime/ownership-args.jsonl', 'a', encoding='utf-8') as handle:\n"
+            "        handle.write(json.dumps(args) + '\\n')\n"
+            "    if op == 'status':\n"
+            "        print(json.dumps({'status': 'archived', 'generation': 7, 'record_digest': 'sha256:' + 'a' * 64}))\n"
+            "        raise SystemExit(0)\n"
+            "    generations = {'quiesce': 0, 'seal': 1, 'retire': 3, 'claim': 5, 'consume': 6, 'archive': 7}\n"
+            "    statuses = {'quiesce': 'quiescing', 'seal': 'sealed', 'retire': 'ready', 'claim': 'claimed', 'consume': 'consumed', 'archive': 'archived'}\n"
+            "    print(json.dumps({'status': statuses[op], 'generation': generations.get(op, 5), 'record_digest': 'sha256:' + 'a' * 64}))\n"
+            "else:\n"
+            "    raise SystemExit(2)\n",
+            encoding="utf-8",
+        )
+        rollout = self.make_rollout()
+        request = self.make_request(root, rollout)
+        written = self.run_cli(root, "write", "--request", str(request), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stderr)
+        relative = self.handoff_path_from(written.stdout)
+        before = (root / relative).read_bytes()
+        handoff_id = Path(relative).parts[-2]
+
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative).returncode, 0)
+        self.assertEqual(handoff.ownership_operation(root, "quiesce", relative, explicit=True)["ownership"]["status"], "quiescing")
+        self.assertEqual(handoff.ownership_operation(root, "seal", relative, explicit=True, expected_generation=0)["ownership"]["status"], "sealed")
+        self.assertEqual(handoff.ownership_operation(root, "retire", relative, explicit=True, expected_generation=1)["ownership"]["generation"], 3)
+
+        os.environ["TRELLIS_CONTEXT_ID"] = "target"
+        self.addCleanup(os.environ.pop, "TRELLIS_CONTEXT_ID", None)
+        claimed = handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3)
+        repeated = handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3)
+        self.assertEqual(claimed["ownership"]["status"], "claimed")
+        self.assertEqual(repeated["lifecycle"]["status"], "idempotent")
+        self.assertEqual(handoff.ownership_operation(root, "consume", relative, explicit=True, expected_generation=5)["ownership"]["status"], "consumed")
+        self.assertEqual(handoff.ownership_operation(root, "archive", relative, explicit=True, expected_generation=6)["ownership"]["status"], "archived")
+        self.assertEqual(handoff.ownership_operation(root, "status", relative, explicit=False)["ownership"]["status"], "archived")
+        self.assertEqual((root / relative).read_bytes(), before)
+        events = (root / handoff.LIFECYCLE_RUNTIME / (handoff_id + ".jsonl")).read_text(encoding="utf-8").splitlines()
+        self.assertEqual(sum('"event_type": "ownership_claim"' in line for line in events), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

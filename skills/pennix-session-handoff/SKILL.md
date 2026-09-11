@@ -162,6 +162,45 @@ The package is a navigation hint. A `ready` receipt never proves that a task
 is complete and never authorizes closing an unrelated current task. A source
 rollout session id never binds the target Trellis task.
 
+## Task Ownership Transfer
+
+When the handoff contains a task, the package lifecycle and Trellis task
+ownership are separate but must be advanced in this order. These orchestration
+commands call the project's native `.trellis/scripts/task.py ownership`
+implementation; this Skill never edits task pointers itself:
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.json> --explicit-user-request
+python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> --expected-generation <n> --explicit-user-request
+python3 "$PENNIX_HANDOFF" --project-root . finalize --handoff <core.json> --observation <proof.json>
+python3 "$PENNIX_HANDOFF" --project-root . ownership retire --handoff <core.json> --expected-generation <n> --archive-observation <not_required|observed> --explicit-user-request
+```
+
+`retire` is the source barrier: Trellis records `retiring`, removes and
+verifies the source session pointer, then exposes `ready`. An interrupted
+retirement remains non-claimable and can be recovered only by the same source
+identity. High-assurance modes require their verified source observation first;
+missing OpenViking or Task API evidence remains `pending`/`unsupported`.
+
+After a new session has completed the read-only intake above and the user
+explicitly authorizes continuation, it may claim and close ownership:
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . ownership claim --handoff <core.json> --expected-generation <n> --explicit-user-request
+python3 "$PENNIX_HANDOFF" --project-root . ownership consume --handoff <core.json> --expected-generation <n> --explicit-user-request
+python3 "$PENNIX_HANDOFF" --project-root . ownership archive --handoff <core.json> --expected-generation <n> --explicit-user-request
+python3 "$PENNIX_HANDOFF" --project-root . ownership status --handoff <core.json>
+```
+
+The target must have its own direct `session:<key>` identity and no current
+task; it never inherits the source pointer. `claim`, `consume`, and ownership
+`archive` are distinct, generation-checked, idempotently recoverable states.
+Ownership archive is only a bounded local receipt and differs from handoff
+`retention archive`, which copies the immutable core and prompt. Neither
+operation executes `pending.next_action`, closes the Trellis task, writes
+OpenViking state, or deletes sessions, memory, resources, watches, rollout, or
+logs.
+
 When the user also asks for the new-session entry prompt, render it only after
 that exact `validate` reports `ready`:
 

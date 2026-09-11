@@ -116,6 +116,29 @@ def _regular_file(path: Path, label: str) -> Path:
     return path
 
 
+def _task_snapshot_at(root: Path, raw_path: str, expected: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    task_dir = _project_file(root, raw_path, "task path")
+    if not task_dir.is_dir():
+        raise ContractError("task directory is unavailable")
+    task_json = task_dir / "task.json"
+    if task_json.is_file():
+        task_data = load_json_file(task_json, 64 * 1024)
+        task_id = _text(task_data.get("id") or task_data.get("name"), "task.id", 256)
+        status = _text(task_data.get("status"), "task.status", 64)
+    elif expected is not None:
+        task_id = _text(expected.get("id"), "task.id", 256)
+        status = _text(expected.get("status"), "task.status", 64)
+    else:
+        raise ContractError("task.json is unavailable")
+    entries: list[tuple[str, str, int]] = []
+    for path in sorted(task_dir.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        file_digest, file_bytes = _sha256_file(path)
+        entries.append((path.relative_to(root).as_posix(), file_digest, file_bytes))
+    return {"id": task_id, "path": raw_path, "status": status, "material_digest": digest(entries)}
+
+
 def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
     script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
     result = subprocess.run(
@@ -137,21 +160,10 @@ def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
     task_path = Path(raw_path)
     if task_path.is_absolute() or ".." in task_path.parts or not raw_path.startswith(".trellis/tasks/"):
         raise ContractError("active task path is unsafe")
-    task_dir = _project_file(root, raw_path, "active task path")
-    if not task_dir.is_dir():
-        raise ContractError("active task directory is unavailable")
-    entries: list[tuple[str, str, int]] = []
-    for path in sorted(task_dir.rglob("*")):
-        if path.is_symlink() or not path.is_file():
-            continue
-        file_digest, file_bytes = _sha256_file(path)
-        entries.append((path.relative_to(root).as_posix(), file_digest, file_bytes))
-    return {
-        "id": _text(selected.get("id"), "task.id", 256),
-        "path": raw_path,
-        "status": _text(selected.get("status"), "task.status", 64),
-        "material_digest": digest(entries),
-    }
+    snapshot = _task_snapshot_at(root, raw_path, selected)
+    if snapshot["id"] != _text(selected.get("id"), "task.id", 256) or snapshot["status"] != _text(selected.get("status"), "task.status", 64):
+        raise ContractError("active task changed while being captured")
+    return snapshot
 
 
 def _git_snapshot(root: Path) -> Dict[str, Any]:
@@ -636,7 +648,9 @@ def validate(root: Path, payload: Dict[str, Any], handoff_id: str) -> str:
     evidence = _evidence_snapshot(root, [item["path"] for item in payload["source"]["evidence"]])
     if evidence != payload["source"]["evidence"]:
         return "changed"
-    current = _source(root, _task_snapshot(root), evidence, payload["source"]["rollout"])
+    task = payload["work_context"]["task"]
+    current_task = _task_snapshot_at(root, task["path"], task) if task is not None else None
+    current = _source(root, current_task, evidence, payload["source"]["rollout"])
     return "ready" if integrity["source_digest"] == current["digest"] else "changed"
 
 
@@ -863,6 +877,108 @@ def _task_current(root: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ContractError("task.py current returned invalid JSON")
     return value
+
+
+def _ownership_task(payload: dict[str, Any]) -> tuple[str, str]:
+    task = payload["work_context"].get("task")
+    if not isinstance(task, dict):
+        raise ContractError("handoff has no task ownership to transfer")
+    task_id = safe_id(task.get("id"), "handoff task id")
+    task_path = _text(task.get("path"), "handoff task path", 1024)
+    if not task_path.startswith(".trellis/tasks/") or ".." in Path(task_path).parts:
+        raise ContractError("handoff task path is unsafe")
+    return task_id, task_path
+
+
+def _direct_session_id(root: Path) -> str:
+    source = _task_current(root).get("source")
+    if not isinstance(source, str) or not source.startswith("session:"):
+        raise ContractError("Trellis did not expose a direct session identity")
+    return safe_id(source.removeprefix("session:"), "direct session id")
+
+
+def _ownership_call(root: Path, operation: str, task_id: str, handoff_id: str, core_digest: str, extra: list[str], *, explicit: bool) -> dict[str, Any]:
+    script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
+    command = [
+        sys.executable, str(script), "ownership", operation,
+        "--task-id", task_id, "--handoff-id", handoff_id, "--core-digest", core_digest,
+        *extra,
+    ]
+    if explicit:
+        command.append("--explicit-user-request")
+    result = subprocess.run(
+        command, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        timeout=20, check=False,
+    )
+    try:
+        value = json.loads(result.stdout.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ContractError("Trellis ownership returned invalid JSON") from exc
+    if not isinstance(value, dict):
+        raise ContractError("Trellis ownership returned invalid JSON")
+    if SECRET_RE.search(json.dumps(value, ensure_ascii=False)):
+        raise ContractError("Trellis ownership returned unsafe data")
+    if result.returncode:
+        reason = _text(value.get("reason"), "ownership failure", 512) if value.get("reason") else "unknown failure"
+        raise ContractError("Trellis ownership %s withheld: %s" % (operation, reason))
+    return value
+
+
+def _ownership_event(root: Path, handoff_id: str, core_digest: str, operation: str, result: dict[str, Any]) -> dict[str, Any]:
+    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id, core_digest)
+    if not events:
+        raise ContractError("handoff lifecycle is not prepared")
+    state = _state(events)
+    refs = [
+        "ownership_status=" + _text(result.get("status"), "ownership.status", 32),
+        "ownership_generation=" + str(result.get("generation")),
+        "ownership_record_digest=" + _text(result.get("record_digest"), "ownership.record_digest", 128),
+    ]
+    receipt = _append_event(
+        root, handoff_id, core_digest, "ownership_" + operation,
+        {"source": state["source"], "target": state["target"], "retention": state["retention"]},
+        refs, {"status": result["status"], "generation": result["generation"], "record_digest": result["record_digest"]},
+    )
+    return {"ownership": result, "lifecycle": receipt}
+
+
+def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: Optional[str]) -> None:
+    if mode in {"archive_required", "convergence_required"} and observation != "observed":
+        raise ContractError("ownership retirement requires an observed archive for %s" % mode)
+    if mode in {"archive_required", "convergence_required"} and state["source"] not in {"archive_verified", "converged"}:
+        raise ContractError("handoff source archive is not verified")
+    if mode == "convergence_required" and state["source"] != "converged":
+        raise ContractError("handoff source convergence is not verified")
+
+
+def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
+    handoff_id, _, payload, core_digest = _core(root, handoff_path)
+    task_id, task_path = _ownership_task(payload)
+    if operation == "status":
+        result = _ownership_call(root, operation, task_id, handoff_id, core_digest, ["--json"], explicit=False)
+        return {"handoff_id": handoff_id, "core_digest": core_digest, "ownership": result}
+    if not explicit:
+        raise ContractError("ownership writes require --explicit-user-request")
+    extra: list[str] = []
+    if operation == "quiesce":
+        current = _task_current(root).get("current_task")
+        if not isinstance(current, dict) or current.get("id") != task_id or current.get("dir") != task_path:
+            raise ContractError("source task is not the direct current task")
+        extra += ["--task", task_path, "--source-session-id", _direct_session_id(root)]
+    else:
+        if expected_generation is None:
+            raise ContractError("expected ownership generation is required")
+        extra += ["--expected-generation", str(expected_generation)]
+        if operation == "claim":
+            extra += ["--task", task_path]
+        if operation == "retire":
+            observation = archive_observation or "not_required"
+            events = _read_events(_lifecycle_path(root, handoff_id), handoff_id, core_digest)
+            _ownership_gate(root, _prepared_mode(events), _state(events), observation)
+            extra += ["--archive-observation", observation]
+    result = _ownership_call(root, operation, task_id, handoff_id, core_digest, extra, explicit=True)
+    receipt = _ownership_event(root, handoff_id, core_digest, operation, result)
+    return {"handoff_id": handoff_id, "core_digest": core_digest, **receipt}
 
 
 def _archive_snapshot(root: Path, archive: Path, core_digest: str, handoff_id: str) -> list[str]:
@@ -1129,6 +1245,17 @@ def main() -> int:
     admit.add_argument("--attestation", required=True)
     status = sub.add_parser("status")
     status.add_argument("--handoff", required=True)
+    ownership = sub.add_parser("ownership")
+    ownership_sub = ownership.add_subparsers(dest="ownership_command", required=True)
+    for name in ("quiesce", "seal", "retire", "claim", "consume", "archive", "status"):
+        command = ownership_sub.add_parser(name)
+        command.add_argument("--handoff", required=True)
+        if name == "retire":
+            command.add_argument("--archive-observation", choices=("not_required", "observed"), default="not_required")
+        if name in {"seal", "retire", "claim", "consume", "archive"}:
+            command.add_argument("--expected-generation", required=True, type=int)
+        if name != "status":
+            command.add_argument("--explicit-user-request", action="store_true")
     retention = sub.add_parser("retention")
     retention.add_argument("action_positional", nargs="?", choices=("archive", "restore", "reopen", "purge"))
     retention.add_argument("--action", dest="action_option", choices=("archive", "restore", "reopen", "purge"))
@@ -1165,6 +1292,15 @@ def main() -> int:
             status = result.pop("status")
             emit("status", status, **result)
             return 0 if status in {"ready", "absent"} else 2
+        if args.command == "ownership":
+            result = ownership_operation(
+                root, args.ownership_command, args.handoff,
+                explicit=getattr(args, "explicit_user_request", False),
+                archive_observation=getattr(args, "archive_observation", None),
+                expected_generation=getattr(args, "expected_generation", None),
+            )
+            emit("ownership", "recorded", **result)
+            return 0
         if args.command == "retention":
             action = args.action_positional or args.action_option
             if action is None:
