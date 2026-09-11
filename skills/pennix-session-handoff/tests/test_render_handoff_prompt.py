@@ -78,6 +78,16 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertFalse((self.root / Path(relative).with_name("session-handoff-prompt.md")).exists())
         self.assertIn("not ready: changed", rendered.stderr)
 
+    def test_pending_lifecycle_never_emits_prompt(self) -> None:
+        relative = self.write()
+        prepared = self.run_cli(HANDOFF, "prepare", "--handoff", relative, "--mode", "archive_required")
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        rendered = self.run_cli(RENDER, "--handoff", relative)
+        self.assertNotEqual(rendered.returncode, 0)
+        self.assertEqual(rendered.stdout, "")
+        self.assertFalse((self.root / Path(relative).with_name("session-handoff-prompt.md")).exists())
+        self.assertIn("lifecycle is not ready: pending", rendered.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

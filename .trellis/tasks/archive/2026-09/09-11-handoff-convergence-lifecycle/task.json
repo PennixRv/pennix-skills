@@ -1,0 +1,31 @@
+{
+  "id": "handoff-convergence-lifecycle",
+  "name": "handoff-convergence-lifecycle",
+  "title": "Implement Pennix handoff convergence lifecycle",
+  "description": "Extend formal handoff with immutable core validation, lifecycle receipts, target admission, retention operations, and optional validated OpenViking convergence observation.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-09-11",
+  "completedAt": "2026-09-11",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "prd.md",
+    "design.md",
+    "implement.md",
+    "research/2026-09-11-implementation-contract-baseline.md"
+  ],
+  "notes": "Target reconciliation is intentionally non-executing. Later target binding or closure reuses native Trellis task.py and accepts only direct session:<target-key> evidence; this task does not create or write a second task/session lifecycle.",
+  "meta": {}
+}

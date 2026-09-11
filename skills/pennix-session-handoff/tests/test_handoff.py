@@ -11,6 +11,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -170,6 +171,131 @@ class HandoffTests(unittest.TestCase):
         result = self.run_cli(root, "validate", "--handoff", ".trellis/session-handoff.json")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("timestamped handoff package", json.loads(result.stdout)["reason"])
+
+    def test_lifecycle_archive_purge_restore_and_session_provenance(self) -> None:
+        root = self.make_root()
+        self.addCleanup(shutil.rmtree, root)
+        (root / "evidence.md").write_text("verified fixture\n", encoding="utf-8")
+        (root / ".trellis/scripts/task.py").write_text(
+            "import json\nprint(json.dumps({'current_task': None, 'source': 'session:target-session'}))\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.email", "fixture@example.invalid"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.name", "Fixture"], check=True)
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+        rollout = self.make_rollout()
+        request = self.make_request(root, rollout)
+        written = self.run_cli(root, "write", "--request", str(request), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stderr)
+        relative = self.handoff_path_from(written.stdout)
+        handoff_id = Path(relative).parts[-2]
+        package = root / Path(relative).parent
+
+        prepare = self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only")
+        self.assertEqual(prepare.returncode, 0, prepare.stderr)
+        self.assertEqual(json.loads(prepare.stdout)["status"], "recorded")
+        repeated = self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only")
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertEqual(json.loads(repeated.stdout)["status"], "idempotent")
+
+        observation = package / "observation.json"
+        observation.write_text(json.dumps({
+            "availability": "available",
+            "boundary": {"status": "sealed", "proof_ref": "local-boundary"},
+            "source_session": {"status": "verified", "identity": "source-session"},
+            "capsule": {"status": "verified", "exact_read_digest": "sha256:" + "1" * 64},
+            "archive": {"status": "verified", "exact_read_digest": "sha256:" + "2" * 64},
+            "task": {"status": "completed", "completion_artifact": "task-complete"},
+            "memory": {"status": "verified", "diff_digest": "sha256:" + "3" * 64},
+        }), encoding="utf-8")
+        finalized = self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root)))
+        self.assertEqual(finalized.returncode, 0, finalized.stderr)
+        self.assertEqual(json.loads(finalized.stdout)["status"], "recorded")
+        attestation = package / "attestation.json"
+        attestation.write_text(json.dumps({
+            "target_source": "session:target-session", "prompt_read": True,
+            "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
+            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+        }), encoding="utf-8")
+        admitted = self.run_cli(root, "admit", "--handoff", relative, "--attestation", str(attestation.relative_to(root)))
+        self.assertEqual(admitted.returncode, 0, admitted.stderr)
+        self.assertEqual(json.loads(admitted.stdout)["status"], "recorded")
+
+        prompt = package / "session-handoff-prompt.md"
+        prompt.write_text("handoff prompt\n", encoding="utf-8")
+        archived = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        self.assertEqual(archived.returncode, 0, archived.stderr)
+        archive = root / handoff.ARCHIVE_RUNTIME / handoff_id
+        self.assertEqual({path.name for path in archive.iterdir()}, {"session-handoff.json", "session-handoff-prompt.md"})
+
+        core = root / relative
+        purged = self.run_cli(root, "retention", "purge", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        self.assertEqual(purged.returncode, 0, purged.stderr)
+        self.assertFalse(core.exists())
+        self.assertFalse(prompt.exists())
+        self.assertTrue((root / "evidence.md").exists())
+
+        restored = self.run_cli(root, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertTrue(core.is_file())
+        self.assertTrue(prompt.is_file())
+        status = self.run_cli(root, "status", "--handoff", relative)
+        self.assertEqual(status.returncode, 0, status.stderr)
+        self.assertEqual(json.loads(status.stdout)["status"], "ready")
+        reopened = self.run_cli(root, "retention", "reopen", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        self.assertEqual(reopened.returncode, 0, reopened.stderr)
+
+    def test_lifecycle_rejects_source_session_reuse_and_serializes_idempotence(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        rollout = self.make_rollout()
+        request = self.make_request(root, rollout)
+        written = self.run_cli(root, "write", "--request", str(request), "--explicit-user-request")
+        relative = self.handoff_path_from(written.stdout)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: handoff.lifecycle_prepare(root, relative, "core_only"), range(2)))
+        self.assertEqual({result[1]["status"] for result in results}, {"recorded", "idempotent"})
+        handoff_id = Path(relative).parts[-2]
+        attestation = root / ".trellis/.runtime" / "attestation.json"
+        attestation.parent.mkdir(parents=True, exist_ok=True)
+        attestation.write_text(json.dumps({
+            "target_source": "session:fixture-session", "prompt_read": True,
+            "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
+            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+        }), encoding="utf-8")
+        with self.assertRaisesRegex(handoff.ContractError, "source session id"):
+            handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        self.assertTrue(handoff_id)
+
+    def test_archive_mode_requires_matching_source_session_provenance(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stderr)
+        relative = self.handoff_path_from(written.stdout)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "archive_required").returncode, 0)
+        observation = root / ".trellis/.runtime" / "observation.json"
+        observation.parent.mkdir(parents=True, exist_ok=True)
+        proof = {
+            "availability": "available",
+            "boundary": {"status": "sealed", "proof_ref": "boundary"},
+            "source_session": {"status": "verified", "identity": "wrong-session"},
+            "capsule": {"status": "verified", "exact_read_digest": "sha256:" + "1" * 64},
+            "archive": {"status": "verified", "exact_read_digest": "sha256:" + "2" * 64},
+            "task": {"status": "completed", "completion_artifact": "complete"},
+            "memory": {"status": "verified", "diff_digest": "sha256:" + "3" * 64},
+        }
+        observation.write_text(json.dumps(proof), encoding="utf-8")
+        pending = self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root)))
+        self.assertEqual(pending.returncode, 0, pending.stderr)
+        self.assertEqual(json.loads(pending.stdout)["state"]["source"], "pending")
+        proof["source_session"]["identity"] = "fixture-session"
+        observation.write_text(json.dumps(proof), encoding="utf-8")
+        finalized = self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root)))
+        self.assertEqual(finalized.returncode, 0, finalized.stderr)
+        self.assertEqual(json.loads(finalized.stdout)["state"]["source"], "archive_verified")
 
 
 if __name__ == "__main__":

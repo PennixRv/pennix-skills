@@ -53,6 +53,24 @@ def _run_validate(root: Path, handoff: str) -> Mapping[str, Any]:
     return receipt
 
 
+def _run_lifecycle_status(root: Path, handoff: str) -> Mapping[str, Any]:
+    try:
+        result = subprocess.run(
+            [sys.executable, str(_helper_path()), "--project-root", str(root), "status", "--handoff", handoff],
+            text=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise PromptError("handoff lifecycle status could not be completed") from exc
+    try:
+        receipt = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise PromptError("handoff lifecycle status returned invalid JSON") from exc
+    if not isinstance(receipt, Mapping) or receipt.get("status") not in {"absent", "ready"}:
+        status = receipt.get("status") if isinstance(receipt, Mapping) else None
+        raise PromptError("handoff lifecycle is not ready%s" % (": " + str(status) if status else ""))
+    return receipt
+
+
 def _payload(root: Path, relative: str) -> Mapping[str, Any]:
     candidate = root / relative
     if Path(relative).is_absolute() or candidate.is_symlink() or not candidate.is_file():
@@ -75,7 +93,7 @@ def _markdown_list(values: Any) -> str:
     return "".join("- %s\n" % str(value) for value in values)
 
 
-def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> str:
+def _render_document(root: Path, relative: str, payload: Mapping[str, Any], lifecycle: Mapping[str, Any]) -> str:
     source = payload["source"]
     pending = payload["pending"]
     work_context = payload["work_context"]
@@ -118,6 +136,10 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "- Capture boundary: byte %d; records: %d; prefix: `%s`" % (rollout["capture_end"], rollout["record_count"], rollout["prefix_sha256"]),
         "- Parser: `%s`" % rollout["parser_version"],
         "- These are local conversation candidates only. They cannot override the verified snapshot above.", "",
+        "## Lifecycle Receipt", "",
+        "- Status: `%s`" % lifecycle.get("status"),
+        "- Mode: `%s`" % lifecycle.get("mode", "core_only"),
+        "- This receipt is local coordination evidence; it does not bind a target session or authorize pending action.", "",
         "### Decision Timeline", "",
     ])
     timeline = conversation.get("timeline", [])
@@ -160,8 +182,15 @@ def _atomic_prompt(destination: Path, content: str) -> None:
         with tempfile.NamedTemporaryFile("wb", dir=destination.parent, delete=False) as handle:
             temporary = Path(handle.name)
             handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
         os.chmod(temporary, 0o600)
         os.replace(temporary, destination)
+        directory_fd = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except OSError as exc:
         if temporary is not None and temporary.exists():
             temporary.unlink()
@@ -173,9 +202,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         root = Path(args.project_root).expanduser().resolve(strict=True)
         _run_validate(root, args.handoff)
+        lifecycle = _run_lifecycle_status(root, args.handoff)
         payload = _payload(root, args.handoff)
         prompt_relative = str(Path(args.handoff).with_name(PROMPT_NAME))
-        _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload))
+        _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload, lifecycle))
         entry = (
             "当前会话位于 %s。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
             "`$pennix-session-handoff` 对 `%s` 运行 `handoff validate --handoff %s`；只有 receipt 为 `ready` 才继续。"

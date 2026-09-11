@@ -41,7 +41,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 
 ## 组件职责
 
-- `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；context-mode 不决定项目任务语义。
+- `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；context-mode 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。
 - `OpenViking` 只承接用户明确要求的外部持久知识；它不是 Trellis 任务事实、当前项目文件或普通会话记忆的替代品。
 - CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置使用 `codegraph-project-setup`，不因普通检索自动初始化，
@@ -49,7 +49,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 - 确有独立证据价值的工作遵循当前项目选择的 Trellis `subnode` procedure。Trellis 维护其 brief、持久化报告和
   Channel 生命周期；主会话保留项目事实、验收和 Git，不把该合同复制为用户级 Skill。
 - 已初始化 Trellis 项目的 bundled `trellis-research-record` 将核验后的研究事实、候选、不确定项和下一动作写入当前 task；它不是第二套事实台账。
-- `pennix-session-handoff` 只处理用户明确要求的正式交接；`pennix-skills-install` 只处理用户明确要求的组合安装/更新；
+- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和精确 retention 归它所有，但不拥有 Trellis task/pointer。接收会话的初始 admission 只核对并停止；后续绑定/关闭复用 Trellis 原生 task lifecycle。`pennix-skills-install` 只处理用户明确要求的组合安装/更新；
   `codex-hook-registration` 只处理审查后的用户级 Hook 片段。不要从普通路由请求推导这些高影响动作的授权。
 - Hook/config 和拥有该行为的运行时负责必须发生的事件、阻断、信任、生命周期和审计；提示词只能表达决策原则，不能宣称确定性保证。
 
@@ -60,6 +60,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 - 不用 context-mode 重实现 Trellis channel watcher、事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
 - 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选写入 Git 或持久索引。
+- handoff 的 OpenViking observation 只能作为有界、已验证的 source convergence 证据；OpenViking/MCP 不写本地 core、Trellis task 或 receipt truth，也不通过 shell HTTP 绕过官方工具路由。没有对应 exact-read proof 时保持 `core_only` 或报告 `pending|unsupported|unavailable`。
 
 ## 输出
 

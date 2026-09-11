@@ -81,9 +81,62 @@ truncating, replacing or losing the captured prefix, changing the task/Git
 snapshot, or changing a requested evidence file invalidates the receipt.
 `ready` is a validation result, not authorization to implement. `changed`,
 `absent`, or `recovery_required` must be handled by ordinary project-fact
-verification. This Skill never changes task status, consumes a handoff,
-controls Trellis workers, or copies a conversation, credential, cache, or
-runtime ledger.
+verification. This Skill never changes task status, controls Trellis workers,
+or copies a conversation, credential, cache, or runtime ledger.
+
+## Lifecycle Receipt And Retention
+
+The immutable core is deliberately not a consumed-state database. A separately
+append-only local receipt may record source convergence, target reconciliation,
+and retention. It lives outside Git at:
+
+```text
+.trellis/.runtime/handoff-lifecycle/<handoff-id>.jsonl
+.trellis/.runtime/handoff-archive/<handoff-id>/
+```
+
+For the following examples, set the existing helper path once:
+
+```bash
+PENNIX_HANDOFF="${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py"
+```
+
+Use these commands only as part of the user's explicit formal-handoff request:
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . prepare --handoff <core.json> --mode core_only
+python3 "$PENNIX_HANDOFF" --project-root . finalize --handoff <core.json> --observation <project-relative-proof.json>
+python3 "$PENNIX_HANDOFF" --project-root . admit --handoff <core.json> --attestation <project-relative-attestation.json>
+python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.json> --confirm-handoff-id <handoff-id>
+```
+
+`PENNIX_HANDOFF` above abbreviates the existing `handoff.py` path used in the
+earlier commands. `prepare` fixes one mode and writes no remote state.
+`finalize` consumes only a bounded local observation manifest. It never reads
+Plugin private state, calls shell HTTP, or retries forever. `core_only` is the
+default and needs no remote proof. `capsule_required`, `archive_required`, and
+`convergence_required` require their respective verified exact-read proof
+digests; unavailable official capability must remain `unsupported`,
+`unavailable`, or `pending`, never silently downgrade.
+
+`admit` records only that the target session validated the package, read the
+prompt, ran `$trellis-start`, and reconciled current facts. Its `target_source`
+must exactly equal the current Trellis direct source `session:<target-key>`.
+The source rollout `session_id` is provenance only and is rejected as target
+identity. Admission never executes the pending action, starts a task, changes
+a task pointer, or closes a task. A later, separately authorized continuation
+uses native Trellis `task.py start` for an incomplete task and then rechecks
+its direct current source. A completed task instead follows native Trellis
+finish/archive by exact task path; do not manufacture a session pointer.
+
+After a reconciled admission, `retention archive` copies only the exact core
+and paired prompt using copy-first validation. `restore`, `reopen`, and
+`purge` require the exact same handoff id confirmation. `purge` removes only
+the canonical core/prompt after archive verification; it never deletes task,
+rollout, session, memory, resource/watch, log, or remote data. The receipt is
+kept as audit evidence. Run `status --handoff <core.json>` to inspect whether
+the selected lifecycle mode is ready; the prompt renderer rejects a pending
+high-assurance mode.
 
 ## New-Session Handoff Closure
 
@@ -95,7 +148,8 @@ Trellis facts before resuming work:
 2. Read the paired `session-handoff-prompt.md` completely before acting on its
    pending next action.
 3. Run `$trellis-start` and compare the captured task, Git state, evidence,
-   and pending action with current project facts.
+   and pending action with current project facts. Record a bounded `admit`
+   attestation only after that reconciliation, with `action_authorized=false`.
 4. If the captured task is now actually complete, use the normal
    `$trellis-finish-work` flow to finish and archive it before doing other work.
 5. If it is incomplete, changed, or blocked, do not close it from the handoff
@@ -105,7 +159,8 @@ Trellis facts before resuming work:
    begin new implementation until the user gives a subsequent instruction.
 
 The package is a navigation hint. A `ready` receipt never proves that a task
-is complete and never authorizes closing an unrelated current task.
+is complete and never authorizes closing an unrelated current task. A source
+rollout session id never binds the target Trellis task.
 
 When the user also asks for the new-session entry prompt, render it only after
 that exact `validate` reports `ready`:
