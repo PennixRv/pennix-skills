@@ -53,3 +53,26 @@ Kept the Codex default while supporting explicit compatible Skill collection roo
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: 收敛 handoff retention 成对资产
+<!-- trellis-session: v=2 fp=690e64d0e52439e8 -->
+
+**Date**: 2026-09-13
+**Task**: 收敛 handoff retention 成对资产
+**Branch**: `main`
+
+### Summary
+
+以回归确证 retention 会将已 admission 的缺失 prompt 归档为只含 core；共享 archive snapshot/copy/status 现强制完整 core/prompt pair，官方重装并比对运行时资产，根侧离线集成检查通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6400c2f` | fix(handoff): require paired retention assets |
+| `bcad38f` | docs(handoff): record paired retention deployment |
+
+### Status
+
+[OK] **Completed**
