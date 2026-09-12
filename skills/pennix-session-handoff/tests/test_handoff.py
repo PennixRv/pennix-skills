@@ -353,9 +353,16 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(json.loads(admitted.stdout)["status"], "recorded")
         prompt = package / "session-handoff-prompt.md"
 
+        prompt.unlink()
+        missing_canonical_prompt = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        self.assertNotEqual(missing_canonical_prompt.returncode, 0)
+        self.assertEqual(json.loads(self.run_cli(root, "status", "--handoff", relative).stdout)["state"]["retention"], "archive_eligible")
+        archive = root / handoff.ARCHIVE_RUNTIME / handoff_id
+        self.assertFalse(archive.exists())
+        prompt.write_text("handoff prompt\n", encoding="utf-8")
+
         archived = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertEqual(archived.returncode, 0, archived.stderr)
-        archive = root / handoff.ARCHIVE_RUNTIME / handoff_id
         self.assertEqual({path.name for path in archive.iterdir()}, {"session-handoff.json", "session-handoff-prompt.md"})
 
         core = root / relative
@@ -364,6 +371,16 @@ class HandoffTests(unittest.TestCase):
         self.assertFalse(core.exists())
         self.assertFalse(prompt.exists())
         self.assertTrue((root / "evidence.md").exists())
+
+        archived_prompt = archive / "session-handoff-prompt.md"
+        archived_prompt.unlink()
+        events_before = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
+        incomplete_status = self.run_cli(root, "status", "--handoff", relative)
+        self.assertNotEqual(incomplete_status.returncode, 0)
+        incomplete_restore = self.run_cli(root, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        self.assertNotEqual(incomplete_restore.returncode, 0)
+        self.assertEqual(handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id), events_before)
+        archived_prompt.write_text("handoff prompt\n", encoding="utf-8")
 
         restored = self.run_cli(root, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertEqual(restored.returncode, 0, restored.stderr)

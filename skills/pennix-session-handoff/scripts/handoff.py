@@ -893,19 +893,17 @@ def _archive_snapshot(root: Path, archive: Path, handoff_id: str) -> list[str]:
     if not archive.is_dir() or archive.is_symlink():
         raise ContractError("handoff archive is unavailable")
     names = {path.name for path in archive.iterdir()}
-    if not names.issubset({HANDOFF_NAME, "session-handoff-prompt.md"}):
-        raise ContractError("handoff archive contains unexpected files")
+    if names != {HANDOFF_NAME, "session-handoff-prompt.md"}:
+        raise ContractError("handoff archive must contain a core/prompt pair")
     core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
     payload = load_json_file(core, None)
     _validate_payload_shape(root, payload, handoff_id)
     refs = ["archive=" + handoff_id]
-    prompt = archive / "session-handoff-prompt.md"
-    if prompt.exists():
-        _regular_file(prompt, "archived prompt")
-        try:
-            prompt.read_text(encoding="utf-8")
-        except (OSError, UnicodeError) as exc:
-            raise ContractError("archived prompt is unreadable") from exc
+    prompt = _regular_file(archive / "session-handoff-prompt.md", "archived prompt")
+    try:
+        prompt.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ContractError("archived prompt is unreadable") from exc
     return refs
 
 
@@ -921,11 +919,9 @@ def _archive_copy(root: Path, handoff_id: str, core: Path) -> list[str]:
         os.chmod(temporary, 0o700)
         shutil.copyfile(core, temporary / HANDOFF_NAME)
         os.chmod(temporary / HANDOFF_NAME, 0o600)
-        prompt = core.parent / "session-handoff-prompt.md"
-        if prompt.exists():
-            prompt = _regular_file(prompt, "handoff prompt")
-            shutil.copyfile(prompt, temporary / "session-handoff-prompt.md")
-            os.chmod(temporary / "session-handoff-prompt.md", 0o600)
+        prompt = _regular_file(core.parent / "session-handoff-prompt.md", "handoff prompt")
+        shutil.copyfile(prompt, temporary / "session-handoff-prompt.md")
+        os.chmod(temporary / "session-handoff-prompt.md", 0o600)
         _archive_snapshot(root, temporary, handoff_id)
         directory_fd = os.open(temporary, os.O_RDONLY)
         try:
@@ -1074,10 +1070,9 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
             core.parent.mkdir(parents=True, exist_ok=True)
             _restore_copy(archived_core, core)
         prompt = archive / "session-handoff-prompt.md"
-        if prompt.exists():
-            canonical_prompt = core.parent / "session-handoff-prompt.md"
-            if not canonical_prompt.exists():
-                _restore_copy(prompt, canonical_prompt)
+        canonical_prompt = core.parent / "session-handoff-prompt.md"
+        if not canonical_prompt.exists():
+            _restore_copy(prompt, canonical_prompt)
         result = _append_event(root, handoff_id, "restore", {"source": state["source"], "target": state["target"], "retention": "restored"}, refs)
     elif action == "reopen":
         if state["retention"] not in {"archived", "retained", "restored"}:
@@ -1107,10 +1102,7 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     if destination.exists():
         handoff_id, _, _ = _core(root, handoff_path)
     else:
-        archive = _archive_path(root, handoff_id)
-        archived_core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
-        payload = load_json_file(archived_core, None)
-        _validate_payload_shape(root, payload, handoff_id)
+        _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
     path = _lifecycle_path(root, handoff_id)
     if not path.exists():
         return {"status": "absent", "handoff_id": handoff_id}
