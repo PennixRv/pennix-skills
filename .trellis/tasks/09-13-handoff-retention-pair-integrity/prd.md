@@ -25,7 +25,7 @@
 - [x] 回归证明 archive prompt 丢失时 `status` 与 `restore` 拒绝该不完整 archive，且不产生额外 lifecycle event。
 - [x] 正常完整 pair 的 archive/purge/restore、legacy core、single-target admission 和 renderer 行为保持通过。
 - [x] `pennix-session-handoff` tests、安装器 tests、`py_compile`、`install.py --check` 和差异检查通过。
-- [ ] 源码提交推送后经官方安装器重装；安装副本中的运行时 `SKILL.md` 与 handoff scripts 和源一致。
+- [x] 源码提交推送后经官方安装器重装；安装副本中的运行时 `SKILL.md` 与 handoff scripts 和源一致。
 
 ## Notes
 

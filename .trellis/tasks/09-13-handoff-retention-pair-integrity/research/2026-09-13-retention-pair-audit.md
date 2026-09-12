@@ -71,3 +71,13 @@ archive、restore、status 分别添加临时检查。
 - `python3 -m unittest discover -s skills/pennix-skills-install/tests -p 'test_*.py' -v`：10/10 通过。
 - `python3 -m py_compile skills/pennix-session-handoff/scripts/*.py`、`git diff --check`：通过。
 - `python3 skills/pennix-skills-install/scripts/install.py --source . --check`：验证 11 个 Pennix Skills。
+
+## Release And Deployment
+
+- 工作提交 `6400c2f fix(handoff): require paired retention assets` 已推送至
+  `https://github.com/PennixRv/pennix-skills.git` 的 `origin/main`；本地与 `origin/main` 均解析为
+  `6400c2f80721c2956d861dab14a9e00cf28471cb`。
+- 使用源码 checkout 的官方安装器重装到 `/home/penn/.codex/skills/pennix-skills`，输出为 `Installed 11 Pennix Skills`。
+- `diff -q` 已确认安装副本的 `pennix-session-handoff/SKILL.md`、`handoff.py`、
+  `render_handoff_prompt.py` 和 `workflow_contracts.py` 与源码一致。
+- 根工作流离线集成检查 `node --test scripts/run-workflow-integration.test.mjs` 通过：`5 tests / 8 offline checks`。
