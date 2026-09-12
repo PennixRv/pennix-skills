@@ -18,38 +18,30 @@ from typing import Any, Dict, Iterable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workflow_contracts import (  # noqa: E402
-    ContractError, SECRET_RE, LIFECYCLE_MODES, _text, _text_list, bounded_digest, canonical,
-    digest, free_text, lifecycle_mode, load_json_file, safe_id, validate_attestation,
+    ContractError, SECRET_RE, LIFECYCLE_MODES, _text, _text_list, free_text, lifecycle_mode,
+    load_json_file, safe_id, validate_attestation,
     validate_observation,
 )
 
 
-SCHEMA_VERSION = 5
-SUPPORTED_SCHEMA_VERSIONS = {4, 5}
+SCHEMA_VERSION = 6
+SUPPORTED_SCHEMA_VERSIONS = {4, 5, 6}
 KIND = "pennix-session-handoff"
 PARSER_VERSION = "codex-jsonl-local-v1"
 HANDOFFS = ".trellis/session-handoffs"
 HANDOFF_NAME = "session-handoff.json"
-SHA256_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 HANDOFF_ID = re.compile(r"^\d{8}T\d{12}Z$")
-MAX_RECORD_BYTES = 8 * 1024 * 1024
-MAX_UNKNOWN_SPANS = 32
-MAX_TRACKED_TOOL_IDS = 2048
-MAX_TRACKED_TOPICS = 512
-MAX_REPEAT_KEYS = 2048
 AUTHORIZATION = {
     "source": "current_user_explicit_request",
     "attestation": "coordinator_asserted_not_runtime_verified",
 }
 LIFECYCLE_RUNTIME = ".trellis/.runtime/handoff-lifecycle"
 ARCHIVE_RUNTIME = ".trellis/.runtime/handoff-archive"
-LIFECYCLE_SCHEMA_VERSION = 1
+LIFECYCLE_SCHEMA_VERSION = 2
 LIFECYCLE_EVENT_KIND = "pennix-handoff-lifecycle-event"
 SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "pending", "archive_verified", "converged", "unavailable", "unsupported", "failed", "expired"}
 TARGET_STATES = {"not_admitted", "admitted", "reconciled", "blocked", "disposed"}
 RETENTION_STATES = {"none", "archive_eligible", "archived", "retained", "restored", "reopened", "purged"}
-MAX_LIFECYCLE_BYTES = 512 * 1024
-MAX_EVENT_BYTES = 16 * 1024
 LIFECYCLE_ACTOR = "pennix-session-handoff"
 
 
@@ -61,31 +53,15 @@ def _root(value: str) -> Path:
     return root
 
 
-def _sha256_file(path: Path, maximum: Optional[int] = None) -> tuple[str, int]:
+def _ownership_core_digest(path: Path) -> str:
+    """Satisfy Trellis ownership's existing digest-only command contract."""
     hasher = hashlib.sha256()
-    total = 0
     with path.open("rb") as handle:
         while True:
             chunk = handle.read(256 * 1024)
             if not chunk:
                 break
-            total += len(chunk)
-            if maximum is not None and total > maximum:
-                raise ContractError("file exceeds allowed size: %s" % path)
             hasher.update(chunk)
-    return "sha256:" + hasher.hexdigest(), total
-
-
-def _sha256_prefix(path: Path, length: int) -> str:
-    hasher = hashlib.sha256()
-    remaining = length
-    with path.open("rb") as handle:
-        while remaining:
-            chunk = handle.read(min(256 * 1024, remaining))
-            if not chunk:
-                raise ContractError("rollout prefix ended before capture boundary")
-            hasher.update(chunk)
-            remaining -= len(chunk)
     return "sha256:" + hasher.hexdigest()
 
 
@@ -127,13 +103,7 @@ def _task_snapshot_at(root: Path, raw_path: str, expected: Optional[Dict[str, An
         status = _text(expected.get("status"), "task.status", 64)
     else:
         raise ContractError("task.json is unavailable")
-    entries: list[tuple[str, str, int]] = []
-    for path in sorted(task_dir.rglob("*")):
-        if path.is_symlink() or not path.is_file():
-            continue
-        file_digest, file_bytes = _sha256_file(path)
-        entries.append((path.relative_to(root).as_posix(), file_digest, file_bytes))
-    return {"id": task_id, "path": raw_path, "status": status, "material_digest": digest(entries)}
+    return {"id": task_id, "path": raw_path, "status": status}
 
 
 def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
@@ -186,7 +156,6 @@ def _git_snapshot(root: Path) -> Dict[str, Any]:
         "branch": branch,
         "head": head,
         "worktree_state": "dirty" if dirty_lines else "clean",
-        "dirty_paths_digest": digest(dirty_lines),
         "recent_commits": history,
     }
 
@@ -197,9 +166,8 @@ def _evidence_snapshot(root: Path, paths: Iterable[str]) -> list[Dict[str, Any]]
         candidate = Path(relative)
         if candidate.is_absolute() or ".." in candidate.parts or str(candidate).startswith(".trellis/.runtime/"):
             raise ContractError("evidence paths must be project-relative non-runtime paths")
-        target = _regular_file(_project_file(root, relative, "evidence path"), "evidence path")
-        file_digest, file_bytes = _sha256_file(target)
-        evidence.append({"path": relative, "bytes": file_bytes, "sha256": file_digest})
+        _regular_file(_project_file(root, relative, "evidence path"), "evidence path")
+        evidence.append({"path": relative})
     return evidence
 
 
@@ -224,7 +192,7 @@ def _short_text(value: Any, maximum: Optional[int] = None) -> Optional[str]:
         return None
     if SECRET_RE.search(compact):
         return "[redacted: possible credential]"
-    return compact if maximum is None else compact[:maximum]
+    return compact
 
 
 def _content_text(payload: Dict[str, Any]) -> Optional[str]:
@@ -261,11 +229,11 @@ def _event_message(record_type: str, payload: Any) -> tuple[Optional[str], Optio
 
 def _topic_key(text: str) -> Optional[str]:
     paths = re.findall(r"(?:^|\s)(?:\.?/?[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+", text)
-    identifiers = re.findall(r"`([^`]{2,160})`", text)
+    identifiers = re.findall(r"`([^`]+)`", text)
     identifiers += re.findall(r"\b(?:issue|task)\s*#?\d+\b", text, re.IGNORECASE)
     identifiers += re.findall(r"\b[a-z][a-z0-9]+(?:-[a-z0-9]+){1,}\b", text, re.IGNORECASE)
     values = [value.strip().lower() for value in paths + identifiers if value.strip()]
-    return "|".join(sorted(set(values))[:4]) or None
+    return "|".join(sorted(set(values)) or []) or None
 
 
 def _timeline_state(text: str) -> str:
@@ -289,7 +257,6 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
     with path.open("rb") as handle:
         start = os.fstat(handle.fileno())
         capture_size = start.st_size
-        hasher = hashlib.sha256()
         offset = line_number = record_count = event_index = 0
         candidates: list[Dict[str, Any]] = []
         timeline: list[Dict[str, Any]] = []
@@ -302,24 +269,17 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
         unknown_spans: list[Dict[str, Any]] = []
         omissions: list[Dict[str, Any]] = []
         compacted_spans: list[Dict[str, Any]] = []
-        topic_overflow = 0
-        repeat_overflow = 0
 
         def keep(items: list[Dict[str, Any]], item: Dict[str, Any]) -> None:
             items.append(item)
 
         def count(items: Dict[str, int], key: str) -> None:
-            if key in items or len(items) < MAX_UNKNOWN_SPANS:
-                items[key] = items.get(key, 0) + 1
-            else:
-                items["other"] = items.get("other", 0) + 1
+            items[key] = items.get(key, 0) + 1
         while offset < capture_size:
             remaining = capture_size - offset
-            raw_line = handle.readline(min(MAX_RECORD_BYTES + 1, remaining + 1))
+            raw_line = handle.readline(remaining + 1)
             if not raw_line:
                 break
-            if len(raw_line) > MAX_RECORD_BYTES:
-                raise ContractError("rollout record exceeds %d bytes at byte %d" % (MAX_RECORD_BYTES, offset))
             if not raw_line.endswith(b"\n") and offset + len(raw_line) < capture_size:
                 raise ContractError("rollout contains an incomplete record before capture boundary")
             if not raw_line.endswith(b"\n"):
@@ -328,7 +288,6 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             line_number += 1
             byte_start = offset
             offset += len(raw_line)
-            hasher.update(raw_line)
             if not raw_line.strip():
                 continue
             if raw_line.rstrip(b"\r\n") and not raw_line.rstrip(b"\r\n").replace(b"\0", b""):
@@ -338,7 +297,6 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                     "byte_start": byte_start,
                     "byte_end": offset,
                     "bytes": len(raw_line),
-                    "record_sha256": "sha256:" + hashlib.sha256(raw_line).hexdigest(),
                 })
                 continue
             try:
@@ -350,20 +308,18 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             record_count += 1
             record_type = str(record.get("type", "unknown"))
             payload = record.get("payload")
-            source = {"line": line_number, "byte_start": byte_start, "byte_end": offset, "record_type": record_type, "record_sha256": "sha256:" + hashlib.sha256(raw_line).hexdigest()}
+            source = {"line": line_number, "byte_start": byte_start, "byte_end": offset, "record_type": record_type}
             if isinstance(record.get("timestamp"), str):
                 source["timestamp"] = _short_text(record["timestamp"], 128)
             payload_type = payload.get("type") if isinstance(payload, dict) else None
             if record_type == "compacted" or payload_type == "compacted":
                 count(excluded, "compacted")
-                if len(compacted_spans) < MAX_UNKNOWN_SPANS:
-                    compacted_spans.append({
-                        "line": line_number,
-                        "byte_start": byte_start,
-                        "byte_end": offset,
-                        "bytes": len(raw_line),
-                        "record_sha256": source["record_sha256"],
-                    })
+                compacted_spans.append({
+                    "line": line_number,
+                    "byte_start": byte_start,
+                    "byte_end": offset,
+                    "bytes": len(raw_line),
+                })
                 continue
             role, message_text = _event_message(record_type, payload)
             if role and message_text:
@@ -372,24 +328,17 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                 if role == "user":
                     topic = _topic_key(message_text)
                     if topic:
-                        repeat_key = topic + "\0" + hashlib.sha256(message_text.encode("utf-8")).hexdigest()
-                        if repeat_key not in repeated and len(repeated) >= MAX_REPEAT_KEYS:
-                            repeat_overflow += 1
-                        else:
-                            repeated[repeat_key] = repeated.get(repeat_key, 0) + 1
-                        if topic not in latest_by_topic and len(latest_by_topic) >= MAX_TRACKED_TOPICS:
-                            topic_overflow += 1
-                        else:
-                            item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeated.get(repeat_key, 1) > 1 else _timeline_state(message_text), "event_index": event_index, "summary": message_text, "source": source, "repeat_count": repeated.get(repeat_key, 1)}
-                            if topic in latest_by_topic:
-                                item["supersedes_event_index"] = latest_by_topic[topic]
-                            latest_by_topic[topic] = event_index
-                            keep(timeline, item)
+                        repeat_key = topic + "\0" + message_text
+                        repeated[repeat_key] = repeated.get(repeat_key, 0) + 1
+                        item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeated[repeat_key] > 1 else _timeline_state(message_text), "event_index": event_index, "summary": message_text, "source": source, "repeat_count": repeated[repeat_key]}
+                        if topic in latest_by_topic:
+                            item["supersedes_event_index"] = latest_by_topic[topic]
+                        latest_by_topic[topic] = event_index
+                        keep(timeline, item)
                 continue
             if record_type != "response_item" or not isinstance(payload, dict):
                 count(unknown, record_type)
-                if len(unknown_spans) < MAX_UNKNOWN_SPANS:
-                    unknown_spans.append({"record_type": record_type, "line": line_number, "byte_start": byte_start, "byte_end": offset, "record_sha256": source["record_sha256"]})
+                unknown_spans.append({"record_type": record_type, "line": line_number, "byte_start": byte_start, "byte_end": offset})
                 continue
             item_type = str(payload.get("type", "unknown"))
             if item_type == "reasoning":
@@ -403,7 +352,7 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                 continue
             if item_type in {"function_call", "custom_tool_call", "tool_call"}:
                 call_id = _short_text(payload.get("call_id") or payload.get("id"), 256)
-                if call_id and len(tool_calls) < MAX_TRACKED_TOOL_IDS:
+                if call_id:
                     tool_calls[call_id] = event_index + 1
                 event_index += 1
                 item = {"kind": "tool_call", "event_index": event_index, "tool": _short_text(payload.get("name"), 256), "source": source}
@@ -413,85 +362,40 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                 continue
             if item_type in {"function_call_output", "custom_tool_call_output", "tool_result"}:
                 call_id = _short_text(payload.get("call_id") or payload.get("id"), 256)
-                if call_id and len(tool_results) < MAX_TRACKED_TOOL_IDS:
+                if call_id:
                     tool_results[call_id] = event_index + 1
                 event_index += 1
-                result_text = _short_text(payload.get("output") or payload.get("result") or payload.get("error"))
                 item = {"kind": "tool_result", "event_index": event_index, "source": source}
                 if call_id:
                     item["call_id"] = call_id
-                if result_text:
-                    item["text"] = result_text
                 keep(candidates, item)
                 continue
             count(unknown, "response_item:%s" % item_type)
-            if len(unknown_spans) < MAX_UNKNOWN_SPANS:
-                unknown_spans.append({"record_type": "response_item:%s" % item_type, "line": line_number, "byte_start": byte_start, "byte_end": offset, "record_sha256": source["record_sha256"]})
+            unknown_spans.append({"record_type": "response_item:%s" % item_type, "line": line_number, "byte_start": byte_start, "byte_end": offset})
         capture_end = offset
         end = os.fstat(handle.fileno())
-    post = path.stat()
-    if (post.st_dev, post.st_ino) != (start.st_dev, start.st_ino) or end.st_size < capture_end:
-        raise ContractError("rollout source changed while being captured")
-    if _sha256_prefix(path, capture_end) != "sha256:" + hasher.hexdigest():
+    if end.st_size < capture_end:
         raise ContractError("rollout source changed while being captured")
     coverage = {
         "source_bytes_at_capture": capture_size, "capture_end": capture_end, "record_count": record_count,
         "event_count": event_index, "excluded": excluded, "unknown": unknown, "omissions": omissions,
         "unknown_spans": unknown_spans,
         "compacted_spans": compacted_spans,
-        "topic_overflow": topic_overflow,
-        "repeat_overflow": repeat_overflow,
-        "incomplete_tool_calls": sorted(set(tool_calls) ^ set(tool_results))[:32],
+        "incomplete_tool_calls": sorted(set(tool_calls) ^ set(tool_results)),
     }
     return {
-        "path": str(path), "session_id": session_id, "device": start.st_dev, "inode": start.st_ino,
-        "capture_end": capture_end, "record_count": record_count, "prefix_sha256": "sha256:" + hasher.hexdigest(),
+        "path": str(path), "session_id": session_id,
+        "capture_end": capture_end, "record_count": record_count,
         "parser_version": PARSER_VERSION, "coverage": coverage, "conversation_candidates": candidates,
         "timeline": timeline,
     }
 
 
-def _verify_rollout(descriptor: Dict[str, Any]) -> str:
-    try:
-        path = _regular_file(Path(_text(descriptor.get("path"), "rollout.path", 4096)), "rollout source")
-        capture_end = descriptor.get("capture_end")
-        if not isinstance(capture_end, int) or capture_end < 0:
-            raise ContractError("rollout.capture_end is invalid")
-        expected = _digest_text(descriptor.get("prefix_sha256"), "rollout.prefix_sha256")
-        current = path.stat()
-        if current.st_size < capture_end or (current.st_dev, current.st_ino) != (descriptor.get("device"), descriptor.get("inode")):
-            return "changed"
-        hasher = hashlib.sha256()
-        remaining = capture_end
-        with path.open("rb") as handle:
-            while remaining:
-                chunk = handle.read(min(256 * 1024, remaining))
-                if not chunk:
-                    return "changed"
-                hasher.update(chunk)
-                remaining -= len(chunk)
-        return "ready" if "sha256:" + hasher.hexdigest() == expected else "changed"
-    except (ContractError, OSError):
-        return "recovery_required"
-
-
 def _source(root: Path, task: Optional[Dict[str, str]], evidence: list[Dict[str, Any]], rollout: Dict[str, Any]) -> Dict[str, Any]:
-    source = {
+    return {
         "task": task, "git": _git_snapshot(root), "evidence": evidence,
-        "rollout_identity": {key: rollout[key] for key in ("path", "session_id", "device", "inode", "capture_end", "record_count", "prefix_sha256", "parser_version")},
+        "rollout_identity": {key: rollout[key] for key in ("path", "session_id", "capture_end", "record_count", "parser_version")},
     }
-    source["digest"] = digest(source)
-    return source
-
-
-def _payload_digest(payload: Dict[str, Any]) -> str:
-    return digest({key: value for key, value in payload.items() if key != "integrity"})
-
-
-def _digest_text(value: Any, label: str) -> str:
-    if not isinstance(value, str) or not SHA256_DIGEST.fullmatch(value):
-        raise ContractError("%s is invalid" % label)
-    return value
 
 
 def _request(root: Path, path: Path) -> Dict[str, Any]:
@@ -499,28 +403,28 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
     required = {"session_label", "facts", "evidence_paths", "next_action", "blockers", "risks", "validation", "rollout"}
     if not required.issubset(value) or set(value) - required - {"memory_projection"}:
         raise ContractError("handoff request fields are invalid")
-    evidence_paths = _text_list(value["evidence_paths"], "evidence_paths", 32)
+    evidence_paths = _text_list(value["evidence_paths"], "evidence_paths")
     validation = value["validation"]
-    if not isinstance(validation, list) or len(validation) > 16:
-        raise ContractError("validation must be a list of at most 16 entries")
+    if not isinstance(validation, list):
+        raise ContractError("validation must be a list")
     normalized_validation = []
     for index, item in enumerate(validation):
         if not isinstance(item, dict) or set(item) != {"command", "result"}:
             raise ContractError("validation[%d] fields are invalid" % index)
-        normalized_validation.append({"command": _text(item["command"], "validation[%d].command" % index, 512), "result": _text(item["result"], "validation[%d].result" % index, 512)})
+        normalized_validation.append({"command": _text(item["command"], "validation[%d].command" % index), "result": _text(item["result"], "validation[%d].result" % index)})
     memory_projection = value.get("memory_projection", {})
     if not isinstance(memory_projection, dict) or set(memory_projection) - {"semantic_capsule", "local", "archive_refs", "openviking"}:
         raise ContractError("memory_projection fields are invalid")
     normalized = {
-        "session_label": _text(value["session_label"], "session_label", 128), "facts": _text_list(value["facts"], "facts", 24),
-        "evidence_paths": evidence_paths, "next_action": _text(value["next_action"], "next_action", 512),
-        "blockers": _text_list(value["blockers"], "blockers", 16), "risks": _text_list(value["risks"], "risks", 16),
+        "session_label": _text(value["session_label"], "session_label"), "facts": _text_list(value["facts"], "facts"),
+        "evidence_paths": evidence_paths, "next_action": _text(value["next_action"], "next_action"),
+        "blockers": _text_list(value["blockers"], "blockers"), "risks": _text_list(value["risks"], "risks"),
         "validation": normalized_validation, "rollout": _read_rollout_path(value["rollout"]),
         "memory_projection": {
             "semantic_capsule": free_text(memory_projection.get("semantic_capsule", ""), "memory_projection.semantic_capsule"),
-            "local": _text_list(memory_projection.get("local", []), "memory_projection.local", 32),
-            "archive_refs": _text_list(memory_projection.get("archive_refs", []), "memory_projection.archive_refs", 32),
-            "openviking": _text_list(memory_projection.get("openviking", []), "memory_projection.openviking", 32),
+            "local": _text_list(memory_projection.get("local", []), "memory_projection.local"),
+            "archive_refs": _text_list(memory_projection.get("archive_refs", []), "memory_projection.archive_refs"),
+            "openviking": _text_list(memory_projection.get("openviking", []), "memory_projection.openviking"),
         },
     }
     _evidence_snapshot(root, evidence_paths)
@@ -557,7 +461,7 @@ def build(root: Path, request: Dict[str, Any], handoff_id: str) -> Dict[str, Any
     payload: Dict[str, Any] = {
         "schema_version": SCHEMA_VERSION, "kind": KIND, "handoff_id": handoff_id,
         "created_at": datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
-        "project": {"name": root.name, "identity_digest": digest({"name": root.name, "marker": ".trellis"})},
+        "project": {"name": root.name},
         "work_context": {"task": task},
         "source": {"session_label": request["session_label"], "git": source["git"], "evidence": evidence, "rollout": rollout},
         "verified": {"facts": request["facts"], "validation": request["validation"]},
@@ -565,49 +469,52 @@ def build(root: Path, request: Dict[str, Any], handoff_id: str) -> Dict[str, Any
         "pending": {"next_action": request["next_action"], "blockers": request["blockers"], "risks": request["risks"]},
         "memory_projection": request["memory_projection"], "authorization": dict(AUTHORIZATION),
     }
-    payload["integrity"] = {"payload_digest": _payload_digest(payload), "source_digest": source["digest"]}
     return payload
 
 
 def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str) -> None:
-    expected = {"schema_version", "kind", "handoff_id", "created_at", "project", "work_context", "source", "verified", "conversation", "pending", "memory_projection", "authorization", "integrity"}
+    legacy = payload.get("schema_version") in {4, 5}
+    expected = {"schema_version", "kind", "handoff_id", "created_at", "project", "work_context", "source", "verified", "conversation", "pending", "memory_projection", "authorization"}
+    if legacy:
+        expected.add("integrity")
     if set(payload) != expected or payload["schema_version"] not in SUPPORTED_SCHEMA_VERSIONS or payload["kind"] != KIND:
         raise ContractError("handoff schema is unsupported")
     if payload["handoff_id"] != handoff_id or not HANDOFF_ID.fullmatch(handoff_id):
         raise ContractError("handoff id does not match package path")
     _text(payload["created_at"], "created_at", 128)
-    if payload["project"] != {"name": root.name, "identity_digest": digest({"name": root.name, "marker": ".trellis"})}:
+    if not isinstance(payload["project"], dict) or payload["project"].get("name") != root.name:
         raise ContractError("handoff project identity is invalid")
     context = payload["work_context"]
     if not isinstance(context, dict) or set(context) != {"task"}:
         raise ContractError("handoff work context is invalid")
     task = context["task"]
-    if task is not None and (not isinstance(task, dict) or set(task) != {"id", "path", "status", "material_digest"}):
+    if task is not None and (not isinstance(task, dict) or not {"id", "path", "status"}.issubset(task)):
         raise ContractError("handoff task is invalid")
     source = payload["source"]
     if not isinstance(source, dict) or set(source) != {"session_label", "git", "evidence", "rollout"}:
         raise ContractError("handoff source is invalid")
     _text(source["session_label"], "source.session_label", 128)
-    if not isinstance(source["evidence"], list) or len(source["evidence"]) > 32:
+    if not isinstance(source["evidence"], list):
         raise ContractError("handoff evidence is invalid")
     for item in source["evidence"]:
-        if not isinstance(item, dict) or set(item) != {"path", "bytes", "sha256"}:
+        if not isinstance(item, dict) or set(item) != {"path"}:
+            if not legacy or not isinstance(item, dict) or set(item) != {"path", "bytes", "sha256"}:
+                raise ContractError("handoff evidence item is invalid")
+        if not isinstance(item, dict) or "path" not in item:
             raise ContractError("handoff evidence item is invalid")
         _project_file(root, _text(item["path"], "evidence.path", 1024), "evidence path")
-        if not isinstance(item["bytes"], int) or item["bytes"] < 0:
-            raise ContractError("evidence bytes is invalid")
-        _digest_text(item["sha256"], "evidence.sha256")
     rollout = source["rollout"]
-    rollout_expected = {"path", "session_id", "device", "inode", "capture_end", "record_count", "prefix_sha256", "parser_version", "coverage", "conversation_candidates", "timeline"}
+    rollout_expected = {"path", "session_id", "capture_end", "record_count", "parser_version", "coverage", "conversation_candidates", "timeline"}
+    if legacy:
+        rollout_expected |= {"device", "inode", "prefix_sha256"}
     if not isinstance(rollout, dict) or set(rollout) != rollout_expected:
         raise ContractError("handoff rollout descriptor is invalid")
     _text(rollout["path"], "rollout.path", 4096)
     if rollout["session_id"] is not None:
         _text(rollout["session_id"], "rollout.session_id", 256)
-    for field in ("device", "inode", "capture_end", "record_count"):
+    for field in ("capture_end", "record_count"):
         if not isinstance(rollout[field], int) or rollout[field] < 0:
             raise ContractError("rollout.%s is invalid" % field)
-    _digest_text(rollout["prefix_sha256"], "rollout.prefix_sha256")
     if rollout["parser_version"] != PARSER_VERSION:
         raise ContractError("rollout parser version is unsupported")
     if not isinstance(rollout["coverage"], dict) or not isinstance(rollout["conversation_candidates"], list) or not isinstance(rollout["timeline"], list):
@@ -615,15 +522,15 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
     verified = payload["verified"]
     if not isinstance(verified, dict) or set(verified) != {"facts", "validation"}:
         raise ContractError("handoff verified context is invalid")
-    _text_list(verified["facts"], "verified.facts", 24)
-    if not isinstance(verified["validation"], list) or len(verified["validation"]) > 16:
+    _text_list(verified["facts"], "verified.facts")
+    if not isinstance(verified["validation"], list):
         raise ContractError("handoff validation is invalid")
     pending = payload["pending"]
     if not isinstance(pending, dict) or set(pending) != {"next_action", "blockers", "risks"}:
         raise ContractError("handoff pending context is invalid")
-    _text(pending["next_action"], "pending.next_action", 512)
-    _text_list(pending["blockers"], "pending.blockers", 16)
-    _text_list(pending["risks"], "pending.risks", 16)
+    _text(pending["next_action"], "pending.next_action")
+    _text_list(pending["blockers"], "pending.blockers")
+    _text_list(pending["risks"], "pending.risks")
     memory = payload["memory_projection"]
     if not isinstance(memory, dict):
         raise ContractError("handoff memory projection is invalid")
@@ -635,21 +542,11 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
             raise ContractError("handoff memory projection is invalid")
         free_text(memory["semantic_capsule"], "memory_projection.semantic_capsule")
     for field in ("local", "archive_refs", "openviking"):
-        _text_list(memory[field], "memory_projection.%s" % field, 32)
+        _text_list(memory[field], "memory_projection.%s" % field)
     if payload["authorization"] != AUTHORIZATION:
         raise ContractError("handoff authorization is invalid")
-    integrity = payload["integrity"]
-    if not isinstance(integrity, dict) or set(integrity) != {"payload_digest", "source_digest"}:
-        raise ContractError("handoff integrity is invalid")
-    _digest_text(integrity["payload_digest"], "integrity.payload_digest")
-    _digest_text(integrity["source_digest"], "integrity.source_digest")
-
-
 def validate(root: Path, payload: Dict[str, Any], handoff_id: str) -> str:
     _validate_payload_shape(root, payload, handoff_id)
-    integrity = payload["integrity"]
-    if integrity["payload_digest"] != _payload_digest(payload):
-        raise ContractError("handoff payload digest does not match")
     return "ready"
 
 
@@ -704,14 +601,13 @@ def _archive_path(root: Path, handoff_id: str) -> Path:
     return base / handoff_id
 
 
-def _core(root: Path, handoff_path: str) -> tuple[str, Path, Dict[str, Any], str]:
+def _core(root: Path, handoff_path: str) -> tuple[str, Path, Dict[str, Any]]:
     handoff_id, destination = _destination(root, handoff_path=handoff_path)
     _regular_file(destination, "handoff path")
     payload = load_json_file(destination, None)
     if validate(root, payload, handoff_id) != "ready":
         raise ContractError("handoff core is not ready")
-    core_digest = _digest_text(payload.get("integrity", {}).get("payload_digest"), "core digest")
-    return handoff_id, destination, payload, core_digest
+    return handoff_id, destination, payload
 
 
 def _read_paired_prompt(root: Path, handoff_path: str) -> None:
@@ -723,38 +619,31 @@ def _read_paired_prompt(root: Path, handoff_path: str) -> None:
         raise ContractError("paired handoff prompt is unreadable") from exc
 
 
-def _event_digest(event: Dict[str, Any]) -> str:
-    return digest({key: value for key, value in event.items() if key != "event_digest"})
-
-
 def _event_shape(event: Any, handoff_id: str) -> Dict[str, Any]:
-    expected = {
-        "schema_version", "kind", "handoff_id", "core_digest", "event_id", "event_type",
-        "source_status", "target_status", "retention_status", "observed_at", "actor",
-        "evidence_refs", "prev_event_digest", "event_digest",
-    }
-    if not isinstance(event, dict) or set(event) != expected:
+    if not isinstance(event, dict):
         raise ContractError("lifecycle event schema is invalid")
-    if event["schema_version"] != LIFECYCLE_SCHEMA_VERSION or event["kind"] != LIFECYCLE_EVENT_KIND or event["handoff_id"] != handoff_id:
+    legacy = event.get("schema_version") == 1
+    expected = {
+        "schema_version", "kind", "handoff_id", "event_type", "source_status", "target_status",
+        "retention_status", "observed_at", "actor", "evidence_refs",
+    }
+    if legacy:
+        expected |= {"core_digest", "event_id", "prev_event_digest", "event_digest"}
+    if set(event) != expected or event["schema_version"] not in {1, LIFECYCLE_SCHEMA_VERSION}:
+        raise ContractError("lifecycle event schema is invalid")
+    if event["kind"] != LIFECYCLE_EVENT_KIND or event["handoff_id"] != handoff_id:
         raise ContractError("lifecycle event identity is invalid")
-    bounded_digest(event["core_digest"], "event.core_digest")
-    safe_id(event["event_id"], "event.event_id")
-    _text(event["event_type"], "event.event_type", 32)
+    _text(event["event_type"], "event.event_type")
     for field, values in (("source_status", SOURCE_STATES), ("target_status", TARGET_STATES), ("retention_status", RETENTION_STATES)):
-        value = _text(event[field], "event.%s" % field, 32)
+        value = _text(event[field], "event.%s" % field)
         if value not in values:
             raise ContractError("event.%s is invalid" % field)
-    _text(event["observed_at"], "event.observed_at", 64)
+    _text(event["observed_at"], "event.observed_at")
     if event["actor"] != LIFECYCLE_ACTOR:
         raise ContractError("event.actor is invalid")
-    _text_list(event["evidence_refs"], "event.evidence_refs", 32)
+    _text_list(event["evidence_refs"], "event.evidence_refs")
     if SECRET_RE.search(json.dumps(event, ensure_ascii=False)):
         raise ContractError("lifecycle event contains a possible credential or secret")
-    if event["prev_event_digest"] is not None:
-        bounded_digest(event["prev_event_digest"], "event.prev_event_digest")
-    bounded_digest(event["event_digest"], "event.event_digest")
-    if event["event_digest"] != _event_digest(event):
-        raise ContractError("event digest does not match")
     return event
 
 
@@ -765,8 +654,8 @@ def _transition(axis: str, old: str, new: str) -> bool:
         "source": {
             "unprepared": {"prepared", "failed"},
             "prepared": {"boundary_sealed", "pending", "unsupported", "unavailable", "failed"},
-            "boundary_sealed": {"pending", "archive_verified", "converged", "unsupported", "unavailable", "failed"},
-            "archive_verified": {"pending", "boundary_sealed", "converged", "unsupported", "unavailable", "failed"},
+            "boundary_sealed": {"archive_verified", "converged", "failed"},
+            "archive_verified": {"converged", "failed"},
             "pending": {"boundary_sealed", "archive_verified", "converged", "unsupported", "unavailable", "failed"},
             "unsupported": {"boundary_sealed", "pending", "archive_verified", "converged", "failed"},
             "unavailable": {"boundary_sealed", "pending", "archive_verified", "converged", "failed"},
@@ -778,42 +667,29 @@ def _transition(axis: str, old: str, new: str) -> bool:
     return new in transitions[axis].get(old, set())
 
 
-def _read_events(path: Path, handoff_id: str, core_digest: str) -> list[Dict[str, Any]]:
+def _read_events(path: Path, handoff_id: str) -> list[Dict[str, Any]]:
     if not path.exists():
         return []
     _regular_file(path, "lifecycle receipt")
-    if path.stat().st_size > MAX_LIFECYCLE_BYTES:
-        raise ContractError("lifecycle receipt is too large")
     events: list[Dict[str, Any]] = []
-    previous: Optional[str] = None
     states = {"source": "unprepared", "target": "not_admitted", "retention": "none"}
-    seen: dict[str, str] = {}
     try:
-        lines = path.read_bytes().splitlines()
-    except OSError as exc:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
         raise ContractError("lifecycle receipt is unreadable") from exc
     for raw in lines:
-        if not raw or len(raw) > MAX_EVENT_BYTES:
+        if not raw:
             raise ContractError("lifecycle receipt contains an invalid line")
         try:
-            event = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            event = json.loads(raw)
+        except json.JSONDecodeError as exc:
             raise ContractError("lifecycle receipt contains invalid JSON") from exc
         event = _event_shape(event, handoff_id)
-        if event["core_digest"] != core_digest or event["prev_event_digest"] != previous:
-            raise ContractError("lifecycle receipt chain is broken")
-        existing = seen.get(event["event_id"])
-        if existing is not None and existing != event["event_digest"]:
-            raise ContractError("lifecycle event id was reused")
-        if existing is not None:
-            raise ContractError("lifecycle receipt contains duplicate event")
         for axis, key in (("source", "source_status"), ("target", "target_status"), ("retention", "retention_status")):
             if not _transition(axis, states[axis], event[key]):
                 raise ContractError("lifecycle %s transition is invalid" % axis)
         states = {"source": event["source_status"], "target": event["target_status"], "retention": event["retention_status"]}
-        seen[event["event_id"]] = event["event_digest"]
         events.append(event)
-        previous = event["event_digest"]
     return events
 
 
@@ -834,7 +710,21 @@ def _prepared_mode(events: list[Dict[str, Any]]) -> str:
     return lifecycle_mode(mode)
 
 
-def _append_event(root: Path, handoff_id: str, core_digest: str, event_type: str, desired: dict[str, str], evidence_refs: list[str], operation_input: Any) -> dict[str, Any]:
+def _reconciled_admit_target(events: list[Dict[str, Any]]) -> Optional[str]:
+    targets: list[str] = []
+    for event in events:
+        if event["event_type"] != "admit" or event["target_status"] != "reconciled":
+            continue
+        refs = [reference.removeprefix("target=") for reference in event["evidence_refs"] if reference.startswith("target=")]
+        if len(refs) != 1:
+            raise ContractError("reconciled admission target is invalid")
+        targets.append(refs[0])
+    if len(targets) > 1:
+        raise ContractError("handoff asset has multiple successful consumers")
+    return targets[0] if targets else None
+
+
+def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str]) -> dict[str, Any]:
     path = _lifecycle_path(root, handoff_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)
@@ -846,31 +736,41 @@ def _append_event(root: Path, handoff_id: str, core_digest: str, event_type: str
         except (ImportError, OSError) as exc:
             raise ContractError("lifecycle lock unavailable") from exc
         handle.seek(0)
-        events = _read_events(path, handoff_id, core_digest)
+        events = _read_events(path, handoff_id)
         current = _state(events)
-        event_id = "event-" + hashlib.sha256(canonical({"handoff_id": handoff_id, "core_digest": core_digest, "event_type": event_type, "input": operation_input})).hexdigest()
-        for old in events:
-            if old["event_id"] == event_id:
-                return {"status": "idempotent", "event_digest": old["event_digest"], "state": _state(events)}
+        if event_type == "prepare":
+            existing = next((event for event in events if event["event_type"] == "prepare"), None)
+            if existing is not None:
+                if _prepared_mode(events) != next((ref.removeprefix("mode=") for ref in evidence_refs if ref.startswith("mode=")), None):
+                    raise ContractError("handoff lifecycle mode is immutable")
+                return {"status": "idempotent", "state": current}
+        if event_type == "admit" and desired["target"] == "reconciled":
+            target_refs = [reference.removeprefix("target=") for reference in evidence_refs if reference.startswith("target=")]
+            if len(target_refs) != 1:
+                raise ContractError("admission target is invalid")
+            successful_target = _reconciled_admit_target(events)
+            if successful_target is not None:
+                if successful_target == target_refs[0]:
+                    return {"status": "idempotent", "state": current, "target": successful_target}
+                raise ContractError("handoff asset has already been consumed by another target")
+        if event_type != "admit" and current == desired and any(old["event_type"] == event_type and old["evidence_refs"] == evidence_refs for old in events):
+            return {"status": "idempotent", "state": current}
         for axis in ("source", "target", "retention"):
             if not _transition(axis, current[axis], desired[axis]):
                 raise ContractError("lifecycle %s transition is invalid" % axis)
         event: Dict[str, Any] = {
             "schema_version": LIFECYCLE_SCHEMA_VERSION, "kind": LIFECYCLE_EVENT_KIND,
-            "handoff_id": handoff_id, "core_digest": core_digest, "event_id": event_id,
+            "handoff_id": handoff_id,
             "event_type": event_type, "source_status": desired["source"], "target_status": desired["target"],
             "retention_status": desired["retention"], "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
-            "actor": LIFECYCLE_ACTOR, "evidence_refs": evidence_refs, "prev_event_digest": events[-1]["event_digest"] if events else None,
+            "actor": LIFECYCLE_ACTOR, "evidence_refs": evidence_refs,
         }
-        event["event_digest"] = _event_digest(event)
-        encoded = (json.dumps(event, ensure_ascii=True, sort_keys=True) + "\n").encode("utf-8")
-        if len(encoded) > MAX_EVENT_BYTES:
-            raise ContractError("lifecycle event is too large")
+        encoded = json.dumps(event, ensure_ascii=True, sort_keys=True) + "\n"
         handle.seek(0, 2)
-        handle.write(encoded.decode("utf-8"))
+        handle.write(encoded)
         handle.flush()
         os.fsync(handle.fileno())
-        return {"status": "recorded", "event_digest": event["event_digest"], "state": desired}
+        return {"status": "recorded", "state": desired}
 
 
 def _task_current(root: Path) -> dict[str, Any]:
@@ -932,20 +832,19 @@ def _ownership_call(root: Path, operation: str, task_id: str, handoff_id: str, c
     return value
 
 
-def _ownership_event(root: Path, handoff_id: str, core_digest: str, operation: str, result: dict[str, Any]) -> dict[str, Any]:
-    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id, core_digest)
+def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[str, Any]) -> dict[str, Any]:
+    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
     state = _state(events)
     refs = [
         "ownership_status=" + _text(result.get("status"), "ownership.status", 32),
         "ownership_generation=" + str(result.get("generation")),
-        "ownership_record_digest=" + _text(result.get("record_digest"), "ownership.record_digest", 128),
     ]
     receipt = _append_event(
-        root, handoff_id, core_digest, "ownership_" + operation,
+        root, handoff_id, "ownership_" + operation,
         {"source": state["source"], "target": state["target"], "retention": state["retention"]},
-        refs, {"status": result["status"], "generation": result["generation"], "record_digest": result["record_digest"]},
+        refs,
     )
     return {"ownership": result, "lifecycle": receipt}
 
@@ -960,11 +859,12 @@ def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: O
 
 
 def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
-    handoff_id, _, payload, core_digest = _core(root, handoff_path)
+    handoff_id, core, payload = _core(root, handoff_path)
+    core_digest = _ownership_core_digest(core)
     task_id, task_path = _ownership_task(payload)
     if operation == "status":
         result = _ownership_call(root, operation, task_id, handoff_id, core_digest, ["--json"], explicit=False)
-        return {"handoff_id": handoff_id, "core_digest": core_digest, "ownership": result}
+        return {"handoff_id": handoff_id, "ownership": result}
     if not explicit:
         raise ContractError("ownership writes require --explicit-user-request")
     extra: list[str] = []
@@ -981,15 +881,15 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
             extra += ["--task", task_path]
         if operation == "retire":
             observation = archive_observation or "not_required"
-            events = _read_events(_lifecycle_path(root, handoff_id), handoff_id, core_digest)
+            events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
             _ownership_gate(root, _prepared_mode(events), _state(events), observation)
             extra += ["--archive-observation", observation]
     result = _ownership_call(root, operation, task_id, handoff_id, core_digest, extra, explicit=True)
-    receipt = _ownership_event(root, handoff_id, core_digest, operation, result)
-    return {"handoff_id": handoff_id, "core_digest": core_digest, **receipt}
+    receipt = _ownership_event(root, handoff_id, operation, result)
+    return {"handoff_id": handoff_id, **receipt}
 
 
-def _archive_snapshot(root: Path, archive: Path, core_digest: str, handoff_id: str) -> list[str]:
+def _archive_snapshot(root: Path, archive: Path, handoff_id: str) -> list[str]:
     if not archive.is_dir() or archive.is_symlink():
         raise ContractError("handoff archive is unavailable")
     names = {path.name for path in archive.iterdir()}
@@ -998,19 +898,21 @@ def _archive_snapshot(root: Path, archive: Path, core_digest: str, handoff_id: s
     core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
     payload = load_json_file(core, None)
     _validate_payload_shape(root, payload, handoff_id)
-    if _payload_digest(payload) != core_digest or payload["integrity"]["payload_digest"] != core_digest:
-        raise ContractError("archived handoff digest does not match")
-    refs = ["session-handoff.json=" + _sha256_file(core)[0]]
+    refs = ["archive=" + handoff_id]
     prompt = archive / "session-handoff-prompt.md"
     if prompt.exists():
-        refs.append("session-handoff-prompt.md=" + _sha256_file(_regular_file(prompt, "archived prompt"))[0])
+        _regular_file(prompt, "archived prompt")
+        try:
+            prompt.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise ContractError("archived prompt is unreadable") from exc
     return refs
 
 
-def _archive_copy(root: Path, handoff_id: str, core: Path, core_digest: str) -> list[str]:
+def _archive_copy(root: Path, handoff_id: str, core: Path) -> list[str]:
     archive = _archive_path(root, handoff_id)
     if archive.exists():
-        return _archive_snapshot(root, archive, core_digest, handoff_id)
+        return _archive_snapshot(root, archive, handoff_id)
     parent = archive.parent
     parent.mkdir(parents=True, exist_ok=True)
     os.chmod(parent, 0o700)
@@ -1022,10 +924,9 @@ def _archive_copy(root: Path, handoff_id: str, core: Path, core_digest: str) -> 
         prompt = core.parent / "session-handoff-prompt.md"
         if prompt.exists():
             prompt = _regular_file(prompt, "handoff prompt")
-            _sha256_file(prompt)
             shutil.copyfile(prompt, temporary / "session-handoff-prompt.md")
             os.chmod(temporary / "session-handoff-prompt.md", 0o600)
-        _archive_snapshot(root, temporary, core_digest, handoff_id)
+        _archive_snapshot(root, temporary, handoff_id)
         directory_fd = os.open(temporary, os.O_RDONLY)
         try:
             os.fsync(directory_fd)
@@ -1040,11 +941,11 @@ def _archive_copy(root: Path, handoff_id: str, core: Path, core_digest: str) -> 
     except Exception:
         shutil.rmtree(temporary, ignore_errors=True)
         raise
-    return _archive_snapshot(root, archive, core_digest, handoff_id)
+    return _archive_snapshot(root, archive, handoff_id)
 
 
 def _restore_copy(source: Path, destination: Path) -> None:
-    _sha256_file(_regular_file(source, "archived restore source"))
+    _regular_file(source, "archived restore source")
     temporary: Optional[Path] = None
     try:
         with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as handle:
@@ -1070,24 +971,18 @@ def _lifecycle_result(operation: str, handoff_id: str, result: dict[str, Any]) -
 
 
 def lifecycle_prepare(root: Path, handoff_path: str, mode: str) -> tuple[str, dict[str, Any]]:
-    handoff_id, _, _, core_digest = _core(root, handoff_path)
+    handoff_id, _, _ = _core(root, handoff_path)
     selected_mode = lifecycle_mode(mode)
-    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id, core_digest)
-    existing = next((event for event in events if event["event_type"] == "prepare"), None)
-    if existing is not None:
-        previous_mode = next((ref.split("=", 1)[1] for ref in existing["evidence_refs"] if ref.startswith("mode=")), "core_only")
-        if previous_mode != selected_mode:
-            raise ContractError("handoff lifecycle mode is immutable")
-    return handoff_id, _append_event(root, handoff_id, core_digest, "prepare", {"source": "prepared", "target": "not_admitted", "retention": "none"}, ["mode=" + selected_mode], {"mode": selected_mode})
+    return handoff_id, _append_event(root, handoff_id, "prepare", {"source": "prepared", "target": "not_admitted", "retention": "none"}, ["mode=" + selected_mode])
 
 
 def lifecycle_finalize(root: Path, handoff_path: str, observation_path: str) -> tuple[str, dict[str, Any]]:
-    handoff_id, _, payload, core_digest = _core(root, handoff_path)
-    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id, core_digest)
+    handoff_id, _, payload = _core(root, handoff_path)
+    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
     mode = _prepared_mode(events)
-    observation = validate_observation(load_json_file(_project_file(root, observation_path, "observation path"), 32 * 1024))
+    observation = validate_observation(load_json_file(_project_file(root, observation_path, "observation path")))
     status = "pending"
     if observation["availability"] == "unsupported":
         status = "unsupported"
@@ -1096,7 +991,7 @@ def lifecycle_finalize(root: Path, handoff_path: str, observation_path: str) -> 
     elif observation["boundary"]["status"] == "sealed":
         status = "boundary_sealed"
         if mode in {"capsule_required", "archive_required", "convergence_required"}:
-            if observation["capsule"]["status"] != "verified" or not observation["capsule"]["exact_read_digest"]:
+            if observation["capsule"]["status"] != "verified" or not observation["capsule"]["proof_ref"]:
                 status = "pending"
             elif mode in {"archive_required", "convergence_required"}:
                 source_session = payload["source"]["rollout"].get("session_id")
@@ -1105,25 +1000,27 @@ def lifecycle_finalize(root: Path, handoff_path: str, observation_path: str) -> 
                     or observation["source_session"]["status"] != "verified"
                     or observation["source_session"]["identity"] != source_session
                     or observation["archive"]["status"] != "verified"
-                    or not observation["archive"]["exact_read_digest"]
+                    or not observation["archive"]["proof_ref"]
                 ):
                     status = "pending"
                 else:
                     status = "archive_verified"
                     if mode == "convergence_required":
-                        if observation["task"]["status"] == "completed" and observation["task"]["completion_artifact"] and observation["memory"]["status"] == "verified" and observation["memory"]["diff_digest"]:
+                        if observation["task"]["status"] == "completed" and observation["task"]["completion_artifact"] and observation["memory"]["status"] == "verified" and observation["memory"]["proof_ref"]:
                             status = "converged"
                         else:
                             status = "pending"
-    evidence = ["observation=" + digest(observation)]
-    result = _append_event(root, handoff_id, core_digest, "finalize", {"source": status, "target": _state(events)["target"], "retention": _state(events)["retention"]}, evidence, {"observation": observation})
+    if status == "pending" and _state(events)["source"] in {"boundary_sealed", "archive_verified", "converged"}:
+        status = _state(events)["source"]
+    evidence = ["observation=" + observation_path]
+    result = _append_event(root, handoff_id, "finalize", {"source": status, "target": _state(events)["target"], "retention": _state(events)["retention"]}, evidence)
     return handoff_id, result
 
 
 def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tuple[str, dict[str, Any]]:
-    handoff_id, _, payload, core_digest = _core(root, handoff_path)
+    handoff_id, _, payload = _core(root, handoff_path)
     _read_paired_prompt(root, handoff_path)
-    attestation = validate_attestation(load_json_file(_project_file(root, attestation_path, "attestation path"), 32 * 1024))
+    attestation = validate_attestation(load_json_file(_project_file(root, attestation_path, "attestation path")))
     rollout_session = payload["source"]["rollout"].get("session_id")
     if rollout_session is not None and attestation["target_source"] == "session:" + rollout_session:
         raise ContractError("target source cannot reuse the handoff source session id")
@@ -1134,24 +1031,18 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
         target_status = "blocked"
     else:
         target_status = "reconciled"
-    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id, core_digest)
+    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     current_state = _state(events)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
     target_source = attestation["target_source"]
-    successful_targets = {
-        reference.removeprefix("target=")
-        for event in events
-        if event["event_type"] == "admit" and event["target_status"] == "reconciled"
-        for reference in event["evidence_refs"]
-        if reference.startswith("target=")
-    }
-    if successful_targets:
-        if target_source in successful_targets:
+    successful_target = _reconciled_admit_target(events)
+    if successful_target is not None:
+        if target_source == successful_target:
             return handoff_id, {"status": "idempotent", "state": current_state, "target": target_source}
         raise ContractError("handoff asset has already been consumed by another target")
     retention_status = "archive_eligible" if target_status == "reconciled" else "none"
-    result = _append_event(root, handoff_id, core_digest, "admit", {"source": current_state["source"], "target": target_status, "retention": retention_status}, ["target=" + target_source], attestation)
+    result = _append_event(root, handoff_id, "admit", {"source": current_state["source"], "target": target_status, "retention": retention_status}, ["target=" + target_source])
     return handoff_id, result
 
 
@@ -1164,47 +1055,40 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
         archived_core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
         archived_payload = load_json_file(archived_core, None)
         _validate_payload_shape(root, archived_payload, handoff_id)
-        if _payload_digest(archived_payload) != archived_payload.get("integrity", {}).get("payload_digest"):
-            raise ContractError("archived handoff core digest does not match")
-        core_digest = _digest_text(archived_payload.get("integrity", {}).get("payload_digest"), "core digest")
         core = core_path
     else:
-        handoff_id, core, _, core_digest = _core(root, handoff_path)
+        handoff_id, core, _ = _core(root, handoff_path)
     receipt = _lifecycle_path(root, handoff_id)
-    events = _read_events(receipt, handoff_id, core_digest)
+    events = _read_events(receipt, handoff_id)
     state = _state(events)
     if action == "archive":
         if state["retention"] != "archive_eligible":
             raise ContractError("handoff is not archive eligible")
-        refs = _archive_copy(root, handoff_id, core, core_digest)
-        result = _append_event(root, handoff_id, core_digest, "archive", {"source": state["source"], "target": state["target"], "retention": "archived"}, refs, {"action": action})
+        refs = _archive_copy(root, handoff_id, core)
+        result = _append_event(root, handoff_id, "archive", {"source": state["source"], "target": state["target"], "retention": "archived"}, refs)
     elif action == "restore":
         archive = _archive_path(root, handoff_id)
-        refs = _archive_snapshot(root, archive, core_digest, handoff_id)
+        refs = _archive_snapshot(root, archive, handoff_id)
         archived_core = archive / HANDOFF_NAME
-        if core.exists() and _sha256_file(_regular_file(core, "canonical handoff"))[0] != _sha256_file(archived_core)[0]:
-            raise ContractError("canonical handoff differs from archive")
         if not core.exists():
             core.parent.mkdir(parents=True, exist_ok=True)
             _restore_copy(archived_core, core)
         prompt = archive / "session-handoff-prompt.md"
         if prompt.exists():
             canonical_prompt = core.parent / "session-handoff-prompt.md"
-            if canonical_prompt.exists() and _sha256_file(_regular_file(canonical_prompt, "canonical prompt"))[0] != _sha256_file(prompt)[0]:
-                raise ContractError("canonical prompt differs from archive")
             if not canonical_prompt.exists():
                 _restore_copy(prompt, canonical_prompt)
-        result = _append_event(root, handoff_id, core_digest, "restore", {"source": state["source"], "target": state["target"], "retention": "restored"}, refs, {"action": action})
+        result = _append_event(root, handoff_id, "restore", {"source": state["source"], "target": state["target"], "retention": "restored"}, refs)
     elif action == "reopen":
         if state["retention"] not in {"archived", "retained", "restored"}:
             raise ContractError("handoff is not reopenable")
-        refs = _archive_snapshot(root, _archive_path(root, handoff_id), core_digest, handoff_id)
-        result = _append_event(root, handoff_id, core_digest, "reopen", {"source": state["source"], "target": state["target"], "retention": "reopened"}, refs, {"action": action})
+        refs = _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
+        result = _append_event(root, handoff_id, "reopen", {"source": state["source"], "target": state["target"], "retention": "reopened"}, refs)
     elif action == "purge":
         if state["retention"] not in {"archived", "retained", "restored", "reopened"}:
             raise ContractError("handoff is not purgeable")
-        refs = _archive_snapshot(root, _archive_path(root, handoff_id), core_digest, handoff_id)
-        _append_event(root, handoff_id, core_digest, "purge_intent", {"source": state["source"], "target": state["target"], "retention": state["retention"]}, refs, {"action": action})
+        refs = _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
+        _append_event(root, handoff_id, "purge_intent", {"source": state["source"], "target": state["target"], "retention": state["retention"]}, refs)
         core.unlink(missing_ok=True)
         (core.parent / "session-handoff-prompt.md").unlink(missing_ok=True)
         directory_fd = os.open(core.parent, os.O_RDONLY)
@@ -1212,7 +1096,7 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
             os.fsync(directory_fd)
         finally:
             os.close(directory_fd)
-        result = _append_event(root, handoff_id, core_digest, "purge", {"source": state["source"], "target": state["target"], "retention": "purged"}, refs, {"action": action})
+        result = _append_event(root, handoff_id, "purge", {"source": state["source"], "target": state["target"], "retention": "purged"}, refs)
     else:
         raise ContractError("retention action is unsupported")
     return handoff_id, result
@@ -1221,17 +1105,16 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
 def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     handoff_id, destination = _destination(root, handoff_path=handoff_path)
     if destination.exists():
-        handoff_id, _, _, core_digest = _core(root, handoff_path)
+        handoff_id, _, _ = _core(root, handoff_path)
     else:
         archive = _archive_path(root, handoff_id)
         archived_core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
         payload = load_json_file(archived_core, None)
         _validate_payload_shape(root, payload, handoff_id)
-        core_digest = _digest_text(payload["integrity"]["payload_digest"], "core digest")
     path = _lifecycle_path(root, handoff_id)
     if not path.exists():
         return {"status": "absent", "handoff_id": handoff_id}
-    events = _read_events(path, handoff_id, core_digest)
+    events = _read_events(path, handoff_id)
     state = _state(events)
     mode = _prepared_mode(events)
     required = {"core_only": "prepared", "capsule_required": "boundary_sealed", "archive_required": "archive_verified", "convergence_required": "converged"}[mode]

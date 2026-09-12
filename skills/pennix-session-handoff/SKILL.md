@@ -44,14 +44,13 @@ are:
 rollout path is deliberately explicit and absolute: never scan a session
 directory or choose a file by modification time. Do not put credentials, raw
 tool output, transcript text, cache paths, or temporary state in the request.
-The helper scans the rollout locally as a streaming JSONL source, binds the
-completed-record prefix by byte boundary, inode and SHA-256, and only projects
-eligible public user/assistant messages plus finite tool metadata. The source
-may be large. It excludes
-reasoning, developer/system messages, raw tool arguments, unbounded output and
-credentials. File order is the timeline order; record timestamps are auxiliary
-only. A later explicit user correction is kept with the earlier event instead
-of silently overwriting history.
+The helper scans the rollout locally as a streaming JSONL source to the capture
+boundary and projects eligible public user/assistant messages plus tool metadata.
+The source may be large: no package text, record, candidate, or receipt length
+limit is imposed. It excludes reasoning, developer/system messages, raw tool
+arguments, raw tool output, and credentials. File order is the timeline order;
+record timestamps are auxiliary only. A later explicit user correction is kept
+with the earlier event instead of silently overwriting history.
 
 Run:
 
@@ -68,8 +67,8 @@ format `YYYYMMDDTHHMMSSffffffZ` and writes exactly one paired package under:
 ```
 
 It fails on a timestamp-directory collision and never overwrites an earlier
-package. It records a task snapshot, Git history, content digests for the
-requested evidence, and a rollout coverage/candidate projection. It does
+package. It records a task snapshot, Git history, requested evidence paths, and
+a rollout coverage/candidate projection. It does
 not upload rollout content or call external models.
 
 To inspect one package later without writing, use the exact emitted path:
@@ -116,8 +115,8 @@ earlier commands. `prepare` fixes one mode and writes no remote state.
 `finalize` consumes only a local observation manifest. It never reads
 Plugin private state, calls shell HTTP, or retries forever. `core_only` is the
 default and needs no remote proof. `capsule_required`, `archive_required`, and
-`convergence_required` require their respective verified exact-read proof
-digests; unavailable official capability must remain `unsupported`,
+`convergence_required` require their respective verified proof references;
+unavailable official capability must remain `unsupported`,
 `unavailable`, or `pending`, never silently downgrade.
 
 `admit` records only that the target session completely read the paired JSON
@@ -130,8 +129,9 @@ uses native Trellis `task.py start` for an incomplete task and then rechecks
 its direct current source. A completed task instead follows native Trellis
 finish/archive by exact task path; do not manufacture a session pointer.
 
-After a reconciled admission, `retention archive` copies only the exact core
-and paired prompt using copy-first validation. `restore`, `reopen`, and
+After a reconciled admission, `retention archive` atomically copies the core
+and paired prompt after checking that the core is parseable and prompt is
+readable. `restore`, `reopen`, and
 `purge` require the exact same handoff id confirmation. `purge` removes only
 the canonical core/prompt after archive verification; it never deletes task,
 rollout, session, memory, resource/watch, log, or remote data. The receipt is

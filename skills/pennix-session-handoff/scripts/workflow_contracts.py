@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -22,7 +21,6 @@ class ContractError(ValueError):
     """Raised when handoff input cannot be accepted safely."""
 
 
-SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 TARGET_SOURCE_RE = re.compile(r"^session:[A-Za-z0-9][A-Za-z0-9._-]{0,159}$")
 LIFECYCLE_MODES = {"core_only", "capsule_required", "archive_required", "convergence_required"}
@@ -32,16 +30,8 @@ PROOF_STATUSES = {"verified", "unverified"}
 TASK_STATUSES = {"completed", "incomplete", "unknown"}
 
 
-def canonical(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
-
-
-def digest(value: Any) -> str:
-    return "sha256:" + hashlib.sha256(canonical(value)).hexdigest()
-
-
-def _text(value: Any, label: str, maximum: int = 4096) -> str:
-    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+def _text(value: Any, label: str, maximum: int | None = None) -> str:
+    if not isinstance(value, str) or not value.strip():
         raise ContractError("%s must be a non-empty string" % label)
     if any(ord(char) < 32 and char not in "\n\t" for char in value):
         raise ContractError("%s contains control characters" % label)
@@ -57,20 +47,15 @@ def free_text(value: Any, label: str) -> str:
     return value
 
 
-def _text_list(value: Any, label: str, maximum: int = 64) -> list[str]:
-    if not isinstance(value, list) or len(value) > maximum:
-        raise ContractError("%s must be a list of at most %d strings" % (label, maximum))
-    result = [_text(item, "%s[%d]" % (label, index), 4096) for index, item in enumerate(value)]
-    if len(set(result)) != len(result):
-        raise ContractError("%s must not contain duplicates" % label)
-    return result
+def _text_list(value: Any, label: str, maximum: int | None = None) -> list[str]:
+    if not isinstance(value, list):
+        raise ContractError("%s must be a list of strings" % label)
+    return [_text(item, "%s[%d]" % (label, index)) for index, item in enumerate(value)]
 
 
-def load_json_file(path: Path, maximum_bytes: int | None = 64 * 1024) -> Dict[str, Any]:
+def load_json_file(path: Path, maximum_bytes: int | None = None) -> Dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ContractError("JSON input must be a regular file: %s" % path)
-    if maximum_bytes is not None and path.stat().st_size > maximum_bytes:
-        raise ContractError("JSON input exceeds %d bytes" % maximum_bytes)
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -79,12 +64,6 @@ def load_json_file(path: Path, maximum_bytes: int | None = 64 * 1024) -> Dict[st
         raise ContractError("JSON input must be an object")
     if SECRET_RE.search(json.dumps(value, ensure_ascii=False)):
         raise ContractError("JSON input contains a possible credential or secret")
-    return value
-
-
-def bounded_digest(value: Any, label: str) -> str:
-    if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
-        raise ContractError("%s is invalid" % label)
     return value
 
 
@@ -133,15 +112,15 @@ def validate_observation(value: Any) -> Dict[str, Any]:
     proofs: Dict[str, Any] = {}
     for name in ("capsule", "archive"):
         item = value[name]
-        if not isinstance(item, dict) or set(item) != {"status", "exact_read_digest"}:
+        if not isinstance(item, dict) or set(item) not in ({"status", "proof_ref"}, {"status", "exact_read_digest"}):
             raise ContractError("observation.%s is invalid" % name)
         status = _text(item["status"], "observation.%s.status" % name, 16)
         if status not in PROOF_STATUSES:
             raise ContractError("observation.%s status is invalid" % name)
-        digest_value = item["exact_read_digest"]
-        if digest_value is not None:
-            bounded_digest(digest_value, "observation.%s.exact_read_digest" % name)
-        proofs[name] = {"status": status, "exact_read_digest": digest_value}
+        proof_ref = item.get("proof_ref", item.get("exact_read_digest"))
+        if proof_ref is not None:
+            _text(proof_ref, "observation.%s.proof_ref" % name)
+        proofs[name] = {"status": status, "proof_ref": proof_ref}
 
     task = value["task"]
     if not isinstance(task, dict) or set(task) != {"status", "completion_artifact"}:
@@ -153,13 +132,14 @@ def validate_observation(value: Any) -> Dict[str, Any]:
         _text(task["completion_artifact"], "observation.task.completion_artifact", 1024)
 
     memory = value["memory"]
-    if not isinstance(memory, dict) or set(memory) != {"status", "diff_digest"}:
+    if not isinstance(memory, dict) or set(memory) not in ({"status", "proof_ref"}, {"status", "diff_digest"}):
         raise ContractError("observation memory is invalid")
     memory_status = _text(memory["status"], "observation.memory.status", 16)
     if memory_status not in PROOF_STATUSES:
         raise ContractError("observation memory status is invalid")
-    if memory["diff_digest"] is not None:
-        bounded_digest(memory["diff_digest"], "observation.memory.diff_digest")
+    proof_ref = memory.get("proof_ref", memory.get("diff_digest"))
+    if proof_ref is not None:
+        _text(proof_ref, "observation.memory.proof_ref")
 
     normalized = {
         "availability": availability,
@@ -167,7 +147,7 @@ def validate_observation(value: Any) -> Dict[str, Any]:
         "source_session": {"status": source_status, "identity": source_session["identity"]},
         "capsule": proofs["capsule"], "archive": proofs["archive"],
         "task": {"status": task_status, "completion_artifact": task["completion_artifact"]},
-        "memory": {"status": memory_status, "diff_digest": memory["diff_digest"]},
+        "memory": {"status": memory_status, "proof_ref": proof_ref},
     }
     if SECRET_RE.search(json.dumps(normalized, ensure_ascii=False)):
         raise ContractError("observation contains a possible credential or secret")

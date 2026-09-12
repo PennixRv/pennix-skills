@@ -79,7 +79,7 @@ def _payload(root: Path, relative: str) -> Mapping[str, Any]:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PromptError("handoff file is invalid") from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") not in {4, 5} or payload.get("kind") != "pennix-session-handoff":
+    if not isinstance(payload, Mapping) or payload.get("schema_version") not in {4, 5, 6} or payload.get("kind") != "pennix-session-handoff":
         raise PromptError("handoff file has an unsupported schema")
     return payload
 
@@ -113,7 +113,7 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any], life
         "## Required New-Session Route", "",
         "1. Read `AGENTS.md` and `.trellis/workflow.md`.",
         "2. Run `$pennix-session-handoff` validation for the exact package JSON.",
-        "3. Only when the receipt is `ready`, read this entire handoff prompt before acting on `Pending`.",
+        "3. Only when the receipt is `ready`, read the paired package JSON and this entire handoff prompt before acting on `Pending`.",
         "4. Run `$trellis-start`, then compare the captured task, Git state, evidence, and pending action with current facts.",
         "5. Do not call `task.py start` or claim ownership during initial intake; do not close it from this snapshot, and record an admission only after reconciliation and stop.",
         "6. If a subsequent user instruction authorizes continuation of this task, use the handoff ownership `claim` operation first; it binds only this direct target session, then use `$trellis-continue` as appropriate.",
@@ -131,10 +131,10 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any], life
     if not validation:
         lines.append("- None")
     lines.extend(["", "### Evidence Snapshot", ""])
-    lines.extend("- `%s` (%d bytes, `%s`)" % (item["path"], item["bytes"], item["sha256"]) for item in source["evidence"])
+    lines.extend("- `%s`" % item["path"] for item in source["evidence"])
     lines.extend([
         "", "## Rollout Coverage And Candidates", "", "- Source: `%s`" % rollout["path"],
-        "- Capture boundary: byte %d; records: %d; prefix: `%s`" % (rollout["capture_end"], rollout["record_count"], rollout["prefix_sha256"]),
+        "- Capture boundary: byte %d; records: %d" % (rollout["capture_end"], rollout["record_count"]),
         "- Parser: `%s`" % rollout["parser_version"],
         "- These are local conversation candidates only. They cannot override the verified snapshot above.", "",
         "## Semantic Handoff Capsule", "",
@@ -216,8 +216,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         entry = (
             "当前会话位于 %s。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
             "`$pennix-session-handoff` 对 `%s` 运行 `handoff validate --handoff %s`；只有 receipt 为 `ready` 才继续。"
-            "随后完整阅读 `%s`，按 `$trellis-start` 严格核对并收敛交接 task；不得执行 pending next action，停在可继续交接前会话任务的现场。"
-            % (json.dumps(str(root), ensure_ascii=False), args.handoff, args.handoff, prompt_relative)
+            "随后完整阅读配对 JSON core `%s` 和 `%s`，按 `$trellis-start` 严格核对并收敛交接 task；不得执行 pending next action，停在可继续交接前会话任务的现场。"
+            % (json.dumps(str(root), ensure_ascii=False), args.handoff, args.handoff, args.handoff, prompt_relative)
         )
         print("可直接复制到新会话的短提示词：\n\n```text\n%s\n```" % entry)
         return 0
