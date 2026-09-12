@@ -23,3 +23,15 @@
 - `python3 -m unittest discover -s skills/pennix-skills-install/tests -p 'test_*.py' -v`：10/10 通过。
 - `python3 skills/pennix-skills-install/scripts/install.py --source . --check`：已验证 11 个 Pennix Skills。
 - `python3 -m py_compile skills/pennix-session-handoff/scripts/*.py` 与 `git diff --check`：通过。
+
+## 发布与安装
+
+- 源提交 `4c49dd5 fix(handoff): enforce one-time consumer lifecycle` 已推送至
+  `https://github.com/PennixRv/pennix-skills.git` 的 `origin/main`。
+- 官方安装器从该明确 checkout 将 11 个 Skill 安装至
+  `/home/penn/.codex/skills/pennix-skills`。
+- 已逐文件核验安装副本中的 `SKILL.md`、`handoff.py`、`render_handoff_prompt.py` 与
+  `workflow_contracts.py` 均与源提交一致。安装器刻意不复制 `tests/`，因此没有把测试目录
+  作为运行时副本差异。
+- 宿主的静态组件矩阵和 Trellis handoff 说明已在独立本地提交 `2df74fb` 同步；该宿主仓库没有
+  Git remote，不能也无需伪造推送。

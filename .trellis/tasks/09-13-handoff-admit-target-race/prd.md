@@ -30,7 +30,7 @@
 - [x] 定向测试证明新 core、receipt 和 observation 不含 handoff SHA/容量门槛；长 capsule/rollout 不被截断，
       source/evidence 后续变化不阻断 `ready`，legacy core 仍可读取。
 - [x] 现有 handoff、renderer 与安装器测试通过，且静态 Skill 校验通过。
-- [ ] 修改仅限 handoff helper 和对应测试；源仓库提交推送后由官方安装器重装，并核对安装副本。
+- [x] 修改仅限 handoff helper 和对应测试；源仓库提交推送后由官方安装器重装，并核对安装副本。
 
 ## Notes
 
