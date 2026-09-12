@@ -38,7 +38,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
 
     def write(self) -> str:
         request = Path(self.temp.name) / "request.json"
-        request.write_text(json.dumps({"session_label": "renderer fixture", "facts": ["verified"], "evidence_paths": ["evidence.md"], "next_action": "continue", "blockers": [], "risks": [], "validation": [], "rollout": {"path": str(self.rollout)}}), encoding="utf-8")
+        request.write_text(json.dumps({"session_label": "renderer fixture", "facts": ["verified"], "evidence_paths": ["evidence.md"], "next_action": "continue", "blockers": [], "risks": [], "validation": [], "memory_projection": {"semantic_capsule": "preserved semantic scene", "local": ["research/worktime-memory.md"], "archive_refs": [], "openviking": ["viking://user/penn/memories/experiences"]}, "rollout": {"path": str(self.rollout)}}), encoding="utf-8")
         result = self.run_cli(HANDOFF, "write", "--request", str(request), "--explicit-user-request")
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)["handoff_path"]
@@ -61,6 +61,8 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertIn("$trellis-finish-work", prompt_text)
         self.assertIn("do not close it from this snapshot", prompt_text)
         self.assertIn("read this entire handoff prompt", prompt_text)
+        self.assertIn("preserved semantic scene", prompt_text)
+        self.assertIn("viking://user/penn/memories/experiences", prompt_text)
         self.assertIn("Do not execute the pending next action", prompt_text)
         self.assertLess(prompt_text.index("$trellis-start"), prompt_text.index("$trellis-continue"))
         self.assertIn(relative, rendered.stdout)
@@ -69,14 +71,14 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertEqual(repeated.returncode, 0, repeated.stderr)
         self.assertEqual(repeated.stdout, rendered.stdout)
 
-    def test_non_ready_receipt_never_emits_prompt(self) -> None:
+    def test_invalid_package_never_emits_prompt(self) -> None:
         relative = self.write()
-        self.rollout.write_text("changed\n", encoding="utf-8")
+        (self.root / relative).write_text("changed\n", encoding="utf-8")
         rendered = self.run_cli(RENDER, "--handoff", relative)
         self.assertNotEqual(rendered.returncode, 0)
         self.assertEqual(rendered.stdout, "")
         self.assertFalse((self.root / Path(relative).with_name("session-handoff-prompt.md")).exists())
-        self.assertIn("not ready: changed", rendered.stderr)
+        self.assertIn("handoff is not ready: recovery_required", rendered.stderr)
 
     def test_pending_lifecycle_never_emits_prompt(self) -> None:
         relative = self.write()

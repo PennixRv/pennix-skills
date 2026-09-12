@@ -1,11 +1,11 @@
 ---
 name: pennix-session-handoff
-description: Create, validate, or render one explicit, timestamped Pennix session handoff package with a bounded local Codex rollout projection. Use only for a current user-requested formal cross-session handoff.
+description: Create, validate, or render one explicit, timestamped Pennix session handoff package with a semantic handoff capsule and local rollout projection. Use only for a current user-requested formal cross-session handoff.
 ---
 
 # Pennix Session Handoff
 
-This Skill creates a bounded navigation package for a new Codex coordinator
+This Skill creates a navigation package for a new Codex coordinator
 session. It is not a transcript backup, task database, checkpoint ledger,
 native session resume, or mechanism for continuing an interrupted tool call.
 Trellis remains the source of truth for task and lifecycle state; the new
@@ -25,10 +25,14 @@ are:
   "session_label": "short description of this session",
   "facts": ["verified fact with a stable project source"],
   "evidence_paths": ["AGENTS.md", ".trellis/workflow.md"],
-  "next_action": "bounded next action for the new coordinator",
+  "next_action": "next action for the new coordinator",
   "blockers": [],
   "risks": ["known residual risk"],
-  "validation": [{"command": "check name", "result": "bounded result"}],
+  "validation": [{"command": "check name", "result": "result"}],
+  "memory_projection": {
+    "semantic_capsule": "task contract, scene, decisions, reversals, validation, experience, blockers, and open work",
+    "local": [], "archive_refs": [], "openviking": []
+  },
   "rollout": {
     "path": "/absolute/path/to/the-current-codex-rollout.jsonl",
     "session_id": "optional-host-session-id"
@@ -43,8 +47,7 @@ tool output, transcript text, cache paths, or temporary state in the request.
 The helper scans the rollout locally as a streaming JSONL source, binds the
 completed-record prefix by byte boundary, inode and SHA-256, and only projects
 eligible public user/assistant messages plus finite tool metadata. The source
-may be large; the projected candidates, timeline, metadata, and individual
-records remain bounded. It excludes
+may be large. It excludes
 reasoning, developer/system messages, raw tool arguments, unbounded output and
 credentials. File order is the timeline order; record timestamps are auxiliary
 only. A later explicit user correction is kept with the earlier event instead
@@ -65,8 +68,8 @@ format `YYYYMMDDTHHMMSSffffffZ` and writes exactly one paired package under:
 ```
 
 It fails on a timestamp-directory collision and never overwrites an earlier
-package. It records a task snapshot, bounded Git history, content digests for
-the requested evidence, and a rollout coverage/candidate projection. It does
+package. It records a task snapshot, Git history, content digests for the
+requested evidence, and a rollout coverage/candidate projection. It does
 not upload rollout content or call external models.
 
 To inspect one package later without writing, use the exact emitted path:
@@ -76,13 +79,11 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
   --project-root . validate --handoff .trellis/session-handoffs/<handoff-id>/session-handoff.json
 ```
 
-Appending after the captured rollout boundary remains valid. Modifying,
-truncating, replacing or losing the captured prefix, changing the task/Git
-snapshot, or changing a requested evidence file invalidates the receipt.
-`ready` is a validation result, not authorization to implement. `changed`,
-`absent`, or `recovery_required` must be handled by ordinary project-fact
-verification. This Skill never changes task status, controls Trellis workers,
-or copies a conversation, credential, cache, or runtime ledger.
+`ready` validates the package itself, not continued sameness of the source
+worktree. Current task, Git, evidence, rollout, and late OpenViking extraction
+are reconciled by the target session; they do not silently rewrite the capsule
+or block package consumption. This Skill never changes task status, controls
+Trellis workers, or copies a conversation, credential, cache, or runtime ledger.
 
 ## Lifecycle Receipt And Retention
 
@@ -112,15 +113,15 @@ python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.jso
 
 `PENNIX_HANDOFF` above abbreviates the existing `handoff.py` path used in the
 earlier commands. `prepare` fixes one mode and writes no remote state.
-`finalize` consumes only a bounded local observation manifest. It never reads
+`finalize` consumes only a local observation manifest. It never reads
 Plugin private state, calls shell HTTP, or retries forever. `core_only` is the
 default and needs no remote proof. `capsule_required`, `archive_required`, and
 `convergence_required` require their respective verified exact-read proof
 digests; unavailable official capability must remain `unsupported`,
 `unavailable`, or `pending`, never silently downgrade.
 
-`admit` records only that the target session validated the package, read the
-prompt, ran `$trellis-start`, and reconciled current facts. Its `target_source`
+`admit` records only that the target session completely read the paired JSON
+core and prompt, ran `$trellis-start`, and reconciled current facts. Its `target_source`
 must exactly equal the current Trellis direct source `session:<target-key>`.
 The source rollout `session_id` is provenance only and is rejected as target
 identity. Admission never executes the pending action, starts a task, changes
@@ -140,15 +141,15 @@ high-assurance mode.
 
 ## New-Session Handoff Closure
 
-The package has no independent consumed or closed state. In the target
+The package has one lifecycle admission commit for the target. In the target
 session, “close the handoff” means reconcile the captured task with current
 Trellis facts before resuming work:
 
 1. Validate the exact package and stop unless the receipt is `ready`.
-2. Read the paired `session-handoff-prompt.md` completely before acting on its
+2. Read the paired JSON core and `session-handoff-prompt.md` completely before acting on its
    pending next action.
 3. Run `$trellis-start` and compare the captured task, Git state, evidence,
-   and pending action with current project facts. Record a bounded `admit`
+   and pending action with current project facts. Record one `admit`
    attestation only after that reconciliation, with `action_authorized=false`.
 4. If the captured task is now actually complete, use the normal
    `$trellis-finish-work` flow to finish and archive it before doing other work.
@@ -157,6 +158,15 @@ Trellis facts before resuming work:
    when continuing that task is appropriate.
 6. Stop after this reconciliation. Do not execute the pending next action or
    begin new implementation until the user gives a subsequent instruction.
+
+The admission commit is at-most-once per handoff: an incomplete read, timeout,
+network/model interruption, or process exit before the receipt append is not a
+consumption. The same target may retry and receives an idempotent result after
+success; a different target cannot replace the first successful consumer.
+After successful admission, package retention archive is independent and may
+be retried without consuming the asset again. Session-internal compaction and
+ordinary restart only resume the target's current task and do not repeat a
+successful admission.
 
 The package is a navigation hint. A `ready` receipt never proves that a task
 is complete and never authorizes closing an unrelated current task. A source
@@ -195,7 +205,7 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership status --handoff <core.json
 The target must have its own direct `session:<key>` identity and no current
 task; it never inherits the source pointer. `claim`, `consume`, and ownership
 `archive` are distinct, generation-checked, idempotently recoverable states.
-Ownership archive is only a bounded local receipt and differs from handoff
+Ownership archive is only a local receipt and differs from handoff
 `retention archive`, which copies the immutable core and prompt. Neither
 operation executes `pending.next_action`, closes the Trellis task, writes
 OpenViking state, or deletes sessions, memory, resources, watches, rollout, or

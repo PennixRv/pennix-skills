@@ -48,6 +48,15 @@ def _text(value: Any, label: str, maximum: int = 4096) -> str:
     return value
 
 
+def free_text(value: Any, label: str) -> str:
+    """Validate semantic prose without imposing a workflow length limit."""
+    if not isinstance(value, str):
+        raise ContractError("%s must be a string" % label)
+    if any(ord(char) < 32 and char not in "\n\t" for char in value):
+        raise ContractError("%s contains control characters" % label)
+    return value
+
+
 def _text_list(value: Any, label: str, maximum: int = 64) -> list[str]:
     if not isinstance(value, list) or len(value) > maximum:
         raise ContractError("%s must be a list of at most %d strings" % (label, maximum))
@@ -57,10 +66,10 @@ def _text_list(value: Any, label: str, maximum: int = 64) -> list[str]:
     return result
 
 
-def load_json_file(path: Path, maximum_bytes: int = 64 * 1024) -> Dict[str, Any]:
+def load_json_file(path: Path, maximum_bytes: int | None = 64 * 1024) -> Dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ContractError("JSON input must be a regular file: %s" % path)
-    if path.stat().st_size > maximum_bytes:
+    if maximum_bytes is not None and path.stat().st_size > maximum_bytes:
         raise ContractError("JSON input exceeds %d bytes" % maximum_bytes)
     try:
         value = json.loads(path.read_text(encoding="utf-8"))

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pennix 工作期记忆"
+  short_description: "在活动任务中维护 OpenViking 语义上下文与工作期记忆"
+  default_prompt: "使用 $pennix-worktime-memory 路由工作期 recall、经验检索和 task-scoped 语义记录。"

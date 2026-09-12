@@ -15,7 +15,6 @@ from typing import Any, Mapping, Sequence
 
 SCRIPT_PATH = Path(__file__).with_name("handoff.py")
 PROMPT_NAME = "session-handoff-prompt.md"
-MAX_PAYLOAD_BYTES = 512 * 1024
 
 
 class PromptError(RuntimeError):
@@ -76,13 +75,11 @@ def _payload(root: Path, relative: str) -> Mapping[str, Any]:
     if Path(relative).is_absolute() or candidate.is_symlink() or not candidate.is_file():
         raise PromptError("handoff file is unavailable")
     raw = candidate.read_bytes()
-    if len(raw) > MAX_PAYLOAD_BYTES:
-        raise PromptError("handoff file is too large")
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PromptError("handoff file is invalid") from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != 4 or payload.get("kind") != "pennix-session-handoff":
+    if not isinstance(payload, Mapping) or payload.get("schema_version") not in {4, 5} or payload.get("kind") != "pennix-session-handoff":
         raise PromptError("handoff file has an unsupported schema")
     return payload
 
@@ -104,9 +101,12 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any], life
     git = source["git"]
     rollout = source["rollout"]
     conversation = payload["conversation"]
+    memory = payload.get("memory_projection", {})
+    if not isinstance(memory, Mapping):
+        memory = {}
     lines = [
         "# Pennix Session Handoff", "",
-        "This is a bounded navigation package, not a transcript, task database, or authorization to continue.",
+        "This is a navigation package, not a transcript, task database, or authorization to continue.",
         "The next coordinator must revalidate this package and then re-read current project facts.", "",
         "## Identity", "", "- Handoff ID: `%s`" % payload["handoff_id"], "- Created: `%s`" % payload["created_at"],
         "- Project: `%s`" % root, "- Package JSON: `%s`" % relative, "- Session label: %s" % source["session_label"], "",
@@ -137,6 +137,12 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any], life
         "- Capture boundary: byte %d; records: %d; prefix: `%s`" % (rollout["capture_end"], rollout["record_count"], rollout["prefix_sha256"]),
         "- Parser: `%s`" % rollout["parser_version"],
         "- These are local conversation candidates only. They cannot override the verified snapshot above.", "",
+        "## Semantic Handoff Capsule", "",
+        memory.get("semantic_capsule") or "No additional semantic capsule was supplied; use the task and current facts as the source of truth.", "",
+        "### Memory References", "",
+        _markdown_list(memory.get("local", [])),
+        _markdown_list(memory.get("archive_refs", [])),
+        _markdown_list(memory.get("openviking", [])),
         "## Lifecycle Receipt", "",
         "- Status: `%s`" % lifecycle.get("status"),
         "- Mode: `%s`" % lifecycle.get("mode", "core_only"),

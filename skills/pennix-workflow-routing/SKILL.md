@@ -43,7 +43,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 
 - `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；context-mode 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。
-- `OpenViking` 只承接用户明确要求的外部持久知识；它不是 Trellis 任务事实、当前项目文件或普通会话记忆的替代品。
+- `OpenViking` 承接工作期语义 recall、经验检索和用户明确要求的持久知识；它不是 Trellis 任务事实、当前项目文件或普通会话控制的替代品。
 - CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置使用 `codegraph-project-setup`，不因普通检索自动初始化，
   linked Git worktree 不使用 CodeGraph。
 - 确有独立证据价值的工作遵循当前项目选择的 Trellis `subnode` procedure。Trellis 维护其 brief、持久化报告和
@@ -61,6 +61,8 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
 - 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选写入 Git 或持久索引。
 - handoff 的 OpenViking observation 只能作为有界、已验证的 source convergence 证据；OpenViking/MCP 不写本地 core、Trellis task 或 receipt truth，也不通过 shell HTTP 绕过官方工具路由。没有对应 exact-read proof 时保持 `core_only` 或报告 `pending|unsupported|unavailable`。
+- 活动 task 的工作期记忆：先使用官方 Plugin 已注入的 recall；历史称谓、复杂多步工作、相似故障或跨会话上下文需要深入时，使用 `ov-experience-memory` 的 `find/search`，再对关键 URI `read`。只有实际改变后续理解或行动的目标、约束、决定、否决、验证、经验、阻塞或待办才登记到 task-scoped research note。
+- 工作期语义登记使用 `pennix-worktime-memory`；它不复制 transcript、不替代官方 capture/commit、不创建 scheduler 或本地 memory ledger。用户明确要求长期记忆或形成稳定跨任务偏好/经验时，才调用官方 `remember/write`；OpenViking 不可用时只降级记忆增强，不阻断 Trellis、Git 或普通实施。
 
 ## 输出
 

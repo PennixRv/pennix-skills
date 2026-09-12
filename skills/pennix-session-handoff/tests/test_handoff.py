@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for the bounded Pennix session-handoff helper."""
+"""Regression tests for the Pennix session-handoff helper."""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ class HandoffTests(unittest.TestCase):
     def run_cli(self, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(["python3", str(SCRIPT), "--project-root", str(root), *arguments], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
 
-    def make_request(self, root: Path, rollout: Path | None = None) -> Path:
+    def make_request(self, root: Path, rollout: Path | None = None, capsule: str = "") -> Path:
         handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
         request = Path(handle.name)
         json.dump({
@@ -77,6 +77,7 @@ class HandoffTests(unittest.TestCase):
             "evidence_paths": ["evidence.md"], "next_action": "continue the fixture task", "blockers": [], "risks": [],
             "validation": [{"command": "fixture check", "result": "passed"}],
             "rollout": {"path": str(rollout or self.make_rollout()), "session_id": "fixture-session"},
+            "memory_projection": {"semantic_capsule": capsule, "local": [], "archive_refs": [], "openviking": []},
         }, handle, ensure_ascii=False)
         handle.write("\n")
         handle.close()
@@ -120,7 +121,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(destination.parent.stat().st_mode), 0o700)
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        self.assertEqual(payload["schema_version"], 4)
+        self.assertEqual(payload["schema_version"], 5)
         self.assertEqual(payload["handoff_id"], Path(relative).parts[-2])
         self.assertTrue(any(item["kind"] == "user" for item in payload["conversation"]["candidates"]))
         self.assertEqual([item["state"] for item in payload["conversation"]["timeline"]], ["corrected", "accepted"])
@@ -146,7 +147,53 @@ class HandoffTests(unittest.TestCase):
         validated = self.run_cli(root, "validate", "--handoff", relative)
         self.assertEqual(json.loads(validated.stdout)["status"], "ready")
 
-    def test_rollout_prefix_mutation_and_evidence_drift_invalidate_receipt(self) -> None:
+    def test_semantic_capsule_is_preserved_without_truncation(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        task_script = root / ".trellis/scripts/task.py"
+        task_script.write_text("import json, os\nprint(json.dumps({'current_task': None, 'source': 'session:' + os.environ.get('FIXTURE_TARGET', 'target')}))\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture source"], check=True)
+        capsule = "目标与已否决方案：" + ("语义现场 " * 5000)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule=capsule)), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stderr)
+        relative = self.handoff_path_from(written.stdout)
+        payload = json.loads((root / relative).read_text(encoding="utf-8"))
+        self.assertEqual(payload["memory_projection"]["semantic_capsule"], capsule)
+        (root / relative).with_name("session-handoff-prompt.md").write_text("prompt\n", encoding="utf-8")
+        prepared = self.run_cli(root, "prepare", "--handoff", relative)
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+
+        attestation = root / ".trellis/.runtime/attestation.json"
+        attestation.parent.mkdir(parents=True, exist_ok=True)
+        attestation.write_text(json.dumps({
+            "target_source": "session:target", "prompt_read": True,
+            "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
+            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+        }), encoding="utf-8")
+        admitted = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        self.assertEqual(admitted[1]["status"], "recorded")
+
+        attestation.write_text(json.dumps({
+            "target_source": "session:other", "prompt_read": True,
+            "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
+            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+        }), encoding="utf-8")
+        os.environ["FIXTURE_TARGET"] = "other"
+        self.addCleanup(os.environ.pop, "FIXTURE_TARGET", None)
+        with self.assertRaisesRegex(handoff.ContractError, "already been consumed"):
+            handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+
+        os.environ["FIXTURE_TARGET"] = "target"
+        attestation.write_text(json.dumps({
+            "target_source": "session:target", "prompt_read": True,
+            "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
+            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+        }), encoding="utf-8")
+        repeated = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        self.assertEqual(repeated[1]["status"], "idempotent")
+
+    def test_rollout_prefix_mutation_and_evidence_drift_are_reconciled_by_target(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         rollout = self.make_rollout()
@@ -156,14 +203,14 @@ class HandoffTests(unittest.TestCase):
         raw = rollout.read_bytes()
         rollout.write_bytes(b" " + raw[1:])
         mutated = self.run_cli(root, "validate", "--handoff", relative)
-        self.assertEqual(json.loads(mutated.stdout)["status"], "changed")
+        self.assertEqual(json.loads(mutated.stdout)["status"], "ready")
 
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, self.make_rollout())), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stdout + written.stderr)
         relative = self.handoff_path_from(written.stdout)
         (root / "evidence.md").write_text("changed\n", encoding="utf-8")
         drifted = self.run_cli(root, "validate", "--handoff", relative)
-        self.assertEqual(json.loads(drifted.stdout)["status"], "changed")
+        self.assertEqual(json.loads(drifted.stdout)["status"], "ready")
 
     def test_old_fixed_path_is_not_a_valid_package(self) -> None:
         root = self.make_git_root()
@@ -219,12 +266,12 @@ class HandoffTests(unittest.TestCase):
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
+        (package / "session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
         admitted = self.run_cli(root, "admit", "--handoff", relative, "--attestation", str(attestation.relative_to(root)))
         self.assertEqual(admitted.returncode, 0, admitted.stderr)
         self.assertEqual(json.loads(admitted.stdout)["status"], "recorded")
-
         prompt = package / "session-handoff-prompt.md"
-        prompt.write_text("handoff prompt\n", encoding="utf-8")
+
         archived = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertEqual(archived.returncode, 0, archived.stderr)
         archive = root / handoff.ARCHIVE_RUNTIME / handoff_id
@@ -258,6 +305,7 @@ class HandoffTests(unittest.TestCase):
             results = list(executor.map(lambda _: handoff.lifecycle_prepare(root, relative, "core_only"), range(2)))
         self.assertEqual({result[1]["status"] for result in results}, {"recorded", "idempotent"})
         handoff_id = Path(relative).parts[-2]
+        (root / relative).with_name("session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
         attestation = root / ".trellis/.runtime" / "attestation.json"
         attestation.parent.mkdir(parents=True, exist_ok=True)
         attestation.write_text(json.dumps({
