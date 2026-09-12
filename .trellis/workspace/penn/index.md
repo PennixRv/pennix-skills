@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
-- **Last Active**: 2026-09-06
+- **Total Sessions**: 2
+- **Last Active**: 2026-09-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~32 | Active |
+| `journal-1.md` | ~55 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-09-13 | 收敛 handoff 单消费者生命周期 | `4c49dd5`, `56de95e` | `main` |
 | 1 | 2026-09-06 | Configurable Pennix Skills discovery roots | `9c81923`, `5c9f1c6`, `2fbe1b8`, `5cde3b1` | `main` |
 <!-- @@@/auto:session-history -->
 

@@ -30,3 +30,26 @@ Kept the Codex default while supporting explicit compatible Skill collection roo
 ### Status
 
 [OK] **Completed**
+
+
+## Session 2: 收敛 handoff 单消费者生命周期
+<!-- trellis-session: v=2 fp=e9f429f43183d761 -->
+
+**Date**: 2026-09-13
+**Task**: 收敛 handoff 单消费者生命周期
+**Branch**: `main`
+
+### Summary
+
+修复同一 handoff 的并发 target admission，删除旧摘要和容量门槛，补齐 paired asset 消费要求，完成测试、推送和官方安装器重装。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4c49dd5` | fix(handoff): enforce one-time consumer lifecycle |
+| `56de95e` | docs(handoff): record release verification |
+
+### Status
+
+[OK] **Completed**
