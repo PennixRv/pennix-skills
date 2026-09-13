@@ -146,10 +146,10 @@ class InstallSkillsTest(unittest.TestCase):
 
     def test_submodule_validation_rejects_uncommitted_content(self):
         source = Path("/tmp/pennix-skills-source")
-        submodule_status = " 0123456789012345678901234567890123456789 skills/fast-context (heads/main)\n"
+        submodule_status = " 0123456789012345678901234567890123456789 skills/windsurf-code-search (heads/main)\n"
 
         with mock.patch.object(MODULE, "run_git", side_effect=[submodule_status, " M SKILL.md\n"]):
-            with self.assertRaisesRegex(MODULE.InstallError, "uncommitted changes: skills/fast-context"):
+            with self.assertRaisesRegex(MODULE.InstallError, "uncommitted changes: skills/windsurf-code-search"):
                 MODULE.ensure_submodules(source, initialize=False)
 
 

@@ -1,3 +1,3 @@
-[submodule "skills/fast-context"]
-	path = skills/fast-context
+[submodule "skills/windsurf-code-search"]
+	path = skills/windsurf-code-search
 	url = https://github.com/PennixRv/fast-context-skill.git

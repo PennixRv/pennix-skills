@@ -3,8 +3,10 @@
 用户自维护的 Codex 工作流 Skills 源码。
 
 通用 Trellis Skill 随 Trellis 组件交付；本仓库只维护用户工作流策略、确定性辅助脚本和
-对应测试。`skills/fast-context` 是独立 `fast-context-skill` 组件的 Git submodule：该组件
-继续拥有 CLI、测试和 npm 发布，本仓库只固定其在私有 Skills 组合中的版本。
+对应测试。`skills/windsurf-code-search` 是独立 `fast-context-skill` 组件的 Git submodule：该组件
+继续拥有 CLI、测试和 npm 发布，本仓库只固定其在私有 Skills 组合中的版本。其 npm 包名和
+上游仓库名保留为兼容与溯源标识；工作流中的可发现名称统一为 `windsurf-code-search`，不要
+与 `fastctx` 本地操作运行时混用。
 
 `codex-hook-registration` 只负责将经过审查的用户级 Hook 片段合并到
 `${CODEX_HOME:-$HOME/.codex}/hooks.json`，并提供显式的 `config.toml` 内联 Hook 迁移预览/应用。

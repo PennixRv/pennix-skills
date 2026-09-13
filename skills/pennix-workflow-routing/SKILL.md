@@ -1,6 +1,6 @@
 ---
 name: pennix-workflow-routing
-description: "Route cross-component Pennix workflow requests by ownership and call semantics across Trellis, context-mode, CodeGraph, Fast Context, web retrieval, Skills, Hook/config, and native tools. Use when a task spans or may span these components, or the correct route is unclear; do not use for ordinary single-tool work."
+description: "Route cross-component Pennix workflow requests by ownership and call semantics across Trellis, FastCtx, CodeGraph, Windsurf Code Search, OpenViking, web retrieval, Skills, Hook/config, and native tools. Use when a task spans or may span these components, or the correct route is unclear; do not use for ordinary single-tool work."
 ---
 
 # Pennix 工作流路由
@@ -17,15 +17,15 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 | 调用语义 | 首选路径 | 事实与持久化边界 |
 | --- | --- | --- |
 | 修改文件、导航、进程控制、短小观察 | 宿主原生工具 | 不额外持久化 |
-| 生命周期、事件等待、交互、有限结构化结果或专用错误协议 | 直接调用原工具 | 采用原协议状态，不套 `ctx_execute` |
+| 生命周期、事件等待、交互、有限结构化结果或专用错误协议 | 直接调用原工具 | 采用原协议状态，不套 FastCtx |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |
-| 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `fast-context` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
+| 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `windsurf-code-search` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
 | 当前外部资料、网页或多来源研究 | 先 `grok-search`；一次确认不可用后，单次 `tavily-hikari` 自托管辅助路径 | 外部结果先作为证据候选；核验后才写入任务研究或用户明确指定的持久位置 |
-| 测试、日志、长差异、递归检索、构建/依赖输出或大文件分析 | context-mode 聚合 | 默认请求内处理；不要把失败或未经核验的结果写入持久索引 |
-| 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用 `ctx_execute_file` 分析 | 不把原始结果重新塞回工具参数 |
+| 测试、日志、长差异、递归检索、构建/依赖输出或大文件分析 | FastCtx 有界工具或 job | 默认当前请求/显式 job 处理；不要把结果自动写入 OpenViking 或任务事实 |
+| 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用原生读取或 FastCtx 分页分析 | 不把原始结果重新塞回工具参数 |
 
-无法预判本地文本规模且没有独立协议时，使用 context-mode 聚合；无法判断一个结构化工具是否有界时，先使用其原协议。
+无法预判本地文本规模且没有独立协议时，使用 FastCtx 的有界读取、搜索或 job；无法判断一个结构化工具是否有界时，先使用其原协议。FastCtx 不可用时直接降级到宿主原生工具，不重新引入旧的 `ctx_*` 路径。
 
 ## 外部检索降级
 
@@ -41,7 +41,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 
 ## 组件职责
 
-- `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；context-mode 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
+- `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；FastCtx 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。
 - `OpenViking` 承接工作期语义 recall、经验检索和用户明确要求的持久知识；它不是 Trellis 任务事实、当前项目文件或普通会话控制的替代品。
 - CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置使用 `codegraph-project-setup`，不因普通检索自动初始化，
@@ -55,13 +55,13 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 
 ## 禁止混淆
 
-- `ctx_search` 只查询已持久化内容和会话记忆，不是在线搜索、实时仓库扫描、CodeGraph 或当前项目事实源。
-- CodeGraph、Fast Context、Tavily 和 context-mode 的结果都不能直接成为 task、Issue 或配置事实；先回到当前权威文件核验。
-- 不用 context-mode 重实现 Trellis channel watcher、事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
+- FastCtx 的文件、搜索和 job 结果只描述当前操作，不是 OpenViking 记忆、实时任务事实或授权；需要长期语义记忆时走 OpenViking，需要任务事实时回到 Trellis/Git。
+- CodeGraph、Windsurf Code Search、Tavily 和 FastCtx 的结果都不能直接成为 task、Issue 或配置事实；先回到当前权威文件核验。
+- 不用 FastCtx 重实现 Trellis channel watcher、事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
 - 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选写入 Git 或持久索引。
 - handoff 的 OpenViking observation 只能作为有界、已验证的 source convergence 证据；OpenViking/MCP 不写本地 core、Trellis task 或 receipt truth，也不通过 shell HTTP 绕过官方工具路由。没有对应 exact-read proof 时保持 `core_only` 或报告 `pending|unsupported|unavailable`。
-- 活动 task 的工作期记忆：先使用官方 Plugin 已注入的 recall；历史称谓、复杂多步工作、相似故障或跨会话上下文需要深入时，使用 `ov-experience-memory` 的 `find/search`，再对关键 URI `read`。只有实际改变后续理解或行动的目标、约束、决定、否决、验证、经验、阻塞或待办才登记到 task-scoped research note。
+- 活动 task 的工作期记忆：先使用官方 Plugin 已注入的 recall；历史称谓、复杂多步工作、相似故障或跨会话上下文需要深入时，使用 `ov-experience-memory` 的 `find/search`，再对关键 URI `read`。只有实际改变后续理解或行动的目标、约束、决定、否决、验证、经验、阻塞或待办才登记到 task-scoped research note。FastCtx 的当前操作输出不自动登记记忆。
 - 工作期语义登记使用 `pennix-worktime-memory`；它不复制 transcript、不替代官方 capture/commit、不创建 scheduler 或本地 memory ledger。用户明确要求长期记忆或形成稳定跨任务偏好/经验时，才调用官方 `remember/write`；OpenViking 不可用时只降级记忆增强，不阻断 Trellis、Git 或普通实施。
 
 ## 输出

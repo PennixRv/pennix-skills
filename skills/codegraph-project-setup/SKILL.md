@@ -40,7 +40,7 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 }
 ```
 
-不删除、重排或覆盖用户现有的 `include`、`exclude` 或其他 CodeGraph 配置。`.codegraph/` 的排除由 CodeGraph `v1.5.0` 自身和 context-mode 目录保护负责，不把它作为项目业务排除规则的替代品。
+不删除、重排或覆盖用户现有的 `include`、`exclude` 或其他 CodeGraph 配置。`.codegraph/` 等运行目录的排除必须由 CodeGraph 自身契约或项目明确配置负责；不要依赖已退役的 context-mode 目录保护，也不要把 FastCtx 当作索引隔离机制。
 
 ### 3. 用户确认后写入
 

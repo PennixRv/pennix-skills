@@ -31,7 +31,7 @@ pre-existing public Hikari endpoint.
   paths, private documents, or unrelated personal data. Do not set `--client-name` automatically: it can
   disclose a user, project, or agent identity.
 - Do not use this Skill for local files, literals, logs, repository history, symbols, task state, or
-  ambiguous legacy code-location candidates. Keep Fast Context in its existing, narrower role for the
+  ambiguous legacy code-location candidates. Keep Windsurf Code Search in its existing, narrower role for the
   latter after local retrieval and CodeGraph are insufficient.
 
 ## Select An Operation
