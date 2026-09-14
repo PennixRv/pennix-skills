@@ -79,10 +79,13 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 ```
 
 `ready` validates the package itself, not continued sameness of the source
-worktree. Current task, Git, evidence, rollout, and late OpenViking extraction
-are reconciled by the target session; they do not silently rewrite the capsule
-or block package consumption. This Skill never changes task status, controls
-Trellis workers, or copies a conversation, credential, cache, or runtime ledger.
+worktree. In `core_only`, current task, Git, evidence, rollout, and late
+OpenViking extraction are reconciled by the target session. In a higher-
+assurance mode, `status=ready` additionally requires the selected source proof
+before admission; a target attestation cannot bypass that source gate. Neither
+path silently rewrites the capsule. This Skill never changes task status,
+controls Trellis workers, or copies a conversation, credential, cache, or
+runtime ledger.
 
 ## Lifecycle Receipt And Retention
 
@@ -119,8 +122,16 @@ default and needs no remote proof. `capsule_required`, `archive_required`, and
 unavailable official capability must remain `unsupported`,
 `unavailable`, or `pending`, never silently downgrade.
 
+`admit` also checks the prepared mode's current source state. A valid target
+attestation cannot turn a `pending` source into a reconciled admission; it is
+recorded as blocked and can be retried after `finalize` records the required
+source proof. Source readiness and target reconciliation are separate receipt
+axes.
+
 `admit` records only that the target session completely read the paired JSON
-core and prompt, ran `$trellis-start`, and reconciled current facts. Its `target_source`
+core and prompt, ran `$trellis-start`, and reconciled current facts after the
+selected source mode is ready. If the source mode is still pending, the
+attempt is recorded as blocked and remains retryable. Its `target_source`
 must exactly equal the current Trellis direct source `session:<target-key>`.
 The source rollout `session_id` is provenance only and is rejected as target
 identity. Admission never executes the pending action, starts a task, changes

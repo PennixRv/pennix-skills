@@ -96,9 +96,9 @@ def validate_observation(value: Any) -> Dict[str, Any]:
     boundary_status = _text(boundary["status"], "observation.boundary.status", 16)
     if boundary_status not in BOUNDARY_STATUSES:
         raise ContractError("observation boundary status is invalid")
-    proof_ref = boundary["proof_ref"]
-    if proof_ref is not None:
-        _text(proof_ref, "observation.boundary.proof_ref", 512)
+    boundary_proof_ref = boundary["proof_ref"]
+    if boundary_proof_ref is not None:
+        _text(boundary_proof_ref, "observation.boundary.proof_ref", 512)
 
     source_session = value["source_session"]
     if not isinstance(source_session, dict) or set(source_session) != {"status", "identity"}:
@@ -137,17 +137,17 @@ def validate_observation(value: Any) -> Dict[str, Any]:
     memory_status = _text(memory["status"], "observation.memory.status", 16)
     if memory_status not in PROOF_STATUSES:
         raise ContractError("observation memory status is invalid")
-    proof_ref = memory.get("proof_ref", memory.get("diff_digest"))
-    if proof_ref is not None:
-        _text(proof_ref, "observation.memory.proof_ref")
+    memory_proof_ref = memory.get("proof_ref", memory.get("diff_digest"))
+    if memory_proof_ref is not None:
+        _text(memory_proof_ref, "observation.memory.proof_ref")
 
     normalized = {
         "availability": availability,
-        "boundary": {"status": boundary_status, "proof_ref": proof_ref},
+        "boundary": {"status": boundary_status, "proof_ref": boundary_proof_ref},
         "source_session": {"status": source_status, "identity": source_session["identity"]},
         "capsule": proofs["capsule"], "archive": proofs["archive"],
         "task": {"status": task_status, "completion_artifact": task["completion_artifact"]},
-        "memory": {"status": memory_status, "proof_ref": proof_ref},
+        "memory": {"status": memory_status, "proof_ref": memory_proof_ref},
     }
     if SECRET_RE.search(json.dumps(normalized, ensure_ascii=False)):
         raise ContractError("observation contains a possible credential or secret")

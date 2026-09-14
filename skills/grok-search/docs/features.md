@@ -39,12 +39,12 @@ Responses sources 与 extra sources 去重合并后写入 `sources.items`（默�
 
 ### 独立补充信源
 
-默认还会并行执行：
+默认不启动独立补充信源。显式配置非零 `--extra N` 后，Grok 请求完成才执行：
 
 - Tavily Advanced Search：仅在配置 `TAVILY_API_KEY` 时。
 - Firecrawl Search：默认 Keyless，配置 `FIRECRAWL_API_KEY` 后使用 API key。
 
-`--extra N` 是两家合计数量，默认 6。两家可用时 `N=6` 分为 3/3，`N=5` 分为 Tavily 3、Firecrawl 2。某一路失败后不追加第二轮补齐请求。
+`--extra N` 是两家合计数量，默认 `0`。两家可用时 `N=6` 分为 3/3，`N=5` 分为 Tavily 3、Firecrawl 2。某一路失败后不追加第二轮补齐请求。
 
 这些来源不会注入 Grok，也不代表 Grok 使用过它们。
 
@@ -111,7 +111,7 @@ Direct Map 只检查 `/sitemap.xml` 和首页同域链接。
 | `GROK_X_IMAGE_UNDERSTANDING` | 分析 X 帖子图片，按 token 计费 |
 | `GROK_X_VIDEO_UNDERSTANDING` | 分析 X 帖子视频，按 token 计费 |
 | `GROK_RESPONSES_OPENROUTER_ENGINE` | OpenRouter search engine，默认 `auto` |
-| `GROK_DEFAULT_EXTRA` | Tavily/Firecrawl 合计默认数量，默认 `6` |
+| `GROK_DEFAULT_EXTRA` | Tavily/Firecrawl 合计默认数量，默认 `0`；非零值才启用额外信源 |
 | `TAVILY_API_KEY` | Tavily Search/Extract/Map |
 | `FIRECRAWL_API_KEY` | 可选；提高 Firecrawl 限流并使用账户额度 |
 | `GROK_OUTPUT_DIR` | 完整输出目录 |

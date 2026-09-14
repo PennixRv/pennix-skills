@@ -49,12 +49,12 @@ Environment:
   GROK_SEARCH_SOURCE   Optional default search source: web, x, or both; default web
   GROK_RESPONSES_MAX_TURNS
                        Optional Responses max_turns; default 3
-  GROK_DEFAULT_EXTRA   Optional total Tavily/Firecrawl source count; default 1
+  GROK_DEFAULT_EXTRA   Optional total Tavily/Firecrawl source count; default 0
   GROK_SOURCE_CHARS    Optional source snippet size; default 400
   GROK_MAX_SOURCES     Optional cap on returned source cards; default 12
   GROK_DEADLINE_SECONDS
                        Optional whole-command deadline; default 240, 0 disables
-  TAVILY_API_KEY       Optional Tavily parallel source provider
+  TAVILY_API_KEY       Optional explicit extra source provider
   FIRECRAWL_API_KEY    Optional Firecrawl key; keyless search works without it
   GROK_OUTPUT_DIR      Optional directory for full answer when preview is truncated
 `;
@@ -761,7 +761,8 @@ async function publicResult(args, config) {
     (value) => ({ ok: true, value }),
     (error) => ({ ok: false, error })
   );
-  const [grokResult, extra] = await Promise.all([grokPromise, extraSources(args.query, extraOptions.limit, config)]);
+  const grokResult = await grokPromise;
+  const extra = await extraSources(args.query, extraOptions.limit, config);
 
   let grok;
   let degraded = false;

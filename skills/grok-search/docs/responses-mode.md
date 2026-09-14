@@ -189,7 +189,7 @@ citation 本身不带产出工具信息，所以 `tool` 是推断的：**挂了 
 
 ## Tavily 与 Firecrawl
 
-它们与 Responses 请求并行，但不进入 `input`：
+它们在 Responses 请求完成后按显式 extra 配置执行，但不进入 `input`：
 
 ```text
 Grok Responses ──────────────┐
@@ -197,7 +197,7 @@ Tavily Search（有 key）───────┼─ sources.items（去重合�
 Firecrawl Search（Keyless/key）┘
 ```
 
-默认合计 6 条；两家可用时 3/3。Firecrawl provider attempt 会包含 `auth_mode`，可能包含 `credits_used`。
+默认不请求额外信源（合计 `0`）。显式非零目标时两家可用则按目标均分，奇数优先 Tavily。Firecrawl provider attempt 会包含 `auth_mode`，可能包含 `credits_used`。
 
 ## 额度错误
 

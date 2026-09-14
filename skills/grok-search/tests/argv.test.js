@@ -674,43 +674,34 @@ await withServer(
   }
 );
 
+const grokFirstRequests = [];
 await withServer(
   (() => {
-    const pending = new Map();
-    const seen = new Set();
-    const release = () => {
-      if (seen.size !== 2) return;
-      pending.get("/responses").end(JSON.stringify(responsesPayload("Parallel answer.")));
-      pending.get("/tavily/search").end(
-        JSON.stringify({
-            results: Array.from({ length: 1 }, (_item, index) => ({
-            title: `Tavily ${index + 1}`,
-            url: `https://tavily.example/${index + 1}`,
-            content: "tavily content",
-          })),
-        })
-      );
-    };
     return (req, res) => {
       readJson(req, (body) => {
-        seen.add(req.url);
-        pending.set(req.url, res);
+        grokFirstRequests.push(req.url);
         res.writeHead(200, { "content-type": "application/json" });
         assert.ok(["/responses", "/tavily/search"].includes(req.url));
-        if (req.url === "/tavily/search") assert.equal(body.max_results, 1);
-        release();
+        if (req.url === "/responses") {
+          res.end(JSON.stringify(responsesPayload("Grok-first answer.")));
+          return;
+        }
+        assert.equal(body.max_results, 1);
+        res.end(JSON.stringify({
+          results: [{ title: "Tavily 1", url: "https://tavily.example/1", content: "tavily content" }],
+        }));
       });
     };
   })(),
   async (_server, port) => {
-    const searchResult = await runNode(["scripts/search.js", "mock query"], baseGrokEnv(port, {
+    const searchResult = await runNode(["scripts/search.js", "--extra", "1", "mock query"], baseGrokEnv(port, {
       TAVILY_API_KEY: "tavily-key",
       TAVILY_API_URL: `http://127.0.0.1:${port}/tavily`,
       FIRECRAWL_API_URL: `http://127.0.0.1:${port}/firecrawl`,
     }));
     assert.equal(searchResult.code, 0);
     const output = parseJson(searchResult.stdout);
-    assert.equal(output.answer.text, "Parallel answer.");
+    assert.equal(output.answer.text, "Grok-first answer.");
     assert.equal(output.sources.total, 2);
     assert.equal(output.sources.omitted, 0);
     assert.equal(output.sources.items.filter((source) => source.provider === "tavily").length, 1);
@@ -724,6 +715,33 @@ await withServer(
         ["tavily", true, 1],
       ]
     );
+    assert.deepEqual(grokFirstRequests, ["/responses", "/tavily/search"]);
+  }
+);
+
+await withServer(
+  (req, res) => {
+    const requestUrl = req.url;
+    req.resume();
+    res.writeHead(200, { "content-type": "application/json" });
+    if (requestUrl === "/responses") {
+      res.end(JSON.stringify(responsesPayload("Default Grok-only answer.")));
+      return;
+    }
+    res.end(JSON.stringify({ results: [] }));
+  },
+  async (_server, port) => {
+    const searchResult = await runNode(["scripts/search.js", "mock query"], baseGrokEnv(port, {
+      TAVILY_API_KEY: "tavily-key",
+      TAVILY_API_URL: `http://127.0.0.1:${port}/tavily`,
+      FIRECRAWL_API_URL: `http://127.0.0.1:${port}/firecrawl`,
+    }));
+    assert.equal(searchResult.code, 0);
+    const output = parseJson(searchResult.stdout);
+    assert.equal(output.answer.text, "Default Grok-only answer.");
+    assert.deepEqual(output.diagnostics.provider_attempts, [{ provider: "grok-responses:xai", ok: true, count: 1 }]);
+    assert.equal(output.diagnostics.options.extra, 0);
+    assert.deepEqual(output.diagnostics.options.extra_allocation, { tavily: 0, firecrawl: 0 });
   }
 );
 

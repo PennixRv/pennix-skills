@@ -36,7 +36,7 @@ export GROK_MODEL="grok-4.3"
 - 默认 `responses_max_turns` 为 3；
 - `diagnostics.options.search_source` 为 `web`，且请求体只挂 `web_search`；
 - `sources.items` 可含 `citation` / `searched`，`sources.omitted` 标记裁剪；
-- 默认 extra allocation 在没有 Tavily key 时全部给 Firecrawl。
+- 默认 `extra=0`，不会发起 Tavily/Firecrawl 请求；显式 `--extra N` 后，在 Grok 完成后再分配给可用 provider。
 
 ## X 检索
 
@@ -86,14 +86,14 @@ export GROK_MODEL="x-ai/grok-4.1-fast"
 
 ```bash
 export TAVILY_API_KEY="tvly-your-key"
-./scripts/search.js "latest pi coding agent docs"
+./scripts/search.js --extra 1 "latest pi coding agent docs"
 ./scripts/search.js --extra 10 "latest pi coding agent docs"
 
 export FIRECRAWL_API_KEY="fc-your-key"
-./scripts/search.js "latest pi coding agent docs"
+./scripts/search.js --extra 1 "latest pi coding agent docs"
 ```
 
-默认 `extra=6` 时应分配 Tavily 3 / Firecrawl 3。移除 Firecrawl key 后仍应成功，auth mode 变为 `keyless`。
+显式 `--extra 6` 时应分配 Tavily 3 / Firecrawl 3。移除 Firecrawl key 后仍应成功，auth mode 变为 `keyless`。
 
 ## Fetch 主备链
 

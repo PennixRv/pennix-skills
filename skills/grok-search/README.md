@@ -4,7 +4,7 @@
 
 `grok-search` 是一个通用 AI agent skill / 脚本包，用轻量 Node.js 脚本提供三类网络访问能力：
 
-- **Search**：通过 Responses API 调用 Grok / OpenRouter / Responses-compatible 接口，并行返回 Tavily / Firecrawl 独立信源。
+- **Search**：通过 Responses API 调用 Grok / OpenRouter / Responses-compatible 接口；显式请求时顺序获取 Tavily / Firecrawl 独立信源。
 - **Fetch**：抓取指定 URL 的可读内容，优先使用 Tavily / Firecrawl，最后 fallback 到无 key 的 Direct Fetch。
 - **Map**：发现站点内的候选页面 URL，优先使用 Tavily Map，最后 fallback 到轻量 Direct Map。
 
@@ -80,7 +80,7 @@ chmod 600 ~/.config/grok-search/config.json
   "responsesAllowedXHandles": [],
   "responsesExcludedXHandles": [],
   "responsesOpenRouterEngine": "auto",
-  "defaultExtra": 6,
+  "defaultExtra": 0,
   "sourceChars": 400,
   "tavilyApiKey": "",
   "tavilyApiUrl": "https://api.tavily.com",
@@ -163,7 +163,7 @@ Node 原生 `fetch` 默认不会可靠读取终端代理变量。本项目会在
 | `GROK_X_IMAGE_UNDERSTANDING` | `xImageUnderstanding` | 否 | Responses | 分析 X 帖子中的图片，按 token 额外计费。默认 `false`。 |
 | `GROK_X_VIDEO_UNDERSTANDING` | `xVideoUnderstanding` | 否 | Responses | 分析 X 帖子中的视频，按 token 额外计费。默认 `false`。 |
 | `GROK_RESPONSES_OPENROUTER_ENGINE` | `responsesOpenRouterEngine` | 否 | OpenRouter Responses | `auto`、`native`、`exa`、`firecrawl`、`parallel` 或 `perplexity`。默认 `auto`。 |
-| `GROK_DEFAULT_EXTRA` | `defaultExtra` | 否 | `search.js` | Tavily 与 Firecrawl 合计的默认 extra source 数量。默认 `6`。 |
+| `GROK_DEFAULT_EXTRA` | `defaultExtra` | 否 | `search.js` | Tavily 与 Firecrawl 合计的默认 extra source 数量。默认 `0`；非零值表示显式配置。 |
 | `GROK_SOURCE_CHARS` | `sourceChars` | 否 | `search.js` | 每条 source stdout snippet 长度。默认 `400`；`0` 表示不输出 snippet。 |
 | `GROK_MAX_SOURCES` | `maxSources` | 否 | `search.js` | stdout 返回的 source card 数量上限。默认 `12`；被裁剪的完整列表落盘到 `sources.raw_path`。 |
 | `GROK_DEADLINE_SECONDS` | `deadlineSeconds` | 否 | 所有脚本 | 单条命令总耗时上限（秒）。默认 `240`，`0` 表示禁用；超时会先输出 `DEADLINE_EXCEEDED` JSON 再退出。 |
@@ -256,9 +256,9 @@ X citation 只返回裸 URL、且 `title` 是 inline citation 序号，因此 so
 - `sources.raw`，仅在使用 `--full-sources` 时出现
 - `diagnostics.grok_endpoint`、`diagnostics.usage` / `diagnostics.cost_usd`（provider 返回时）、`diagnostics.responses_*`（`responses_tool_calls` 为 `{ total, failed? }` 摘要，完整列表在 `raw_path` 中）、`diagnostics.warnings`、`diagnostics.provider_attempts`、`diagnostics.options`、`diagnostics.duration_ms`、`diagnostics.searched_at`
 
-默认会同时发起 Grok Responses、Tavily Search（配置 key 时）和 Firecrawl Search。三路并行，Tavily/Firecrawl 结果始终作为独立补充信源，不会注入 Grok input。
+默认只发起 Grok Responses。只有显式传入 `--extra N` 或配置非零 `defaultExtra` 时，才在 Grok 请求完成后执行 Tavily/Firecrawl；这些结果始终是独立补充信源，不会注入 Grok input。
 
-`--extra N` 表示 Tavily 与 Firecrawl 合计的结果目标数，默认 `6`。两家都可用时平均分配，奇数优先给 Tavily；没有 Tavily key 时全部交给 Firecrawl Keyless。`--no-extra` 会严格关闭两个外部搜索通道。
+`--extra N` 表示 Tavily 与 Firecrawl 合计的结果目标数，默认 `0`。显式非零值或非零 `defaultExtra` 会在 Grok 完成后执行；两家都可用时平均分配，奇数优先给 Tavily；没有 Tavily key 时全部交给 Firecrawl Keyless。`--no-extra` 会严格关闭两个外部搜索通道。
 
 当 Grok 明确返回额度耗尽，而 extra sources 可用时，命令会返回标记为 `diagnostics.degraded: true` 的降级结果。`answer.text` 会明确说明当前仅为 Tavily/Firecrawl 原始搜索结果，`diagnostics.grok_error` 保留脱敏后的额度错误。其他认证、协议或服务错误不会被伪装成额度降级。
 

@@ -4,7 +4,7 @@
 
 `grok-search` is a general-purpose AI agent skill / script bundle that provides three web access capabilities through small Node.js scripts:
 
-- **Search**: use the Responses API with Grok / OpenRouter / Responses-compatible endpoints, plus independent Tavily / Firecrawl sources in parallel.
+- **Search**: use the Responses API with Grok / OpenRouter / Responses-compatible endpoints; fetch independent Tavily / Firecrawl sources sequentially only when explicitly requested.
 - **Fetch**: fetch readable content from a concrete URL, preferring Tavily / Firecrawl and falling back to keyless Direct Fetch.
 - **Map**: discover candidate URLs on a website, preferring Tavily Map and falling back to lightweight Direct Map.
 
@@ -80,7 +80,7 @@ Full configuration example:
   "responsesAllowedXHandles": [],
   "responsesExcludedXHandles": [],
   "responsesOpenRouterEngine": "auto",
-  "defaultExtra": 6,
+  "defaultExtra": 0,
   "sourceChars": 400,
   "tavilyApiKey": "",
   "tavilyApiUrl": "https://api.tavily.com",
@@ -170,7 +170,7 @@ Supported variables:
 | `GROK_X_IMAGE_UNDERSTANDING` | `xImageUnderstanding` | No | Responses | Analyze images inside X posts; billed as extra tokens. Default: `false`. |
 | `GROK_X_VIDEO_UNDERSTANDING` | `xVideoUnderstanding` | No | Responses | Analyze videos inside X posts; billed as extra tokens. Default: `false`. |
 | `GROK_RESPONSES_OPENROUTER_ENGINE` | `responsesOpenRouterEngine` | No | OpenRouter Responses | `auto`, `native`, `exa`, `firecrawl`, `parallel`, or `perplexity`. Default: `auto`. |
-| `GROK_DEFAULT_EXTRA` | `defaultExtra` | No | `search.js` | Combined Tavily/Firecrawl source target. Default: `6`. |
+| `GROK_DEFAULT_EXTRA` | `defaultExtra` | No | `search.js` | Combined Tavily/Firecrawl source target. Default: `0`; non-zero values opt in to extra sources. |
 | `GROK_SOURCE_CHARS` | `sourceChars` | No | `search.js` | Per-source stdout snippet limit. Default: `400`; `0` omits snippets. |
 | `GROK_MAX_SOURCES` | `maxSources` | No | `search.js` | Cap on source cards returned on stdout. Default: `12`; the untruncated list is stored at `sources.raw_path`. |
 | `GROK_DEADLINE_SECONDS` | `deadlineSeconds` | No | all scripts | Whole-command deadline in seconds. Default: `240`, `0` disables; on expiry the command prints a `DEADLINE_EXCEEDED` JSON envelope before exiting. |
@@ -263,9 +263,9 @@ Post text and dates are not in the card; `answer.text` attributes each X claim b
 - `sources.raw` only when `--full-sources` is used
 - `diagnostics.grok_endpoint`, `diagnostics.usage` / `diagnostics.cost_usd` when supplied by the provider, `diagnostics.responses_*` (`responses_tool_calls` is a `{ total, failed? }` summary; the full list lives in `raw_path`), `diagnostics.warnings`, `diagnostics.provider_attempts`, `diagnostics.options`, `diagnostics.duration_ms`, and `diagnostics.searched_at`
 
-By default the command starts Grok Responses, Tavily Search when configured, and Firecrawl Search in parallel. Tavily and Firecrawl remain independent evidence channels and are never injected into Grok input.
+By default the command starts Grok Responses only. `--extra N` or a non-zero `defaultExtra` starts Tavily/Firecrawl after the Grok request completes. They remain independent evidence channels and are never injected into Grok input.
 
-`--extra N` is the combined Tavily/Firecrawl target, defaulting to `6`. Both providers split the target evenly, with odd counts favoring Tavily. Without a Tavily key, Firecrawl Keyless receives the full target. `--no-extra` strictly disables both external search channels.
+`--extra N` is the combined Tavily/Firecrawl target, defaulting to `0`. Non-zero values opt in after Grok completes. Both providers split the target evenly, with odd counts favoring Tavily. Without a Tavily key, Firecrawl Keyless receives the full target. `--no-extra` strictly disables both external search channels.
 
 When Grok explicitly reports exhausted quota and extra sources are available, the command returns a degraded success with `diagnostics.degraded: true`. The visible answer states that it contains raw Tavily/Firecrawl results, while `diagnostics.grok_error` preserves the redacted upstream quota error. Authentication, protocol, and generic service failures do not trigger this fallback.
 

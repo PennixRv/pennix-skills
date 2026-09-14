@@ -724,6 +724,18 @@ def _reconciled_admit_target(events: list[Dict[str, Any]]) -> Optional[str]:
     return targets[0] if targets else None
 
 
+def _source_ready(mode: str, state: dict[str, str]) -> bool:
+    required = {
+        "core_only": "prepared",
+        "capsule_required": "boundary_sealed",
+        "archive_required": "archive_verified",
+        "convergence_required": "converged",
+    }[mode]
+    if mode == "core_only":
+        return state["source"] in {"prepared", "boundary_sealed", "archive_verified", "converged"}
+    return state["source"] == required
+
+
 def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str]) -> dict[str, Any]:
     path = _lifecycle_path(root, handoff_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1023,14 +1035,15 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     current = _task_current(root)
     if current.get("source") != attestation["target_source"]:
         raise ContractError("target source is not the current direct session source")
-    if not (attestation["prompt_read"] and attestation["trellis_started"] and attestation["facts_reconciled"]):
-        target_status = "blocked"
-    else:
-        target_status = "reconciled"
     events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     current_state = _state(events)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
+    source_ready = _source_ready(_prepared_mode(events), current_state)
+    if not source_ready or not (attestation["prompt_read"] and attestation["trellis_started"] and attestation["facts_reconciled"]):
+        target_status = "blocked"
+    else:
+        target_status = "reconciled"
     target_source = attestation["target_source"]
     successful_target = _reconciled_admit_target(events)
     if successful_target is not None:
@@ -1109,8 +1122,7 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     events = _read_events(path, handoff_id)
     state = _state(events)
     mode = _prepared_mode(events)
-    required = {"core_only": "prepared", "capsule_required": "boundary_sealed", "archive_required": "archive_verified", "convergence_required": "converged"}[mode]
-    source_ready = state["source"] == required or (mode == "core_only" and state["source"] in {"prepared", "boundary_sealed", "archive_verified", "converged"})
+    source_ready = _source_ready(mode, state)
     return {"status": "ready" if source_ready else "pending", "handoff_id": handoff_id, "mode": mode, "state": state}
 
 

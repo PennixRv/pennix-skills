@@ -14,9 +14,9 @@ installs or create a provider wrapper.
 ## Normal Route
 
 - An unknown URL or current fact: run `scripts/search.js "query"`. The Pennix
-  default is `--extra 1`: when the self-hosted Tavily Hikari values are
-  configured, this gives one Tavily supplementary source and no Firecrawl
-  allocation. Use `--no-extra` only for an intentionally Grok-only answer.
+  default is Grok-only (`--extra` is `0`), so no supplementary provider starts
+  implicitly. Add an explicit `--extra N` only when independent sources are
+  needed; that phase starts after the Grok request and remains observable.
 - A known public URL: use `scripts/fetch.js --provider tavily URL` only after
   the deployed Hikari `/extract` operation has been verified. Until then use
   `--provider direct`; never use `--provider auto` or `firecrawl` in the

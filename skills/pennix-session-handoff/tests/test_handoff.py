@@ -136,6 +136,65 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(validated.returncode, 0, validated.stderr)
         self.assertEqual(json.loads(validated.stdout)["status"], "ready")
 
+    def test_observation_preserves_distinct_proof_references(self) -> None:
+        normalized = handoff.validate_observation({
+            "availability": "available",
+            "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
+            "source_session": {"status": "verified", "identity": "source-session"},
+            "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
+            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "task": {"status": "completed", "completion_artifact": "task-proof"},
+            "memory": {"status": "verified", "proof_ref": "memory-proof"},
+        })
+        self.assertEqual(normalized["boundary"]["proof_ref"], "boundary-proof")
+        self.assertEqual(normalized["capsule"]["proof_ref"], "capsule-proof")
+        self.assertEqual(normalized["archive"]["proof_ref"], "archive-proof")
+        self.assertEqual(normalized["memory"]["proof_ref"], "memory-proof")
+
+    def test_required_source_mode_blocks_admission_until_source_is_ready(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        (root / ".trellis/scripts/task.py").write_text(
+            "import json\nprint(json.dumps({'current_task': None, 'source': 'session:target'}))\n",
+            encoding="utf-8",
+        )
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stderr)
+        relative = self.handoff_path_from(written.stdout)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "archive_required").returncode, 0)
+        package = root / Path(relative).parent
+        (package / "session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
+        observation = root / ".trellis/.runtime/observation.json"
+        observation.parent.mkdir(parents=True, exist_ok=True)
+        proof = {
+            "availability": "available",
+            "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
+            "source_session": {"status": "verified", "identity": "wrong-session"},
+            "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
+            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "task": {"status": "completed", "completion_artifact": "task-proof"},
+            "memory": {"status": "verified", "proof_ref": "memory-proof"},
+        }
+        observation.write_text(json.dumps(proof), encoding="utf-8")
+        self.assertEqual(self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root))).returncode, 0)
+        attestation = root / ".trellis/.runtime/attestation.json"
+        attestation.write_text(json.dumps({
+            "target_source": "session:target", "prompt_read": True,
+            "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
+            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+        }), encoding="utf-8")
+        blocked = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        self.assertEqual(blocked[1]["state"]["target"], "blocked")
+        self.assertEqual(blocked[1]["state"]["retention"], "none")
+
+        proof["source_session"]["identity"] = "fixture-session"
+        observation.write_text(json.dumps(proof), encoding="utf-8")
+        self.assertEqual(self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root))).returncode, 0)
+        admitted = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        self.assertEqual(admitted[1]["status"], "recorded")
+        self.assertEqual(admitted[1]["state"]["target"], "reconciled")
+        self.assertEqual(admitted[1]["state"]["retention"], "archive_eligible")
+
     def test_rollout_append_after_capture_remains_ready(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)

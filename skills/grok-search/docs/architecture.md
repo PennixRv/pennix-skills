@@ -32,9 +32,9 @@ scripts/map.js
 query
   ├─ Grok Responses
   │    └─ provider-native web_search / x_search（由 --source 决定挂载哪些）
-  ├─ Tavily Search（配置 key 时）
-  └─ Firecrawl Search（Keyless 或 API key）
-       ↓ 三路并行
+  ├─ Tavily Search（显式 extra 且配置 key 时）
+  └─ Firecrawl Search（显式 extra，Keyless 或 API key）
+       ↓ Grok 完成后按需执行
   result JSON
        ├─ answer
        ├─ sources.items（合并去重后按 citation > extra > searched 裁剪，默认 12 条）
@@ -43,7 +43,7 @@ query
        └─ diagnostics
 ```
 
-Tavily 与 Firecrawl 永远是独立证据通道，不进入 Grok input。`--extra N` 是两家合计的目标数；默认 6，两家可用时均分，奇数优先 Tavily。两家都只搜网页，`--source x` 不会改变它们的行为——想要纯 X 证据需配合 `--no-extra`。
+Tavily 与 Firecrawl 永远是独立证据通道，不进入 Grok input。默认 `extra=0`；显式 `--extra N` 或非零配置才会在 Grok 完成后执行。两家合计目标数两家可用时均分，奇数优先 Tavily。两家都只搜网页，`--source x` 不会改变它们的行为——想要纯 X 证据需配合 `--no-extra`。
 
 ### Grok 额度降级
 

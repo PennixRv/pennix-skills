@@ -13,7 +13,7 @@
   "xImageUnderstanding": false,
   "xVideoUnderstanding": false,
   "responsesOpenRouterEngine": "auto",
-  "defaultExtra": 1,
+  "defaultExtra": 0,
   "sourceChars": 400,
   "maxSources": 12,
   "deadlineSeconds": 240,
