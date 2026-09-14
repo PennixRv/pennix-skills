@@ -25,6 +25,7 @@ INSTALLABLE_ENTRIES = {
     "package-lock.json",
     "agents",
     "assets",
+    "bin",
     "references",
     "scripts",
 }

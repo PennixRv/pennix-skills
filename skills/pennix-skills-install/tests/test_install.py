@@ -18,12 +18,16 @@ SPEC.loader.exec_module(MODULE)
 class InstallSkillsTest(unittest.TestCase):
     def make_skill(self, root: Path, name: str) -> Path:
         skill = root / "skills" / name
+        (skill / "bin").mkdir(parents=True)
         (skill / "scripts").mkdir(parents=True)
         (skill / "references").mkdir()
         (skill / "SKILL.md").write_text(
             f"---\nname: {name}\ndescription: Test Skill.\n---\n\n# Test\n",
             encoding="utf-8",
         )
+        command = skill / "bin" / "example-command"
+        command.write_text("#!/bin/sh\n", encoding="utf-8")
+        command.chmod(0o755)
         (skill / "scripts" / "run.py").write_text("print('ok')\n", encoding="utf-8")
         (skill / "references" / "contract.md").write_text("contract\n", encoding="utf-8")
         (skill / "UPSTREAM.md").write_text("upstream\n", encoding="utf-8")
@@ -67,6 +71,7 @@ class InstallSkillsTest(unittest.TestCase):
             self.assertTrue((destination / "beta" / "references" / "contract.md").is_file())
             self.assertTrue((destination / "beta" / "UPSTREAM.md").is_file())
             self.assertTrue((destination / "beta" / "package-lock.json").is_file())
+            self.assertTrue(os.access(destination / "beta" / "bin" / "example-command", os.X_OK))
             self.assertFalse((destination / "alpha" / "test").exists())
             self.assertFalse((destination / "alpha" / ".git").exists())
             self.assertFalse((destination / "obsolete").exists())
