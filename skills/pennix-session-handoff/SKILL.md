@@ -79,13 +79,15 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 ```
 
 `ready` validates the package itself, not continued sameness of the source
-worktree. In `core_only`, current task, Git, evidence, rollout, and late
-OpenViking extraction are reconciled by the target session. In a higher-
-assurance mode, `status=ready` additionally requires the selected source proof
-before admission; a target attestation cannot bypass that source gate. Neither
-path silently rewrites the capsule. This Skill never changes task status,
-controls Trellis workers, or copies a conversation, credential, cache, or
-runtime ledger.
+worktree. `core_only` does not require remote proof, but still waits for the
+final observed source boundary and canonical JSON/prompt pair. When a handoff
+contains a task, its existing Trellis quiesce/seal receipt is also required.
+Current task, Git, evidence, rollout, and late OpenViking extraction are
+reconciled by the target session. Higher-assurance modes additionally require
+their selected source proof before admission; a target attestation cannot
+bypass that source gate. Neither path silently rewrites the capsule. This
+Skill never changes task status, controls Trellis workers, or copies a
+conversation, credential, cache, or runtime ledger.
 
 ## Lifecycle Receipt And Retention
 
@@ -115,12 +117,16 @@ python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.jso
 
 `PENNIX_HANDOFF` above abbreviates the existing `handoff.py` path used in the
 earlier commands. `prepare` fixes one mode and writes no remote state.
-`finalize` consumes only a local observation manifest. It never reads
-Plugin private state, calls shell HTTP, or retries forever. `core_only` is the
-default and needs no remote proof. `capsule_required`, `archive_required`, and
+Render the paired prompt after `write -> validate=ready` and before
+`finalize`; `finalize` rejects a missing or unreadable pair. It consumes only
+a local observation manifest, never reads Plugin private state, calls shell
+HTTP, or retries forever. `core_only` is the default and needs no remote
+proof, but still requires the sealed final source boundary. When a captured
+task exists, run the native ownership `quiesce` and `seal` commands before the
+final ready check. `capsule_required`, `archive_required`, and
 `convergence_required` require their respective verified proof references;
-unavailable official capability must remain `unsupported`,
-`unavailable`, or `pending`, never silently downgrade.
+unavailable official capability must remain `unsupported`, `unavailable`, or
+`pending`, never silently downgrade.
 
 `admit` also checks the prepared mode's current source state. A valid target
 attestation cannot turn a `pending` source into a reconciled admission; it is
@@ -128,21 +134,25 @@ recorded as blocked and can be retried after `finalize` records the required
 source proof. Source readiness and target reconciliation are separate receipt
 axes.
 
-`admit` records only that the target session completely read the paired JSON
-core and prompt, ran `$trellis-start`, and reconciled current facts after the
-selected source mode is ready. If the source mode is still pending, the
-attempt is recorded as blocked and remains retryable. Its `target_source`
-must exactly equal the current Trellis direct source `session:<target-key>`.
-The source rollout `session_id` is provenance only and is rejected as target
-identity. Admission never executes the pending action, starts a task, changes
-a task pointer, or closes a task. A later, separately authorized continuation
-uses native Trellis `task.py start` for an incomplete task and then rechecks
-its direct current source. A completed task instead follows native Trellis
-finish/archive by exact task path; do not manufacture a session pointer.
+`admit` uses one cumulative target attestation in this fixed order: complete
+JSON core read, paired prompt read, `$trellis-start`, then current-fact
+reconciliation. An incomplete prefix records `admitted` for that direct
+target only; it is not consumed and the same target resumes it in place. Only
+the complete four-step prefix records `reconciled`, the one logical consumed
+marker. If the source is still pending, the attempt is `blocked` and remains
+retryable without claiming consumption. Its `target_source` must exactly equal
+the current Trellis direct source `session:<target-key>`. The source rollout
+`session_id` is provenance only and is rejected as target identity. Admission
+never executes the pending action, starts a task, changes a task pointer, or
+closes a task. A later, separately authorized continuation uses native Trellis
+`task.py start` for an incomplete task and then rechecks its direct current
+source. A completed task instead follows native Trellis finish/archive by
+exact task path; do not manufacture a session pointer.
 
 After a reconciled admission, `retention archive` atomically copies the core
 and paired prompt after checking that the core is parseable and prompt is
-readable. `restore`, `reopen`, and
+readable. A retry after that archive is idempotent; a failed archive remains
+archive-eligible and never repeats intake. `restore`, `reopen`, and
 `purge` require the exact same handoff id confirmation. `purge` removes only
 the canonical core/prompt after archive verification; it never deletes task,
 rollout, session, memory, resource/watch, log, or remote data. The receipt is
@@ -152,16 +162,17 @@ high-assurance mode.
 
 ## New-Session Handoff Closure
 
-The package has one lifecycle admission commit for the target. In the target
-session, “close the handoff” means reconcile the captured task with current
-Trellis facts before resuming work:
+The package has one logical consumption attempt for one direct target. In the
+target session, “close the handoff” means reconcile the captured task with
+current Trellis facts before resuming work:
 
 1. Validate the exact package and stop unless the receipt is `ready`.
 2. Read the paired JSON core and `session-handoff-prompt.md` completely before acting on its
    pending next action.
 3. Run `$trellis-start` and compare the captured task, Git state, evidence,
-   and pending action with current project facts. Record one `admit`
-   attestation only after that reconciliation, with `action_authorized=false`.
+   and pending action with current project facts. Record cumulative `admit`
+   progress with `action_authorized=false`; only the complete read/start/
+   reconciliation sequence becomes consumed.
 4. If the captured task is now actually complete, use the normal
    `$trellis-finish-work` flow to finish and archive it before doing other work.
 5. If it is incomplete, changed, or blocked, do not close it from the handoff
@@ -170,14 +181,13 @@ Trellis facts before resuming work:
 6. Stop after this reconciliation. Do not execute the pending next action or
    begin new implementation until the user gives a subsequent instruction.
 
-The admission commit is at-most-once per handoff: an incomplete read, timeout,
-network/model interruption, or process exit before the receipt append is not a
-consumption. The same target may retry and receives an idempotent result after
-success; a different target cannot replace the first successful consumer.
-After successful admission, package retention archive is independent and may
-be retried without consuming the asset again. Session-internal compaction and
-ordinary restart only resume the target's current task and do not repeat a
-successful admission.
+An incomplete read, timeout, network/model interruption, or process exit does
+not become consumed. Once an `admitted` receipt exists, the same target resumes
+that one attempt; a different target cannot replace it. After successful
+admission, package retention archive is independent and may be retried without
+consuming the asset again. Session-internal compaction and ordinary restart
+only resume the target's current task and do not call handoff intake; a manual
+post-compaction re-entry sees the completed target receipt as idempotent.
 
 The package is a navigation hint. A `ready` receipt never proves that a task
 is complete and never authorizes closing an unrelated current task. A source
@@ -185,8 +195,8 @@ rollout session id never binds the target Trellis task.
 
 ## Task Ownership Transfer
 
-When the handoff contains a task, the package lifecycle and Trellis task
-ownership are separate but must be advanced in this order. These orchestration
+When the handoff contains a task, render the prompt, then advance the package
+lifecycle and Trellis task ownership in this order. These orchestration
 commands call the project's native `.trellis/scripts/task.py ownership`
 implementation; this Skill never edits task pointers itself:
 
@@ -222,8 +232,8 @@ operation executes `pending.next_action`, closes the Trellis task, writes
 OpenViking state, or deletes sessions, memory, resources, watches, rollout, or
 logs.
 
-When the user also asks for the new-session entry prompt, render it only after
-that exact `validate` reports `ready`:
+When the user also asks for the new-session entry prompt, render it once after
+that exact `validate` reports `ready` to create the required paired prompt:
 
 ```bash
 python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/render_handoff_prompt.py" \
@@ -232,12 +242,14 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 ```
 
 The renderer atomically creates the paired
-`session-handoff-prompt.md` in the same timestamp directory. Standard output
-contains only a labeled, fenced short new-session entry prompt, not the
-complete handoff. After a complete `write -> validate=ready -> render`, return
-that standard output unchanged as the final delivery, so the user can copy the
-`text` block directly into a new Codex session. Do not append a summary,
-validation narration, or further command after that block.
+`session-handoff-prompt.md` in the same timestamp directory. That first render
+is source-side preparation, not delivery: retain its standard output while the
+source runs `prepare`, required ownership `quiesce/seal`, `finalize`, and
+`retire` as applicable. Confirm `status --handoff <core.json>` returns `ready`,
+then rerun the renderer idempotently and return that standard output unchanged
+as the final delivery, so the user can copy the `text` block directly into a
+new Codex session. Do not append a summary, validation narration, or further
+command after that final block.
 The complete prompt directs the new session to validate again, then use the
 normal `$trellis-start` flow, reconcile the captured task, and only then use
 `$trellis-finish-work` or `$trellis-continue` according to current facts. Its

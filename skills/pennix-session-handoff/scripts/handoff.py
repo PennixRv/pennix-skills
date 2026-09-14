@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workflow_contracts import (  # noqa: E402
-    ContractError, SECRET_RE, LIFECYCLE_MODES, _text, _text_list, free_text, lifecycle_mode,
+    ContractError, SECRET_RE, LIFECYCLE_MODES, TARGET_SOURCE_RE, _text, _text_list, free_text, lifecycle_mode,
     load_json_file, safe_id, validate_attestation,
     validate_observation,
 )
@@ -39,6 +39,7 @@ LIFECYCLE_RUNTIME = ".trellis/.runtime/handoff-lifecycle"
 ARCHIVE_RUNTIME = ".trellis/.runtime/handoff-archive"
 LIFECYCLE_SCHEMA_VERSION = 2
 LIFECYCLE_EVENT_KIND = "pennix-handoff-lifecycle-event"
+CONSUMPTION_STEPS = ("core_read", "prompt_read", "trellis_started", "facts_reconciled")
 SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "pending", "archive_verified", "converged", "unavailable", "unsupported", "failed", "expired"}
 TARGET_STATES = {"not_admitted", "admitted", "reconciled", "blocked", "disposed"}
 RETENTION_STATES = {"none", "archive_eligible", "archived", "retained", "restored", "reopened", "purged"}
@@ -715,25 +716,98 @@ def _reconciled_admit_target(events: list[Dict[str, Any]]) -> Optional[str]:
     for event in events:
         if event["event_type"] != "admit" or event["target_status"] != "reconciled":
             continue
-        refs = [reference.removeprefix("target=") for reference in event["evidence_refs"] if reference.startswith("target=")]
-        if len(refs) != 1:
-            raise ContractError("reconciled admission target is invalid")
-        targets.append(refs[0])
+        targets.append(_admission_target(event))
     if len(targets) > 1:
         raise ContractError("handoff asset has multiple successful consumers")
     return targets[0] if targets else None
 
 
+def _admission_target(event: Dict[str, Any]) -> str:
+    refs = [reference.removeprefix("target=") for reference in event["evidence_refs"] if reference.startswith("target=")]
+    if len(refs) != 1:
+        raise ContractError("admission target is invalid")
+    target = refs[0]
+    if not TARGET_SOURCE_RE.fullmatch(target):
+        raise ContractError("admission target is invalid")
+    return target
+
+
+def _admission_steps(event: Dict[str, Any]) -> tuple[str, ...]:
+    refs = [reference.removeprefix("steps=") for reference in event["evidence_refs"] if reference.startswith("steps=")]
+    if not refs and event["target_status"] == "reconciled":
+        return CONSUMPTION_STEPS
+    if len(refs) != 1:
+        raise ContractError("admission progress is invalid")
+    steps = tuple(filter(None, refs[0].split(",")))
+    if steps != CONSUMPTION_STEPS[:len(steps)]:
+        raise ContractError("admission progress is invalid")
+    return steps
+
+
+def _consumption_attempt_target(events: list[Dict[str, Any]]) -> Optional[str]:
+    target: Optional[str] = None
+    for event in events:
+        if event["event_type"] != "admit" or event["target_status"] not in {"admitted", "reconciled"}:
+            continue
+        candidate = _admission_target(event)
+        _admission_steps(event)
+        if target is not None and target != candidate:
+            raise ContractError("handoff asset has multiple consumption attempts")
+        target = candidate
+    return target
+
+
+def _consumption_attempt_steps(events: list[Dict[str, Any]], target: str) -> tuple[str, ...]:
+    completed: tuple[str, ...] = ()
+    for event in events:
+        if event["event_type"] != "admit" or event["target_status"] not in {"admitted", "reconciled"}:
+            continue
+        if _admission_target(event) != target:
+            continue
+        steps = _admission_steps(event)
+        if len(steps) < len(completed) or steps[:len(completed)] != completed:
+            raise ContractError("admission progress regressed")
+        completed = steps
+    return completed
+
+
+def _attestation_steps(attestation: Dict[str, Any]) -> tuple[str, ...]:
+    steps: list[str] = []
+    incomplete = False
+    for step in CONSUMPTION_STEPS:
+        if attestation[step]:
+            if incomplete:
+                raise ContractError("attestation consumption steps are out of order")
+            steps.append(step)
+        else:
+            incomplete = True
+    return tuple(steps)
+
+
 def _source_ready(mode: str, state: dict[str, str]) -> bool:
     required = {
-        "core_only": "prepared",
+        "core_only": "boundary_sealed",
         "capsule_required": "boundary_sealed",
         "archive_required": "archive_verified",
         "convergence_required": "converged",
     }[mode]
     if mode == "core_only":
-        return state["source"] in {"prepared", "boundary_sealed", "archive_verified", "converged"}
+        return state["source"] in {"boundary_sealed", "archive_verified", "converged"}
     return state["source"] == required
+
+
+def _source_task_ready(payload: Dict[str, Any], events: list[Dict[str, Any]]) -> bool:
+    if payload["work_context"]["task"] is None:
+        return True
+    receipts = {
+        event["event_type"]: event["evidence_refs"]
+        for event in events
+        if event["event_type"] in {"ownership_quiesce", "ownership_seal"}
+    }
+    return (
+        "ownership_status=quiescing" in receipts.get("ownership_quiesce", [])
+        and "ownership_status=sealed" in receipts.get("ownership_seal", [])
+    )
 
 
 def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str]) -> dict[str, Any]:
@@ -756,16 +830,20 @@ def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[st
                 if _prepared_mode(events) != next((ref.removeprefix("mode=") for ref in evidence_refs if ref.startswith("mode=")), None):
                     raise ContractError("handoff lifecycle mode is immutable")
                 return {"status": "idempotent", "state": current}
-        if event_type == "admit" and desired["target"] == "reconciled":
-            target_refs = [reference.removeprefix("target=") for reference in evidence_refs if reference.startswith("target=")]
-            if len(target_refs) != 1:
-                raise ContractError("admission target is invalid")
-            successful_target = _reconciled_admit_target(events)
-            if successful_target is not None:
-                if successful_target == target_refs[0]:
-                    return {"status": "idempotent", "state": current, "target": successful_target}
+        if event_type == "admit":
+            admission = {"evidence_refs": evidence_refs, "target_status": desired["target"]}
+            target = _admission_target(admission)
+            attempt_target = _consumption_attempt_target(events)
+            if attempt_target is not None and attempt_target != target:
                 raise ContractError("handoff asset has already been consumed by another target")
-        if event_type != "admit" and current == desired and any(old["event_type"] == event_type and old["evidence_refs"] == evidence_refs for old in events):
+            if current["target"] == "reconciled" and attempt_target == target:
+                return {"status": "idempotent", "state": current, "target": target}
+            if desired["target"] in {"admitted", "reconciled"}:
+                steps = _admission_steps(admission)
+                completed = _consumption_attempt_steps(events, target)
+                if len(steps) < len(completed) or steps[:len(completed)] != completed:
+                    raise ContractError("admission progress regressed")
+        if current == desired and any(old["event_type"] == event_type and old["evidence_refs"] == evidence_refs for old in events):
             return {"status": "idempotent", "state": current}
         for axis in ("source", "target", "retention"):
             if not _transition(axis, current[axis], desired[axis]):
@@ -986,6 +1064,7 @@ def lifecycle_prepare(root: Path, handoff_path: str, mode: str) -> tuple[str, di
 
 def lifecycle_finalize(root: Path, handoff_path: str, observation_path: str) -> tuple[str, dict[str, Any]]:
     handoff_id, _, payload = _core(root, handoff_path)
+    _read_paired_prompt(root, handoff_path)
     events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
@@ -1039,19 +1118,28 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     current_state = _state(events)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
-    source_ready = _source_ready(_prepared_mode(events), current_state)
-    if not source_ready or not (attestation["prompt_read"] and attestation["trellis_started"] and attestation["facts_reconciled"]):
-        target_status = "blocked"
-    else:
-        target_status = "reconciled"
     target_source = attestation["target_source"]
-    successful_target = _reconciled_admit_target(events)
-    if successful_target is not None:
-        if target_source == successful_target:
-            return handoff_id, {"status": "idempotent", "state": current_state, "target": target_source}
+    attempt_target = _consumption_attempt_target(events)
+    if attempt_target is not None and attempt_target != target_source:
         raise ContractError("handoff asset has already been consumed by another target")
+    if current_state["target"] == "reconciled" and attempt_target == target_source:
+        return handoff_id, {"status": "idempotent", "state": current_state, "target": target_source}
+    source_ready = _source_ready(_prepared_mode(events), current_state) and _source_task_ready(payload, events)
+    if not source_ready:
+        result = _append_event(root, handoff_id, "admit", {"source": current_state["source"], "target": "blocked", "retention": "none"}, ["target=" + target_source])
+        return handoff_id, result
+    steps = _attestation_steps(attestation)
+    if attempt_target is not None:
+        completed = _consumption_attempt_steps(events, target_source)
+        if len(steps) < len(completed) or steps[:len(completed)] != completed:
+            raise ContractError("attestation consumption steps regressed")
+    target_status = "reconciled" if steps == CONSUMPTION_STEPS else "admitted"
     retention_status = "archive_eligible" if target_status == "reconciled" else "none"
-    result = _append_event(root, handoff_id, "admit", {"source": current_state["source"], "target": target_status, "retention": retention_status}, ["target=" + target_source])
+    result = _append_event(
+        root, handoff_id, "admit",
+        {"source": current_state["source"], "target": target_status, "retention": retention_status},
+        ["target=" + target_source, "steps=" + ",".join(steps)],
+    )
     return handoff_id, result
 
 
@@ -1071,6 +1159,9 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
     events = _read_events(receipt, handoff_id)
     state = _state(events)
     if action == "archive":
+        if state["retention"] == "archived":
+            _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
+            return handoff_id, {"status": "idempotent", "state": state}
         if state["retention"] != "archive_eligible":
             raise ContractError("handoff is not archive eligible")
         refs = _archive_copy(root, handoff_id, core)
@@ -1112,8 +1203,9 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
 
 def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     handoff_id, destination = _destination(root, handoff_path=handoff_path)
+    payload: Optional[Dict[str, Any]] = None
     if destination.exists():
-        handoff_id, _, _ = _core(root, handoff_path)
+        handoff_id, _, payload = _core(root, handoff_path)
     else:
         _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
     path = _lifecycle_path(root, handoff_id)
@@ -1122,7 +1214,7 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     events = _read_events(path, handoff_id)
     state = _state(events)
     mode = _prepared_mode(events)
-    source_ready = _source_ready(mode, state)
+    source_ready = _source_ready(mode, state) and (payload is None or _source_task_ready(payload, events))
     return {"status": "ready" if source_ready else "pending", "handoff_id": handoff_id, "mode": mode, "state": state}
 
 

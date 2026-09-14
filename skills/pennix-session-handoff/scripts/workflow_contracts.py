@@ -156,14 +156,14 @@ def validate_observation(value: Any) -> Dict[str, Any]:
 
 def validate_attestation(value: Any) -> Dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {
-        "target_source", "prompt_read", "trellis_started", "facts_reconciled",
+        "target_source", "core_read", "prompt_read", "trellis_started", "facts_reconciled",
         "action_authorized", "task_disposition", "task_path", "continuation_status"
     }:
         raise ContractError("attestation fields are invalid")
     target_source = _text(value["target_source"], "attestation.target_source", 192)
     if not TARGET_SOURCE_RE.fullmatch(target_source):
         raise ContractError("attestation target source is not a direct session source")
-    for field in ("prompt_read", "trellis_started", "facts_reconciled", "action_authorized"):
+    for field in ("core_read", "prompt_read", "trellis_started", "facts_reconciled", "action_authorized"):
         if not isinstance(value[field], bool):
             raise ContractError("attestation.%s is invalid" % field)
     if value["action_authorized"]:
@@ -183,7 +183,7 @@ def validate_attestation(value: Any) -> Dict[str, Any]:
         if continuation not in {"absent", "ready", "stale", "withheld"}:
             raise ContractError("attestation continuation status is invalid")
     normalized = {
-        "target_source": target_source, "prompt_read": value["prompt_read"],
+        "target_source": target_source, "core_read": value["core_read"], "prompt_read": value["prompt_read"],
         "trellis_started": value["trellis_started"], "facts_reconciled": value["facts_reconciled"],
         "action_authorized": False, "task_disposition": disposition,
         "task_path": task_path, "continuation_status": continuation,

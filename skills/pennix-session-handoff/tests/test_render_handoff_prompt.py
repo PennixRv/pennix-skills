@@ -80,6 +80,28 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertFalse((self.root / Path(relative).with_name("session-handoff-prompt.md")).exists())
         self.assertIn("handoff is not ready: recovery_required", rendered.stderr)
 
+    def test_renderer_is_idempotent_after_source_becomes_ready(self) -> None:
+        relative = self.write()
+        prepared_prompt = self.run_cli(RENDER, "--handoff", relative)
+        self.assertEqual(prepared_prompt.returncode, 0, prepared_prompt.stderr)
+        self.assertEqual(self.run_cli(HANDOFF, "prepare", "--handoff", relative).returncode, 0)
+        observation = self.root / ".trellis/.runtime/observation.json"
+        observation.parent.mkdir(parents=True, exist_ok=True)
+        observation.write_text(json.dumps({
+            "availability": "available",
+            "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
+            "source_session": {"status": "verified", "identity": None},
+            "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
+            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "task": {"status": "incomplete", "completion_artifact": None},
+            "memory": {"status": "unverified", "proof_ref": None},
+        }), encoding="utf-8")
+        finalized = self.run_cli(HANDOFF, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(self.root)))
+        self.assertEqual(finalized.returncode, 0, finalized.stderr)
+        delivered_prompt = self.run_cli(RENDER, "--handoff", relative)
+        self.assertEqual(delivered_prompt.returncode, 0, delivered_prompt.stderr)
+        self.assertEqual(delivered_prompt.stdout, prepared_prompt.stdout)
+
     def test_pending_lifecycle_never_emits_prompt(self) -> None:
         relative = self.write()
         prepared = self.run_cli(HANDOFF, "prepare", "--handoff", relative, "--mode", "archive_required")

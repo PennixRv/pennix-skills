@@ -90,7 +90,7 @@ def _markdown_list(values: Any) -> str:
     return "".join("- %s\n" % str(value) for value in values)
 
 
-def _render_document(root: Path, relative: str, payload: Mapping[str, Any], lifecycle: Mapping[str, Any]) -> str:
+def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> str:
     source = payload["source"]
     pending = payload["pending"]
     work_context = payload["work_context"]
@@ -143,10 +143,6 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any], life
         _markdown_list(memory.get("local", [])),
         _markdown_list(memory.get("archive_refs", [])),
         _markdown_list(memory.get("openviking", [])),
-        "## Lifecycle Receipt", "",
-        "- Status: `%s`" % lifecycle.get("status"),
-        "- Mode: `%s`" % lifecycle.get("mode", "core_only"),
-        "- This receipt is local coordination evidence; it does not bind a target session or authorize pending action.", "",
         "### Decision Timeline", "",
     ])
     timeline = conversation.get("timeline", [])
@@ -209,10 +205,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         root = Path(args.project_root).expanduser().resolve(strict=True)
         _run_validate(root, args.handoff)
-        lifecycle = _run_lifecycle_status(root, args.handoff)
+        _run_lifecycle_status(root, args.handoff)
         payload = _payload(root, args.handoff)
         prompt_relative = str(Path(args.handoff).with_name(PROMPT_NAME))
-        _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload, lifecycle))
+        _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload))
         entry = (
             "当前会话位于 %s。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
             "`$pennix-session-handoff` 对 `%s` 运行 `handoff validate --handoff %s`；只有 receipt 为 `ready` 才继续。"
