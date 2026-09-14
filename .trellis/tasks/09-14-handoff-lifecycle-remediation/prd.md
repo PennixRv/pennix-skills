@@ -39,16 +39,16 @@ the coordination and integration-acceptance record.
 
 ## Acceptance Criteria
 
-- [ ] Source-ready tests reject a missing paired prompt and preserve the
+- [x] Source-ready tests reject a missing paired prompt and preserve the
       existing proof-mode boundary behavior.
-- [ ] Focused fixtures prove partial intake, ordered in-place recovery,
+- [x] Focused fixtures prove partial intake, ordered in-place recovery,
       cross-target rejection, final exactly-once consumption, and idempotent
       re-entry after a simulated compaction recovery.
-- [ ] Archive failure and retry are independent of consumption; the core/prompt
+- [x] Archive failure and retry are independent of consumption; the core/prompt
       pair and normal Trellis task disposition remain non-destructive.
-- [ ] Existing proof normalization, ownership fencing, retention and renderer
+- [x] Existing proof normalization, ownership fencing, retention and renderer
       regressions still pass.
-- [ ] Source tests, static Skill checks, source/install revision receipt and a
+- [x] Source tests, static Skill checks, source/install revision receipt and a
       focused isolated host exercise are recorded before release.
 
 ## Notes

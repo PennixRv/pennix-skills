@@ -22,6 +22,14 @@
   render. The prompt no longer serializes lifecycle state; lifecycle status is
   only a render admission check. The source may render once to prepare the
   pair, finish source readiness, then render idempotently for delivery.
-- Checks passed locally: 22 handoff/renderer tests, Python compilation, and
-  `git diff --check`. Pennix Skills installer tests and release/install
-  verification remain required before this task can close.
+- Source commit `3c6160c9aee6eb4d9b7457525811f75d391b4757`
+  (`fix(handoff): make intake recovery explicit`) was pushed to
+  `origin/main`. The official installer first passed `--check`, then installed
+  all 11 Skills from this checkout to `/home/penn/.codex/skills/pennix-skills`.
+  The installed handoff `SKILL.md`, `handoff.py`, `workflow_contracts.py`, and
+  `render_handoff_prompt.py` are byte-identical to the source checkout.
+- Checks passed: 22 handoff/renderer tests, 10 installer tests, Python
+  compilation, `git diff --check`, installer source validation and installed
+  payload comparison. The installer deliberately omits source `tests/`; an
+  attempt to discover tests in the installation returns an unimportable start
+  directory and is not a runtime regression.

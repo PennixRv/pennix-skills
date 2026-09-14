@@ -12,7 +12,7 @@
 5. [x] Add focused regressions for missing pair, partial/recovery/cross-target,
    post-consume compaction re-entry, and archive retry. Run the source suite
    and inspect the diff.
-6. [ ] Publish/install through the existing mechanism, then record source and
+6. [x] Publish/install through the existing mechanism, then record source and
    root-side receipts.
 
 ## Validation
