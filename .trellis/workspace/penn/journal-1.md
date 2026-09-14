@@ -76,3 +76,26 @@ Kept the Codex default while supporting explicit compatible Skill collection roo
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: Complete Pennix handoff lifecycle remediation
+<!-- trellis-session: v=2 fp=cda8e198b7770663 -->
+
+**Date**: 2026-09-14
+**Task**: Complete Pennix handoff lifecycle remediation
+**Branch**: `main`
+
+### Summary
+
+Implemented source-ready pair and ownership gates, recoverable one-target intake, immutable renderer delivery, archive retry; published and installed the verified source revision.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3c6160c` | fix(handoff): make intake recovery explicit |
+| `95c7c16` | chore(task): record handoff deployment receipt |
+
+### Status
+
+[OK] **Completed**
