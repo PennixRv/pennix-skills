@@ -268,8 +268,11 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(sum(event["event_type"] == "admit" and event["target_status"] == "reconciled" for event in events), 1)
 
     def test_new_core_has_no_snapshot_or_projection_limits(self) -> None:
-        root = self.make_git_root()
+        root = self.make_git_root(with_task=True)
         self.addCleanup(shutil.rmtree, root)
+        (root / ".trellis/tasks/demo/task.json").write_text(json.dumps({
+            "id": "fixture-task", "status": "in_progress", "notes": "detail " * 20000,
+        }), encoding="utf-8")
         rollout = root / "large-rollout.jsonl"
         rollout.write_text(
             "".join(
@@ -287,6 +290,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
         payload = json.loads((root / relative).read_text(encoding="utf-8"))
+        self.assertEqual(payload["work_context"]["task"]["id"], "fixture-task")
         self.assertEqual(len(payload["conversation"]["candidates"]), 600)
         self.assertEqual(len(payload["verified"]["facts"]), 64)
         self.assertNotIn("integrity", payload)

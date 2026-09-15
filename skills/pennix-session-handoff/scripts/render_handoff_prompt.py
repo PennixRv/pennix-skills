@@ -146,27 +146,17 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "### Decision Timeline", "",
     ])
     timeline = conversation.get("timeline", [])
-    if timeline:
-        lines.extend(
-            "- `%s` at event %s: %s%s" % (
-                item.get("topic_key"), item.get("event_index"), item.get("state"),
-                " (supersedes event %s)" % item["supersedes_event_index"] if "supersedes_event_index" in item else "",
-            ) for item in timeline
-        )
-    else:
-        lines.append("- No stable explicit-topic timeline candidates were extracted.")
-    lines.extend(["", "### Conversation Candidates", ""])
     candidates = conversation.get("candidates", [])
-    if candidates:
-        for item in candidates:
-            text = item.get("text")
-            lines.append("- [%s #%s] %s" % (item.get("kind"), item.get("event_index"), text or "metadata only"))
-    else:
-        lines.append("- No eligible public user/assistant/tool candidates were extracted.")
     lines.extend([
-        "", "### Coverage Notes", "", "```json",
-        json.dumps(conversation.get("coverage", {}), ensure_ascii=False, indent=2, sort_keys=True),
-        "```", "", "## Pending", "", "- Next action: %s" % pending["next_action"],
+        "- Complete timeline entries remain in `conversation.timeline` in the package JSON; count: %d." % len(timeline) if isinstance(timeline, list) else "- Complete timeline entries remain in `conversation.timeline` in the package JSON.",
+        "- Read that field completely when reconstructing decisions and superseded directions.",
+        "", "### Conversation Candidates", "",
+        "- Complete candidate entries remain in `conversation.candidates` in the package JSON; count: %d." % len(candidates) if isinstance(candidates, list) else "- Complete candidate entries remain in `conversation.candidates` in the package JSON.",
+        "- Read that field completely; the prompt deliberately does not duplicate candidate bodies.",
+        "", "### Coverage Notes", "",
+        "- Complete coverage and provenance remain in `conversation.coverage` in the package JSON; read it completely.",
+        "- The package JSON is canonical; this prompt is only its compact navigation view.",
+        "", "## Pending", "", "- Next action: %s" % pending["next_action"],
         "", "### Blockers", "", _markdown_list(pending["blockers"]), "### Risks", "", _markdown_list(pending["risks"]),
     ])
     return "\n".join(lines).rstrip() + "\n"

@@ -71,6 +71,25 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertEqual(repeated.returncode, 0, repeated.stderr)
         self.assertEqual(repeated.stdout, rendered.stdout)
 
+    def test_renderer_keeps_long_candidates_only_in_the_core(self) -> None:
+        candidate = "candidate scene " * 10000
+        self.rollout.write_text(
+            json.dumps({
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": candidate},
+            }, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        relative = self.write()
+        rendered = self.run_cli(RENDER, "--handoff", relative)
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        core = json.loads((self.root / relative).read_text(encoding="utf-8"))
+        self.assertEqual(core["conversation"]["candidates"][0]["text"], " ".join(candidate.split()))
+        prompt = (self.root / Path(relative).with_name("session-handoff-prompt.md")).read_text(encoding="utf-8")
+        self.assertIn("conversation.candidates", prompt)
+        self.assertIn("count: 1", prompt)
+        self.assertNotIn(candidate, prompt)
+
     def test_invalid_package_never_emits_prompt(self) -> None:
         relative = self.write()
         (self.root / relative).write_text("changed\n", encoding="utf-8")

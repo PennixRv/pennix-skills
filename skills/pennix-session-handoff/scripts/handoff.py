@@ -96,12 +96,12 @@ def _task_snapshot_at(root: Path, raw_path: str, expected: Optional[Dict[str, An
         raise ContractError("task directory is unavailable")
     task_json = task_dir / "task.json"
     if task_json.is_file():
-        task_data = load_json_file(task_json, 64 * 1024)
-        task_id = _text(task_data.get("id") or task_data.get("name"), "task.id", 256)
-        status = _text(task_data.get("status"), "task.status", 64)
+        task_data = load_json_file(task_json)
+        task_id = _text(task_data.get("id") or task_data.get("name"), "task.id")
+        status = _text(task_data.get("status"), "task.status")
     elif expected is not None:
-        task_id = _text(expected.get("id"), "task.id", 256)
-        status = _text(expected.get("status"), "task.status", 64)
+        task_id = _text(expected.get("id"), "task.id")
+        status = _text(expected.get("status"), "task.status")
     else:
         raise ContractError("task.json is unavailable")
     return {"id": task_id, "path": raw_path, "status": status}
@@ -124,12 +124,12 @@ def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
         return None
     if not isinstance(selected, dict):
         raise ContractError("task.py current returned an invalid task")
-    raw_path = _text(selected.get("dir"), "task.dir", 1024)
+    raw_path = _text(selected.get("dir"), "task.dir")
     task_path = Path(raw_path)
     if task_path.is_absolute() or ".." in task_path.parts or not raw_path.startswith(".trellis/tasks/"):
         raise ContractError("active task path is unsafe")
     snapshot = _task_snapshot_at(root, raw_path, selected)
-    if snapshot["id"] != _text(selected.get("id"), "task.id", 256) or snapshot["status"] != _text(selected.get("status"), "task.status", 64):
+    if snapshot["id"] != _text(selected.get("id"), "task.id") or snapshot["status"] != _text(selected.get("status"), "task.status"):
         raise ContractError("active task changed while being captured")
     return snapshot
 
@@ -175,17 +175,17 @@ def _evidence_snapshot(root: Path, paths: Iterable[str]) -> list[Dict[str, Any]]
 def _read_rollout_path(value: Any) -> Dict[str, Optional[str]]:
     if not isinstance(value, dict) or set(value) - {"path", "session_id"} or "path" not in value:
         raise ContractError("rollout must contain path and optional session_id")
-    raw_path = _text(value.get("path"), "rollout.path", 4096)
+    raw_path = _text(value.get("path"), "rollout.path")
     path = Path(raw_path).expanduser()
     if not path.is_absolute() or path.is_symlink():
         raise ContractError("rollout.path must be absolute")
     session_id = value.get("session_id")
     if session_id is not None:
-        session_id = _text(session_id, "rollout.session_id", 256)
+        session_id = _text(session_id, "rollout.session_id")
     return {"path": str(path.resolve()), "session_id": session_id}
 
 
-def _short_text(value: Any, maximum: Optional[int] = None) -> Optional[str]:
+def _short_text(value: Any) -> Optional[str]:
     if not isinstance(value, str):
         return None
     compact = " ".join(value.split())
@@ -311,7 +311,7 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             payload = record.get("payload")
             source = {"line": line_number, "byte_start": byte_start, "byte_end": offset, "record_type": record_type}
             if isinstance(record.get("timestamp"), str):
-                source["timestamp"] = _short_text(record["timestamp"], 128)
+                source["timestamp"] = _short_text(record["timestamp"])
             payload_type = payload.get("type") if isinstance(payload, dict) else None
             if record_type == "compacted" or payload_type == "compacted":
                 count(excluded, "compacted")
@@ -352,17 +352,17 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                     continue
                 continue
             if item_type in {"function_call", "custom_tool_call", "tool_call"}:
-                call_id = _short_text(payload.get("call_id") or payload.get("id"), 256)
+                call_id = _short_text(payload.get("call_id") or payload.get("id"))
                 if call_id:
                     tool_calls[call_id] = event_index + 1
                 event_index += 1
-                item = {"kind": "tool_call", "event_index": event_index, "tool": _short_text(payload.get("name"), 256), "source": source}
+                item = {"kind": "tool_call", "event_index": event_index, "tool": _short_text(payload.get("name")), "source": source}
                 if call_id:
                     item["call_id"] = call_id
                 keep(candidates, item)
                 continue
             if item_type in {"function_call_output", "custom_tool_call_output", "tool_result"}:
-                call_id = _short_text(payload.get("call_id") or payload.get("id"), 256)
+                call_id = _short_text(payload.get("call_id") or payload.get("id"))
                 if call_id:
                     tool_results[call_id] = event_index + 1
                 event_index += 1
@@ -400,7 +400,7 @@ def _source(root: Path, task: Optional[Dict[str, str]], evidence: list[Dict[str,
 
 
 def _request(root: Path, path: Path) -> Dict[str, Any]:
-    value = load_json_file(path, None)
+    value = load_json_file(path)
     required = {"session_label", "facts", "evidence_paths", "next_action", "blockers", "risks", "validation", "rollout"}
     if not required.issubset(value) or set(value) - required - {"memory_projection"}:
         raise ContractError("handoff request fields are invalid")
@@ -482,7 +482,7 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
         raise ContractError("handoff schema is unsupported")
     if payload["handoff_id"] != handoff_id or not HANDOFF_ID.fullmatch(handoff_id):
         raise ContractError("handoff id does not match package path")
-    _text(payload["created_at"], "created_at", 128)
+    _text(payload["created_at"], "created_at")
     if not isinstance(payload["project"], dict) or payload["project"].get("name") != root.name:
         raise ContractError("handoff project identity is invalid")
     context = payload["work_context"]
@@ -494,7 +494,7 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
     source = payload["source"]
     if not isinstance(source, dict) or set(source) != {"session_label", "git", "evidence", "rollout"}:
         raise ContractError("handoff source is invalid")
-    _text(source["session_label"], "source.session_label", 128)
+    _text(source["session_label"], "source.session_label")
     if not isinstance(source["evidence"], list):
         raise ContractError("handoff evidence is invalid")
     for item in source["evidence"]:
@@ -503,16 +503,16 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
                 raise ContractError("handoff evidence item is invalid")
         if not isinstance(item, dict) or "path" not in item:
             raise ContractError("handoff evidence item is invalid")
-        _project_file(root, _text(item["path"], "evidence.path", 1024), "evidence path")
+        _project_file(root, _text(item["path"], "evidence.path"), "evidence path")
     rollout = source["rollout"]
     rollout_expected = {"path", "session_id", "capture_end", "record_count", "parser_version", "coverage", "conversation_candidates", "timeline"}
     if legacy:
         rollout_expected |= {"device", "inode", "prefix_sha256"}
     if not isinstance(rollout, dict) or set(rollout) != rollout_expected:
         raise ContractError("handoff rollout descriptor is invalid")
-    _text(rollout["path"], "rollout.path", 4096)
+    _text(rollout["path"], "rollout.path")
     if rollout["session_id"] is not None:
-        _text(rollout["session_id"], "rollout.session_id", 256)
+        _text(rollout["session_id"], "rollout.session_id")
     for field in ("capture_end", "record_count"):
         if not isinstance(rollout[field], int) or rollout[field] < 0:
             raise ContractError("rollout.%s is invalid" % field)
@@ -605,7 +605,7 @@ def _archive_path(root: Path, handoff_id: str) -> Path:
 def _core(root: Path, handoff_path: str) -> tuple[str, Path, Dict[str, Any]]:
     handoff_id, destination = _destination(root, handoff_path=handoff_path)
     _regular_file(destination, "handoff path")
-    payload = load_json_file(destination, None)
+    payload = load_json_file(destination)
     if validate(root, payload, handoff_id) != "ready":
         raise ContractError("handoff core is not ready")
     return handoff_id, destination, payload
@@ -882,7 +882,7 @@ def _ownership_task(payload: dict[str, Any]) -> tuple[str, str]:
     if not isinstance(task, dict):
         raise ContractError("handoff has no task ownership to transfer")
     task_id = safe_id(task.get("id"), "handoff task id")
-    task_path = _text(task.get("path"), "handoff task path", 1024)
+    task_path = _text(task.get("path"), "handoff task path")
     if not task_path.startswith(".trellis/tasks/") or ".." in Path(task_path).parts:
         raise ContractError("handoff task path is unsafe")
     return task_id, task_path
@@ -917,7 +917,7 @@ def _ownership_call(root: Path, operation: str, task_id: str, handoff_id: str, c
     if SECRET_RE.search(json.dumps(value, ensure_ascii=False)):
         raise ContractError("Trellis ownership returned unsafe data")
     if result.returncode:
-        reason = _text(value.get("reason"), "ownership failure", 512) if value.get("reason") else "unknown failure"
+        reason = _text(value.get("reason"), "ownership failure") if value.get("reason") else "unknown failure"
         raise ContractError("Trellis ownership %s withheld: %s" % (operation, reason))
     return value
 
@@ -928,7 +928,7 @@ def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[s
         raise ContractError("handoff lifecycle is not prepared")
     state = _state(events)
     refs = [
-        "ownership_status=" + _text(result.get("status"), "ownership.status", 32),
+        "ownership_status=" + _text(result.get("status"), "ownership.status"),
         "ownership_generation=" + str(result.get("generation")),
     ]
     receipt = _append_event(
@@ -986,7 +986,7 @@ def _archive_snapshot(root: Path, archive: Path, handoff_id: str) -> list[str]:
     if names != {HANDOFF_NAME, "session-handoff-prompt.md"}:
         raise ContractError("handoff archive must contain a core/prompt pair")
     core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
-    payload = load_json_file(core, None)
+    payload = load_json_file(core)
     _validate_payload_shape(root, payload, handoff_id)
     refs = ["archive=" + handoff_id]
     prompt = _regular_file(archive / "session-handoff-prompt.md", "archived prompt")
@@ -1150,7 +1150,7 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
     if action == "restore":
         archive = _archive_path(root, handoff_id)
         archived_core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
-        archived_payload = load_json_file(archived_core, None)
+        archived_payload = load_json_file(archived_core)
         _validate_payload_shape(root, archived_payload, handoff_id)
         core = core_path
     else:
@@ -1271,7 +1271,7 @@ def main() -> int:
                 emit("validate", "absent", handoff_path=relative, handoff_id=handoff_id)
                 return 2
             _regular_file(destination, "handoff path")
-            payload = load_json_file(destination, None)
+            payload = load_json_file(destination)
             status = validate(root, payload, handoff_id)
             emit("validate", status, handoff_path=relative, handoff_id=handoff_id)
             return 0 if status == "ready" else 2

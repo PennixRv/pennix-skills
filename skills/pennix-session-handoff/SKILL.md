@@ -52,6 +52,14 @@ arguments, raw tool output, and credentials. File order is the timeline order;
 record timestamps are auxiliary only. A later explicit user correction is kept
 with the earlier event instead of silently overwriting history.
 
+The package JSON is the canonical complete asset. Its paired Markdown prompt is
+a compact navigation view: it preserves lifecycle instructions, verified facts,
+the semantic capsule, memory references, and pending work, while referring to
+the complete `conversation.timeline`, `conversation.candidates`, and
+`conversation.coverage` fields in the core instead of duplicating them. This
+avoids wasting new-session context without truncating or discarding any handoff
+data; read both files completely during admission.
+
 Run:
 
 ```bash
