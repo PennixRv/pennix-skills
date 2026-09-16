@@ -184,7 +184,8 @@ class HandoffTests(unittest.TestCase):
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
         blocked = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
-        self.assertEqual(blocked[1]["state"]["target"], "blocked")
+        self.assertEqual(blocked[1]["status"], "pending")
+        self.assertEqual(blocked[1]["state"]["target"], "not_admitted")
         self.assertEqual(blocked[1]["state"]["retention"], "none")
 
         proof["source_session"]["identity"] = "fixture-session"
@@ -353,20 +354,21 @@ class HandoffTests(unittest.TestCase):
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
         self.assertEqual(self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root))).returncode, 0)
-        self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["state"]["target"], "admitted")
+        incomplete = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        self.assertEqual(incomplete[1]["status"], "incomplete")
+        self.assertEqual(incomplete[1]["state"]["target"], "not_admitted")
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_read": True, "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
-        self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["state"]["target"], "admitted")
+        self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["status"], "incomplete")
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_read": False, "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
-        with self.assertRaisesRegex(handoff.ContractError, "regressed"):
-            handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["status"], "incomplete")
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_read": True, "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
@@ -619,10 +621,10 @@ class HandoffTests(unittest.TestCase):
             "    with open('.trellis/.runtime/ownership-args.jsonl', 'a', encoding='utf-8') as handle:\n"
             "        handle.write(json.dumps(args) + '\\n')\n"
             "    if op == 'status':\n"
-            "        print(json.dumps({'status': 'archived', 'generation': 7, 'record_digest': 'sha256:' + 'a' * 64}))\n"
+            "        print(json.dumps({'status': 'ready', 'generation': 3, 'record_digest': 'sha256:' + 'a' * 64}))\n"
             "        raise SystemExit(0)\n"
-            "    generations = {'quiesce': 0, 'seal': 1, 'retire': 3, 'claim': 5, 'consume': 6, 'archive': 7}\n"
-            "    statuses = {'quiesce': 'quiescing', 'seal': 'sealed', 'retire': 'ready', 'claim': 'claimed', 'consume': 'consumed', 'archive': 'archived'}\n"
+            "    generations = {'quiesce': 0, 'seal': 1, 'retire': 3, 'retire-handoff': 3, 'claim': 5, 'consume': 6, 'archive': 7}\n"
+            "    statuses = {'quiesce': 'quiescing', 'seal': 'sealed', 'retire': 'ready', 'retire-handoff': 'ready', 'claim': 'claimed', 'consume': 'consumed', 'archive': 'archived'}\n"
             "    print(json.dumps({'status': statuses[op], 'generation': generations.get(op, 5), 'record_digest': 'sha256:' + 'a' * 64}))\n"
             "else:\n"
             "    raise SystemExit(2)\n",
@@ -655,7 +657,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(handoff.ownership_operation(root, "quiesce", relative, explicit=True)["ownership"]["status"], "quiescing")
         self.assertEqual(handoff.ownership_operation(root, "seal", relative, explicit=True, expected_generation=0)["ownership"]["status"], "sealed")
         self.assertEqual(self.run_cli(root, "status", "--handoff", relative).returncode, 0)
-        self.assertEqual(handoff.ownership_operation(root, "retire", relative, explicit=True, expected_generation=1)["ownership"]["generation"], 3)
+        self.assertEqual(handoff.ownership_operation(root, "retire-handoff", relative, explicit=True)["ownership"]["generation"], 3)
 
         os.environ["TRELLIS_CONTEXT_ID"] = "target"
         self.addCleanup(os.environ.pop, "TRELLIS_CONTEXT_ID", None)
@@ -665,7 +667,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(repeated["lifecycle"]["status"], "idempotent")
         self.assertEqual(handoff.ownership_operation(root, "consume", relative, explicit=True, expected_generation=5)["ownership"]["status"], "consumed")
         self.assertEqual(handoff.ownership_operation(root, "archive", relative, explicit=True, expected_generation=6)["ownership"]["status"], "archived")
-        self.assertEqual(handoff.ownership_operation(root, "status", relative, explicit=False)["ownership"]["status"], "archived")
+        self.assertEqual(handoff.ownership_operation(root, "status", relative, explicit=False)["ownership"]["status"], "ready")
         self.assertEqual((root / relative).read_bytes(), before)
         events = (root / handoff.LIFECYCLE_RUNTIME / (handoff_id + ".jsonl")).read_text(encoding="utf-8").splitlines()
         self.assertEqual(sum('"event_type": "ownership_claim"' in line for line in events), 1)

@@ -126,15 +126,48 @@ python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.jso
 `PENNIX_HANDOFF` above abbreviates the existing `handoff.py` path used in the
 earlier commands. `prepare` fixes one mode and writes no remote state.
 Render the paired prompt after `write -> validate=ready` and before
-`finalize`; `finalize` rejects a missing or unreadable pair. It consumes only
-a local observation manifest, never reads Plugin private state, calls shell
-HTTP, or retries forever. `core_only` is the default and needs no remote
-proof, but still requires the sealed final source boundary. When a captured
-task exists, run the native ownership `quiesce` and `seal` commands before the
-final ready check. `capsule_required`, `archive_required`, and
-`convergence_required` require their respective verified proof references;
-unavailable official capability must remain `unsupported`, `unavailable`, or
-`pending`, never silently downgrade.
+`finalize`; `finalize` rejects a missing or unreadable pair. It consumes only a
+local observation manifest, never reads Plugin private state, calls shell HTTP,
+or retries forever. `core_only` is the default and needs no remote proof, but
+still requires the sealed final source boundary. When a captured task exists,
+run the native ownership `quiesce` and `seal` commands before the final ready
+check. `capsule_required` records the local semantic capsule proof;
+`archive_required` and `convergence_required` additionally use the explicit
+OpenViking checkpoint described below. Unavailable official capability remains
+`unsupported`, `unavailable`, or `pending`, never silently downgrades.
+
+For a task handoff in an OpenViking-backed session, the source-side sequence is
+one explicit boundary, not a SessionEnd hook or a polling loop:
+
+```text
+write -> validate -> render -> prepare(mode) -> ownership quiesce -> ownership seal
+      -> openviking_checkpoint checkpoint -> validate/status=ready -> render final prompt
+```
+
+The checkpoint appends one assistant message containing the exact handoff
+marker and the complete Semantic Handoff Capsule to the source OpenViking
+session, commits that live session through the official `ov` CLI, verifies the
+returned archive and exact marker, and then releases only the matching sealed
+Trellis handoff with `ownership retire-handoff`. It does not copy a transcript,
+call OpenViking HTTP, or claim that Plugin Stop/PreCompact/SessionEnd capture
+has flushed. Its local receipt is outside Git at
+`.trellis/.runtime/openviking-handoff/<handoff-id>.json` and is only a
+retry/recovery pointer. Use:
+
+```bash
+PENNIX_OV_CHECKPOINT="${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/openviking_checkpoint.py"
+python3 "$PENNIX_OV_CHECKPOINT" --project-root . checkpoint --handoff <core.json>
+python3 "$PENNIX_OV_CHECKPOINT" --project-root . status --handoff <core.json>
+```
+
+For `convergence_required`, `checkpoint` may return `pending` after archive
+verification. Retry the same checkpoint only when the exact OpenViking commit
+task is complete and its `.done` and `memory_diff.json` resources can be read;
+no newest-task or newest-archive heuristic is valid. An ambiguous append or
+commit first recovers by exact handoff marker and archive URI, then reuses the
+matching receipt; it never appends a second checkpoint merely because a command
+timed out. A successful checkpoint retires the source pointer, so later
+`status` is a read-only receipt lookup and remains usable after retirement.
 
 `admit` also checks the prepared mode's current source state. A valid target
 attestation cannot turn a `pending` source into a reconciled admission; it is
@@ -144,18 +177,19 @@ axes.
 
 `admit` uses one cumulative target attestation in this fixed order: complete
 JSON core read, paired prompt read, `$trellis-start`, then current-fact
-reconciliation. An incomplete prefix records `admitted` for that direct
-target only; it is not consumed and the same target resumes it in place. Only
-the complete four-step prefix records `reconciled`, the one logical consumed
-marker. If the source is still pending, the attempt is `blocked` and remains
-retryable without claiming consumption. Its `target_source` must exactly equal
-the current Trellis direct source `session:<target-key>`. The source rollout
-`session_id` is provenance only and is rejected as target identity. Admission
-never executes the pending action, starts a task, changes a task pointer, or
-closes a task. A later, separately authorized continuation uses native Trellis
-`task.py start` for an incomplete task and then rechecks its direct current
-source. A completed task instead follows native Trellis finish/archive by
-exact task path; do not manufacture a session pointer.
+reconciliation. Any incomplete prefix is reported but writes no target
+reservation and is not consumed. Only the complete four-step prefix records
+`reconciled`, the one logical consumed marker; the same target may retry after
+an interruption, while a different target cannot consume it. If the source is
+still pending, the attempt is `blocked` and remains retryable without claiming
+consumption. Its `target_source` must exactly equal the current Trellis direct
+source `session:<target-key>`. The source rollout `session_id` is provenance
+only and is rejected as target identity. Admission never executes the pending
+action, starts a task, changes a task pointer, or closes a task. A later,
+separately authorized continuation uses native Trellis `task.py start` for an
+incomplete task and then rechecks its direct current source. A completed task
+instead follows native Trellis finish/archive by exact task path; do not
+manufacture a session pointer.
 
 After a reconciled admission, `retention archive` atomically copies the core
 and paired prompt after checking that the core is parseable and prompt is
@@ -211,15 +245,17 @@ implementation; this Skill never edits task pointers itself:
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.json> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> --expected-generation <n> --explicit-user-request
-python3 "$PENNIX_HANDOFF" --project-root . finalize --handoff <core.json> --observation <proof.json>
-python3 "$PENNIX_HANDOFF" --project-root . ownership retire --handoff <core.json> --expected-generation <n> --archive-observation <not_required|observed> --explicit-user-request
+python3 "$PENNIX_OV_CHECKPOINT" --project-root . checkpoint --handoff <core.json>
 ```
 
-`retire` is the source barrier: Trellis records `retiring`, removes and
-verifies the source session pointer, then exposes `ready`. An interrupted
-retirement remains non-claimable and can be recovered only by the same source
-identity. High-assurance modes require their verified source observation first;
-missing OpenViking or Task API evidence remains `pending`/`unsupported`.
+`openviking_checkpoint checkpoint` performs the source observation and invokes
+the exact `retire-handoff` barrier after the archive/convergence gate passes.
+Trellis records `retiring`, removes and verifies only the sealed source
+pointer, then exposes `ready`. An interrupted retirement remains non-claimable
+until the matching checkpoint is recovered. `core_only` and
+`capsule_required` use the local `finalize` path; high-assurance modes require
+their verified OpenViking proof first. Missing capability remains
+`pending`/`unsupported` and never silently downgrades.
 
 After a new session has completed the read-only intake above and the user
 explicitly authorizes continuation, it may claim and close ownership:
