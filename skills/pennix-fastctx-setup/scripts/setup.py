@@ -231,7 +231,7 @@ def run_doctor(args: argparse.Namespace) -> None:
     print(f"FastCtx marker: {marker_state(contents, FASTCTX_BEGIN, FASTCTX_END)}")
     binary = installed_binary()
     if binary.is_file():
-        run_fastctx(binary, "guidance", "status", "--codex-home", str(args.codex_home))
+        run_fastctx(binary, "--version")
     else:
         print("Installed FastCtx: absent")
 

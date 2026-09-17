@@ -2,6 +2,7 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -37,6 +38,18 @@ class SetupTest(unittest.TestCase):
             MODULE.platform, "machine", return_value="x86_64"
         ):
             self.assertEqual(MODULE.release_asset(), "fastctx-x86_64-unknown-linux-gnu.tar.gz")
+
+    def test_doctor_uses_legacy_safe_version_probe(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "fastctx"
+            binary.touch()
+            arguments = SimpleNamespace(codex_home=Path(temporary))
+            with mock.patch.object(MODULE, "installed_binary", return_value=binary), mock.patch.object(
+                MODULE, "run_fastctx"
+            ) as run:
+                MODULE.run_doctor(arguments)
+
+            run.assert_called_once_with(binary, "--version")
 
 
 if __name__ == "__main__":
