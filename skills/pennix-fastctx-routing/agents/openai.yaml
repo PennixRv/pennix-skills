@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pennix FastCtx 路由"
+  short_description: "按操作语义选择 FastCtx 文件、命令与 job 路径"
+  default_prompt: "使用 $pennix-fastctx-routing 为当前 FastCtx 操作选择符合语义的文件、命令或 job 路径。"
