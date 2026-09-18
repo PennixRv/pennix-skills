@@ -13,8 +13,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
-from adapters import codex_static
+from adapters import codex_plugins, codex_static, upstream
 import host
 
 
@@ -22,7 +23,9 @@ SCRIPT_ROOT = Path(__file__).resolve().parent
 SKILL_ROOT = SCRIPT_ROOT.parent
 DEFAULT_CATALOG = SKILL_ROOT / "references" / "component-versions.json"
 VERSION_RE = re.compile(r"(?<![A-Za-z0-9])v?(\d+(?:\.\d+)+(?:[A-Za-z][A-Za-z0-9.-]*)?)")
-PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:-]+$")
+PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:/-]+$")
+PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9-]*@[a-z0-9][a-z0-9-]*$")
+PLUGIN_REF = re.compile(r"^[A-Za-z0-9._-]+$")
 PROJECT_ACTIONS = (
     ("trellis-project", "trellis", "project", "native workflow init/update/selection"),
     ("codegraph-project", "codegraph", "project", "project config/index initialization"),
@@ -36,6 +39,53 @@ class BootstrapError(RuntimeError):
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def valid_npm_registry(value: str) -> bool:
+    parsed = urlparse(value)
+    return (
+        value == value.strip()
+        and parsed.scheme == "https"
+        and bool(parsed.netloc)
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
+def valid_plugin(value: Any) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("id"), str) or not PLUGIN_ID.fullmatch(value["id"]):
+        return False
+    marketplace = value.get("marketplace")
+    if not isinstance(marketplace, dict):
+        return False
+    name = marketplace.get("name")
+    source = marketplace.get("source")
+    ref = marketplace.get("ref")
+    sparse = marketplace.get("sparse", [])
+    parsed = urlparse(source) if isinstance(source, str) else None
+    return (
+        isinstance(name, str)
+        and value["id"].endswith(f"@{name}")
+        and isinstance(source, str)
+        and parsed is not None
+        and parsed.scheme == "https"
+        and bool(parsed.netloc)
+        and parsed.username is None
+        and parsed.password is None
+        and isinstance(ref, str)
+        and bool(PLUGIN_REF.fullmatch(ref))
+        and isinstance(sparse, list)
+        and all(
+            isinstance(path, str)
+            and bool(path)
+            and not path.startswith("/")
+            and ".." not in Path(path).parts
+            for path in sparse
+        )
+    )
 
 
 def load_catalog(path: Path) -> dict[str, Any]:
@@ -53,16 +103,36 @@ def load_catalog(path: Path) -> dict[str, Any]:
         package = component.get("package")
         if package is not None and (
             not isinstance(package, dict)
-            or package.get("source") not in {"official", "aur"}
+            or package.get("source") not in {"official", "aur", "npm"}
             or not isinstance(package.get("name"), str)
             or not PACKAGE_NAME.fullmatch(package["name"])
+            or (package.get("source") == "npm" and not isinstance(package.get("registry"), str))
+            or (package.get("source") == "npm" and not valid_npm_registry(package["registry"]))
+            or (package.get("source") != "npm" and "registry" in package)
         ):
             raise BootstrapError(f"catalog package metadata is invalid: {key}")
+        plugin = component.get("plugin")
+        if plugin is not None and (package is not None or not valid_plugin(plugin)):
+            raise BootstrapError(f"catalog plugin metadata is invalid: {key}")
+        conflicts = component.get("conflicts", [])
+        if not isinstance(conflicts, list) or not all(
+            isinstance(name, str) and PACKAGE_NAME.fullmatch(name) for name in conflicts
+        ):
+            raise BootstrapError(f"catalog conflicts metadata is invalid: {key}")
+        native_owner_reason = component.get("native_owner_reason")
+        if native_owner_reason is not None and (
+            not isinstance(native_owner_reason, str) or not native_owner_reason.strip()
+        ):
+            raise BootstrapError(f"catalog native owner metadata is invalid: {key}")
+        try:
+            upstream.validate_component(component)
+        except upstream.UpstreamInspectionError as error:
+            raise BootstrapError(f"catalog upstream inspection metadata is invalid: {key}: {error}") from error
     return value
 
 
 def normalize_version(raw: str) -> str | None:
-    match = VERSION_RE.search(raw)
+    match = VERSION_RE.search(raw.replace("_", ""))
     return match.group(1) if match else None
 
 
@@ -91,9 +161,58 @@ def installed_package_owner(command: str) -> str | None:
     return parse_package_owner((result.stdout or result.stderr).strip())
 
 
-def probe_component(component: dict[str, Any]) -> tuple[str, str | None]:
+def installed_npm_version(package: str) -> str | None:
+    npm = shutil.which("npm")
+    if not npm:
+        return None
+    try:
+        result = subprocess.run(
+            [npm, "list", "--global", "--depth=0", "--json", package],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode:
+        return None
+    try:
+        dependencies = json.loads(result.stdout).get("dependencies", {})
+        version = dependencies.get(package, {}).get("version")
+    except (AttributeError, json.JSONDecodeError):
+        return None
+    return version if isinstance(version, str) else None
+
+
+def probe_component(component: dict[str, Any], codex_home: Path | None = None) -> tuple[str, str | None]:
+    plugin = component.get("plugin")
+    if isinstance(plugin, dict):
+        target_home = codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+        try:
+            installed = codex_plugins.installed_plugin(target_home, plugin["id"])
+        except codex_plugins.PluginError:
+            return "unknown", None
+        if installed is None:
+            return "missing", None
+        observed = installed.get("version")
+        if not isinstance(observed, str) or not isinstance(installed.get("enabled"), bool):
+            return "unknown", observed if isinstance(observed, str) else None
+        expected = normalize_version(str(component["approved_version"]))
+        return (
+            "match" if installed["enabled"] and normalize_version(observed) == expected else "drifted",
+            observed,
+        )
     probe = component.get("probe")
     if not probe:
+        package = component.get("package")
+        if isinstance(package, dict) and package.get("source") == "npm":
+            observed = installed_npm_version(package["name"])
+            if observed is None:
+                return "missing", None
+            expected = normalize_version(str(component["approved_version"]))
+            return ("match" if normalize_version(observed) == expected else "drifted"), observed
         return "unknown", None
     command = shutil.which(str(probe))
     if not command:
@@ -114,7 +233,12 @@ def probe_component(component: dict[str, Any]) -> tuple[str, str | None]:
     expected = normalize_version(str(component["approved_version"]))
     status = "match" if observed == expected else "drifted"
     package = component.get("package")
-    if status == "match" and isinstance(package, dict) and installed_package_owner(command) != package["name"]:
+    if (
+        status == "match"
+        and isinstance(package, dict)
+        and package.get("source") != "npm"
+        and installed_package_owner(command) != package["name"]
+    ):
         status = "drifted"
     return status, observed
 
@@ -122,9 +246,18 @@ def probe_component(component: dict[str, Any]) -> tuple[str, str | None]:
 def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any]:
     components = {}
     for key, component in catalog["components"].items():
-        status, observed = probe_component(component)
+        status, observed = probe_component(component, args.codex_home)
         package = component.get("package")
-        observed_package = installed_package_owner(shutil.which(str(component["probe"]))) if isinstance(package, dict) and component.get("probe") and shutil.which(str(component["probe"])) else None
+        command = shutil.which(str(component["probe"])) if component.get("probe") else None
+        observed_package = (
+            installed_package_owner(command)
+            if isinstance(package, dict) and package.get("source") != "npm" and command
+            else (
+                package["name"]
+                if isinstance(package, dict) and package.get("source") == "npm" and status != "missing"
+                else None
+            )
+        )
         components[key] = {
             "status": status,
             "observed_version": observed,
@@ -166,6 +299,9 @@ def action(
     approved_version: str | None = None,
     blocked_reason: str | None = None,
     package: dict[str, str] | None = None,
+    plugin: dict[str, Any] | None = None,
+    upstream_inspection: dict[str, Any] | None = None,
+    decision_profile: dict[str, Any] | None = None,
     category: str = "system-installation",
 ) -> dict[str, Any]:
     result = {
@@ -190,13 +326,19 @@ def action(
         result["blocked_reason"] = blocked_reason
     if package is not None:
         result["package"] = package
+    if plugin is not None:
+        result["plugin"] = plugin
+    if upstream_inspection is not None:
+        result["upstream_inspection"] = upstream_inspection
+    if decision_profile is not None:
+        result["decision_profile"] = decision_profile
     return result
 
 
-def package_candidate_version(installer: str, package: str) -> str | None:
+def package_candidate_version(installer: str, package: str, registry: str | None = None) -> str | None:
     try:
         result = subprocess.run(
-            host.package_info_command(installer, package),
+            host.package_info_command(installer, package, registry),
             capture_output=True,
             text=True,
             timeout=30,
@@ -210,18 +352,70 @@ def package_candidate_version(installer: str, package: str) -> str | None:
     return normalize_version(result.stdout)
 
 
-def package_action_mode(component: dict[str, Any], host_state: dict[str, Any]) -> tuple[str, str | None, dict[str, str] | None]:
+def package_action_mode(
+    component: dict[str, Any],
+    host_state: dict[str, Any],
+    current_status: str | None = None,
+    observed_package: str | None = None,
+) -> tuple[str, str | None, dict[str, str] | None]:
     package = component.get("package")
     if not isinstance(package, dict):
-        return "plan-only", None, None
+        reason = component.get("native_owner_reason", "component requires a native owner adapter")
+        return "plan-only", str(reason), None
     installer = host_state["installers"].get(package["source"])
     if not isinstance(installer, str):
         return "blocked", f"no available {package['source']} package installer", None
-    observed = package_candidate_version(installer, package["name"])
+    observed = package_candidate_version(installer, package["name"], package.get("registry"))
     expected = normalize_version(str(component["approved_version"]))
     if observed != expected:
         return "blocked", "repository candidate does not match catalog", None
-    return "applyable", None, {"name": package["name"], "source": package["source"], "installer": installer}
+    if observed_package in component.get("conflicts", []):
+        return "blocked", f"installed command is owned by conflicting package: {observed_package}", None
+    if (
+        package["source"] == "npm"
+        and current_status != "match"
+        and normalize_version(installed_npm_version(package["name"]) or "") == expected
+    ):
+        return "blocked", "installed npm package does not provide an effective matching command", None
+    return "applyable", None, {
+        "name": package["name"],
+        "source": package["source"],
+        "installer": installer,
+        **({"registry": package["registry"]} if package.get("registry") else {}),
+    }
+
+
+def plugin_action_mode(
+    component: dict[str, Any], inventory: dict[str, Any], codex_home: Path
+) -> tuple[str, str | None, dict[str, Any] | None]:
+    codex = inventory["components"].get("codex-cli", {})
+    if codex.get("status") != "match":
+        return "blocked", "Codex CLI does not match catalog", None
+    plugin = component.get("plugin")
+    if not isinstance(plugin, dict):
+        return "plan-only", "component requires a native owner adapter", None
+    marketplace = plugin["marketplace"]
+    try:
+        state = codex_plugins.marketplace_status(codex_home, marketplace["name"], marketplace["source"])
+    except codex_plugins.PluginError as error:
+        return "blocked", str(error), None
+    if state != "absent":
+        return "blocked", f"existing marketplace cannot be ref-verified: {state}", None
+    return "applyable", None, plugin
+
+
+def inspect_upstream(component: dict[str, Any], enabled: bool) -> dict[str, Any] | None:
+    if not isinstance(component.get("upstream_inspection"), dict):
+        return None
+    if not enabled:
+        return {
+            "status": "inspection-required",
+            "reason": "run plan with --inspect-upstream before selecting this component",
+        }
+    try:
+        return upstream.inspect_component(component)
+    except upstream.UpstreamInspectionError as error:
+        return {"status": "unavailable", "reason": str(error)}
 
 
 def plan(args: argparse.Namespace, inventory: dict[str, Any], catalog: dict[str, Any]) -> dict[str, Any]:
@@ -269,7 +463,17 @@ def plan(args: argparse.Namespace, inventory: dict[str, Any], catalog: dict[str,
         if state["status"] == "match":
             continue
         component = catalog["components"][key]
-        mode, blocked_reason, package = package_action_mode(component, host_state)
+        inspection = inspect_upstream(component, bool(getattr(args, "inspect_upstream", False)))
+        if inspection is not None and inspection["status"] != "match":
+            mode, blocked_reason, package, plugin = "blocked", str(inspection["status"]), None, None
+        elif isinstance(component.get("plugin"), dict):
+            mode, blocked_reason, plugin = plugin_action_mode(component, inventory, args.codex_home)
+            package = None
+        else:
+            mode, blocked_reason, package = package_action_mode(
+                component, host_state, state["status"], state.get("observed_package")
+            )
+            plugin = None
         if not host_supported:
             mode = "blocked"
             blocked_reason = str(host_reason)
@@ -285,6 +489,9 @@ def plan(args: argparse.Namespace, inventory: dict[str, Any], catalog: dict[str,
                 str(component["approved_version"]),
                 blocked_reason=blocked_reason,
                 package=package,
+                plugin=plugin,
+                upstream_inspection=inspection,
+                decision_profile=component.get("decision_profile"),
             )
         )
     project_target = str(args.project_root) if args.project_root else "<explicit --project-root required>"
@@ -307,7 +514,13 @@ def plan(args: argparse.Namespace, inventory: dict[str, Any], catalog: dict[str,
                 category="project-initialize",
             )
         )
-    return {"schema": 1, "planned_at": now(), "inventory": inventory, "actions": actions}
+    return {
+        "schema": 1,
+        "planned_at": now(),
+        "inventory": inventory,
+        "upstream_inspection_requested": bool(getattr(args, "inspect_upstream", False)),
+        "actions": actions,
+    }
 
 
 def state_dir(args: argparse.Namespace) -> Path:
@@ -392,31 +605,74 @@ def apply_action(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
         component = catalog["components"].get(key)
         if not isinstance(component, dict):
             raise BootstrapError(f"unknown component action: {args.action}")
-        installer = current_host["installers"].get(component.get("package", {}).get("source"))
-        package = component.get("package", {}).get("name") if isinstance(component.get("package"), dict) else None
-        if not isinstance(installer, str) or not isinstance(package, str):
-            raise BootstrapError(f"component has no supported package action: {key}")
-        if package_candidate_version(installer, package) != normalize_version(str(component["approved_version"])):
-            raise BootstrapError("repository candidate does not match catalog")
-        try:
-            result = subprocess.run(host.package_install_command(installer, package), check=False)
-        except (OSError, ValueError) as error:
-            raise BootstrapError(f"package manager could not start: {error}") from error
-        if result.returncode:
-            raise BootstrapError(f"package manager failed ({result.returncode})")
-        status, _ = probe_component(component)
-        package = component.get("package")
-        owner = installed_package_owner(shutil.which(str(component["probe"]))) if isinstance(package, dict) and component.get("probe") and shutil.which(str(component["probe"])) else None
-        if status != "match" or owner != package["name"]:
-            raise BootstrapError("package install postcondition failed: component does not match catalog")
-        receipt = {
-            "schema": 1,
-            "action": args.action,
-            "created_at": now(),
-            "target": package,
-            "package_manager": installer,
-            "rollback": "native package manager; automatic removal is unsafe",
-        }
+        if isinstance(component.get("upstream_inspection"), dict):
+            digest = args.upstream_inspection_digest
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise BootstrapError(
+                    "component requires the SHA-256 from a reviewed plan --inspect-upstream result"
+                )
+        plugin = component.get("plugin")
+        if isinstance(plugin, dict):
+            codex_component = catalog["components"].get("codex-cli")
+            if not isinstance(codex_component, dict) or probe_component(codex_component, args.codex_home)[0] != "match":
+                raise BootstrapError("Codex CLI does not match catalog")
+            marketplace = plugin["marketplace"]
+            try:
+                state = codex_plugins.marketplace_status(
+                    args.codex_home, marketplace["name"], marketplace["source"]
+                )
+                if state != "absent":
+                    raise BootstrapError(f"existing marketplace cannot be ref-verified: {state}")
+                codex_plugins.install_plugin(args.codex_home, plugin)
+            except codex_plugins.PluginError as error:
+                raise BootstrapError(str(error)) from error
+            if probe_component(component, args.codex_home)[0] != "match":
+                raise BootstrapError("Codex plugin install postcondition failed")
+            receipt = {
+                "schema": 1,
+                "action": args.action,
+                "created_at": now(),
+                "target": plugin,
+                "rollback": "Codex native plugin lifecycle; automatic removal is unsafe",
+            }
+        else:
+            metadata = component.get("package") if isinstance(component.get("package"), dict) else {}
+            installer = current_host["installers"].get(metadata.get("source"))
+            package_name = metadata.get("name")
+            registry = metadata.get("registry")
+            if not isinstance(installer, str) or not isinstance(package_name, str):
+                raise BootstrapError(f"component has no supported package action: {key}")
+            command = shutil.which(str(component["probe"])) if component.get("probe") else None
+            if command and installed_package_owner(command) in component.get("conflicts", []):
+                raise BootstrapError("installed command is owned by a conflicting package")
+            expected = normalize_version(str(component["approved_version"]))
+            if package_candidate_version(installer, package_name, registry) != expected:
+                raise BootstrapError("repository candidate does not match catalog")
+            install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
+            try:
+                result = subprocess.run(host.package_install_command(installer, install_name, registry), check=False)
+            except (OSError, ValueError) as error:
+                raise BootstrapError(f"package manager could not start: {error}") from error
+            if result.returncode:
+                raise BootstrapError(f"package manager failed ({result.returncode})")
+            status, _ = probe_component(component, args.codex_home)
+            owner = (
+                installed_package_owner(shutil.which(str(component["probe"])))
+                if metadata.get("source") != "npm" and component.get("probe") and shutil.which(str(component["probe"]))
+                else None
+            )
+            if status != "match" or (metadata.get("source") != "npm" and owner != package_name):
+                raise BootstrapError("package install postcondition failed: component does not match catalog")
+            receipt = {
+                "schema": 1,
+                "action": args.action,
+                "created_at": now(),
+                "target": metadata,
+                "package_manager": installer,
+                "rollback": "native package manager; automatic removal is unsafe",
+            }
+        if isinstance(component.get("upstream_inspection"), dict):
+            receipt["upstream_inspection_sha256"] = args.upstream_inspection_digest
     else:
         raise BootstrapError(f"action is plan-only or unknown: {args.action}")
     print(json.dumps({"applied": args.action, "receipt": str(write_receipt(args, receipt))}, ensure_ascii=False))
@@ -467,6 +723,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--state-dir", type=Path)
     parser.add_argument("--destination")
     parser.add_argument("--action")
+    parser.add_argument("--inspect-upstream", action="store_true")
+    parser.add_argument("--upstream-inspection-digest")
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--receipt", type=Path)
     return parser.parse_args(argv)
@@ -476,12 +734,13 @@ def main(argv: list[str]) -> int:
     try:
         args = parse_args(argv)
         args.catalog = args.catalog.expanduser().resolve()
-        args.codex_home = args.codex_home.expanduser().resolve()
+        # Preserve symlink information so codex_static can reject unsafe targets.
+        args.codex_home = args.codex_home.expanduser().absolute()
         if args.project_root:
             args.project_root = args.project_root.expanduser().resolve()
         args.source = args.source.expanduser().resolve()
         if args.state_dir:
-            args.state_dir = args.state_dir.expanduser().resolve()
+            args.state_dir = args.state_dir.expanduser().absolute()
         if args.command == "rollback":
             if not args.receipt:
                 raise BootstrapError("rollback requires --receipt")

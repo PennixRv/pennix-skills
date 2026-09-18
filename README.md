@@ -35,7 +35,7 @@ bash ./skills/pennix-workflow-bootstrap/scripts/seed-arch.sh
 它不会覆盖已有 `~/.codex/config.toml` 或 `~/.codex/auth.json`，完成后打印安装 Pennix Skills、
 再使用 `pennix-workflow-bootstrap` 开始部署的提示词。
 
-首次引导使用用户明确提供的本地 source checkout 安装 Pennix Skills；不使用远程下载即执行。
+首次引导使用用户明确提供且 Git worktree clean 的本地 source checkout 安装 Pennix Skills；不使用远程下载即执行。
 下面的 `--destination` 是当前宿主的默认发现位置；如果宿主使用其他用户级
 Skill 发现根，可以显式选择一个以 `skills/pennix-skills` 结尾的目标：
 
@@ -46,12 +46,14 @@ python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstr
 
 随后从明确的本地 checkout 计划并执行系统安装动作：
 
-`config.toml.install` 是从当前基线提取的可移植静态策略，排除主机路径、项目 trust、Web 地理位置、
-MCP/插件/marketplace 状态和 hook hash。
+`config.toml.install` 只包含工作流必需的静态策略，排除用户 model、sandbox/approval、TUI、Web、
+history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook hash。
+安装器只原子替换受管的 `skills/pennix-skills` 目录，并拒绝符号链接路径、非目录目标和未提交 source，
+不会拼接重复字段或接管其他用户资产。
 
 ```bash
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  plan
+  plan --inspect-upstream
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
   apply --action skills-install --source "/path/to/pennix-skills" --yes
 
@@ -60,6 +62,17 @@ python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstr
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
   apply --action codex-agents-install --yes
 ```
+
+如果 plan 中有 `upstream_inspection`，先审阅 action 里的 `sha256`、状态和自动决策。只有状态为
+`match` 时才可以选择该组件；将该 digest 传给对应的 apply action。安装阶段不会执行或重新读取上游脚本：
+
+```bash
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  apply --action component:aoe --upstream-inspection-digest "<reviewed-sha256>" --yes
+```
+
+上游 inspection 只对 catalog 明确登记的 URL 生效。新增且 adapter 未识别的上游可配置项、参数解析或发布
+解析变化会得到 `upstream-contract-changed`，该组件必须回到 planning 审阅，不能自动降级为远端脚本执行。
 
 显式选择其他发现根时，将集合根保存到 `PENNIX_SKILLS_ROOT`，再传给 `--destination`：
 

@@ -68,14 +68,28 @@ def resolve_source(raw_source: str) -> Path:
         raise InstallError(f"--source must be the pennix-skills repository root: {repository_root}")
     if not (source / "skills").is_dir():
         raise InstallError(f"Source checkout has no skills directory: {source}")
+    if run_git(source, "status", "--porcelain").strip():
+        raise InstallError("Source checkout has uncommitted changes")
     return source
+
+
+def assert_safe_destination(destination: Path) -> Path:
+    destination = destination.absolute()
+    current = destination
+    while True:
+        if current.is_symlink():
+            raise InstallError(f"Destination must not traverse a symbolic link: {current}")
+        if current == current.parent:
+            break
+        current = current.parent
+    if destination.exists() and not destination.is_dir():
+        raise InstallError(f"Destination must be a directory: {destination}")
+    return destination
 
 
 def resolve_destination(raw_destination: str | None) -> Path:
     destination = Path(raw_destination).expanduser() if raw_destination else default_destination()
-    if destination.is_symlink():
-        raise InstallError(f"Destination must not be a symbolic link: {destination}")
-    destination = destination.resolve()
+    destination = assert_safe_destination(destination)
     if destination.name != "pennix-skills" or destination.parent.name != "skills":
         raise InstallError(
             "Destination must be a pennix-skills directory directly under a skills directory"
@@ -177,6 +191,7 @@ def install_grok_search_dependency(stage: Path) -> None:
 
 
 def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
+    destination = assert_safe_destination(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix=".pennix-skills-stage-", dir=destination.parent))
     backup: Path | None = None

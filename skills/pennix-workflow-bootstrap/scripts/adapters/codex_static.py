@@ -22,15 +22,29 @@ class StaticError(RuntimeError):
     """Raised when a bootstrap static file is unsafe to change."""
 
 
+def assert_no_symlink_ancestor(path: Path) -> None:
+    """Reject a static target reached through any symbolic link."""
+
+    current = path.absolute()
+    while True:
+        try:
+            if current.is_symlink():
+                raise StaticError(f"refusing symbolic-link static path: {current}")
+        except OSError as error:
+            raise StaticError(f"cannot safely inspect static path: {current}") from error
+        if current == current.parent:
+            return
+        current = current.parent
+
+
 def read(path: Path) -> str:
-    if path.is_symlink():
-        raise StaticError(f"refusing symbolic-link static file: {path}")
+    assert_no_symlink_ancestor(path)
     if not path.exists():
         return ""
     try:
         return path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as error:
-        raise StaticError(f"static file is not UTF-8: {path}") from error
+    except (OSError, UnicodeDecodeError) as error:
+        raise StaticError(f"cannot safely read static file: {path}") from error
 
 
 def template(name: str) -> str:
@@ -58,6 +72,7 @@ def install_config_sections() -> tuple[str, str]:
 
 
 def _replace_section(contents: str, begin: str, end: str, replacement: str) -> str:
+    _section(contents, begin, end)
     start = contents.index(begin) + len(begin)
     finish = contents.index(end, start)
     return contents[:start] + "\n" + replacement + "\n" + contents[finish:]
@@ -103,7 +118,11 @@ def config_state(contents: str) -> str:
         return "drifted"
     if contents == seed_config(base_url):
         return "seeded"
-    if contents == install_config(base_url):
+    try:
+        installed = install_config(base_url)
+    except StaticError:
+        return "drifted"
+    if contents == installed:
         return "current"
     return "drifted"
 
@@ -148,8 +167,7 @@ def digest(contents: str) -> str:
 
 
 def write(path: Path, contents: str) -> None:
-    if path.is_symlink():
-        raise StaticError(f"refusing symbolic-link static file: {path}")
+    assert_no_symlink_ancestor(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = path.stat().st_mode if path.exists() else 0o600
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:

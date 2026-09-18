@@ -21,7 +21,7 @@ class HostTests(unittest.TestCase):
                 root / "os-release",
                 root / "osrelease",
                 root / "version",
-                which=lambda name: f"/usr/bin/{name}" if name in {"pacman", "yay"} else None,
+                which=lambda name: f"/usr/bin/{name}" if name in {"pacman", "yay", "npm"} else None,
             )
 
     def test_native_arch_uses_pacman_for_official_packages(self) -> None:
@@ -30,6 +30,7 @@ class HostTests(unittest.TestCase):
         self.assertEqual(detected["environment"], "native")
         self.assertEqual(detected["installers"]["official"], "pacman")
         self.assertEqual(detected["installers"]["aur"], "yay")
+        self.assertEqual(detected["installers"]["npm"], "npm")
 
     def test_wsl2_arch_is_supported(self) -> None:
         detected = self.detect(
@@ -54,6 +55,19 @@ class HostTests(unittest.TestCase):
         self.assertEqual(
             host.package_install_command("yay", "codegraph-bin"),
             ["yay", "-S", "--needed", "codegraph-bin"],
+        )
+        self.assertEqual(
+            host.package_install_command("npm", "@example/fixture@1.2.3", "https://registry.npmjs.org/"),
+            [
+                "npm",
+                "install",
+                "--global",
+                "--ignore-scripts",
+                "--include=optional",
+                "--registry",
+                "https://registry.npmjs.org/",
+                "@example/fixture@1.2.3",
+            ],
         )
 
     def test_non_arch_and_unknown_wsl_are_blocked(self) -> None:

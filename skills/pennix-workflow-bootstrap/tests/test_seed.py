@@ -186,6 +186,42 @@ class SeedTests(unittest.TestCase):
             self.assertEqual(auth_file.read_text(encoding="utf-8"), '{"existing":true}\n')
             self.assertFalse(pacman_log.exists())
 
+    def test_symlinked_codex_home_is_rejected_before_package_install(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            pacman_log = root / "pacman.log"
+            (fake_bin / "pacman").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
+                "exit 1\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "pacman").chmod(0o700)
+            real_home = root / "real-home"
+            real_home.mkdir()
+            codex_home = root / "codex-link"
+            codex_home.symlink_to(real_home, target_is_directory=True)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}:{environment['PATH']}",
+                    "HOME": str(root / "home"),
+                    "CODEX_HOME": str(codex_home),
+                }
+            )
+            result = subprocess.run(
+                ["bash", str(SCRIPT)],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symbolic link", result.stderr)
+            self.assertFalse(pacman_log.exists())
+
     def test_zsh_caller_uses_bash_shebang(self) -> None:
         if shutil.which("zsh") is None:
             self.skipTest("zsh is not installed")

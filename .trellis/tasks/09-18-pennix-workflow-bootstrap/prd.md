@@ -28,7 +28,7 @@
 
 - [x] source checkout 只发现 `pennix-workflow-bootstrap` 为部署入口，旧 setup Skill 不再出现在 installer collection 中。
 - [x] 唯一版本 catalog 驱动所有部署/校验路径，仓库内不存在重复的组件目标版本描述。
-- [x] 迁移后的 adapter 测试继续覆盖原子替换、submodule pin、FastCtx marker drift、linked worktree、Hook state 保留和失败关闭。
+- [x] 迁移后的 adapter 测试继续覆盖原子替换、submodule pin、linked worktree、Hook state 保留和失败关闭；FastCtx 由 catalog 的 npm action 与静态模板覆盖，不保留 guidance marker adapter。
 - [x] `discover`/`plan` 为只读且不暴露敏感值；未显式确认的 apply 拒绝执行；verify/rollback 只处理本次 receipt 和 hash 匹配的变更。
 - [x] 宿主识别区分 native Arch、Arch-on-WSL2 和不支持环境；官方/AUR 安装器选择可验证，缺少 helper 或非目标宿主时写 action 失败关闭。
 - [x] 全新环境可独立运行 Stage 0 seed：无 Codex 时完成官方安装、最小 provider 配置、提问 feature 启用、0600 secret materialization 和下一阶段提示词输出；已有配置时失败关闭且不覆盖。

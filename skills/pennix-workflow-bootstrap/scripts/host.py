@@ -10,8 +10,8 @@ from typing import Callable
 
 WSL_PATTERN = re.compile(r"(?:microsoft|wsl)", re.IGNORECASE)
 WSL2_PATTERN = re.compile(r"(?:wsl2|microsoft-standard-wsl2)", re.IGNORECASE)
-PACKAGE_MANAGERS = ("pacman", "paru", "yay")
-PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:-]+$")
+PACKAGE_MANAGERS = ("pacman", "paru", "yay", "npm")
+PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:/-]+$")
 
 
 def read_os_release(path: Path = Path("/etc/os-release")) -> dict[str, str]:
@@ -62,18 +62,26 @@ def select_installer(source: str, available: dict[str, bool]) -> str | None:
             if available.get(helper, False):
                 return helper
         return None
+    if source == "npm":
+        return "npm" if available.get("npm", False) else None
     return None
 
 
-def package_info_command(installer: str, package: str) -> list[str]:
+def package_info_command(installer: str, package: str, registry: str | None = None) -> list[str]:
     if installer not in PACKAGE_MANAGERS or not PACKAGE_NAME.fullmatch(package):
         raise ValueError("invalid package installer or package name")
+    if installer == "npm":
+        command = [installer, "view", package, "version", "--json", "--loglevel", "error"]
+        return command + (["--registry", registry] if registry else [])
     return [installer, "-Si", package]
 
 
-def package_install_command(installer: str, package: str) -> list[str]:
+def package_install_command(installer: str, package: str, registry: str | None = None) -> list[str]:
     if installer not in PACKAGE_MANAGERS or not PACKAGE_NAME.fullmatch(package):
         raise ValueError("invalid package installer or package name")
+    if installer == "npm":
+        command = [installer, "install", "--global", "--ignore-scripts", "--include=optional"]
+        return command + (["--registry", registry] if registry else []) + [package]
     if installer == "pacman":
         return ["sudo", installer, "-S", "--needed", package]
     return [installer, "-S", "--needed", package]
@@ -107,5 +115,6 @@ def detect_host(
         "installers": {
             "official": select_installer("official", available),
             "aur": select_installer("aur", available),
+            "npm": select_installer("npm", available),
         },
     }

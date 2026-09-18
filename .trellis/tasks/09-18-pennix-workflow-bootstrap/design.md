@@ -46,8 +46,8 @@ skills/pennix-workflow-bootstrap/
 ├── scripts/
 │   ├── bootstrap.py
 │   └── adapters/
+│       ├── codex_plugins.py
 │       ├── skills_install.py
-│       ├── fastctx.py
 │       ├── trellis.py
 │       ├── codegraph.py
 │       └── codex_hooks.py
@@ -55,8 +55,8 @@ skills/pennix-workflow-bootstrap/
 │   └── codegraph.md
 └── tests/
     ├── test_bootstrap.py
+    ├── test_codex_plugins.py
     ├── test_skills_install.py
-    ├── test_fastctx.py
     ├── test_codegraph.py
     └── test_codex_hooks.py
 ```
@@ -67,7 +67,10 @@ skills/pennix-workflow-bootstrap/
 ## Adapter 边界
 
 - `skills_install.py`：复用现有 source checkout 校验、submodule pin 检查和原子物化。
-- `fastctx.py`：复用 FastCtx release checksum、binary apply、guidance marker 和 rollback。
+- FastCtx：由 catalog 中的 pinned npm package action 直接部署。FastCtx normal Apply/TUI 与 bootstrap 都不
+  修改用户 `AGENTS.md`；静态模板是唯一工作流 guidance owner。
+- `codex_plugins.py`：只调用 Codex native plugin/marketplace JSON 命令。只在 marketplace 不存在时按
+  catalog 的 source/ref 创建；已有 marketplace 的 ref 不可由 CLI inventory 证明时失败关闭。
 - `trellis.py`：只调用 Trellis native CLI；不复制模板、task schema 或 workflow lifecycle。
 - `codegraph.py`：复用普通主工作树、telemetry、`codegraph.json` preview/apply 门禁；项目 index
   仍是可选动作。
@@ -114,12 +117,28 @@ guided bootstrap 在 Default 模式使用原生 `request_user_input`（由宿主
 可用性的证据。原生调用参数错误和宿主能力缺失必须分开记录；前者按 schema 最多重试一次，
 后者才进入文本回退，且未得到答案不得自动继续。
 
+## 上游安装器 inspection 合同
+
+上游脚本不是执行来源。对 catalog 标记 `upstream_inspection` 的组件，`plan --inspect-upstream` 才可以
+读取该组件登记的 HTTPS 文本；adapter 对大小、UTF-8、已知控制面和内容 SHA-256 进行验证，绝不执行该文本。
+AoE 的当前控制面为 `INSTALL_DIR`，但默认 AUR package 不能表达它，因此该语义作为“不适用的自动决策”
+记录，不向用户提问。
+
+catalog 的 `decision_profile` 是固定问题和自动选择的唯一静态描述。只有该 profile 的已映射互斥选择会触发
+中文原生问题；固定 workflow 偏好、可唯一推导的安装器和不适用选项不问。inspection 新增可配置环境变量、
+命令行参数解析或无法识别的发布解析时统一为 `upstream-contract-changed`：停止该 action、记录证据并返回
+planning，不能执行上游脚本或猜测其选项。
+
+reviewed plan 输出的 SHA-256 必须通过 `--upstream-inspection-digest` 显式带入该组件 apply receipt；apply
+不访问也不解释上游内容。package manager 为实现已封存的 package action 所做的原生仓库访问不属于 upstream
+inspection。
+
 ## 静态注入
 
-`bootstrap.py` 只通过 adapter 管理用户级 `AGENTS.md` 的 bootstrap-owned marker。marker
-操作必须支持 absent/current/drifted/malformed/unowned，保留 marker 外内容，拒绝 symlink、
-未知 marker 和 hash 不匹配的 rollback。不得读取或复制 secret、session、database、log、cache、
-lock 或完整 `config.toml`/`hooks.json`。
+`bootstrap.py` 只在用户级 `AGENTS.md` 不存在时物化完整静态模板。已存在的文件必须完整匹配模板
+才是 no-op；任何其他内容、symlink 或 hash 不匹配的 rollback 都失败关闭。FastCtx 不拥有也不注入
+其中任何 marker。不得读取或复制 secret、session、database、log、cache、lock 或完整
+`config.toml`/`hooks.json`。
 
 ## 命名迁移
 

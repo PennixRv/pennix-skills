@@ -76,6 +76,7 @@ class InstallSkillsTest(unittest.TestCase):
             (destination / "obsolete" / "stale.txt").write_text("stale\n", encoding="utf-8")
 
             MODULE.install_skills([("alpha", alpha), ("beta", beta)], destination)
+            MODULE.install_skills([("alpha", alpha), ("beta", beta)], destination)
 
             self.assertEqual((destination / "alpha" / "SKILL.md").read_text(encoding="utf-8").splitlines()[1], "name: alpha")
             self.assertTrue((destination / "beta" / "scripts" / "run.py").is_file())
@@ -91,6 +92,21 @@ class InstallSkillsTest(unittest.TestCase):
     def test_destination_must_be_collection_root(self):
         with self.assertRaises(MODULE.InstallError):
             MODULE.resolve_destination("/tmp/not-a-pennix-install")
+
+    def test_destination_rejects_non_directory_and_symlinked_parent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target"
+            target.mkdir()
+            link = root / "link"
+            link.symlink_to(target, target_is_directory=True)
+            with self.assertRaisesRegex(MODULE.InstallError, "symbolic link"):
+                MODULE.resolve_destination(str(link / "skills" / "pennix-skills"))
+            destination = root / "skills" / "pennix-skills"
+            destination.parent.mkdir()
+            destination.write_text("not a directory\n", encoding="utf-8")
+            with self.assertRaisesRegex(MODULE.InstallError, "must be a directory"):
+                MODULE.resolve_destination(str(destination))
 
     def test_destination_accepts_host_selected_agents_skills_root(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -168,6 +184,18 @@ class InstallSkillsTest(unittest.TestCase):
         with mock.patch.object(MODULE, "run_git", side_effect=[submodule_status, " M SKILL.md\n"]):
             with self.assertRaisesRegex(MODULE.InstallError, "uncommitted changes: skills/windsurf-code-search"):
                 MODULE.ensure_submodules(source, initialize=False)
+
+    def test_source_checkout_rejects_uncommitted_root_content(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            (source / "skills").mkdir()
+            with mock.patch.object(
+                MODULE,
+                "run_git",
+                side_effect=[str(source), " M skills/pennix-workflow-bootstrap/SKILL.md\n"],
+            ):
+                with self.assertRaisesRegex(MODULE.InstallError, "Source checkout has uncommitted changes"):
+                    MODULE.resolve_source(str(source))
 
 
 if __name__ == "__main__":

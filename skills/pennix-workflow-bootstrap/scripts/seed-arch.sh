@@ -48,7 +48,19 @@ require_command() {
 }
 
 require_template() {
-  [[ -r "$1" ]] || fail "required bootstrap template is missing: $1"
+  [[ -r "$1" && ! -L "$1" ]] || fail "required bootstrap template is missing or unsafe: $1"
+}
+
+require_safe_codex_home() {
+  [[ "$CODEX_HOME_DIR" == /* ]] || fail "CODEX_HOME must be an absolute path"
+  local current="$CODEX_HOME_DIR"
+  while :; do
+    [[ ! -L "$current" ]] || fail "CODEX_HOME must not traverse a symbolic link: $current"
+    [[ "$current" == / ]] && break
+    current="${current%/*}"
+    [[ -n "$current" ]] || current="/"
+  done
+  [[ ! -e "$CODEX_HOME_DIR" || -d "$CODEX_HOME_DIR" ]] || fail "CODEX_HOME is not a directory: $CODEX_HOME_DIR"
 }
 
 json_string() {
@@ -115,8 +127,10 @@ configure_provider() {
   require_fresh_codex_auth
   require_template "$CONFIG_TEMPLATE"
   require_template "$AUTH_TEMPLATE"
-  mkdir -p "$CODEX_HOME_DIR"
-  chmod 700 "$CODEX_HOME_DIR"
+  if [[ ! -d "$CODEX_HOME_DIR" ]]; then
+    mkdir -p "$CODEX_HOME_DIR"
+    chmod 700 "$CODEX_HOME_DIR"
+  fi
 
   local base_url api_key
   read -r -p "OpenAI-compatible base URL: " base_url
@@ -149,6 +163,7 @@ EOF
 main() {
   umask 077
   require_arch_wsl2_or_native
+  require_safe_codex_home
   require_fresh_codex_config
   require_fresh_codex_auth
   require_command pacman

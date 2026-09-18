@@ -53,8 +53,45 @@ read-only `plan` → explicit named actions with `apply --action <name> --yes` �
 fresh `verify`. The plan marks these actions with `category=system-installation`:
 Pennix Skills installation, installation-phase `config.toml` fields from
 `templates/config.toml.install`, and the tracked `AGENTS.md.install` template.
+The Skills source must be a clean, explicit Git checkout; the installer atomically
+replaces only its managed `skills/pennix-skills` destination and rejects symbolic-link
+paths or an unrelated file at that destination.
 The config template is the portable static baseline only: it excludes host paths,
-project trust, Web location, MCP/plugin state, marketplace state, and hook hashes.
+project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
+user model, security, UI, or history preferences. Catalog package actions install
+only a matching fixed candidate. Catalog plugin actions use Codex's native plugin
+lifecycle only when the target marketplace is absent; an existing marketplace whose
+ref cannot be verified is blocked rather than modified. If the subsequent plugin add
+fails, bootstrap removes the marketplace it just created only when native inventory
+proves no plugin was installed; any ambiguous state remains blocked for manual owner recovery.
+FastCtx itself never materializes or refreshes user `AGENTS.md`; its normal Apply
+and TUI paths leave that file untouched. The static Pennix template is the only
+workflow-owned guidance source.
+
+CCH and Tavily Hikari are catalogued for version discovery, but their endpoint/token
+configuration remains under their native or external owners. A missing CCH installation
+or Hikari CLI is therefore reported as a plan-only native-owner action, not installed
+with guessed credentials or copied host configuration. OpenViking plugin installation
+similarly verifies Codex plugin presence; remote server configuration and health remain
+outside local bootstrap apply.
+
+### 上游安装器与提问
+
+对 catalog 含 `upstream_inspection` 的组件，planning gate 必须显式运行：
+
+```bash
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  plan --inspect-upstream
+```
+
+该操作只读取 catalog 指定的 HTTPS 文本，限制大小、计算 SHA-256，并用组件专属 parser 检查已知的
+安装控制面；它绝不执行下载内容。plan 将 inspection 的 URL、digest、状态和可适用性放进对应 action。
+`upstream-contract-changed` 或 `unavailable` 会阻断该组件，不得以“继续执行上游脚本”绕过。
+
+提问候选只来自 catalog 的 `decision_profile` 和 inspection 已知语义。已有工作流偏好、可唯一推导的
+package manager、固定版本和不适用于选定交付方式的上游选项均自动记录而不提问。只有互斥答案会改变
+范围、安全、成本、外部行为或验收，且每个答案都能映射到已审阅 adapter action 时才使用中文问题询问。
+例如 AoE 的默认交付是 AUR package，故上游 `INSTALL_DIR` 不适用，不生成问题。
 
 ### 项目初始化
 
@@ -76,6 +113,10 @@ decisions from the same gate when the host allows it; keep dependent decisions
 separate. During implementation or apply, do not ask a new question: use the
 sealed task/spec decision, or record `decision-needed` and return to planning if
 the ambiguity is material.
+
+For an upstream-inspected component, carry the SHA-256 emitted by the immediately reviewed plan into the named
+apply action with `--upstream-inspection-digest <sha256>`. This is an explicit binding to the reviewed evidence;
+`apply` does not retrieve or interpret upstream installer content.
 
 All component versions and refs come from `references/component-versions.json`.
 Do not add a second version table to this Skill or to an adapter. Do not print

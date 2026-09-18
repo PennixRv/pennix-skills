@@ -11,6 +11,8 @@
 6. 实现只读 `discover`/`plan` 和受确认保护的 `apply`/`verify`/`rollback` 基础流程；项目可选动作保持明确计划。
 7. 运行完整 Python 测试、source collection check、Skill validator 和 bootstrap fixture 自检。已完成。
 8. 增加 Arch Linux 宿主探测：区分 native/WSL2、阻断非目标宿主，选择 `pacman` 或已存在的 `yay`/`paru`；补充 fixture 回归。
+9. 增加 catalog 约束的上游 inspection：AoE 以 AUR package 作为交付源，上游脚本只提供受限语义证据；
+   `upstream-contract-changed` 阻断 action，reviewed digest 绑定到 apply receipt。
 
 ## 交互与门禁验收
 
@@ -40,10 +42,21 @@
   不执行包安装或跨宿主动作。
 - Stage 0：`bash -n`、bash/zsh 调用、模板缺失/渲染、fake `pacman`/`sudo`/`codex` fixture、
   `config.toml`/`auth.json` 权限和 secret 非泄露检查。
+- 上游 inspection：已知控制面、未知环境变量、命令行参数解析变化、inspection 未请求、阻断 plan、apply
+  不 inspection 及 digest 缺失均有 focused test；不执行真实远端脚本或 AUR 安装。
 
 ## 本轮验证记录
 
-- 46 项 bootstrap/adapters 测试通过；包含已有配置或 `auth.json` 拒绝、`openai-codex-bin`
-  冲突包在安装前拒绝，以及 zsh 调用 Bash shebang 的回归测试。
-- `bash -n`、Python 编译、两个 Skill validator、10 个 Skill collection check、任务 context validate 和 `git diff --check` 通过。
-- 当前 WSL2 Arch 的只读 `discover`/`plan` 已核验 package owner、官方候选版本和 applyable 分类；未执行真实安装或写入。
+- 65 项 bootstrap/adapters 测试通过；覆盖已有配置或 `auth.json` 拒绝、`openai-codex-bin`
+  冲突包、`CODEX_HOME` 与安装目标符号链接、非目录目标、dirty source checkout、npm 命令冲突、
+  原生 plugin 半失败的 marketplace 补偿，以及 zsh 调用 Bash shebang。
+- `bash -n` 和 Python 编译通过。source collection check 与 `git diff --check` 在 source commit 后重跑，
+  因为安装器现在正确拒绝未提交 source。
+- 当前 WSL2 Arch 的只读 `discover`/`plan` 已核验 package owner、官方候选版本和失败关闭分类：
+  `openai-codex-bin` 阻断官方 Codex action；Trellis 的 npm inventory 与实际命令漂移被阻断；FastCtx
+  npm candidate 未发布时被阻断。未执行真实安装或写入。
+- `config.toml.seed` 只拥有 provider/auth-store/Default-mode 提问字段；installation fragment 只拥有
+  workflow feature policy 与原生 agents 禁用，不接管 model、sandbox/approval、TUI、history、MCP、plugin
+  marketplace、hook trust 或主机路径。两阶段模板均拒绝非精确受管状态，重复 apply 为 no-op。
+- CCH 和 Tavily Hikari 只作 catalog discovery：CCH 的 endpoint/token-file 与 Hikari 的 endpoint/token
+  由各自 native/external owner 管理，缺失时保持 plan-only；OpenViking plugin action 不宣称远端服务已健康。
