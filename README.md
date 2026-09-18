@@ -7,39 +7,81 @@
 继续拥有 CLI、测试和 npm 发布，本仓库只固定其在私有 Skills 组合中的版本。其 npm 包、GitHub
 仓库和工作流中的可发现名称统一为 `windsurf-code-search`，不要与 `fastctx` 本地操作运行时混用。
 
-`codex-hook-registration` 只负责将经过审查的用户级 Hook 片段合并到
-`${CODEX_HOME:-$HOME/.codex}/hooks.json`，并提供显式的 `config.toml` 内联 Hook 迁移预览/应用。
-它不管理 Trellis 项目 Hook、插件 Hook 或 Codex 的 `[hooks.state]` 信任状态。
+工作流部署统一从 `pennix-workflow-bootstrap` 进入；它只编排内部 deployment adapters，
+不接管 Trellis、FastCtx、CodeGraph、Codex Plugin/MCP 或 Hook 的原生所有权。
 
-首次引导可使用 Codex 官方 `skill-installer` 安装不依赖子模块的安装 Skill。下面的
-`--dest` 是当前宿主的默认发现位置；如果宿主使用其他用户级 Skill 发现根，可以显式
-选择一个以 `skills/pennix-skills` 结尾的目标，例如 `.agents/skills/pennix-skills`：
+当前 bootstrap 的宿主边界是 Linux 上的 Arch Linux，包括原生 Arch Linux 和 WSL2
+中的 Arch Linux。官方仓库包使用 `pacman`；AUR 包优先使用已存在的 `yay`，没有时才回退到
+已存在的 `paru`。非 Arch、WSL1 或无法确认 WSL 版本的环境只支持只读发现和计划。
+
+## 系统安装：全新 Arch 环境
+
+seed 脚本的明确位置是：
+
+`skills/pennix-workflow-bootstrap/scripts/seed-arch.sh`
+
+必须连同相邻模板目录一起使用。在本仓库根目录中可直接复制执行：
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo PennixRv/pennix-skills --path skills/pennix-skills-install \
-  --dest "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills"
+bash ./skills/pennix-workflow-bootstrap/scripts/seed-arch.sh
 ```
 
-随后从明确的本地 checkout 安装或更新完整组合：
+该可执行脚本可从 `bash` 或 `zsh` 启动；脚本通过 Bash shebang 使用所需解释器，
+应直接执行，不要使用 `source` 将它加载进调用者 shell。若要复制到其他位置，
+请复制整个 `skills/pennix-workflow-bootstrap/` 目录，以保留 `templates/`。
+
+它从 Arch 官方仓库安装当前 `openai-codex`，交互式收集 `base_url` 和隐藏 API key，
+根据 `templates/config.toml.seed`、`templates/auth.json.seed` 只物化 seed 阶段字段。
+它不会覆盖已有 `~/.codex/config.toml` 或 `~/.codex/auth.json`，完成后打印安装 Pennix Skills、
+再使用 `pennix-workflow-bootstrap` 开始部署的提示词。
+
+首次引导使用用户明确提供的本地 source checkout 安装 Pennix Skills；不使用远程下载即执行。
+下面的 `--destination` 是当前宿主的默认发现位置；如果宿主使用其他用户级
+Skill 发现根，可以显式选择一个以 `skills/pennix-skills` 结尾的目标：
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/pennix-skills-install/scripts/install.py" \
-  --source "/path/to/pennix-skills"
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  discover
 ```
 
-显式选择其他发现根时，将集合根保存到 `PENNIX_SKILLS_ROOT`，再传给 `--dest`：
+随后从明确的本地 checkout 计划并执行系统安装动作：
+
+`config.toml.install` 是从当前基线提取的可移植静态策略，排除主机路径、项目 trust、Web 地理位置、
+MCP/插件/marketplace 状态和 hook hash。
+
+```bash
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  plan
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  apply --action skills-install --source "/path/to/pennix-skills" --yes
+
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  apply --action codex-config-install --yes
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  apply --action codex-agents-install --yes
+```
+
+显式选择其他发现根时，将集合根保存到 `PENNIX_SKILLS_ROOT`，再传给 `--destination`：
 
 ```bash
 PENNIX_SKILLS_ROOT="${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}"
-python3 "/path/to/pennix-skills/skills/pennix-skills-install/scripts/install.py" \
-  --source "/path/to/pennix-skills" \
-  --dest "$PENNIX_SKILLS_ROOT"
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  apply --action skills-install --source "/path/to/pennix-skills" \
+  --destination "$PENNIX_SKILLS_ROOT" --yes
 ```
 
-该命令只在显式安装请求时运行。它初始化 checkout 已固定的 submodule，并将每个直接
-`skills/<name>/` 物化到所选集合根下的 `<name>/`；未传 `--dest` 时使用
+上述系统安装 action 只在显式安装请求时运行。它初始化 checkout 已固定的 submodule，并将每个直接
+`skills/<name>/` 物化到所选集合根下的 `<name>/`；未传 `--destination` 时使用
 `${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/`。它不新建
 源码 checkout、不切换分支、不选择版本，也不更新已固定的组件版本；若本地缺少对象，初始化
 submodule 只会取得当前 Gitlink 固定的提交。安装副本不是源码编辑位置，也不生成第二份版本或
 状态事实。
+
+## 项目初始化
+
+Trellis、CodeGraph 和 AOE 的 CLI 可以由系统安装动作部署，但它们的初始化必须在目标项目中
+单独执行。进入目标项目后重新运行 `discover` / `plan --project-root /absolute/project/path`，
+确认 `project root`，只选择
+`category=project-initialize` 的 action；这些 action 才允许创建 `.trellis/`、`codegraph.json`、
+索引或项目工作流资产。系统 seed、Pennix Skills 安装和 `AGENTS.md` / `config.toml` 的系统级
+物化不会隐式初始化当前项目。

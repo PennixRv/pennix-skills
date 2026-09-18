@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pennix FastCtx 部署"
-  short_description: "从已固定发布版诊断、部署或回滚 FastCtx"
-  default_prompt: "使用 $pennix-fastctx-setup 从指定 PennixRv/fastctx 发布版安全诊断、部署或回滚 FastCtx。"
-policy:
-  allow_implicit_invocation: false

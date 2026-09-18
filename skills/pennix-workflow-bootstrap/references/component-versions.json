@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "components": {
+    "codex-cli": {
+      "approved_version": "0.155.0",
+      "source": "Arch Linux Extra package",
+      "owner": "codex",
+      "scope": "global",
+      "verify_key": "codex --version",
+      "probe": "codex",
+      "version_args": ["--version"],
+      "package": {
+        "source": "official",
+        "name": "openai-codex"
+      }
+    },
+    "trellis-cli": {
+      "approved_version": "0.6.39",
+      "source": "native Trellis installation",
+      "owner": "trellis",
+      "scope": "global/project",
+      "verify_key": "trellis --version",
+      "probe": "trellis",
+      "version_args": ["--version"]
+    },
+    "fastctx": {
+      "approved_version": "0.2.7",
+      "source": "PennixRv/fastctx release",
+      "owner": "fastctx",
+      "scope": "global",
+      "verify_key": "fastctx --version",
+      "probe": "fastctx",
+      "version_args": ["--version"]
+    },
+    "codegraph-cli": {
+      "approved_version": "1.6.0",
+      "source": "AUR codegraph-bin package",
+      "owner": "codegraph",
+      "scope": "global/project",
+      "verify_key": "codegraph --version",
+      "probe": "codegraph",
+      "version_args": ["--version"],
+      "package": {
+        "source": "aur",
+        "name": "codegraph-bin"
+      }
+    },
+    "openviking-plugin": {
+      "approved_version": "0.9.1",
+      "source": "Codex native plugin",
+      "owner": "openviking",
+      "scope": "global",
+      "verify_key": "plugin inventory",
+      "probe": null,
+      "version_args": []
+    },
+    "ponytail-plugin": {
+      "approved_version": "4.10.0",
+      "source": "Codex native plugin",
+      "owner": "codex",
+      "scope": "global",
+      "verify_key": "plugin inventory",
+      "probe": null,
+      "version_args": []
+    },
+    "cch-status": {
+      "approved_version": "0.1.39",
+      "source": "native CCH installation",
+      "owner": "cch",
+      "scope": "global",
+      "verify_key": "npm package inventory",
+      "probe": null,
+      "version_args": []
+    },
+    "tmux": {
+      "approved_version": "3.7c",
+      "source": "system installation",
+      "owner": "system",
+      "scope": "global",
+      "verify_key": "tmux -V",
+      "probe": "tmux",
+      "version_args": ["-V"]
+    },
+    "aoe": {
+      "approved_version": "1.13.2",
+      "source": "native Agent of Empires installation",
+      "owner": "aoe",
+      "scope": "global/project",
+      "verify_key": "aoe --version",
+      "probe": "aoe",
+      "version_args": ["--version"]
+    },
+    "tavily-hikari": {
+      "approved_version": "0.1.8",
+      "source": "native Hikari installation",
+      "owner": "hikari",
+      "scope": "global",
+      "verify_key": "tvly-hikari --version",
+      "probe": "tvly-hikari",
+      "version_args": ["--version"]
+    }
+  }
+}

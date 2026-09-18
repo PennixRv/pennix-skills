@@ -1,0 +1,32 @@
+{
+  "id": "pennix-workflow-bootstrap",
+  "name": "pennix-workflow-bootstrap",
+  "title": "实现统一 Pennix Workflow Bootstrap",
+  "description": "实现统一 guided bootstrap Skill，并将现有用户可见 setup Skill 收敛为内部 deployment adapters；保留原生组件边界、分阶段静态模板合同和可验证的 discover/plan/apply/verify/rollback。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-09-18",
+  "completedAt": null,
+  "branch": "task/fastctx-guidance-release",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "target": "pennix-skills",
+    "parent_integration_task": "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/09-18-pennix-workflow-bootstrap",
+    "delivery_mode": "implementation",
+    "internal_naming": "deployment-adapters",
+    "retire_user_visible_setup_skills": "true"
+  }
+}

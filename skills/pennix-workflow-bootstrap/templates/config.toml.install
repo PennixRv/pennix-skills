@@ -1,0 +1,74 @@
+# Extracted portable static baseline. This file contains two fragments inserted
+# into config.toml.seed; it does not contain host paths, project trust, MCP,
+# plugin marketplace state, or hook hashes.
+# pennix-workflow-bootstrap:install-root:begin
+model = "gpt-5.6-terra"
+model_context_window = 275000
+model_auto_compact_token_limit = 244800
+model_auto_compact_token_limit_scope = "total"
+model_reasoning_effort = "xhigh"
+plan_mode_reasoning_effort = "xhigh"
+model_reasoning_summary = "auto"
+model_verbosity = "high"
+model_supports_reasoning_summaries = true
+personality = "friendly"
+approvals_reviewer = "user"
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+suppress_unstable_features_warning = true
+hide_agent_reasoning = false
+show_raw_agent_reasoning = true
+check_for_update_on_startup = false
+file_opener = "vscode"
+web_search = "disabled"
+allowed_web_search_modes = []
+tool_output_token_limit = 10000
+
+[tui]
+alternate_screen = "auto"
+animations = true
+raw_mode = false
+show_tooltips = false
+status_line = ["model", "reasoning", "codex-version"]
+status_line_use_colors = true
+terminal_title = ["spinner", "project"]
+vim_mode_default = false
+
+[tools]
+view_image = true
+
+[tools.web_search]
+context_size = "medium"
+
+[memories]
+disable_on_external_context = true
+generate_memories = false
+max_raw_memories_for_consolidation = 256
+max_rollout_age_days = 30
+max_rollouts_per_startup = 16
+max_unused_days = 30
+min_rate_limit_remaining_percent = 25
+min_rollout_idle_hours = 6
+use_memories = false
+
+[history]
+max_bytes = 52428800
+persistence = "save-all"
+# pennix-workflow-bootstrap:install-root:end
+
+# pennix-workflow-bootstrap:install-features:begin
+remote_compaction_v2 = true
+hooks = true
+goals = true
+memories = false
+suppress_unstable_features_warning = true
+
+[features.code_mode]
+direct_only_tool_namespaces = ["mcp__fastctx"]
+
+[agents]
+enabled = false
+interrupt_message = true
+max_depth = 1
+max_threads = 8
+# pennix-workflow-bootstrap:install-features:end

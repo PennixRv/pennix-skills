@@ -51,13 +51,12 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 - `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；FastCtx 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。
 - `OpenViking` 承接工作期语义 recall、经验检索和用户明确要求的持久知识；它不是 Trellis 任务事实、当前项目文件或普通会话控制的替代品。
-- CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置使用 `codegraph-project-setup`，不因普通检索自动初始化，
+- CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置由 `$pennix-workflow-bootstrap` 的 CodeGraph deployment adapter 计划并执行，不因普通检索自动初始化，
   linked Git worktree 不使用 CodeGraph。
 - 确有独立证据价值的工作遵循当前项目选择的 Trellis `subnode` procedure。Trellis 维护其 brief、持久化报告和
   Channel 生命周期；主会话保留项目事实、验收和 Git，不把该合同复制为用户级 Skill。
 - 已初始化 Trellis 项目的 bundled `trellis-research-record` 将核验后的研究事实、候选、不确定项和下一动作写入当前 task；它不是第二套事实台账。
-- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和精确 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；初始 admission 仍只核对并停止，后续 `claim` 必须有新的明确继续授权。`pennix-skills-install` 只处理用户明确要求的组合安装/更新；
-  `codex-hook-registration` 只处理审查后的用户级 Hook 片段。不要从普通路由请求推导这些高影响动作的授权。
+- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和精确 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；初始 admission 仍只核对并停止，后续 `claim` 必须有新的明确继续授权。组件部署、Skills 物化、CodeGraph project prepare、FastCtx 更新和审查后的用户级 Hook 片段统一由 `$pennix-workflow-bootstrap` 的对应 deployment adapter 规划；不要从普通路由请求推导这些高影响动作的授权。
 - Hook/config 和拥有该行为的运行时负责必须发生的事件、阻断、信任、生命周期和审计；提示词只能表达决策原则，不能宣称确定性保证。
 
 ## 禁止混淆
