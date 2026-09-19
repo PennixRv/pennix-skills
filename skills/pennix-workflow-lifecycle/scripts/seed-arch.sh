@@ -48,7 +48,7 @@ require_command() {
 }
 
 require_template() {
-  [[ -r "$1" && ! -L "$1" ]] || fail "required bootstrap template is missing or unsafe: $1"
+  [[ -r "$1" && ! -L "$1" ]] || fail "required Codex template is missing or unsafe: $1"
 }
 
 require_safe_codex_home() {
@@ -152,9 +152,9 @@ configure_provider() {
 print_next_step() {
   cat <<EOF
 
-Codex bootstrap complete. Start a new Codex session, then paste:
+Pennix workflow seed complete. Start a new Codex session, then paste:
 
-请先安装 Pennix Skills，然后使用 `pennix-workflow-bootstrap` 开始部署 Pennix 工作流。
+请先安装 Pennix Skills，然后使用 `pennix-workflow-lifecycle` 开始部署 Pennix 工作流。
 先执行只读 `discover`，核对宿主、组件 owner 和版本 catalog；
 再明确选择一个组件执行 install、upgrade 或 uninstall。
 EOF

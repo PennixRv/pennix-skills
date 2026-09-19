@@ -1,11 +1,11 @@
 ---
-name: pennix-workflow-bootstrap
+name: pennix-workflow-lifecycle
 description: Guided lifecycle entry for the Pennix Codex workflow. Use when the user explicitly asks to inspect, install, upgrade, uninstall, or verify workflow components.
 metadata:
-  short-description: Bootstrap the Pennix workflow safely
+  short-description: Manage the Pennix workflow lifecycle safely
 ---
 
-# Pennix Workflow Bootstrap
+# Pennix Workflow Lifecycle
 
 Use this Skill only for an explicit workflow deployment request. It is the
 single user-facing deployment entry; component setup logic lives in its
@@ -13,7 +13,7 @@ internal adapters.
 
 ## 两类工作
 
-Bootstrap 必须把系统安装和项目初始化分开显示、计划和确认。系统安装可以部署全局工具，
+Lifecycle 必须把系统安装和项目初始化分开显示、计划和确认。系统安装可以部署全局工具，
 但不初始化任何特定项目；项目初始化必须携带明确的 `project root`，并单独确认。
 
 ### 系统安装
@@ -21,13 +21,13 @@ Bootstrap 必须把系统安装和项目初始化分开显示、计划和确认�
 On a fresh Arch Linux host, before Codex or Pennix Skills exists, run:
 
 ```bash
-bash "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/seed-arch.sh"
+bash "/path/to/pennix-skills/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh"
 ```
 
 The executable may be launched from either `bash` or `zsh`; its Bash shebang
 selects the required interpreter. Execute it as a command rather than sourcing
 it into the caller shell. The seed reads the adjacent `templates/` directory;
-copy the whole `pennix-workflow-bootstrap` directory if relocating it.
+copy the whole `pennix-workflow-lifecycle` directory if relocating it.
 
 It supports native Arch Linux and Arch Linux under WSL2. It installs the
 current `openai-codex` candidate from the Arch official repository, prompts
@@ -39,12 +39,12 @@ The seed refuses to overwrite an existing `CODEX_HOME/config.toml` or
 `CODEX_HOME/auth.json`. It does not clone or execute remote Pennix source,
 write the key to TOML, print the key, or add the current package candidate to
 the fixed component catalog. After a new Codex session starts, install Pennix
-Skills, then use bootstrap for the remaining system lifecycle actions.
+Skills, then use this lifecycle entry for the remaining system actions.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed
 `yay`, then `paru`, and finally `pacman`; Stage 0 Codex installation uses the
-official `pacman` path directly. Bootstrap does not install an AUR helper,
+official `pacman` path directly. Lifecycle does not install an AUR helper,
 guess package names, or force independent/forked components through a package
 manager. Non-Arch hosts and unknown/WSL1 environments are discoverable but all
 write actions are blocked.
@@ -62,7 +62,7 @@ user model, security, UI, or history preferences. Catalog package actions instal
 only a matching fixed candidate. Catalog plugin actions use Codex's native plugin
 lifecycle only when the target marketplace is absent; an existing marketplace whose
 ref cannot be verified is blocked rather than modified. If the subsequent plugin add
-fails, bootstrap removes the marketplace it just created only when native inventory
+fails, lifecycle removes the marketplace it just created only when native inventory
 proves no plugin was installed; any ambiguous state remains blocked for manual owner recovery.
 FastCtx itself never materializes or refreshes user `AGENTS.md`; its normal Apply
 and TUI paths leave that file untouched. The static Pennix template is the only
@@ -72,7 +72,7 @@ CCH and Tavily Hikari are catalogued for version discovery, but their endpoint/t
 configuration remains under their native or external owners. A missing CCH installation
 or Hikari CLI is therefore not installed with guessed credentials or copied host
 configuration. OpenViking plugin installation similarly verifies Codex plugin presence;
-remote server configuration and health remain outside local bootstrap.
+remote server configuration and health remain outside local lifecycle.
 
 ### 上游安装器与提问
 
@@ -90,7 +90,7 @@ package manager、固定版本和不适用于选定交付方式的上游选项�
 
 Trellis, CodeGraph, and AOE binaries may be installed or upgraded by their
 catalog component key, but project initialization remains a separate native
-operation. Bootstrap never creates `.trellis/`, `codegraph.json`, indexes, or
+operation. Lifecycle never creates `.trellis/`, `codegraph.json`, indexes, or
 project workflow assets as a side effect of a system lifecycle command.
 
 Before a direct lifecycle command, show the component key, source/ref from the
@@ -107,6 +107,6 @@ task/spec decision, or record `decision-needed` if the ambiguity is material.
 All component versions and refs come from `references/component-versions.json`.
 Do not add a second version table to this Skill or to an adapter. Do not print
 secret values, full configuration, sessions, databases, logs, caches, locks, or
-runtime state. `uninstall` only removes exact bootstrap-owned files, an exact
+runtime state. `uninstall` only removes exact lifecycle-owned files, an exact
 Pennix Skills collection, or a package/plugin through its native owner; drifted
 content is left untouched.

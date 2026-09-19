@@ -11,11 +11,11 @@ from unittest.mock import patch
 
 
 SKILL_ROOT = Path(__file__).parents[1]
-SCRIPT = SKILL_ROOT / "scripts" / "bootstrap.py"
+SCRIPT = SKILL_ROOT / "scripts" / "lifecycle.py"
 SOURCE_ROOT = Path(__file__).parents[3]
 sys.path.insert(0, str(SCRIPT.parent))
 
-import bootstrap
+import lifecycle as bootstrap
 
 
 class BootstrapTests(unittest.TestCase):
@@ -24,9 +24,10 @@ class BootstrapTests(unittest.TestCase):
         catalog.write_text(
             json.dumps(
                 {
-                    "schema": 1,
+                    "schema": 2,
                     "components": {
                         "fixture": {
+                            "delivery": "package",
                             "approved_version": "1.2.3",
                             "source": "fixture",
                             "owner": "test",
@@ -34,6 +35,8 @@ class BootstrapTests(unittest.TestCase):
                             "verify_key": "fixture --version",
                             "probe": "fixture",
                             "version_args": ["--version"],
+                            "actions": {name: "managed" for name in ("install", "configure", "upgrade", "uninstall", "verify")},
+                            "project_init": "not-applicable",
                             "package": {"source": "official", "name": "fixture-package"},
                         }
                     },
@@ -64,11 +67,29 @@ class BootstrapTests(unittest.TestCase):
     def test_discover_and_verify_are_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for command in ("discover", "verify"):
-                result = self.run_cli(root, command)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("components", json.loads(result.stdout))
+            discover = self.run_cli(root, "discover")
+            self.assertEqual(discover.returncode, 0, discover.stderr)
+            self.assertIn("components", json.loads(discover.stdout))
+
+            verify = self.run_cli(root, "verify")
+            self.assertEqual(verify.returncode, 2, verify.stderr)
+            self.assertEqual(json.loads(verify.stdout)["verification"]["status"], "blocked")
+            self.assertIn("observed status is missing", verify.stderr)
+            self.assertIn("components", json.loads(verify.stdout))
             self.assertFalse((root / "codex").exists())
+
+    def test_verify_reports_match_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog = bootstrap.load_catalog(self.catalog(root))
+            inventory = {
+                "components": {
+                    "fixture": {"status": "match"},
+                }
+            }
+            args = SimpleNamespace(source=SOURCE_ROOT)
+            self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), [])
+            self.assertEqual(inventory["verification"]["status"], "match")
 
     def test_removed_orchestration_commands_are_not_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -94,14 +115,16 @@ class BootstrapTests(unittest.TestCase):
             config.write_text(bootstrap.codex_static.seed_config("https://api.example.test/v1"), encoding="utf-8")
             args = SimpleNamespace(codex_home=home, source=SOURCE_ROOT, destination=None)
 
-            self.assertEqual(bootstrap.static_operation(args, "codex-config", "install"), "changed")
-            self.assertEqual(bootstrap.static_operation(args, "codex-config", "upgrade"), "no-op")
-            self.assertEqual(bootstrap.static_operation(args, "codex-config", "uninstall"), "changed")
+            config_component = {"adapter": "codex-config"}
+            agents_component = {"adapter": "codex-agents"}
+            self.assertEqual(bootstrap.static_operation(args, "codex-config", config_component, "install"), "changed")
+            self.assertEqual(bootstrap.static_operation(args, "codex-config", config_component, "upgrade"), "no-op")
+            self.assertEqual(bootstrap.static_operation(args, "codex-config", config_component, "uninstall"), "changed")
             self.assertEqual(bootstrap.codex_static.config_state(config.read_text(encoding="utf-8")), "seeded")
 
-            self.assertEqual(bootstrap.static_operation(args, "codex-agents", "install"), "changed")
-            self.assertEqual(bootstrap.static_operation(args, "codex-agents", "uninstall"), "changed")
-            self.assertEqual(bootstrap.static_operation(args, "codex-agents", "uninstall"), "no-op")
+            self.assertEqual(bootstrap.static_operation(args, "codex-agents", agents_component, "install"), "changed")
+            self.assertEqual(bootstrap.static_operation(args, "codex-agents", agents_component, "uninstall"), "changed")
+            self.assertEqual(bootstrap.static_operation(args, "codex-agents", agents_component, "uninstall"), "no-op")
 
     def test_static_uninstall_refuses_drifted_template(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -111,7 +134,7 @@ class BootstrapTests(unittest.TestCase):
             target.write_text("# user instructions\n", encoding="utf-8")
             args = SimpleNamespace(codex_home=home, source=SOURCE_ROOT, destination=None)
             with self.assertRaisesRegex(bootstrap.BootstrapError, "refusing drifted"):
-                bootstrap.static_operation(args, "codex-agents", "uninstall")
+                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "uninstall")
             self.assertTrue(target.exists())
 
     def test_component_upgrade_and_uninstall_use_the_native_owner(self) -> None:
@@ -171,6 +194,18 @@ class BootstrapTests(unittest.TestCase):
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         self.assertEqual(catalog["components"]["fastctx"]["package"]["name"], "@pennixrv/fastctx")
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
+
+    def test_catalog_contains_static_components_and_capabilities(self) -> None:
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        self.assertEqual(catalog["schema"], 2)
+        self.assertEqual(catalog["components"]["codex-config"]["delivery"], "static")
+        self.assertEqual(catalog["components"]["cch-status"]["actions"]["install"], "native-owner")
+
+    def test_non_managed_action_is_rejected_before_adapter(self) -> None:
+        args = SimpleNamespace(command="install", component="cch-status", yes=True)
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
+            bootstrap.run_lifecycle(args, catalog)
 
 
 if __name__ == "__main__":

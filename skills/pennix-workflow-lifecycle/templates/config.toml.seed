@@ -1,11 +1,11 @@
 # Pennix Codex seed configuration. Only seed-owned fields appear here.
-# pennix-workflow-bootstrap:seed-config
+# pennix-workflow-lifecycle:seed-config
 cli_auth_credentials_store = "file"
 model_provider = "OpenAI"
 
-# pennix-workflow-bootstrap:install-root:begin
+# pennix-workflow-lifecycle:install-root:begin
 # The installation phase materializes portable root-level static settings here.
-# pennix-workflow-bootstrap:install-root:end
+# pennix-workflow-lifecycle:install-root:end
 
 [model_providers.OpenAI]
 name = "OpenAI"
@@ -16,6 +16,6 @@ requires_openai_auth = true
 [features]
 default_mode_request_user_input = true
 
-# pennix-workflow-bootstrap:install-features:begin
+# pennix-workflow-lifecycle:install-features:begin
 # The installation phase materializes Pennix feature settings here.
-# pennix-workflow-bootstrap:install-features:end
+# pennix-workflow-lifecycle:install-features:end

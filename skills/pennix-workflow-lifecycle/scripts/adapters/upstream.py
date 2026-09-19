@@ -39,10 +39,15 @@ def validate_component(component: dict[str, Any]) -> None:
         raise UpstreamInspectionError("allowed configurable environment must be a string list")
     if config.get("on_contract_change") != "block":
         raise UpstreamInspectionError("upstream contract changes must block the action")
+    expected_hash = config.get("expected_sha256")
+    if expected_hash is not None and (
+        not isinstance(expected_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_hash)
+    ):
+        raise UpstreamInspectionError("expected upstream hash must be a lowercase SHA-256")
 
 
 def fetch_text(url: str) -> str:
-    request = Request(url, headers={"User-Agent": "pennix-workflow-bootstrap/1"})
+    request = Request(url, headers={"User-Agent": "pennix-workflow-lifecycle/1"})
     try:
         with urlopen(request, timeout=10) as response:  # nosec B310: URL is catalog-controlled
             length = response.headers.get("Content-Length")
@@ -87,6 +92,9 @@ def inspect_component(
         "parser": config["parser"],
         "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
     }
+    expected_hash = config.get("expected_sha256")
+    if isinstance(expected_hash, str) and result["sha256"] != expected_hash:
+        changed.append("upstream installer hash changed")
     if changed:
         result.update({"status": "upstream-contract-changed", "reason": "; ".join(changed)})
         return result

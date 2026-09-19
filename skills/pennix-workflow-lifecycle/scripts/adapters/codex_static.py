@@ -1,4 +1,4 @@
-"""Materialize and verify the bootstrap-owned Codex static templates."""
+"""Materialize and verify lifecycle-owned Codex static templates."""
 
 from __future__ import annotations
 
@@ -10,16 +10,16 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-SEED_MARKER = "# pennix-workflow-bootstrap:seed-config"
-ROOT_BEGIN = "# pennix-workflow-bootstrap:install-root:begin"
-ROOT_END = "# pennix-workflow-bootstrap:install-root:end"
-FEATURE_BEGIN = "# pennix-workflow-bootstrap:install-features:begin"
-FEATURE_END = "# pennix-workflow-bootstrap:install-features:end"
+SEED_MARKER = "# pennix-workflow-lifecycle:seed-config"
+ROOT_BEGIN = "# pennix-workflow-lifecycle:install-root:begin"
+ROOT_END = "# pennix-workflow-lifecycle:install-root:end"
+FEATURE_BEGIN = "# pennix-workflow-lifecycle:install-features:begin"
+FEATURE_END = "# pennix-workflow-lifecycle:install-features:end"
 TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "templates"
 
 
 class StaticError(RuntimeError):
-    """Raised when a bootstrap static file is unsafe to change."""
+    """Raised when a lifecycle static file is unsafe to change."""
 
 
 def assert_no_symlink_ancestor(path: Path) -> None:
@@ -52,7 +52,7 @@ def template(name: str) -> str:
     try:
         return path.read_text(encoding="utf-8")
     except OSError as error:
-        raise StaticError(f"bootstrap template is unavailable: {path}") from error
+        raise StaticError(f"lifecycle template is unavailable: {path}") from error
 
 
 def _section(contents: str, begin: str, end: str) -> str:
@@ -83,12 +83,12 @@ def _base_url(contents: str) -> str:
         provider = tomllib.loads(contents)["model_providers"]["OpenAI"]
         value = provider["base_url"]
     except (KeyError, TypeError, tomllib.TOMLDecodeError) as error:
-        raise StaticError("bootstrap config has no valid OpenAI base_url") from error
+        raise StaticError("lifecycle config has no valid OpenAI base_url") from error
     if not isinstance(value, str):
-        raise StaticError("bootstrap config base_url is not a string")
+        raise StaticError("lifecycle config base_url is not a string")
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc or any(ord(char) < 32 for char in value):
-        raise StaticError("bootstrap config base_url is invalid")
+        raise StaticError("lifecycle config base_url is invalid")
     return value
 
 
@@ -133,11 +133,11 @@ def apply_config(path: Path) -> tuple[str, str]:
     if state_name == "current":
         return before, before
     if state_name != "seeded":
-        raise StaticError(f"refusing {state_name} bootstrap config: {path}")
+        raise StaticError(f"refusing {state_name} lifecycle config: {path}")
     after = install_config(_base_url(before))
     write(path, after)
     if config_state(read(path)) != "current":
-        raise StaticError(f"bootstrap config verification failed: {path}")
+        raise StaticError(f"lifecycle config verification failed: {path}")
     return before, after
 
 
@@ -147,11 +147,11 @@ def remove_config_sections(path: Path) -> tuple[str, str]:
     if state_name == "seeded":
         return before, before
     if state_name != "current":
-        raise StaticError(f"refusing {state_name} bootstrap config: {path}")
+        raise StaticError(f"refusing {state_name} lifecycle config: {path}")
     after = seed_config(_base_url(before))
     write(path, after)
     if config_state(read(path)) != "seeded":
-        raise StaticError(f"bootstrap config uninstall verification failed: {path}")
+        raise StaticError(f"lifecycle config uninstall verification failed: {path}")
     return before, after
 
 
@@ -168,11 +168,11 @@ def apply_template(path: Path, template_name: str = "AGENTS.md.install") -> tupl
     if state_name == "current":
         return before, before
     if state_name != "absent":
-        raise StaticError(f"refusing {state_name} bootstrap template: {path}")
+        raise StaticError(f"refusing {state_name} lifecycle template: {path}")
     after = template(template_name)
     write(path, after)
     if template_state(path, template_name) != "current":
-        raise StaticError(f"bootstrap template verification failed: {path}")
+        raise StaticError(f"lifecycle template verification failed: {path}")
     return before, after
 
 

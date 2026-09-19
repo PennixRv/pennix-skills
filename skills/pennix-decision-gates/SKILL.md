@@ -35,6 +35,25 @@ Build the dependency order before asking:
   risk, owner, validation path, or next action.
 - Keep execution authorization separate from design decisions.
 
+## Frontier And Rounds
+
+For a grill-style planning gate, first build a small decision tree. Each node
+records its owner, dependencies, options, recommendation, evidence, impact,
+and revisit condition. Facts the repository or approved sources can answer are
+closed by the agent; only user-owned choices remain open.
+
+At each round, calculate the frontier: unresolved nodes whose dependencies are
+already sealed. Ask only independent frontier nodes in one native request,
+with at most three questions. Do not ask a dependent node early. After the
+user answers, end the round; the next round records every answer in the active
+Trellis PRD/research artifact, rechecks evidence, and recalculates the
+frontier. Stop planning interaction only when the frontier is empty and write
+the final planning summary before implementation approval.
+
+This protocol belongs to an explicit decision/grill gate. It does not replace
+the ordinary one-question `trellis-brainstorm` flow and does not create a
+second task, ADR, or runtime Skill dependency.
+
 Call the current session's native `request_user_input` directly when it is
 available. Do not detect or replace it through `functions.exec`, nested
 `tools.*`, `ALL_TOOLS`, shell, or MCP. Correct a schema error at most once;

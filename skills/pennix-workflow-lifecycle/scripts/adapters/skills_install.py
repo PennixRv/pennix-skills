@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import filecmp
 import os
 import re
 import shutil
@@ -97,7 +98,9 @@ def resolve_destination(raw_destination: str | None) -> Path:
     return destination
 
 
-def ensure_submodules(source: Path, initialize: bool) -> None:
+def ensure_submodules(
+    source: Path, initialize: bool, expected_commits: dict[str, str] | None = None
+) -> None:
     if initialize:
         run_git(source, "submodule", "update", "--init", "--recursive")
 
@@ -107,13 +110,21 @@ def ensure_submodules(source: Path, initialize: bool) -> None:
         joined = "; ".join(unresolved)
         raise InstallError(f"Submodule checkout is not pinned and ready: {joined}")
 
+    observed_commits: dict[str, str] = {}
     for line in status_lines:
         fields = line[1:].strip().split(maxsplit=2)
         if len(fields) < 2:
             raise InstallError(f"Unable to resolve submodule path: {line}")
+        observed_commits[fields[1]] = fields[0]
+        if expected_commits is not None and expected_commits.get(fields[1]) != fields[0]:
+            raise InstallError(f"Submodule commit does not match catalog: {fields[1]}")
         submodule = source / fields[1]
         if run_git(submodule, "status", "--porcelain").strip():
             raise InstallError(f"Submodule checkout has uncommitted changes: {fields[1]}")
+    if expected_commits is not None:
+        missing = sorted(set(expected_commits) - set(observed_commits))
+        if missing:
+            raise InstallError(f"Catalog submodule is missing: {', '.join(missing)}")
 
 
 def read_skill_name(skill_directory: Path) -> str:
@@ -190,7 +201,24 @@ def install_grok_search_dependency(stage: Path) -> None:
         raise InstallError(f"Unable to install grok-search dependencies: {detail}")
 
 
-def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
+def same_tree(left: Path, right: Path) -> bool:
+    if left.is_symlink() or right.is_symlink():
+        return False
+    if left.is_dir() != right.is_dir():
+        return False
+    if not left.is_dir():
+        return filecmp.cmp(left, right, shallow=False)
+    left_entries = {entry.name: entry for entry in left.iterdir()}
+    right_entries = {entry.name: entry for entry in right.iterdir()}
+    if left_entries.keys() != right_entries.keys():
+        return False
+    return all(
+        same_tree(left_entries[name], right_entries[name])
+        for name in left_entries
+    )
+
+
+def install_skills(skills: list[tuple[str, Path]], destination: Path) -> bool:
     destination = assert_safe_destination(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix=".pennix-skills-stage-", dir=destination.parent))
@@ -200,6 +228,8 @@ def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
             copy_skill(skill_source, stage / skill_name)
         install_grok_search_dependency(stage)
 
+        if destination.exists() and same_tree(stage, destination):
+            return False
         if destination.exists():
             backup = destination.parent / f".pennix-skills-backup-{uuid.uuid4().hex}"
             os.replace(destination, backup)
@@ -211,6 +241,7 @@ def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
             raise
         if backup is not None:
             shutil.rmtree(backup)
+        return True
     finally:
         if stage.exists():
             shutil.rmtree(stage, ignore_errors=True)

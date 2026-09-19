@@ -10,7 +10,7 @@ from unittest.mock import patch
 SKILL_ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
-import bootstrap
+import lifecycle as bootstrap
 from adapters import upstream
 
 
@@ -58,6 +58,18 @@ class UpstreamInspectionTests(unittest.TestCase):
         inspected = upstream.inspect_component(AOE_COMPONENT, lambda _: changed)
         self.assertEqual(inspected["status"], "upstream-contract-changed")
         self.assertIn("AOE_COLOR", inspected["reason"])
+
+    def test_changed_upstream_hash_blocks_even_when_control_surface_matches(self) -> None:
+        component = {
+            **AOE_COMPONENT,
+            "upstream_inspection": {
+                **AOE_COMPONENT["upstream_inspection"],
+                "expected_sha256": "0" * 64,
+            },
+        }
+        inspected = upstream.inspect_component(component, lambda _: CURRENT_INSTALLER)
+        self.assertEqual(inspected["status"], "upstream-contract-changed")
+        self.assertIn("hash changed", inspected["reason"])
 
     def test_command_line_option_parsing_blocks_the_operation(self) -> None:
         changed = CURRENT_INSTALLER.replace(

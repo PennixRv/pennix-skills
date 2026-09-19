@@ -8,7 +8,7 @@ description: Route FastCtx local-file, shell, and job operations by request sema
 ## 适用范围
 
 对 FastCtx 的本地文件、命令或 job 操作使用本 Skill。安装、升级、主机迁移或回滚只由显式调用的
-`$pennix-workflow-bootstrap` 处理；跨组件职责不清时改用 `$pennix-workflow-routing`。
+`$pennix-workflow-lifecycle` 处理；跨组件职责不清时改用 `$pennix-workflow-routing`。
 
 ## 路由规则
 

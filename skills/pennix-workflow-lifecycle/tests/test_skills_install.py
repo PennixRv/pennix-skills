@@ -57,7 +57,7 @@ class InstallSkillsTest(unittest.TestCase):
             {
                 "grok-search",
                 "pennix-fastctx-routing",
-                "pennix-workflow-bootstrap",
+                "pennix-workflow-lifecycle",
                 "pennix-workflow-routing",
             }.issubset(names)
         )
@@ -75,8 +75,8 @@ class InstallSkillsTest(unittest.TestCase):
             (destination / "obsolete").mkdir(parents=True)
             (destination / "obsolete" / "stale.txt").write_text("stale\n", encoding="utf-8")
 
-            MODULE.install_skills([("alpha", alpha), ("beta", beta)], destination)
-            MODULE.install_skills([("alpha", alpha), ("beta", beta)], destination)
+            self.assertTrue(MODULE.install_skills([("alpha", alpha), ("beta", beta)], destination))
+            self.assertFalse(MODULE.install_skills([("alpha", alpha), ("beta", beta)], destination))
 
             self.assertEqual((destination / "alpha" / "SKILL.md").read_text(encoding="utf-8").splitlines()[1], "name: alpha")
             self.assertTrue((destination / "beta" / "scripts" / "run.py").is_file())
@@ -160,6 +160,21 @@ class InstallSkillsTest(unittest.TestCase):
 
             self.assertFalse(destination.exists())
 
+    def test_install_replaces_nested_destination_symbolic_links(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            alpha = self.make_skill(root, "alpha")
+            destination = Path(temporary) / "host" / "skills" / "pennix-skills"
+            (destination / "alpha" / "scripts").mkdir(parents=True)
+            (destination / "alpha" / "scripts" / "run.py").symlink_to("/etc/hosts")
+
+            self.assertTrue(MODULE.install_skills([("alpha", alpha)], destination))
+            self.assertFalse((destination / "alpha" / "scripts" / "run.py").is_symlink())
+            self.assertEqual(
+                (destination / "alpha" / "scripts" / "run.py").read_text(encoding="utf-8"),
+                "print('ok')\n",
+            )
+
     def test_grok_dependency_install_uses_staged_package(self):
         with tempfile.TemporaryDirectory() as temporary:
             stage = Path(temporary)
@@ -208,6 +223,18 @@ class InstallSkillsTest(unittest.TestCase):
             with self.assertRaisesRegex(MODULE.InstallError, "uncommitted changes: skills/windsurf-code-search"):
                 MODULE.ensure_submodules(source, initialize=False)
 
+    def test_submodule_validation_rejects_catalog_commit_mismatch(self):
+        source = Path("/tmp/pennix-skills-source")
+        observed = " 0123456789012345678901234567890123456789 skills/windsurf-code-search (heads/main)\n"
+
+        with mock.patch.object(MODULE, "run_git", return_value=observed):
+            with self.assertRaisesRegex(MODULE.InstallError, "does not match catalog"):
+                MODULE.ensure_submodules(
+                    source,
+                    initialize=False,
+                    expected_commits={"skills/windsurf-code-search": "f" * 40},
+                )
+
     def test_source_checkout_rejects_uncommitted_root_content(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
@@ -215,7 +242,7 @@ class InstallSkillsTest(unittest.TestCase):
             with mock.patch.object(
                 MODULE,
                 "run_git",
-                side_effect=[str(source), " M skills/pennix-workflow-bootstrap/SKILL.md\n"],
+                side_effect=[str(source), " M skills/pennix-workflow-lifecycle/SKILL.md\n"],
             ):
                 with self.assertRaisesRegex(MODULE.InstallError, "Source checkout has uncommitted changes"):
                     MODULE.resolve_source(str(source))

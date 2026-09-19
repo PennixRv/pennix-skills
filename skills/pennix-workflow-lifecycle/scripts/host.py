@@ -113,7 +113,7 @@ def detect_host(
         environment == "native" or wsl_version == "2"
     )
     if release.get("ID") != "arch":
-        reason = "bootstrap currently supports Arch Linux only"
+        reason = "lifecycle currently supports Arch Linux only"
     elif environment == "wsl" and wsl_version != "2":
         reason = "Arch Linux on WSL requires WSL2"
     else:

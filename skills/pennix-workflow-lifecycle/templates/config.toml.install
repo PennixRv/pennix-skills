@@ -1,11 +1,11 @@
 # Workflow-owned static policy. This file contains two fragments inserted into
 # config.toml.seed; it does not contain user model, security, UI, history,
 # host paths, project trust, MCP, plugin marketplace state, or hook hashes.
-# pennix-workflow-bootstrap:install-root:begin
+# pennix-workflow-lifecycle:install-root:begin
 # Root-level Codex settings remain user-owned.
-# pennix-workflow-bootstrap:install-root:end
+# pennix-workflow-lifecycle:install-root:end
 
-# pennix-workflow-bootstrap:install-features:begin
+# pennix-workflow-lifecycle:install-features:begin
 remote_compaction_v2 = true
 hooks = true
 goals = true
@@ -16,4 +16,4 @@ direct_only_tool_namespaces = ["mcp__fastctx"]
 
 [agents]
 enabled = false
-# pennix-workflow-bootstrap:install-features:end
+# pennix-workflow-lifecycle:install-features:end

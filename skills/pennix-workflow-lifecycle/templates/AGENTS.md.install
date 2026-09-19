@@ -25,12 +25,12 @@
 - 不绕过权限或信任，不手工修改缓存，不把凭据、会话、数据库、日志或运行态写入版本控制。
 - 对删除、外部发布、权限和敏感数据等不可逆或高影响操作，遵守项目与工具的授权机制，并完成适用的权限、信任和验证检查。
 
-<!-- pennix-workflow-bootstrap:begin -->
+<!-- pennix-workflow-lifecycle:begin -->
 ## Pennix Workflow
 
-- 系统级部署使用 `$pennix-workflow-bootstrap`；先 discover，再明确选择单一组件执行 install、upgrade 或 uninstall。
+- 系统级部署使用 `$pennix-workflow-lifecycle`；先 discover，再明确选择单一组件执行 install、upgrade 或 uninstall。
 - Trellis、CodeGraph 等项目组件的初始化必须绑定明确的 project root，不能在系统安装阶段隐式执行。
-<!-- pennix-workflow-bootstrap:end -->
+<!-- pennix-workflow-lifecycle:end -->
 
 <!-- pennix-fastctx:begin -->
 ## FastCtx Routing
