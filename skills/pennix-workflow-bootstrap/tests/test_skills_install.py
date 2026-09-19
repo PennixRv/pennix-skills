@@ -89,6 +89,29 @@ class InstallSkillsTest(unittest.TestCase):
             self.assertFalse((destination / "alpha" / ".git").exists())
             self.assertFalse((destination / "obsolete").exists())
 
+    def test_uninstall_removes_only_the_managed_collection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            alpha = self.make_skill(root, "alpha")
+            destination = Path(temporary) / "host" / "skills" / "pennix-skills"
+            MODULE.install_skills([("alpha", alpha)], destination)
+
+            MODULE.uninstall_skills([("alpha", alpha)], destination)
+
+            self.assertFalse(destination.exists())
+            MODULE.uninstall_skills([("alpha", alpha)], destination)
+
+    def test_uninstall_refuses_an_unrelated_collection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            alpha = self.make_skill(root, "alpha")
+            destination = Path(temporary) / "host" / "skills" / "pennix-skills"
+            (destination / "unrelated").mkdir(parents=True)
+
+            with self.assertRaisesRegex(MODULE.InstallError, "non-exact"):
+                MODULE.uninstall_skills([("alpha", alpha)], destination)
+            self.assertTrue(destination.exists())
+
     def test_destination_must_be_collection_root(self):
         with self.assertRaises(MODULE.InstallError):
             MODULE.resolve_destination("/tmp/not-a-pennix-install")

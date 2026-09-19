@@ -24,11 +24,11 @@ class HostTests(unittest.TestCase):
                 which=lambda name: f"/usr/bin/{name}" if name in {"pacman", "yay", "npm"} else None,
             )
 
-    def test_native_arch_uses_pacman_for_official_packages(self) -> None:
+    def test_native_arch_prefers_yay_for_all_package_sources(self) -> None:
         detected = self.detect("ID=arch\n", "6.18.1-arch1-1\n")
         self.assertTrue(detected["supported"])
         self.assertEqual(detected["environment"], "native")
-        self.assertEqual(detected["installers"]["official"], "pacman")
+        self.assertEqual(detected["installers"]["official"], "yay")
         self.assertEqual(detected["installers"]["aur"], "yay")
         self.assertEqual(detected["installers"]["npm"], "npm")
 
@@ -68,6 +68,14 @@ class HostTests(unittest.TestCase):
                 "https://registry.npmjs.org/",
                 "@example/fixture@1.2.3",
             ],
+        )
+        self.assertEqual(
+            host.package_remove_command("pacman", "openai-codex"),
+            ["sudo", "pacman", "-R", "openai-codex"],
+        )
+        self.assertEqual(
+            host.package_remove_command("npm", "@example/fixture"),
+            ["npm", "uninstall", "--global", "@example/fixture"],
         )
 
     def test_non_arch_and_unknown_wsl_are_blocked(self) -> None:

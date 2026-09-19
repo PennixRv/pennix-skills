@@ -98,7 +98,7 @@
       "owner": "cch",
       "scope": "global",
       "verify_key": "cch-codex-tmux-status version",
-      "native_owner_reason": "CCH installation needs an explicit endpoint and token-file selection; this optional observability component remains native-owner plan-only.",
+      "native_owner_reason": "CCH installation needs an explicit endpoint and token-file selection; this optional observability component remains under its native owner.",
       "probe": "cch-codex-tmux-status",
       "version_args": ["version"]
     },

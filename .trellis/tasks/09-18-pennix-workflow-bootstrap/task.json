@@ -2,7 +2,7 @@
   "id": "pennix-workflow-bootstrap",
   "name": "pennix-workflow-bootstrap",
   "title": "实现统一 Pennix Workflow Bootstrap",
-  "description": "实现统一 guided bootstrap Skill，并将现有用户可见 setup Skill 收敛为内部 deployment adapters；保留原生组件边界、分阶段静态模板合同和可验证的 discover/plan/apply/verify/rollback。",
+  "description": "实现统一 guided bootstrap Skill，并将现有用户可见 setup Skill 收敛为内部 deployment adapters；保留原生组件边界、分阶段静态模板合同和可验证的 discover/install/upgrade/uninstall/verify。",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,

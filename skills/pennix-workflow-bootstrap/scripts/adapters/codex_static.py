@@ -141,6 +141,20 @@ def apply_config(path: Path) -> tuple[str, str]:
     return before, after
 
 
+def remove_config_sections(path: Path) -> tuple[str, str]:
+    before = read(path)
+    state_name = config_state(before)
+    if state_name == "seeded":
+        return before, before
+    if state_name != "current":
+        raise StaticError(f"refusing {state_name} bootstrap config: {path}")
+    after = seed_config(_base_url(before))
+    write(path, after)
+    if config_state(read(path)) != "seeded":
+        raise StaticError(f"bootstrap config uninstall verification failed: {path}")
+    return before, after
+
+
 def template_state(path: Path, template_name: str = "AGENTS.md.install") -> str:
     contents = read(path)
     if not contents:

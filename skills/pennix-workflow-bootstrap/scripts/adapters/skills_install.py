@@ -216,6 +216,19 @@ def install_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
             shutil.rmtree(stage, ignore_errors=True)
 
 
+def uninstall_skills(skills: list[tuple[str, Path]], destination: Path) -> None:
+    destination = assert_safe_destination(destination)
+    if not destination.exists():
+        return
+    if not destination.is_dir():
+        raise InstallError(f"Destination must be a directory: {destination}")
+    expected = {name for name, _ in skills}
+    entries = {entry.name for entry in destination.iterdir()}
+    if entries != expected or any((destination / name).is_symlink() or not (destination / name).is_dir() for name in expected):
+        raise InstallError("refusing to remove a non-exact Pennix Skills collection")
+    shutil.rmtree(destination)
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, help="Path to the pennix-skills checkout")

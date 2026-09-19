@@ -155,8 +155,8 @@ print_next_step() {
 Codex bootstrap complete. Start a new Codex session, then paste:
 
 请先安装 Pennix Skills，然后使用 `pennix-workflow-bootstrap` 开始部署 Pennix 工作流。
-先执行只读 `discover` 和 `plan`，核对宿主、组件 owner、版本 catalog 和项目边界；
-未经逐项确认不要 apply。
+先执行只读 `discover`，核对宿主、组件 owner 和版本 catalog；
+再明确选择一个组件执行 install、upgrade 或 uninstall。
 EOF
 }
 

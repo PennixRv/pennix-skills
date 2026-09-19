@@ -56,7 +56,10 @@ def package_managers(which: Callable[[str], str | None] = shutil.which) -> dict[
 
 def select_installer(source: str, available: dict[str, bool]) -> str | None:
     if source == "official":
-        return "pacman" if available.get("pacman", False) else None
+        for installer in ("yay", "paru", "pacman"):
+            if available.get(installer, False):
+                return installer
+        return None
     if source == "aur":
         for helper in ("yay", "paru"):
             if available.get(helper, False):
@@ -85,6 +88,16 @@ def package_install_command(installer: str, package: str, registry: str | None =
     if installer == "pacman":
         return ["sudo", installer, "-S", "--needed", package]
     return [installer, "-S", "--needed", package]
+
+
+def package_remove_command(installer: str, package: str) -> list[str]:
+    if installer not in PACKAGE_MANAGERS or not PACKAGE_NAME.fullmatch(package):
+        raise ValueError("invalid package installer or package name")
+    if installer == "npm":
+        return [installer, "uninstall", "--global", package]
+    if installer == "pacman":
+        return ["sudo", installer, "-R", package]
+    return [installer, "-R", package]
 
 
 def detect_host(

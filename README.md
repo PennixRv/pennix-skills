@@ -11,8 +11,8 @@
 不接管 Trellis、FastCtx、CodeGraph、Codex Plugin/MCP 或 Hook 的原生所有权。
 
 当前 bootstrap 的宿主边界是 Linux 上的 Arch Linux，包括原生 Arch Linux 和 WSL2
-中的 Arch Linux。官方仓库包使用 `pacman`；AUR 包优先使用已存在的 `yay`，没有时才回退到
-已存在的 `paru`。非 Arch、WSL1 或无法确认 WSL 版本的环境只支持只读发现和计划。
+中的 Arch Linux。生命周期包操作优先使用已存在的 `yay`，没有时回退到已存在的 `paru`，最后才使用
+`pacman`；Stage 0 的 Codex 最小安装仍直接使用官方 `pacman`。非 Arch、WSL1 或无法确认 WSL 版本的环境不允许生命周期写入。
 
 ## 系统安装：全新 Arch 环境
 
@@ -44,7 +44,7 @@ python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstr
   discover
 ```
 
-随后从明确的本地 checkout 计划并执行系统安装动作：
+随后从明确的本地 checkout 直接执行系统生命周期动作：
 
 `config.toml.install` 只包含工作流必需的静态策略，排除用户 model、sandbox/approval、TUI、Web、
 history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook hash。
@@ -53,37 +53,35 @@ history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook ha
 
 ```bash
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  plan --inspect-upstream
+  install --component pennix-skills --source "/path/to/pennix-skills" --yes
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  apply --action skills-install --source "/path/to/pennix-skills" --yes
-
+  install --component codex-config --yes
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  apply --action codex-config-install --yes
-python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  apply --action codex-agents-install --yes
+  install --component codex-agents --yes
 ```
 
-如果 plan 中有 `upstream_inspection`，先审阅 action 里的 `sha256`、状态和自动决策。只有状态为
-`match` 时才可以选择该组件；将该 digest 传给对应的 apply action。安装阶段不会执行或重新读取上游脚本：
+已安装组件使用同一个入口升级或卸载：
 
 ```bash
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  apply --action component:aoe --upstream-inspection-digest "<reviewed-sha256>" --yes
+  upgrade --component fastctx --yes
+python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
+  uninstall --component fastctx --yes
 ```
 
-上游 inspection 只对 catalog 明确登记的 URL 生效。新增且 adapter 未识别的上游可配置项、参数解析或发布
-解析变化会得到 `upstream-contract-changed`，该组件必须回到 planning 审阅，不能自动降级为远端脚本执行。
+上游 inspection 只对 catalog 明确登记的 URL 自动执行，发现新的控制面或参数变化会阻断该组件；bootstrap
+不会降级为远端脚本执行。安装、升级和卸载都要求明确的单一 component，不生成第二份计划或状态文件。
 
 显式选择其他发现根时，将集合根保存到 `PENNIX_SKILLS_ROOT`，再传给 `--destination`：
 
 ```bash
 PENNIX_SKILLS_ROOT="${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}"
 python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  apply --action skills-install --source "/path/to/pennix-skills" \
+  install --component pennix-skills --source "/path/to/pennix-skills" \
   --destination "$PENNIX_SKILLS_ROOT" --yes
 ```
 
-上述系统安装 action 只在显式安装请求时运行。它初始化 checkout 已固定的 submodule，并将每个直接
+上述系统生命周期 action 只在显式请求时运行。它初始化 checkout 已固定的 submodule，并将每个直接
 `skills/<name>/` 物化到所选集合根下的 `<name>/`；未传 `--destination` 时使用
 `${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/`。它不新建
 源码 checkout、不切换分支、不选择版本，也不更新已固定的组件版本；若本地缺少对象，初始化
@@ -92,9 +90,6 @@ submodule 只会取得当前 Gitlink 固定的提交。安装副本不是源码�
 
 ## 项目初始化
 
-Trellis、CodeGraph 和 AOE 的 CLI 可以由系统安装动作部署，但它们的初始化必须在目标项目中
-单独执行。进入目标项目后重新运行 `discover` / `plan --project-root /absolute/project/path`，
-确认 `project root`，只选择
-`category=project-initialize` 的 action；这些 action 才允许创建 `.trellis/`、`codegraph.json`、
-索引或项目工作流资产。系统 seed、Pennix Skills 安装和 `AGENTS.md` / `config.toml` 的系统级
-物化不会隐式初始化当前项目。
+Trellis、CodeGraph 和 AOE 的 CLI 可以由系统生命周期动作部署或升级，但它们的初始化必须在目标项目中
+单独执行。bootstrap 不创建 `.trellis/`、`codegraph.json`、索引或项目工作流资产；项目初始化继续使用
+各组件的原生命令。卸载全局组件也不会删除项目资产。

@@ -28,7 +28,7 @@
 <!-- pennix-workflow-bootstrap:begin -->
 ## Pennix Workflow
 
-- 系统级部署使用 `$pennix-workflow-bootstrap`；先 discover/plan，再逐项确认 apply。
+- 系统级部署使用 `$pennix-workflow-bootstrap`；先 discover，再明确选择单一组件执行 install、upgrade 或 uninstall。
 - Trellis、CodeGraph 等项目组件的初始化必须绑定明确的 project root，不能在系统安装阶段隐式执行。
 <!-- pennix-workflow-bootstrap:end -->
 

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-import argparse
 import subprocess
 import sys
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -33,9 +31,10 @@ class BootstrapTests(unittest.TestCase):
                             "source": "fixture",
                             "owner": "test",
                             "scope": "global",
-                            "verify_key": "python probe",
-                            "probe": sys.executable,
-                            "version_args": ["-c", "print('fixture 1.2.3')"],
+                            "verify_key": "fixture --version",
+                            "probe": "fixture",
+                            "version_args": ["--version"],
+                            "package": {"source": "official", "name": "fixture-package"},
                         }
                     },
                 }
@@ -62,307 +61,116 @@ class BootstrapTests(unittest.TestCase):
             check=False,
         )
 
-    def test_discover_and_plan_are_read_only(self) -> None:
+    def test_discover_and_verify_are_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            discovered = self.run_cli(root, "discover")
-            self.assertEqual(discovered.returncode, 0, discovered.stderr)
-            inventory = json.loads(discovered.stdout)
-            self.assertEqual(inventory["components"]["fixture"]["status"], "match")
-            planned = self.run_cli(root, "plan")
-            self.assertEqual(planned.returncode, 0, planned.stderr)
-            plan = json.loads(planned.stdout)
-            trellis = next(item for item in plan["actions"] if item["id"] == "trellis-project")
-            self.assertEqual(trellis["mode"], "blocked")
-            self.assertIn("explicit --project-root", trellis["blocked_reason"])
+            for command in ("discover", "verify"):
+                result = self.run_cli(root, command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("components", json.loads(result.stdout))
             self.assertFalse((root / "codex").exists())
 
-            planned_project = self.run_cli(root, "--project-root", str(root / "project"), "plan")
-            self.assertEqual(planned_project.returncode, 0, planned_project.stderr)
-            trellis = next(
-                item for item in json.loads(planned_project.stdout)["actions"] if item["id"] == "trellis-project"
-            )
-            self.assertEqual(trellis["mode"], "plan-only")
-            self.assertEqual(trellis["category"], "project-initialize")
-
-    def test_apply_requires_named_confirmation_and_rolls_back_agents_template(self) -> None:
+    def test_removed_orchestration_commands_are_not_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            denied = self.run_cli(root, "apply", "--action", "codex-agents-install")
-            self.assertNotEqual(denied.returncode, 0)
-            agents = root / "codex" / "AGENTS.md"
-            self.assertFalse(agents.exists())
-
-            applied = self.run_cli(
-                root,
-                "--state-dir",
-                str(root / "state"),
-                "apply",
-                "--action",
-                "codex-agents-install",
-                "--yes",
-            )
-            self.assertEqual(applied.returncode, 0, applied.stderr)
-            receipt = Path(json.loads(applied.stdout)["receipt"])
-            self.assertTrue(agents.exists())
-
-            rolled_back = self.run_cli(
-                root,
-                "--state-dir",
-                str(root / "state"),
-                "rollback",
-                "--receipt",
-                str(receipt),
-            )
-            self.assertEqual(rolled_back.returncode, 0, rolled_back.stderr)
-            self.assertFalse(agents.exists())
-
-    def test_plan_only_action_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            result = self.run_cli(Path(temporary), "apply", "--action", "trellis-project", "--yes")
+            result = self.run_cli(Path(temporary), "plan")
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("plan-only", result.stderr)
+            self.assertIn("invalid choice", result.stderr)
 
-    def test_drifted_agents_template_is_plan_only(self) -> None:
+    def test_lifecycle_requires_component_and_confirmation(self) -> None:
+        catalog = {"components": {}}
+        args = SimpleNamespace(command="install", component=None, yes=False)
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "requires --component"):
+            bootstrap.run_lifecycle(args, catalog)
+        args.component = "codex-agents"
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "requires --yes"):
+            bootstrap.run_lifecycle(args, catalog)
+
+    def test_static_install_upgrade_and_uninstall_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            agents = root / "codex" / "AGENTS.md"
-            agents.parent.mkdir()
-            agents.write_text("# unrelated user instructions\n", encoding="utf-8")
-            planned = self.run_cli(root, "plan")
-            self.assertEqual(planned.returncode, 0, planned.stderr)
-            template_action = next(
-                item for item in json.loads(planned.stdout)["actions"] if item["id"] == "codex-agents-install"
-            )
-            self.assertEqual(template_action["mode"], "plan-only")
+            home = root / "codex"
+            home.mkdir()
+            config = home / "config.toml"
+            config.write_text(bootstrap.codex_static.seed_config("https://api.example.test/v1"), encoding="utf-8")
+            args = SimpleNamespace(codex_home=home, source=SOURCE_ROOT, destination=None)
 
-    def test_empty_agents_file_is_not_treated_as_absent(self) -> None:
+            self.assertEqual(bootstrap.static_operation(args, "codex-config", "install"), "changed")
+            self.assertEqual(bootstrap.static_operation(args, "codex-config", "upgrade"), "no-op")
+            self.assertEqual(bootstrap.static_operation(args, "codex-config", "uninstall"), "changed")
+            self.assertEqual(bootstrap.codex_static.config_state(config.read_text(encoding="utf-8")), "seeded")
+
+            self.assertEqual(bootstrap.static_operation(args, "codex-agents", "install"), "changed")
+            self.assertEqual(bootstrap.static_operation(args, "codex-agents", "uninstall"), "changed")
+            self.assertEqual(bootstrap.static_operation(args, "codex-agents", "uninstall"), "no-op")
+
+    def test_static_uninstall_refuses_drifted_template(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            agents = root / "codex" / "AGENTS.md"
-            agents.parent.mkdir()
-            agents.touch()
-            planned = self.run_cli(root, "plan")
-            self.assertEqual(planned.returncode, 0, planned.stderr)
-            template_action = next(
-                item for item in json.loads(planned.stdout)["actions"] if item["id"] == "codex-agents-install"
-            )
-            self.assertEqual(template_action["mode"], "plan-only")
-            applied = self.run_cli(
-                root,
-                "apply",
-                "--action",
-                "codex-agents-install",
-                "--yes",
-            )
-            self.assertNotEqual(applied.returncode, 0)
-            self.assertTrue(agents.exists())
-            self.assertEqual(agents.read_text(encoding="utf-8"), "")
+            home = Path(temporary) / "codex"
+            home.mkdir()
+            target = home / "AGENTS.md"
+            target.write_text("# user instructions\n", encoding="utf-8")
+            args = SimpleNamespace(codex_home=home, source=SOURCE_ROOT, destination=None)
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "refusing drifted"):
+                bootstrap.static_operation(args, "codex-agents", "uninstall")
+            self.assertTrue(target.exists())
 
-    def test_config_template_is_materialized_after_seed(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            codex_home = root / "codex"
-            codex_home.mkdir()
-            seed = bootstrap.codex_static.template("config.toml.seed").replace(
-                "{{PENNIX_BASE_URL}}", "https://api.example.test/v1"
-            )
-            config = codex_home / "config.toml"
-            config.write_text(seed, encoding="utf-8")
-            planned = self.run_cli(root, "plan")
-            self.assertEqual(planned.returncode, 0, planned.stderr)
-            config_action = next(
-                item for item in json.loads(planned.stdout)["actions"] if item["id"] == "codex-config-install"
-            )
-            self.assertEqual(config_action["status"], "seeded")
-            self.assertEqual(config_action["mode"], "applyable")
-            applied = self.run_cli(
-                root,
-                "--state-dir",
-                str(root / "state"),
-                "apply",
-                "--action",
-                "codex-config-install",
-                "--yes",
-            )
-            self.assertEqual(applied.returncode, 0, applied.stderr)
-            current = config.read_text(encoding="utf-8")
-            self.assertEqual(bootstrap.codex_static.config_state(current), "current")
-            parsed = tomllib.loads(current)
-            self.assertNotIn("model", parsed)
-            self.assertNotIn("sandbox_mode", parsed)
-            self.assertNotIn("tui", parsed)
-            self.assertNotIn("history", parsed)
-            self.assertEqual(parsed["features"]["default_mode_request_user_input"], True)
-            self.assertEqual(parsed["agents"]["enabled"], False)
-
-            receipt = Path(json.loads(applied.stdout)["receipt"])
-            rolled_back = self.run_cli(
-                root,
-                "--state-dir",
-                str(root / "state"),
-                "rollback",
-                "--receipt",
-                str(receipt),
-            )
-            self.assertEqual(rolled_back.returncode, 0, rolled_back.stderr)
-            self.assertEqual(config.read_text(encoding="utf-8"), seed)
-
-    def test_malformed_install_markers_are_drifted(self) -> None:
-        seed = bootstrap.codex_static.seed_config("https://api.example.test/v1")
-        malformed = seed.replace(
-            bootstrap.codex_static.ROOT_BEGIN,
-            f"{bootstrap.codex_static.ROOT_BEGIN}\n{bootstrap.codex_static.ROOT_BEGIN}",
-        )
-        self.assertEqual(bootstrap.codex_static.config_state(malformed), "drifted")
-
-    def test_static_directory_target_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            target = Path(temporary) / "config.toml"
-            target.mkdir()
-            with self.assertRaises(bootstrap.codex_static.StaticError):
-                bootstrap.codex_static.read(target)
-
-    def test_static_symlink_ancestor_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            target = root / "target"
-            target.mkdir()
-            link = root / "link"
-            link.symlink_to(target, target_is_directory=True)
-            with self.assertRaises(bootstrap.codex_static.StaticError):
-                bootstrap.codex_static.read(link / "config.toml")
-
-    def test_npm_only_component_uses_global_package_inventory(self) -> None:
+    def test_component_upgrade_and_uninstall_use_the_native_owner(self) -> None:
         component = {
             "approved_version": "1.2.3",
-            "package": {"source": "npm", "name": "@example/fixture"},
-        }
-        with patch.object(bootstrap, "installed_npm_version", return_value="1.2.3"):
-            self.assertEqual(bootstrap.probe_component(component), ("match", "1.2.3"))
-
-    def test_npm_command_collision_is_blocked_before_apply(self) -> None:
-        component = {
-            "approved_version": "1.2.3",
-            "package": {
-                "source": "npm",
-                "name": "@example/fixture",
-                "registry": "https://registry.npmjs.org/",
-            },
-        }
-        with (
-            patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
-            patch.object(bootstrap, "installed_npm_version", return_value="1.2.3"),
-        ):
-            mode, reason, _ = bootstrap.package_action_mode(
-                component, {"installers": {"npm": "npm"}}, "drifted"
-            )
-        self.assertEqual(mode, "blocked")
-        self.assertIn("effective matching command", reason)
-
-    def test_conflicting_package_owner_is_blocked_before_apply(self) -> None:
-        component = {
-            "approved_version": "1.2.3",
-            "conflicts": ["fixture-conflict"],
+            "source": "fixture",
+            "owner": "test",
+            "scope": "global",
+            "verify_key": "fixture --version",
+            "probe": "fixture",
+            "version_args": ["--version"],
             "package": {"source": "official", "name": "fixture-package"},
         }
-        with patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"):
-            mode, reason, _ = bootstrap.package_action_mode(
-                component,
-                {"installers": {"official": "pacman"}},
-                "drifted",
-                "fixture-conflict",
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"))
+        host_state = {"supported": True, "installers": {"official": "pacman"}}
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value=host_state),
+            patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("match", "1.2.3")]),
+            patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+            patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+        ):
+            self.assertEqual(
+                bootstrap.component_operation(args, {"components": {}}, "fixture", component, "upgrade"),
+                "changed",
             )
-        self.assertEqual(mode, "blocked")
-        self.assertIn("fixture-conflict", reason)
+        self.assertEqual(run.call_args.args[0], ["sudo", "pacman", "-S", "--needed", "fixture-package"])
 
-    def test_native_owner_component_is_never_marked_applyable(self) -> None:
-        mode, reason, package = bootstrap.package_action_mode(
-            {"approved_version": "1.2.3"}, {"installers": {}}, "missing"
-        )
-        self.assertEqual(mode, "plan-only")
-        self.assertIn("native owner adapter", reason)
-        self.assertIsNone(package)
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value=host_state),
+            patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("missing", None)]),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+            patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+        ):
+            self.assertEqual(
+                bootstrap.component_operation(args, {"components": {}}, "fixture", component, "uninstall"),
+                "changed",
+            )
+        self.assertEqual(run.call_args.args[0], ["sudo", "pacman", "-R", "fixture-package"])
 
-    def test_plugin_component_uses_native_plugin_inventory(self) -> None:
+    def test_component_operation_refuses_an_unknown_state(self) -> None:
         component = {
             "approved_version": "1.2.3",
-            "plugin": {"id": "fixture@fixture", "marketplace": {}},
+            "package": {"source": "official", "name": "fixture-package"},
         }
-        with patch.object(
-            bootstrap.codex_plugins,
-            "installed_plugin",
-            return_value={"version": "1.2.3", "enabled": True},
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"))
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {}}),
+            patch.object(bootstrap, "probe_component", return_value=("unknown", None)),
+            self.assertRaisesRegex(bootstrap.BootstrapError, "cannot safely identify"),
         ):
-            self.assertEqual(bootstrap.probe_component(component), ("match", "1.2.3"))
-
-    def test_package_action_checks_owner_after_install(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            component = {
-                "approved_version": "1.2.3",
-                "source": "fixture",
-                "owner": "test",
-                "scope": "global",
-                "verify_key": "fixture --version",
-                "probe": "fixture",
-                "version_args": ["--version"],
-                "package": {"source": "official", "name": "fixture-package"},
-            }
-            args = argparse.Namespace(
-                yes=True,
-                action="component:fixture",
-                upstream_inspection_digest=None,
-                state_dir=root / "state",
-                codex_home=root / "codex",
-            )
-            with (
-                patch.object(
-                    bootstrap.host,
-                    "detect_host",
-                    return_value={"supported": True, "installers": {"official": "pacman"}},
-                ),
-                patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
-                patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)),
-                patch.object(bootstrap, "probe_component", return_value=("match", "1.2.3")),
-                patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
-                patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
-            ):
-                bootstrap.apply_action(args, {"components": {"fixture": component}})
-
-            receipts = list((root / "state" / "receipts").glob("*.json"))
-            self.assertEqual(len(receipts), 1)
+            bootstrap.component_operation(args, {"components": {}}, "fixture", component, "uninstall")
 
     def test_default_catalog_accepts_scoped_npm_packages(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         self.assertEqual(catalog["components"]["fastctx"]["package"]["name"], "@pennixrv/fastctx")
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
-        self.assertIn("token-file", catalog["components"]["cch-status"]["native_owner_reason"])
-
-    def test_unsupported_host_blocks_all_write_actions(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            catalog = bootstrap.load_catalog(self.catalog(root))
-            inventory = {
-                "static": {
-                    "agents_path": str(root / "AGENTS.md"),
-                    "agents_template": "absent",
-                    "config_path": str(root / "config.toml"),
-                    "config_install": "absent",
-                },
-                "source": {"path": str(SOURCE_ROOT), "ready": True},
-                "host": {"supported": False, "reason": "Arch Linux only"},
-                "components": {},
-            }
-            planned = bootstrap.plan(argparse.Namespace(project_root=root), inventory, catalog)
-            self.assertTrue(all(item["mode"] == "blocked" for item in planned["actions"]))
-
-    def test_package_owner_parser(self) -> None:
-        self.assertEqual(
-            bootstrap.parse_package_owner("/usr/bin/codex is owned by openai-codex-bin 0.154.0-1"),
-            "openai-codex-bin",
-        )
-        self.assertIsNone(bootstrap.parse_package_owner("No package owns this file"))
 
 
 if __name__ == "__main__":

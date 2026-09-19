@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import argparse
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -44,26 +44,13 @@ main "$@"
 
 
 class UpstreamInspectionTests(unittest.TestCase):
-    def inventory(self) -> dict[str, object]:
-        return {
-            "static": {
-                "agents_path": "/tmp/AGENTS.md",
-                "agents_template": "current",
-                "config_path": "/tmp/config.toml",
-                "config_install": "current",
-            },
-            "source": {"path": "/tmp/source", "ready": True},
-            "host": {"supported": True, "reason": None, "installers": {"aur": "yay"}},
-            "components": {"aoe": {"status": "missing"}},
-        }
-
     def test_known_upstream_control_surface_is_recorded(self) -> None:
         inspected = upstream.inspect_component(AOE_COMPONENT, lambda _: CURRENT_INSTALLER)
         self.assertEqual(inspected["status"], "match")
         self.assertEqual(inspected["semantics"]["configurable_environment"], ["INSTALL_DIR"])
         self.assertEqual(len(inspected["sha256"]), 64)
 
-    def test_new_upstream_control_surface_blocks_the_plan(self) -> None:
+    def test_new_upstream_control_surface_blocks_the_operation(self) -> None:
         changed = CURRENT_INSTALLER.replace(
             'INSTALL_DIR="${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"',
             'INSTALL_DIR="${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"\nAOE_COLOR="${AOE_COLOR:-auto}"',
@@ -72,7 +59,7 @@ class UpstreamInspectionTests(unittest.TestCase):
         self.assertEqual(inspected["status"], "upstream-contract-changed")
         self.assertIn("AOE_COLOR", inspected["reason"])
 
-    def test_command_line_option_parsing_blocks_the_plan(self) -> None:
+    def test_command_line_option_parsing_blocks_the_operation(self) -> None:
         changed = CURRENT_INSTALLER.replace(
             'main "$@"',
             'case "$1" in --quiet) quiet=true ;; esac\nmain "$@"',
@@ -81,41 +68,36 @@ class UpstreamInspectionTests(unittest.TestCase):
         self.assertEqual(inspected["status"], "upstream-contract-changed")
         self.assertIn("command-line argument handling", inspected["reason"])
 
-    def test_plan_requires_explicit_inspection_and_preserves_its_result(self) -> None:
-        catalog = {"components": {"aoe": AOE_COMPONENT}}
-        no_inspection = bootstrap.plan(
-            argparse.Namespace(project_root=None, inspect_upstream=False), self.inventory(), catalog
-        )
-        action = next(item for item in no_inspection["actions"] if item["id"] == "component:aoe")
-        self.assertEqual(action["mode"], "blocked")
-        self.assertEqual(action["blocked_reason"], "inspection-required")
-
+    def test_install_inspects_upstream_before_using_the_native_owner(self) -> None:
         evidence = upstream.inspect_component(AOE_COMPONENT, lambda _: CURRENT_INSTALLER)
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"))
         with (
             patch.object(bootstrap.upstream, "inspect_component", return_value=evidence),
-            patch.object(
-                bootstrap,
-                "package_action_mode",
-                return_value=("applyable", None, {"name": "agent-of-empires-bin", "source": "aur", "installer": "yay"}),
-            ),
+            patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"aur": "yay"}}),
+            patch.object(bootstrap, "probe_component", side_effect=[("missing", None), ("match", "1.2.3")]),
+            patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/aoe"),
+            patch.object(bootstrap, "installed_package_owner", return_value="agent-of-empires-bin"),
+            patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)),
         ):
-            inspected_plan = bootstrap.plan(
-                argparse.Namespace(project_root=None, inspect_upstream=True), self.inventory(), catalog
+            self.assertEqual(
+                bootstrap.component_operation(args, {"components": {}}, "aoe", AOE_COMPONENT, "install"),
+                "changed",
             )
-        action = next(item for item in inspected_plan["actions"] if item["id"] == "component:aoe")
-        self.assertEqual(action["mode"], "applyable")
-        self.assertEqual(action["upstream_inspection"]["sha256"], evidence["sha256"])
-        self.assertEqual(action["decision_profile"], AOE_COMPONENT["decision_profile"])
 
-    def test_apply_never_inspects_upstream_and_requires_reviewed_digest(self) -> None:
-        args = argparse.Namespace(yes=True, action="component:aoe", upstream_inspection_digest=None)
+    def test_changed_upstream_contract_stops_before_package_manager(self) -> None:
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"))
         with (
-            patch.object(bootstrap.host, "detect_host", return_value={"supported": True}),
-            patch.object(bootstrap.upstream, "inspect_component") as inspect,
-            self.assertRaisesRegex(bootstrap.BootstrapError, "requires the SHA-256"),
+            patch.object(
+                bootstrap.upstream,
+                "inspect_component",
+                return_value={"status": "upstream-contract-changed"},
+            ),
+            patch.object(bootstrap.subprocess, "run") as run,
+            self.assertRaisesRegex(bootstrap.BootstrapError, "upstream inspection blocked"),
         ):
-            bootstrap.apply_action(args, {"components": {"aoe": AOE_COMPONENT}})
-        inspect.assert_not_called()
+            bootstrap.component_operation(args, {"components": {}}, "aoe", AOE_COMPONENT, "install")
+        run.assert_not_called()
 
 
 if __name__ == "__main__":

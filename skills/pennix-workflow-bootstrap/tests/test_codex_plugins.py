@@ -100,6 +100,12 @@ class CodexPluginTests(unittest.TestCase):
             call(home, "marketplace", "remove", "fixture", "--json"),
         )
 
+    def test_uninstall_uses_the_native_plugin_owner(self) -> None:
+        home = Path("/tmp/codex")
+        with patch.object(MODULE, "run_json", return_value={}) as run_json:
+            MODULE.remove_plugin(home, "fixture@fixture")
+        run_json.assert_called_once_with(home, "remove", "fixture@fixture", "--json")
+
 
 if __name__ == "__main__":
     unittest.main()

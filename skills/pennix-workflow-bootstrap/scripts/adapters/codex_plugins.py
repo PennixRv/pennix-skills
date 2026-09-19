@@ -87,3 +87,7 @@ def install_plugin(codex_home: Path, plugin: dict[str, Any]) -> None:
         except PluginError as rollback_error:
             raise PluginError(f"plugin install failed and marketplace rollback failed: {rollback_error}") from error
         raise
+
+
+def remove_plugin(codex_home: Path, plugin_id: str) -> None:
+    run_json(codex_home, "remove", plugin_id, "--json")

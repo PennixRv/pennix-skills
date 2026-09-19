@@ -3,8 +3,7 @@
 ## 用户界面
 
 只保留一个用户可见部署 Skill：`pennix-workflow-bootstrap`。它采用 guided 流程，负责
-`discover`、`plan`、显式确认后的 `apply`、重新发现后的 `verify` 和受 receipt/hash 保护的
-`rollback`。
+`discover`、显式确认后的 `install`、`upgrade`、`uninstall` 和重新发现后的 `verify`。
 
 现有 setup Skill 不再作为并列入口：其脚本、测试和必要参考资料迁移到
 `skills/pennix-workflow-bootstrap/scripts/adapters/`。adapter 只能由 bootstrap 调用，不能
@@ -33,8 +32,8 @@ source，不覆盖已有 `CODEX_HOME/config.toml` 或 `auth.json`；发现已有
 Stage 0 成功后要求新 Codex session 生效，再由输出的短提示词引导用户安装 Pennix Skills。安装
 阶段使用 `templates/config.toml.install` 的根级和 `[features]` 片段以及
 `templates/AGENTS.md.install` 物化系统静态字段，
-随后由 `pennix-workflow-bootstrap` guided `discover` → `plan` → named `apply` →
-`verify`/`rollback`。
+随后由 `pennix-workflow-bootstrap` guided `discover` → named `install`/`upgrade`/`uninstall` →
+`verify`。
 Stage 0 的 current candidate 是启动事实，不是固定版本来源；Stage 1 的
 `component-versions.json` 仍是唯一静态版本源。
 
@@ -67,7 +66,7 @@ skills/pennix-workflow-bootstrap/
 ## Adapter 边界
 
 - `skills_install.py`：复用现有 source checkout 校验、submodule pin 检查和原子物化。
-- FastCtx：由 catalog 中的 pinned npm package action 直接部署。FastCtx normal Apply/TUI 与 bootstrap 都不
+- FastCtx：由 catalog 中的 pinned npm package 直接部署。FastCtx normal Apply/TUI 与 bootstrap 都不
   修改用户 `AGENTS.md`；静态模板是唯一工作流 guidance owner。
 - `codex_plugins.py`：只调用 Codex native plugin/marketplace JSON 命令。只在 marketplace 不存在时按
   catalog 的 source/ref 创建；已有 marketplace 的 ref 不可由 CLI inventory 证明时失败关闭。
@@ -78,28 +77,27 @@ skills/pennix-workflow-bootstrap/
 
 Stage 0 的 provider 配置使用 `requires_openai_auth = true` 和
 `cli_auth_credentials_store = "file"`，API key 通过 `auth.json.seed` 模板直接物化到
-`CODEX_HOME/auth.json`；key 不写入 `config.toml`、任务、receipt、输出或 Git。已有
+`CODEX_HOME/auth.json`；key 不写入 `config.toml`、任务、输出或 Git。已有
 `config.toml` 或 `auth.json` 时 Stage 0 不尝试合并，避免覆盖用户 provider、MCP、Hook 和静态
 控制面。
 
-系统安装 action 标记为 `system-installation`；Trellis、CodeGraph、AOE 的 CLI 可以由系统 action
-部署，但项目初始化 action 标记为 `project-initialize`，必须绑定明确 project root 并单独确认，
-不能由 seed 或 Skills installation 隐式执行。
+系统命令只管理全局组件；Trellis、CodeGraph、AOE 的 CLI 可以由系统 install/upgrade 部署，但项目初始化
+必须绑定明确 project root 并由原生命令执行，不能由 seed 或 Skills installation 隐式执行。
 
-Bootstrap 默认只做全局基线检查和项目可选动作计划；apply 需要显式 action 和 `--yes`，不因
-发现到缺失或 degraded 状态就自动修复。
+Bootstrap 默认只做全局基线检查；生命周期命令要求显式 component 和 `--yes`，不因发现到缺失或
+degraded 状态就自动修复。项目初始化不属于 bootstrap 命令面。
 
 ## 宿主与安装器边界
 
 首期只支持 Linux 上的 Arch Linux，宿主分类为 `native` 或 `wsl`。WSL 只有明确识别为
-WSL2 才通过写入前置检查；非 Arch、未知 WSL 版本和 WSL1 仍可只读发现，但所有 apply
-动作均为 `blocked`。宿主检测读取 `/etc/os-release`、`/proc/sys/kernel/osrelease` 和
+WSL2 才通过写入前置检查；非 Arch、未知 WSL 版本和 WSL1 仍可只读发现，但所有生命周期
+写入均为 `blocked`。宿主检测读取 `/etc/os-release`、`/proc/sys/kernel/osrelease` 和
 `/proc/version`，不读取用户凭据或运行态数据库。
 
-官方仓库安装器固定为 `pacman`；AUR 安装器优先选择已存在的 `yay`，没有时选择已存在的
-`paru`。缺少 AUR helper 时不自动从网络获取或执行构建脚本。组件若由上游 release、npm、
+生命周期包安装器优先选择已存在的 `yay`，没有时选择已存在的 `paru`，最后回退到 `pacman`；Stage 0 Codex 仍直接使用官方 `pacman`。
+缺少 AUR helper 时不自动从网络获取或执行构建脚本。组件若由上游 release、npm、
 Trellis native CLI 或其他 owner 管理，继续使用其 adapter；包名和版本没有官方/AUR证据时，
-不进入可执行 action。
+不进入可执行生命周期命令。
 
 guided bootstrap 在 Default 模式使用原生 `request_user_input`（由宿主会话工具清单决定），
 或在不可用时使用文本回退；两者都要求提问后停止当前 turn，下一 turn 才可继续。不得把
@@ -110,7 +108,7 @@ guided bootstrap 在 Default 模式使用原生 `request_user_input`（由宿主
 
 交互决策只发生在 `clarify`/`research`/`plan`/`plan-check` 或明确的 `grill-me` gate。当前宿主
 每批可承载 1–3 个问题；同 gate 且互不依赖的问题合批，答案会改变另一题选项、范围、风险、owner
-或验证路径的问题拆批。实现/apply 阶段不临时弹题：已有 task/spec 决策直接执行，影响安全、公开
+或验证路径的问题拆批。实现/生命周期执行阶段不临时弹题：已有 task/spec 决策直接执行，影响安全、公开
 接口、数据、部署边界或验收的未决灰区记录 `decision-needed` 并回到计划阶段。
 
 能力探测只看当前会话原生工具清单；嵌套工具编排目录（包括 `ALL_TOOLS`）不是原生工具
@@ -119,24 +117,22 @@ guided bootstrap 在 Default 模式使用原生 `request_user_input`（由宿主
 
 ## 上游安装器 inspection 合同
 
-上游脚本不是执行来源。对 catalog 标记 `upstream_inspection` 的组件，`plan --inspect-upstream` 才可以
-读取该组件登记的 HTTPS 文本；adapter 对大小、UTF-8、已知控制面和内容 SHA-256 进行验证，绝不执行该文本。
+上游脚本不是执行来源。对 catalog 标记 `upstream_inspection` 的组件，`install`/`upgrade` 在调用
+native owner 前读取该组件登记的 HTTPS 文本；adapter 对大小、UTF-8、已知控制面和内容 SHA-256 进行验证，绝不执行该文本。
 AoE 的当前控制面为 `INSTALL_DIR`，但默认 AUR package 不能表达它，因此该语义作为“不适用的自动决策”
 记录，不向用户提问。
 
 catalog 的 `decision_profile` 是固定问题和自动选择的唯一静态描述。只有该 profile 的已映射互斥选择会触发
 中文原生问题；固定 workflow 偏好、可唯一推导的安装器和不适用选项不问。inspection 新增可配置环境变量、
-命令行参数解析或无法识别的发布解析时统一为 `upstream-contract-changed`：停止该 action、记录证据并返回
-planning，不能执行上游脚本或猜测其选项。
+命令行参数解析或无法识别的发布解析时统一为 `upstream-contract-changed`：停止该生命周期操作、记录证据并请求重新决策，不能执行上游脚本或猜测其选项。
 
-reviewed plan 输出的 SHA-256 必须通过 `--upstream-inspection-digest` 显式带入该组件 apply receipt；apply
-不访问也不解释上游内容。package manager 为实现已封存的 package action 所做的原生仓库访问不属于 upstream
-inspection。
+upstream inspection 不写入本地状态；每次 `install`/`upgrade` 都在调用 package manager 前重新验证该
+固定 URL 的已知控制面。package manager 的原生仓库访问不属于 upstream inspection。
 
 ## 静态注入
 
 `bootstrap.py` 只在用户级 `AGENTS.md` 不存在时物化完整静态模板。已存在的文件必须完整匹配模板
-才是 no-op；任何其他内容、symlink 或 hash 不匹配的 rollback 都失败关闭。FastCtx 不拥有也不注入
+才是 no-op；任何其他内容或 symlink 的卸载都失败关闭。FastCtx 不拥有也不注入
 其中任何 marker。不得读取或复制 secret、session、database、log、cache、lock 或完整
 `config.toml`/`hooks.json`。
 

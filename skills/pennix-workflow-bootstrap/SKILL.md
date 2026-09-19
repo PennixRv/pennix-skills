@@ -1,6 +1,6 @@
 ---
 name: pennix-workflow-bootstrap
-description: Guided deployment entry for the Pennix Codex workflow. Use when the user explicitly asks to bootstrap, inspect, plan, apply, verify, or roll back workflow components; keep project actions plan-only unless separately approved.
+description: Guided lifecycle entry for the Pennix Codex workflow. Use when the user explicitly asks to inspect, install, upgrade, uninstall, or verify workflow components.
 metadata:
   short-description: Bootstrap the Pennix workflow safely
 ---
@@ -39,20 +39,20 @@ The seed refuses to overwrite an existing `CODEX_HOME/config.toml` or
 `CODEX_HOME/auth.json`. It does not clone or execute remote Pennix source,
 write the key to TOML, print the key, or add the current package candidate to
 the fixed component catalog. After a new Codex session starts, install Pennix
-Skills, then let bootstrap plan the remaining system installation actions.
+Skills, then use bootstrap for the remaining system lifecycle actions.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
-Arch Linux under WSL2. `pacman` handles official repository packages. For AUR
-packages, prefer an already-installed `yay`, then fall back to `paru`.
-Bootstrap does not install an AUR helper, guess package names, or force
-independent/forked components through a package manager. Non-Arch hosts and
-unknown/WSL1 environments are discoverable but all write actions are blocked.
+Arch Linux under WSL2. Lifecycle package actions prefer an already-installed
+`yay`, then `paru`, and finally `pacman`; Stage 0 Codex installation uses the
+official `pacman` path directly. Bootstrap does not install an AUR helper,
+guess package names, or force independent/forked components through a package
+manager. Non-Arch hosts and unknown/WSL1 environments are discoverable but all
+write actions are blocked.
 
-After the seed, the system-installation actions are read-only `discover` →
-read-only `plan` → explicit named actions with `apply --action <name> --yes` →
-fresh `verify`. The plan marks these actions with `category=system-installation`:
-Pennix Skills installation, installation-phase `config.toml` fields from
-`templates/config.toml.install`, and the tracked `AGENTS.md.install` template.
+After the seed, the system-installation lifecycle is direct and component-scoped:
+`discover` → `install|upgrade|uninstall --component <name> --yes` → fresh `verify`.
+The supported static components are `pennix-skills`, `codex-config`, and
+`codex-agents`; catalog keys address package and plugin components.
 The Skills source must be a clean, explicit Git checkout; the installer atomically
 replaces only its managed `skills/pennix-skills` destination and rejects symbolic-link
 paths or an unrelated file at that destination.
@@ -70,23 +70,16 @@ workflow-owned guidance source.
 
 CCH and Tavily Hikari are catalogued for version discovery, but their endpoint/token
 configuration remains under their native or external owners. A missing CCH installation
-or Hikari CLI is therefore reported as a plan-only native-owner action, not installed
-with guessed credentials or copied host configuration. OpenViking plugin installation
-similarly verifies Codex plugin presence; remote server configuration and health remain
-outside local bootstrap apply.
+or Hikari CLI is therefore not installed with guessed credentials or copied host
+configuration. OpenViking plugin installation similarly verifies Codex plugin presence;
+remote server configuration and health remain outside local bootstrap.
 
 ### 上游安装器与提问
 
-对 catalog 含 `upstream_inspection` 的组件，planning gate 必须显式运行：
-
-```bash
-python3 "/path/to/pennix-skills/skills/pennix-workflow-bootstrap/scripts/bootstrap.py" \
-  plan --inspect-upstream
-```
-
-该操作只读取 catalog 指定的 HTTPS 文本，限制大小、计算 SHA-256，并用组件专属 parser 检查已知的
-安装控制面；它绝不执行下载内容。plan 将 inspection 的 URL、digest、状态和可适用性放进对应 action。
-`upstream-contract-changed` 或 `unavailable` 会阻断该组件，不得以“继续执行上游脚本”绕过。
+对 catalog 含 `upstream_inspection` 的组件，`install` 和 `upgrade` 会在调用原生 owner
+前读取 catalog 指定的 HTTPS 文本，限制大小、计算 SHA-256，并用组件专属 parser 检查已知的
+安装控制面；它绝不执行下载内容。`upstream-contract-changed` 或 `unavailable` 会阻断该组件，
+不得以“继续执行上游脚本”绕过。
 
 提问候选只来自 catalog 的 `decision_profile` 和 inspection 已知语义。已有工作流偏好、可唯一推导的
 package manager、固定版本和不适用于选定交付方式的上游选项均自动记录而不提问。只有互斥答案会改变
@@ -95,31 +88,25 @@ package manager、固定版本和不适用于选定交付方式的上游选项�
 
 ### 项目初始化
 
-Trellis, CodeGraph, and AOE binaries may be installed by system actions, but
-their project initialization is a separate `category=project-initialize` plan.
-It requires `plan --project-root /absolute/project/path`; it may create `.trellis/`,
-`codegraph.json`, indexes, or project workflow assets only after a separate
-confirmation. It must never run as a side effect of the seed or Skills install.
+Trellis, CodeGraph, and AOE binaries may be installed or upgraded by their
+catalog component key, but project initialization remains a separate native
+operation. Bootstrap never creates `.trellis/`, `codegraph.json`, indexes, or
+project workflow assets as a side effect of a system lifecycle command.
 
-During Trellis planning or an explicit `grill-me` gate, show the component key,
-source/ref from the catalog, target, risk, precondition, postcondition, and
-rollback receipt. Use Codex's native `request_user_input` directly when it is
+Before a direct lifecycle command, show the component key, source/ref from the
+catalog, target, risk, and expected owner operation. Use Codex's native `request_user_input` directly when it is
 present in the current session. Do not
 probe for it through `functions.exec`, nested `tools.*`, `ALL_TOOLS`, shell, or
 MCP. A schema error may be corrected and retried once; host refusal,
 cancellation, timeout, or unavailable native interaction falls back to text and
 stops the turn. Never auto-select the recommendation. Batch independent
 decisions from the same gate when the host allows it; keep dependent decisions
-separate. During implementation or apply, do not ask a new question: use the
-sealed task/spec decision, or record `decision-needed` and return to planning if
-the ambiguity is material.
-
-For an upstream-inspected component, carry the SHA-256 emitted by the immediately reviewed plan into the named
-apply action with `--upstream-inspection-digest <sha256>`. This is an explicit binding to the reviewed evidence;
-`apply` does not retrieve or interpret upstream installer content.
+separate. During implementation, do not ask a new question: use the sealed
+task/spec decision, or record `decision-needed` if the ambiguity is material.
 
 All component versions and refs come from `references/component-versions.json`.
 Do not add a second version table to this Skill or to an adapter. Do not print
 secret values, full configuration, sessions, databases, logs, caches, locks, or
-runtime state. `rollback` accepts only a receipt created by this bootstrap and
-stops if the target hash has drifted.
+runtime state. `uninstall` only removes exact bootstrap-owned files, an exact
+Pennix Skills collection, or a package/plugin through its native owner; drifted
+content is left untouched.
