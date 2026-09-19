@@ -6,5 +6,7 @@
 - 回归覆盖：旧 `plan` 命令被拒绝；`install`/`upgrade`/`uninstall` 都要求具名 component 和 `--yes`；
   static config/AGENTS 的 install/uninstall 幂等；drifted 模板拒绝卸载；package、plugin、Skills collection
   的 native-owner 升级/卸载路径；上游 inspection 在 package manager 前失败关闭。
-- `discover`/`verify` 保持只读；未执行真实 host lifecycle 写入，也未替换当前 `/home/penn/.codex`
-  安装副本。source collection check、发布和根集成验收在本轮 source commit 后重跑。
+- `discover`/`verify` 保持只读；未执行真实 host component lifecycle 写入，也未修改 config/auth/AGENTS。
+- commit `cff7381` 已推送到 `origin/task/fastctx-guidance-release`；clean source collection check 通过，根集成
+  `13/13` 通过，并已用新入口将 Skills 副本安装到 `/home/penn/.codex`。已安装副本的帮助面确认不再包含
+  `plan`、`apply` 或 `rollback`。
