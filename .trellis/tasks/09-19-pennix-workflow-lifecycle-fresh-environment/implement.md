@@ -6,8 +6,8 @@
 3. [x] Add focused regression tests and update the lifecycle Skill wording.
 4. [x] Run the lifecycle unit suite, shell syntax checks, and a read-only discover
    against the current host.
-5. [ ] Commit and push the source branch; install the resulting collection through
+5. [x] Commit and push the source branch; install the resulting collection through
    the lifecycle adapter.
-6. [ ] Upgrade only verified package-owned local components; preserve protected
+6. [x] Upgrade only verified package-owned local components; preserve protected
    user configuration and unmanaged files, and record that evidence in the
    root task.
