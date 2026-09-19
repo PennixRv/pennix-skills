@@ -283,6 +283,16 @@ def npm_owner_for_command(command: str) -> str | None:
     return name if isinstance(name, str) and PACKAGE_NAME.fullmatch(name) else None
 
 
+def package_command(component: dict[str, Any], command: list[str]) -> list[str]:
+    if component.get("package", {}).get("source") != "npm":
+        return command
+    root = npm_global_root()
+    if root is None:
+        return command
+    probe = root if root.exists() else root.parent
+    return ["sudo", *command] if not os.access(probe, os.W_OK) else command
+
+
 def probe_component(
     component: dict[str, Any],
     codex_home: Path | None = None,
@@ -591,7 +601,10 @@ def component_operation(
         elif package_name not in installed_npm_packages():
             raise BootstrapError(f"{key} is not owned by {package_name}")
         try:
-            result = subprocess.run(host.package_remove_command(installer, package_name), check=False)
+            result = subprocess.run(
+                package_command(metadata, host.package_remove_command(installer, package_name)),
+                check=False,
+            )
         except (OSError, ValueError) as error:
             raise BootstrapError(f"package manager could not start: {error}") from error
         if result.returncode:
@@ -657,7 +670,7 @@ def component_operation(
         if replacement_owner:
             try:
                 result = subprocess.run(
-                    host.package_remove_command(installer, replacement_owner),
+                    package_command(metadata, host.package_remove_command(installer, replacement_owner)),
                     check=False,
                 )
             except (OSError, ValueError) as error:
@@ -666,7 +679,10 @@ def component_operation(
                 raise BootstrapError(f"replacement owner removal failed ({result.returncode})")
         install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
         try:
-            result = subprocess.run(host.package_install_command(installer, install_name, registry), check=False)
+            result = subprocess.run(
+                package_command(metadata, host.package_install_command(installer, install_name, registry)),
+                check=False,
+            )
         except (OSError, ValueError) as error:
             raise BootstrapError(f"package manager could not start: {error}") from error
         if result.returncode:

@@ -245,6 +245,7 @@ class BootstrapTests(unittest.TestCase):
             patch.object(bootstrap.host, "detect_host", return_value=host_state),
             patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("match", "2.0.0")]),
             patch.object(bootstrap, "installed_npm_packages", side_effect=[{"fastctx": "1.0.0"}, {"fastctx": "1.0.0"}]),
+            patch.object(bootstrap, "npm_global_root", return_value=None),
             patch.object(bootstrap, "npm_owner_for_command", return_value="fastctx"),
             patch.object(bootstrap, "package_candidate_version", return_value="2.0.0"),
             patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fastctx"),
@@ -256,6 +257,17 @@ class BootstrapTests(unittest.TestCase):
             )
         self.assertEqual(run.call_args_list[0].args[0], ["npm", "uninstall", "--global", "fastctx"])
         self.assertEqual(run.call_args_list[1].args[0][-1], "@example/fastctx@2.0.0")
+
+    def test_system_npm_root_uses_sudo_for_package_actions(self) -> None:
+        component = {"package": {"source": "npm"}}
+        with (
+            patch.object(bootstrap, "npm_global_root", return_value=Path("/usr/lib/node_modules")),
+            patch.object(bootstrap.os, "access", return_value=False),
+        ):
+            self.assertEqual(
+                bootstrap.package_command(component, ["npm", "install", "--global", "pkg"]),
+                ["sudo", "npm", "install", "--global", "pkg"],
+            )
 
     def test_unmanaged_package_owner_is_blocked(self) -> None:
         component = {
