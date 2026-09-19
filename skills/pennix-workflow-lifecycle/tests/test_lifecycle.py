@@ -268,6 +268,10 @@ class BootstrapTests(unittest.TestCase):
                 bootstrap.package_command(component, ["npm", "install", "--global", "pkg"]),
                 ["sudo", "npm", "install", "--global", "pkg"],
             )
+            self.assertEqual(
+                bootstrap.package_command({"source": "npm"}, ["npm", "uninstall", "--global", "pkg"]),
+                ["sudo", "npm", "uninstall", "--global", "pkg"],
+            )
 
     def test_unmanaged_package_owner_is_blocked(self) -> None:
         component = {

@@ -284,7 +284,8 @@ def npm_owner_for_command(command: str) -> str | None:
 
 
 def package_command(component: dict[str, Any], command: list[str]) -> list[str]:
-    if component.get("package", {}).get("source") != "npm":
+    package = component.get("package", component)
+    if package.get("source") != "npm":
         return command
     root = npm_global_root()
     if root is None:
