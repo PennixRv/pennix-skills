@@ -3,21 +3,22 @@
   "components": {
     "codex-cli": {
       "delivery": "package",
-      "approved_version": "0.155.0",
-      "source": "Arch Linux Extra package",
+      "approved_version": "0.155.1",
+      "source": "AUR openai-codex-bin package",
       "owner": "codex",
       "scope": "global",
       "verify_key": "codex --version",
       "actions": {"install": "managed", "configure": "not-applicable", "upgrade": "managed", "uninstall": "managed", "verify": "managed"},
       "project_init": "not-applicable",
-      "conflicts": ["openai-codex-bin"],
+      "conflicts": [],
+      "replaces": ["openai-codex"],
       "probe": "codex",
       "version_args": ["--version"],
-      "package": {"source": "official", "name": "openai-codex"}
+      "package": {"source": "aur", "name": "openai-codex-bin"}
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.6.39",
+      "approved_version": "0.6.41",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -30,7 +31,7 @@
     },
     "fastctx": {
       "delivery": "package",
-      "approved_version": "0.2.8",
+      "approved_version": "0.2.21",
       "source": "PennixRv/fastctx npm package",
       "owner": "fastctx",
       "scope": "global",
@@ -39,6 +40,7 @@
       "project_init": "not-applicable",
       "probe": "fastctx",
       "version_args": ["--version"],
+      "replaces": ["fastctx"],
       "package": {"source": "npm", "name": "@pennixrv/fastctx", "registry": "https://registry.npmjs.org/"}
     },
     "codegraph-cli": {

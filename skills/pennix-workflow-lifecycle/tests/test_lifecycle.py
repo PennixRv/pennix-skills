@@ -78,6 +78,30 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn("components", json.loads(verify.stdout))
             self.assertFalse((root / "codex").exists())
 
+    def test_discover_reports_catalog_candidate_and_actual_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog = bootstrap.load_catalog(self.catalog(root))
+            args = SimpleNamespace(
+                catalog=self.catalog(root),
+                codex_home=root / "codex",
+                source=SOURCE_ROOT,
+                destination=None,
+            )
+            with (
+                patch.object(bootstrap, "probe_component", return_value=("drifted", "1.0.0")),
+                patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+                patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+                patch.object(bootstrap.host, "detect_host", return_value={"installers": {"official": "pacman"}}),
+                patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
+            ):
+                inventory = bootstrap.discover(args, catalog)
+            fixture = inventory["components"]["fixture"]
+            self.assertEqual(fixture["catalog_version"], "1.2.3")
+            self.assertEqual(fixture["candidate_version"], "1.2.3")
+            self.assertEqual(fixture["observed_package"], "fixture-package")
+            self.assertEqual(fixture["target_package"], "fixture-package")
+
     def test_verify_reports_match_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -106,6 +130,15 @@ class BootstrapTests(unittest.TestCase):
         with self.assertRaisesRegex(bootstrap.BootstrapError, "requires --yes"):
             bootstrap.run_lifecycle(args, catalog)
 
+    def test_final_version_is_used_after_an_update_notice(self) -> None:
+        self.assertEqual(
+            bootstrap.normalize_version("update available: 0.6.39 -> 0.6.41\n0.6.41"),
+            "0.6.41",
+        )
+
+    def test_configure_is_a_supported_command(self) -> None:
+        self.assertEqual(bootstrap.parse_args(["configure"]).command, "configure")
+
     def test_static_install_upgrade_and_uninstall_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -118,6 +151,7 @@ class BootstrapTests(unittest.TestCase):
             config_component = {"adapter": "codex-config"}
             agents_component = {"adapter": "codex-agents"}
             self.assertEqual(bootstrap.static_operation(args, "codex-config", config_component, "install"), "changed")
+            self.assertEqual(bootstrap.static_operation(args, "codex-config", config_component, "configure"), "no-op")
             self.assertEqual(bootstrap.static_operation(args, "codex-config", config_component, "upgrade"), "no-op")
             self.assertEqual(bootstrap.static_operation(args, "codex-config", config_component, "uninstall"), "changed")
             self.assertEqual(bootstrap.codex_static.config_state(config.read_text(encoding="utf-8")), "seeded")
@@ -193,7 +227,52 @@ class BootstrapTests(unittest.TestCase):
     def test_default_catalog_accepts_scoped_npm_packages(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         self.assertEqual(catalog["components"]["fastctx"]["package"]["name"], "@pennixrv/fastctx")
+        self.assertEqual(catalog["components"]["fastctx"]["replaces"], ["fastctx"])
+        self.assertEqual(catalog["components"]["codex-cli"]["package"]["source"], "aur")
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
+
+    def test_npm_replacement_is_removed_before_install(self) -> None:
+        component = {
+            "approved_version": "2.0.0",
+            "probe": "fastctx",
+            "version_args": ["--version"],
+            "package": {"source": "npm", "name": "@example/fastctx", "registry": "https://registry.npmjs.org/"},
+            "replaces": ["fastctx"],
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), source=SOURCE_ROOT)
+        host_state = {"supported": True, "installers": {"npm": "npm"}}
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value=host_state),
+            patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("match", "2.0.0")]),
+            patch.object(bootstrap, "installed_npm_packages", side_effect=[{"fastctx": "1.0.0"}, {"fastctx": "1.0.0"}]),
+            patch.object(bootstrap, "npm_owner_for_command", return_value="fastctx"),
+            patch.object(bootstrap, "package_candidate_version", return_value="2.0.0"),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fastctx"),
+            patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+        ):
+            self.assertEqual(
+                bootstrap.component_operation(args, {"components": {}}, "fastctx", component, "upgrade"),
+                "changed",
+            )
+        self.assertEqual(run.call_args_list[0].args[0], ["npm", "uninstall", "--global", "fastctx"])
+        self.assertEqual(run.call_args_list[1].args[0][-1], "@example/fastctx@2.0.0")
+
+    def test_unmanaged_package_owner_is_blocked(self) -> None:
+        component = {
+            "approved_version": "1.2.3",
+            "probe": "fixture",
+            "version_args": ["--version"],
+            "package": {"source": "official", "name": "fixture-package"},
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), source=SOURCE_ROOT)
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"official": "pacman"}}),
+            patch.object(bootstrap, "probe_component", return_value=("drifted", "1.0.0")),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(bootstrap, "installed_package_owner", return_value="unrelated-package"),
+            self.assertRaisesRegex(bootstrap.BootstrapError, "unmanaged package"),
+        ):
+            bootstrap.component_operation(args, {"components": {}}, "fixture", component, "upgrade")
 
     def test_catalog_contains_static_components_and_capabilities(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)

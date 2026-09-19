@@ -50,7 +50,10 @@ manager. Non-Arch hosts and unknown/WSL1 environments are discoverable but all
 write actions are blocked.
 
 After the seed, the system-installation lifecycle is direct and component-scoped:
-`discover` → `install|upgrade|uninstall --component <name> --yes` → fresh `verify`.
+`discover` → `install|configure|upgrade|uninstall --component <name> --yes` → fresh
+`verify`. `discover` is read-only and reports the catalog target, observed
+version, actual package owner, and repository candidate; it never writes the
+catalog or applies a candidate.
 The supported static components are `pennix-skills`, `codex-config`, and
 `codex-agents`; catalog keys address package and plugin components.
 The Skills source must be a clean, explicit Git checkout; the installer atomically
@@ -59,7 +62,12 @@ paths or an unrelated file at that destination.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
 user model, security, UI, or history preferences. Catalog package actions install
-only a matching fixed candidate. Catalog plugin actions use Codex's native plugin
+only a matching fixed candidate. A catalog `replaces` entry is the complete
+allow-list for a known package-owner migration (for example the unscoped
+`fastctx` npm package to `@pennixrv/fastctx`); the old owner is removed through
+the same native package manager before installation. An unlisted or
+unverifiable command owner blocks the operation and is never deleted
+automatically. Catalog plugin actions use Codex's native plugin
 lifecycle only when the target marketplace is absent; an existing marketplace whose
 ref cannot be verified is blocked rather than modified. If the subsequent plugin add
 fails, lifecycle removes the marketplace it just created only when native inventory

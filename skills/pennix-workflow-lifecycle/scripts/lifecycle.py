@@ -162,6 +162,11 @@ def load_catalog(path: Path) -> dict[str, Any]:
             isinstance(name, str) and PACKAGE_NAME.fullmatch(name) for name in conflicts
         ):
             raise BootstrapError(f"catalog conflicts metadata is invalid: {key}")
+        replaces = component.get("replaces", [])
+        if not isinstance(replaces, list) or not all(
+            isinstance(name, str) and PACKAGE_NAME.fullmatch(name) for name in replaces
+        ):
+            raise BootstrapError(f"catalog replacement metadata is invalid: {key}")
         native_owner_reason = component.get("native_owner_reason")
         if native_owner_reason is not None and (
             not isinstance(native_owner_reason, str) or not native_owner_reason.strip()
@@ -175,8 +180,8 @@ def load_catalog(path: Path) -> dict[str, Any]:
 
 
 def normalize_version(raw: str) -> str | None:
-    match = VERSION_RE.search(raw.replace("_", ""))
-    return match.group(1) if match else None
+    matches = VERSION_RE.findall(raw.replace("_", ""))
+    return matches[-1] if matches else None
 
 
 def parse_package_owner(output: str) -> str | None:
@@ -205,12 +210,16 @@ def installed_package_owner(command: str) -> str | None:
 
 
 def installed_npm_version(package: str) -> str | None:
+    return installed_npm_packages().get(package)
+
+
+def installed_npm_packages() -> dict[str, str]:
     npm = shutil.which("npm")
     if not npm:
-        return None
+        return {}
     try:
         result = subprocess.run(
-            [npm, "list", "--global", "--depth=0", "--json", package],
+            [npm, "list", "--global", "--depth=0", "--json"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -218,15 +227,60 @@ def installed_npm_version(package: str) -> str | None:
             env={**os.environ, "LC_ALL": "C"},
         )
     except (OSError, subprocess.TimeoutExpired):
+        return {}
+    try:
+        dependencies = json.loads(result.stdout).get("dependencies", {})
+    except (AttributeError, json.JSONDecodeError):
+        return {}
+    return {
+        name: metadata["version"]
+        for name, metadata in dependencies.items()
+        if isinstance(name, str) and isinstance(metadata, dict) and isinstance(metadata.get("version"), str)
+    }
+
+
+def npm_global_root() -> Path | None:
+    npm = shutil.which("npm")
+    if not npm:
+        return None
+    try:
+        result = subprocess.run(
+            [npm, "root", "--global"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode:
         return None
-    try:
-        dependencies = json.loads(result.stdout).get("dependencies", {})
-        version = dependencies.get(package, {}).get("version")
-    except (AttributeError, json.JSONDecodeError):
+    root = (result.stdout or "").strip()
+    return Path(root).resolve() if root else None
+
+
+def npm_owner_for_command(command: str) -> str | None:
+    root = npm_global_root()
+    if root is None:
         return None
-    return version if isinstance(version, str) else None
+    try:
+        relative = Path(command).resolve().relative_to(root)
+    except (OSError, ValueError):
+        return None
+    parts = relative.parts
+    if not parts:
+        return None
+    package_root = root / parts[0]
+    if parts[0].startswith("@"):
+        if len(parts) < 2:
+            return None
+        package_root = root / parts[0] / parts[1]
+    try:
+        metadata = json.loads((package_root / "package.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    name = metadata.get("name")
+    return name if isinstance(name, str) and PACKAGE_NAME.fullmatch(name) else None
 
 
 def probe_component(
@@ -304,13 +358,16 @@ def probe_component(
     expected = normalize_version(str(component["approved_version"]))
     status = "match" if observed == expected else "drifted"
     package = component.get("package")
-    if (
-        status == "match"
-        and isinstance(package, dict)
-        and package.get("source") != "npm"
-        and installed_package_owner(command) != package["name"]
-    ):
-        status = "drifted"
+    if status == "match" and isinstance(package, dict):
+        owner = (
+            npm_owner_for_command(command)
+            if package.get("source") == "npm"
+            else installed_package_owner(command)
+        )
+        if owner is None and package.get("source") == "npm":
+            status = "unknown"
+        elif owner != package["name"]:
+            status = "drifted"
     return status, observed
 
 
@@ -322,18 +379,32 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
         )
         package = component.get("package")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
-        observed_package = (
-            installed_package_owner(command)
-            if isinstance(package, dict) and package.get("source") != "npm" and command
-            else (
-                package["name"]
-                if isinstance(package, dict) and package.get("source") == "npm" and status != "missing"
-                else None
-            )
-        )
+        observed_package = None
+        candidate_version = None
+        target_package = None
+        candidate_owner = None
+        if isinstance(package, dict):
+            target_package = package["name"]
+            candidate_owner = package["source"]
+            if package.get("source") == "npm":
+                observed_package = npm_owner_for_command(command) if command else None
+                if observed_package is None:
+                    installed = installed_npm_packages()
+                    for name in [target_package, *component.get("replaces", [])]:
+                        if name in installed:
+                            observed_package = name
+                            break
+            elif command:
+                observed_package = installed_package_owner(command)
+            host_info = host.detect_host()
+            installer = host_info.get("installers", {}).get(package.get("source"))
+            if isinstance(installer, str):
+                candidate_version = package_candidate_version(installer, target_package, package.get("registry"))
         components[key] = {
             "status": status,
             "observed_version": observed,
+            "catalog_version": component.get("approved_version"),
+            "candidate_version": candidate_version,
             "owner": component["owner"],
             "scope": component["scope"],
             "verify_key": component["verify_key"],
@@ -341,6 +412,8 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "actions": component["actions"],
             "project_init": component["project_init"],
             "observed_package": observed_package,
+            "target_package": target_package,
+            "candidate_owner": candidate_owner,
         }
     source = args.source
     source_ready = (source / "skills" / "pennix-workflow-lifecycle" / "SKILL.md").is_file()
@@ -409,6 +482,9 @@ def package_candidate_version(installer: str, package: str, registry: str | None
         return None
     if result.returncode:
         return None
+    if installer != "npm":
+        version = re.search(r"(?m)^\s*Version\s*:\s*(\S+)", result.stdout)
+        return normalize_version(version.group(1)) if version else None
     return normalize_version(result.stdout)
 
 
@@ -509,7 +585,10 @@ def component_operation(
         if not isinstance(installer, str) or not isinstance(package_name, str):
             raise BootstrapError(f"{key} has no supported package uninstall")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
-        if metadata.get("source") != "npm" and command and installed_package_owner(command) != package_name:
+        if metadata.get("source") != "npm":
+            if command and installed_package_owner(command) != package_name:
+                raise BootstrapError(f"{key} is not owned by {package_name}")
+        elif package_name not in installed_npm_packages():
             raise BootstrapError(f"{key} is not owned by {package_name}")
         try:
             result = subprocess.run(host.package_remove_command(installer, package_name), check=False)
@@ -546,8 +625,26 @@ def component_operation(
         if not isinstance(installer, str) or not isinstance(package_name, str):
             raise BootstrapError(f"{key} has no supported package installer")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
-        if command and installed_package_owner(command) in component.get("conflicts", []):
-            raise BootstrapError("installed command is owned by a conflicting package")
+        replacements = component.get("replaces", [])
+        replacement_owner = None
+        if metadata.get("source") == "npm":
+            installed = installed_npm_packages()
+            replacement_owner = next((name for name in replacements if name in installed), None)
+            if command:
+                command_owner = npm_owner_for_command(command)
+                if command_owner not in {None, package_name, *replacements}:
+                    raise BootstrapError(f"installed command is owned by unmanaged npm package {command_owner}")
+                if command_owner is None and package_name not in installed and replacement_owner is None:
+                    raise BootstrapError("installed command has no verifiable npm owner")
+        elif command:
+            command_owner = installed_package_owner(command)
+            if command_owner in component.get("conflicts", []):
+                raise BootstrapError("installed command is owned by a conflicting package")
+            replacement_owner = command_owner if command_owner in replacements else None
+            if command_owner is None and status != "missing":
+                raise BootstrapError("installed command has no verifiable package owner")
+            if command_owner not in {None, package_name, *replacements}:
+                raise BootstrapError(f"installed command is owned by unmanaged package {command_owner}")
         expected = normalize_version(str(component["approved_version"]))
         if (
             metadata.get("source") == "npm"
@@ -557,6 +654,16 @@ def component_operation(
             raise BootstrapError("installed npm package does not provide an effective matching command")
         if package_candidate_version(installer, package_name, registry) != expected:
             raise BootstrapError("repository candidate does not match catalog")
+        if replacement_owner:
+            try:
+                result = subprocess.run(
+                    host.package_remove_command(installer, replacement_owner),
+                    check=False,
+                )
+            except (OSError, ValueError) as error:
+                raise BootstrapError(f"package manager could not remove replacement owner: {error}") from error
+            if result.returncode:
+                raise BootstrapError(f"replacement owner removal failed ({result.returncode})")
         install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
         try:
             result = subprocess.run(host.package_install_command(installer, install_name, registry), check=False)
@@ -594,7 +701,7 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("discover", "install", "upgrade", "uninstall", "verify"))
+    parser.add_argument("command", choices=("discover", *ACTION_NAMES))
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--source", type=Path, default=SCRIPT_ROOT.parents[2])
