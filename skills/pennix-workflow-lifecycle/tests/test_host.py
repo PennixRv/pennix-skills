@@ -50,11 +50,11 @@ class HostTests(unittest.TestCase):
     def test_package_commands_preserve_owner_confirmation(self) -> None:
         self.assertEqual(
             host.package_install_command("pacman", "openai-codex"),
-            ["sudo", "pacman", "-S", "--needed", "openai-codex"],
+            ["sudo", "pacman", "-S", "--needed", "--noconfirm", "openai-codex"],
         )
         self.assertEqual(
             host.package_install_command("yay", "codegraph-bin"),
-            ["yay", "-S", "--needed", "codegraph-bin"],
+            ["yay", "-S", "--needed", "--noconfirm", "codegraph-bin"],
         )
         self.assertEqual(
             host.package_install_command("npm", "@example/fixture@1.2.3", "https://registry.npmjs.org/"),
@@ -71,7 +71,7 @@ class HostTests(unittest.TestCase):
         )
         self.assertEqual(
             host.package_remove_command("pacman", "openai-codex"),
-            ["sudo", "pacman", "-R", "openai-codex"],
+            ["sudo", "pacman", "-R", "--noconfirm", "openai-codex"],
         )
         self.assertEqual(
             host.package_remove_command("npm", "@example/fixture"),

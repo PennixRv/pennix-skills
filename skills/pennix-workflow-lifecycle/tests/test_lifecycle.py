@@ -196,7 +196,7 @@ class BootstrapTests(unittest.TestCase):
                 bootstrap.component_operation(args, {"components": {}}, "fixture", component, "upgrade"),
                 "changed",
             )
-        self.assertEqual(run.call_args.args[0], ["sudo", "pacman", "-S", "--needed", "fixture-package"])
+        self.assertEqual(run.call_args.args[0], ["sudo", "pacman", "-S", "--needed", "--noconfirm", "fixture-package"])
 
         with (
             patch.object(bootstrap.host, "detect_host", return_value=host_state),
@@ -209,7 +209,7 @@ class BootstrapTests(unittest.TestCase):
                 bootstrap.component_operation(args, {"components": {}}, "fixture", component, "uninstall"),
                 "changed",
             )
-        self.assertEqual(run.call_args.args[0], ["sudo", "pacman", "-R", "fixture-package"])
+        self.assertEqual(run.call_args.args[0], ["sudo", "pacman", "-R", "--noconfirm", "fixture-package"])
 
     def test_component_operation_refuses_an_unknown_state(self) -> None:
         component = {

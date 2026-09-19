@@ -9,6 +9,8 @@
   skills/pennix-workflow-lifecycle/scripts/host.py
   skills/pennix-workflow-lifecycle/scripts/adapters/*.py` — passed.
 - `git diff --check` — passed.
+- Package installs/removals pass `--noconfirm` for pacman/yay/paru, so an
+  explicit lifecycle `--yes` cannot hang on the AUR clean-build prompt.
 
 ## Host evidence
 
