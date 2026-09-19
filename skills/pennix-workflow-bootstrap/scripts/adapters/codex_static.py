@@ -144,7 +144,7 @@ def apply_config(path: Path) -> tuple[str, str]:
 def template_state(path: Path, template_name: str = "AGENTS.md.install") -> str:
     contents = read(path)
     if not contents:
-        return "absent"
+        return "absent" if not path.exists() else "drifted"
     return "current" if contents == template(template_name) else "drifted"
 
 

@@ -136,6 +136,29 @@ class BootstrapTests(unittest.TestCase):
             )
             self.assertEqual(template_action["mode"], "plan-only")
 
+    def test_empty_agents_file_is_not_treated_as_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            agents = root / "codex" / "AGENTS.md"
+            agents.parent.mkdir()
+            agents.touch()
+            planned = self.run_cli(root, "plan")
+            self.assertEqual(planned.returncode, 0, planned.stderr)
+            template_action = next(
+                item for item in json.loads(planned.stdout)["actions"] if item["id"] == "codex-agents-install"
+            )
+            self.assertEqual(template_action["mode"], "plan-only")
+            applied = self.run_cli(
+                root,
+                "apply",
+                "--action",
+                "codex-agents-install",
+                "--yes",
+            )
+            self.assertNotEqual(applied.returncode, 0)
+            self.assertTrue(agents.exists())
+            self.assertEqual(agents.read_text(encoding="utf-8"), "")
+
     def test_config_template_is_materialized_after_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -1,6 +1,6 @@
 # 源码验收记录
 
-- `python3 -m unittest discover -s skills/pennix-workflow-bootstrap/tests -v`：65 项通过。
+- `python3 -m unittest discover -s skills/pennix-workflow-bootstrap/tests -v`：66 项通过；新增空 `AGENTS.md` 拒绝覆盖回归。
 - CI 同形 `find skills -path '*/tests/test_*.py' ... | xargs -0 -n1 python3`：10 个 Python
   Skill 测试模块通过。
 - `bash -n scripts/seed-arch.sh`、`py_compile bootstrap.py host.py codex_static.py codex_plugins.py`
@@ -13,3 +13,4 @@
   安装副本，也未执行真实 host apply，因此 apply receipt 和新会话验证仍是后续部署验收项。
 - 当前主机的只读 plan 已复核：package conflict、npm inventory/命令不一致、未发布 npm candidate 都是
   `blocked`，不是可执行 action；缺少 CCH/Hikari 时是 native-owner plan-only，不猜端点或凭据。
+- 空但已存在的用户 `AGENTS.md` 现在分类为 `drifted`，不会被误判为缺失并覆盖。

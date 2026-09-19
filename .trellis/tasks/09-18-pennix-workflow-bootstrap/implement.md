@@ -47,7 +47,7 @@
 
 ## 本轮验证记录
 
-- 65 项 bootstrap/adapters 测试通过；覆盖已有配置或 `auth.json` 拒绝、`openai-codex-bin`
+- 66 项 bootstrap/adapters 测试通过；覆盖空 `AGENTS.md` 拒绝覆盖、已有配置或 `auth.json` 拒绝、`openai-codex-bin`
   冲突包、`CODEX_HOME` 与安装目标符号链接、非目录目标、dirty source checkout、npm 命令冲突、
   原生 plugin 半失败的 marketplace 补偿，以及 zsh 调用 Bash shebang。
 - `bash -n` 和 Python 编译通过。source collection check 与 `git diff --check` 在 source commit 后重跑，
