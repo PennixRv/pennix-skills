@@ -745,22 +745,15 @@ def _admission_steps(event: Dict[str, Any]) -> tuple[str, ...]:
 
 
 def _consumption_attempt_target(events: list[Dict[str, Any]]) -> Optional[str]:
-    target: Optional[str] = None
-    for event in events:
-        if event["event_type"] != "admit" or event["target_status"] not in {"admitted", "reconciled"}:
-            continue
-        candidate = _admission_target(event)
-        _admission_steps(event)
-        if target is not None and target != candidate:
-            raise ContractError("handoff asset has multiple consumption attempts")
-        target = candidate
-    return target
+    # Legacy partial admissions remain readable, but only a complete
+    # reconciliation consumes a handoff asset.
+    return _reconciled_admit_target(events)
 
 
 def _consumption_attempt_steps(events: list[Dict[str, Any]], target: str) -> tuple[str, ...]:
     completed: tuple[str, ...] = ()
     for event in events:
-        if event["event_type"] != "admit" or event["target_status"] not in {"admitted", "reconciled"}:
+        if event["event_type"] != "admit" or event["target_status"] != "reconciled":
             continue
         if _admission_target(event) != target:
             continue
@@ -963,6 +956,9 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
         if not isinstance(current, dict) or current.get("id") != task_id or current.get("dir") != task_path:
             raise ContractError("source task is not the direct current task")
         extra += ["--task", task_path, "--source-session-id", _direct_session_id(root)]
+    elif operation == "retire-handoff":
+        events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
+        _ownership_gate(root, _prepared_mode(events), _state(events), archive_observation or "observed")
     else:
         if expected_generation is None:
             raise ContractError("expected ownership generation is required")
@@ -976,6 +972,13 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
             extra += ["--archive-observation", observation]
     result = _ownership_call(root, operation, task_id, handoff_id, core_digest, extra, explicit=True)
     receipt = _ownership_event(root, handoff_id, operation, result)
+    if operation == "seal" and result.get("status") == "sealed":
+        state = _state(_read_events(_lifecycle_path(root, handoff_id), handoff_id))
+        receipt["boundary"] = _append_event(
+            root, handoff_id, "boundary_sealed",
+            {"source": "boundary_sealed", "target": state["target"], "retention": state["retention"]},
+            ["trellis_seal=" + handoff_id],
+        )
     return {"handoff_id": handoff_id, **receipt}
 
 
@@ -1063,13 +1066,18 @@ def lifecycle_prepare(root: Path, handoff_path: str, mode: str) -> tuple[str, di
 
 
 def lifecycle_finalize(root: Path, handoff_path: str, observation_path: str) -> tuple[str, dict[str, Any]]:
+    observation = validate_observation(load_json_file(_project_file(root, observation_path, "observation path")))
+    return lifecycle_finalize_observation(root, handoff_path, observation, "observation=" + observation_path)
+
+
+def lifecycle_finalize_observation(root: Path, handoff_path: str, observation: dict[str, Any], evidence_ref: str) -> tuple[str, dict[str, Any]]:
     handoff_id, _, payload = _core(root, handoff_path)
     _read_paired_prompt(root, handoff_path)
     events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
     mode = _prepared_mode(events)
-    observation = validate_observation(load_json_file(_project_file(root, observation_path, "observation path")))
+    observation = validate_observation(observation)
     status = "pending"
     if observation["availability"] == "unsupported":
         status = "unsupported"
@@ -1099,8 +1107,7 @@ def lifecycle_finalize(root: Path, handoff_path: str, observation_path: str) -> 
                             status = "pending"
     if status == "pending" and _state(events)["source"] in {"boundary_sealed", "archive_verified", "converged"}:
         status = _state(events)["source"]
-    evidence = ["observation=" + observation_path]
-    result = _append_event(root, handoff_id, "finalize", {"source": status, "target": _state(events)["target"], "retention": _state(events)["retention"]}, evidence)
+    result = _append_event(root, handoff_id, "finalize", {"source": status, "target": _state(events)["target"], "retention": _state(events)["retention"]}, [evidence_ref])
     return handoff_id, result
 
 
@@ -1119,6 +1126,7 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
     target_source = attestation["target_source"]
+    steps = _attestation_steps(attestation)
     attempt_target = _consumption_attempt_target(events)
     if attempt_target is not None and attempt_target != target_source:
         raise ContractError("handoff asset has already been consumed by another target")
@@ -1126,18 +1134,12 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
         return handoff_id, {"status": "idempotent", "state": current_state, "target": target_source}
     source_ready = _source_ready(_prepared_mode(events), current_state) and _source_task_ready(payload, events)
     if not source_ready:
-        result = _append_event(root, handoff_id, "admit", {"source": current_state["source"], "target": "blocked", "retention": "none"}, ["target=" + target_source])
-        return handoff_id, result
-    steps = _attestation_steps(attestation)
-    if attempt_target is not None:
-        completed = _consumption_attempt_steps(events, target_source)
-        if len(steps) < len(completed) or steps[:len(completed)] != completed:
-            raise ContractError("attestation consumption steps regressed")
-    target_status = "reconciled" if steps == CONSUMPTION_STEPS else "admitted"
-    retention_status = "archive_eligible" if target_status == "reconciled" else "none"
+        return handoff_id, {"status": "pending", "state": current_state}
+    if steps != CONSUMPTION_STEPS:
+        return handoff_id, {"status": "incomplete", "state": current_state, "target": target_source}
     result = _append_event(
         root, handoff_id, "admit",
-        {"source": current_state["source"], "target": target_status, "retention": retention_status},
+        {"source": current_state["source"], "target": "reconciled", "retention": "archive_eligible"},
         ["target=" + target_source, "steps=" + ",".join(steps)],
     )
     return handoff_id, result
@@ -1215,7 +1217,12 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     state = _state(events)
     mode = _prepared_mode(events)
     source_ready = _source_ready(mode, state) and (payload is None or _source_task_ready(payload, events))
-    return {"status": "ready" if source_ready else "pending", "handoff_id": handoff_id, "mode": mode, "state": state}
+    ownership: Optional[dict[str, Any]] = None
+    if payload is not None and payload["work_context"]["task"] is not None:
+        task_id, _ = _ownership_task(payload)
+        ownership = _ownership_call(root, "status", task_id, handoff_id, _ownership_core_digest(destination), ["--json"], explicit=False)
+        source_ready = source_ready and ownership.get("status") == "ready"
+    return {"status": "ready" if source_ready else "pending", "handoff_id": handoff_id, "mode": mode, "state": state, **({"ownership": ownership} if ownership is not None else {})}
 
 
 def emit(operation: str, status: str, reason: Optional[str] = None, **details: Any) -> None:
@@ -1247,7 +1254,7 @@ def main() -> int:
     status.add_argument("--handoff", required=True)
     ownership = sub.add_parser("ownership")
     ownership_sub = ownership.add_subparsers(dest="ownership_command", required=True)
-    for name in ("quiesce", "seal", "retire", "claim", "consume", "archive", "status"):
+    for name in ("quiesce", "seal", "retire", "retire-handoff", "claim", "consume", "archive", "status"):
         command = ownership_sub.add_parser(name)
         command.add_argument("--handoff", required=True)
         if name == "retire":

@@ -61,7 +61,13 @@ private plugin state.
 Before a formal handoff, review this task note and relevant scored recall, then
 place useful semantic context in the handoff's free-text Semantic Handoff
 Capsule. The capsule supplements, but does not replace, current task facts or
-Trellis ownership. It must not be silently truncated.
+Trellis ownership. It must not be silently truncated. For an
+`archive_required` or `convergence_required` handoff, the
+`pennix-session-handoff` OpenViking checkpoint appends this capsule once to the
+source session, commits it through the official CLI, verifies the exact
+archive, and only then releases the sealed Trellis source pointer. This is an
+explicit handoff action, not an automatic worktime capture or a substitute for
+the Plugin's native capture lifecycle.
 
 OpenViking failure, timeout, empty recall, or unavailable MCP affects only the
 semantic enhancement. Continue with current files and Trellis control facts,
