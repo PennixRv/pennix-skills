@@ -45,6 +45,9 @@ OpenAI-compatible `base_url` or hidden API key, renders the tracked
 `templates/config.toml.seed` and `templates/auth.json.seed`, and materializes
 only missing seed-owned files in `CODEX_HOME`. Existing files are preserved
 exactly, so the seed is reentrant without prompting when both already exist.
+If the catalog-authorized legacy `openai-codex` package is installed, the seed
+migrates it through the selected AUR helper to `openai-codex-bin`; it does not
+guess or remove an unlisted package owner.
 
 The seed does not clone or execute remote Pennix source, write the key to TOML,
 print the key, or add the current package candidate to the fixed component

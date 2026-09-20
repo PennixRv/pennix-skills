@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly CODEX_PACKAGE="openai-codex-bin"
-readonly CONFLICTING_CODEX_PACKAGE="openai-codex"
+readonly CODEX_REPLACEMENT_PACKAGE="openai-codex"
 readonly PROVIDER_ID="OpenAI"
 readonly REMOTE_TEMPLATE_BASE_URL="https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/templates"
 SCRIPT_SOURCE="${BASH_SOURCE[0]-}"
@@ -24,6 +24,7 @@ PROMPT_FD=0
 REMOTE_MODE=0
 CONFIG_CREATED=0
 AUTH_CREATED=0
+CODEX_REPLACEMENT_PRESENT=0
 
 cleanup() {
   local status=$?
@@ -185,6 +186,11 @@ install_codex() {
   local candidate
   run_pacman -S --needed --noconfirm npm
   select_aur_helper
+  if (( CODEX_REPLACEMENT_PRESENT )); then
+    printf 'Migrating Codex package owner: %s -> %s\n' "$CODEX_REPLACEMENT_PACKAGE" "$CODEX_PACKAGE"
+    "$AUR_HELPER" -R --noconfirm "$CODEX_REPLACEMENT_PACKAGE" \
+      || fail "Codex package-owner migration failed: $CODEX_REPLACEMENT_PACKAGE"
+  fi
   candidate="$("$AUR_HELPER" -Si "$CODEX_PACKAGE" 2>/dev/null | awk '$1 == "Version" { print $3; exit }')"
   [[ -n "$candidate" ]] || fail "AUR Codex package is unavailable: $CODEX_PACKAGE"
   printf 'AUR Codex candidate: %s\n' "$candidate"
@@ -218,9 +224,9 @@ select_aur_helper() {
   bootstrap_yay
 }
 
-require_fresh_codex_package() {
-  if pacman -Qq "$CONFLICTING_CODEX_PACKAGE" >/dev/null 2>&1; then
-    fail "conflicting Codex package is already installed; Stage 0 refuses package-owner migration: $CONFLICTING_CODEX_PACKAGE"
+detect_codex_replacement() {
+  if pacman -Qq "$CODEX_REPLACEMENT_PACKAGE" >/dev/null 2>&1; then
+    CODEX_REPLACEMENT_PRESENT=1
   fi
 }
 
@@ -280,7 +286,7 @@ main() {
   require_arch_wsl2_or_native
   require_safe_codex_home
   require_command pacman
-  require_fresh_codex_package
+  detect_codex_replacement
   if [[ ! -e "$CONFIG_FILE" || ! -e "$AUTH_FILE" ]]; then
     resolve_templates
     open_prompt_fd

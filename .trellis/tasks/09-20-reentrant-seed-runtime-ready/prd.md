@@ -23,7 +23,10 @@
 
 - R1: Remote and local seed runs must be reentrant. Existing `config.toml` and
   `auth.json` are preserved exactly; a missing counterpart is created by
-  prompting only for the missing value. Re-entry must not expose a secret.
+  prompting only for the missing value. The catalog-authorized `openai-codex`
+  to `openai-codex-bin` package-owner migration is handled idempotently;
+  migration failure blocks before configuration writes. Re-entry must not
+  expose a secret.
 - R2: Seed retains its Arch/WSL2, official `npm`, AUR Codex, and static
   seed-template scope. It
   must not install an isolated bridge, create a local `pennix-skills` checkout,
@@ -57,6 +60,9 @@
   list or source-checkout instruction.
 - [x] Re-running seed with both existing files succeeds without prompts or file
   changes; with one missing file it prompts only for that file's required value.
+- [x] Re-running seed with the catalog-authorized legacy `openai-codex` package
+  migrates to `openai-codex-bin`; migration failure blocks before configuration
+  writes.
 - [x] The catalog names all ten current Skills and routes the remaining nine
   Skills to their owning public repositories under one destination; the Seed
   user prompt only receives the lifecycle-bootstrap request.

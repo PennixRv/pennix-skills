@@ -1,7 +1,8 @@
 # 实施计划：可重入 Seed 与完整原生 Collection
 
-1. 将 seed 的配置/凭据前置检查改为按文件缺失情况创建，扩展测试覆盖 fresh、
-   完整重入和单文件修复，不改变 secret 输出与权限合同。
+1. 将 seed 的配置/凭据前置检查改为按文件缺失情况创建，并按 catalog 的
+   `replaces` 合同处理已知 Codex 包所有者迁移；扩展测试覆盖 fresh、完整重入、
+   单文件修复和迁移失败，不改变 secret 输出与权限合同。
 2. 用同一会话第一轮的 lifecycle bootstrap 与下一轮的 lifecycle prompt 替换
    bridge/source-checkout 和重开会话的完成文案，并同步 README 与 lifecycle Skill。
 3. 从 catalog 导出 bootstrap 与剩余 collection 的安装合同；将 `pennix-skills` 的

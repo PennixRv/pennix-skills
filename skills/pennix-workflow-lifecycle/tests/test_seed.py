@@ -335,40 +335,88 @@ class SeedTests(unittest.TestCase):
                 ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
             )
 
-    def test_conflicting_codex_package_is_rejected_before_install(self) -> None:
+    def test_known_codex_package_owner_is_migrated(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            fake_bin = root / "bin"
-            fake_bin.mkdir()
-            pacman_log = root / "pacman.log"
+            fake_bin, pacman_log = self.fake_commands(root)
             (fake_bin / "pacman").write_text(
                 "#!/usr/bin/env bash\n"
                 f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
                 "if [[ \"$1\" == -Qq && \"$2\" == openai-codex ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
                 "exit 1\n",
                 encoding="utf-8",
             )
             (fake_bin / "pacman").chmod(0o700)
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "PATH": f"{fake_bin}:{environment['PATH']}",
-                    "HOME": str(root / "home"),
-                    "XDG_CONFIG_HOME": str(root / "config"),
-                    "CODEX_HOME": str(root / "home" / ".codex"),
-                    "SHELL": "/bin/bash",
-                }
+            (fake_bin / "yay").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {root / 'yay.log'}\n"
+                "if [[ \"$1\" == -R ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
+                "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8",
             )
+            (fake_bin / "yay").chmod(0o700)
+            environment = self.environment(root, fake_bin)
             result = subprocess.run(
                 ["bash", str(SCRIPT)],
+                input="https://api.example.test/v1\nmigration-secret\n",
                 capture_output=True,
                 text=True,
                 env=environment,
                 check=False,
             )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("openai-codex -> openai-codex-bin", result.stdout)
+            self.assertEqual(
+                pacman_log.read_text(encoding="utf-8").splitlines(),
+                ["-Qq openai-codex", "-S --needed --noconfirm npm"],
+            )
+            self.assertEqual(
+                (root / "yay.log").read_text(encoding="utf-8").splitlines(),
+                [
+                    "-R --noconfirm openai-codex",
+                    "-Si openai-codex-bin",
+                    "-Syu --needed --noconfirm openai-codex-bin",
+                ],
+            )
+
+    def test_codex_package_owner_migration_failure_stops_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin, pacman_log = self.fake_commands(root)
+            (fake_bin / "pacman").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
+                "if [[ \"$1\" == -Qq && \"$2\" == openai-codex ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "pacman").chmod(0o700)
+            (fake_bin / "yay").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {root / 'yay.log'}\n"
+                "if [[ \"$1\" == -R ]]; then exit 1; fi\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "yay").chmod(0o700)
+            result = subprocess.run(
+                ["bash", str(SCRIPT)],
+                capture_output=True,
+                text=True,
+                env=self.environment(root, fake_bin),
+                check=False,
+            )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("openai-codex", result.stderr)
-            self.assertEqual(pacman_log.read_text(encoding="utf-8").splitlines(), ["-Qq openai-codex"])
+            self.assertIn("package-owner migration failed", result.stderr)
+            self.assertEqual(
+                pacman_log.read_text(encoding="utf-8").splitlines(),
+                ["-Qq openai-codex", "-S --needed --noconfirm npm"],
+            )
+            self.assertFalse((root / "home" / ".codex" / "config.toml").exists())
 
     def test_seed_rejects_lifecycle_arguments_before_any_write(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

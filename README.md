@@ -42,6 +42,8 @@ bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh
 它从官方仓库安装 `npm`、从 AUR 安装当前 `openai-codex-bin`，交互式收集缺失的 `base_url`
 或隐藏 API key，根据 `templates/config.toml.seed`、`templates/auth.json.seed` 只物化 seed 阶段字段。已有
 `~/.codex/config.toml` 和 `~/.codex/auth.json` 会原样保留；两者都存在时可以无交互重入。
+若已安装 catalog 明确登记的旧 `openai-codex` 包，seed 会先通过已选 AUR helper 将其迁移为
+`openai-codex-bin`；其他未登记的包不会被猜测或删除。
 
 完成时，seed 会给出一个新 Codex 会话的两轮确定提示。第一轮仅通过系统
 `$skill-installer` 将 `pennix-workflow-lifecycle` bootstrap Skill 安装到最终的

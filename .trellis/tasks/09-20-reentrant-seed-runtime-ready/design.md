@@ -15,6 +15,8 @@ destination 内安装 `pennix-workflow-lifecycle` bootstrap。安装器确认后
 ## Seed 重入规则
 
 - 先完成宿主、路径、模板和包冲突检查；已有 `config.toml` / `auth.json` 不是错误。
+- `openai-codex` 是 catalog 明确登记的 `openai-codex-bin` replacement，使用已选
+  AUR helper 的原生 remove 动作迁移；Seed 不猜测或删除未登记的包所有者。
 - `config.toml` 不存在时才读取 `base_url` 并原子写入；`auth.json` 不存在时才
   读取隐藏 API key 并以 `0600` 原子写入。
 - 两个文件都已存在时不读取 stdin 或 `/dev/tty`，仍确认 Codex 包并输出首轮
