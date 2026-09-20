@@ -261,15 +261,27 @@ configure_provider() {
 print_next_step() {
   cat <<'EOF'
 
-Pennix workflow seed complete. Start a new Codex session, then paste:
+Pennix workflow seed complete.
 
-请先安装 Pennix Skills，然后使用 `pennix-workflow-lifecycle` 开始部署 Pennix 工作流。
-先执行只读 `discover`，核对宿主、组件 owner 和版本 catalog；
-再明确选择一个组件执行 install、upgrade 或 uninstall。
+Start a new Codex session, then paste exactly:
+
+请使用系统内置 `$skill-installer`，从公开 GitHub 仓库
+`PennixRv/pennix-skills` 的 `main` 安装路径
+`skills/pennix-workflow-lifecycle`。
+本 turn 只安装 lifecycle bridge；安装成功后停止，不要假定该 Skill 会在本 turn 可用。
+
+After the installer reports success, start another turn and paste exactly:
+
+使用 `$pennix-workflow-lifecycle` 开始 Pennix 工作流部署。
+请创建并核验 `PennixRv/pennix-skills` 的干净本地 source checkout，
+再安装完整 Pennix Skills collection。随后只执行只读 `discover`，核对宿主、
+component owner 和 version catalog。完整 workflow 的移除必须由 lifecycle
+对单一 component 执行 `uninstall`；seed 不提供卸载。
 EOF
 }
 
 main() {
+  (( $# == 0 )) || fail "seed only supports initial installation; use pennix-workflow-lifecycle for component uninstall"
   umask 077
   require_arch_wsl2_or_native
   require_safe_codex_home

@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -88,6 +89,35 @@ class InstallSkillsTest(unittest.TestCase):
             self.assertFalse((destination / "alpha" / "test").exists())
             self.assertFalse((destination / "alpha" / ".git").exists())
             self.assertFalse((destination / "obsolete").exists())
+
+    def test_install_migrates_an_exact_standalone_lifecycle_bridge(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            lifecycle = self.make_skill(root, "pennix-workflow-lifecycle")
+            (lifecycle / "scripts" / "__pycache__").mkdir()
+            (lifecycle / "scripts" / "__pycache__" / "run.pyc").write_bytes(b"cache")
+            destination = Path(temporary) / "host" / "skills" / "pennix-skills"
+            bridge = destination.parent / "pennix-workflow-lifecycle"
+            shutil.copytree(lifecycle, bridge, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+
+            self.assertTrue(MODULE.install_skills([("pennix-workflow-lifecycle", lifecycle)], destination))
+            self.assertTrue((destination / "pennix-workflow-lifecycle" / "SKILL.md").is_file())
+            self.assertFalse(bridge.exists())
+
+    def test_install_refuses_a_drifted_standalone_lifecycle_bridge(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            lifecycle = self.make_skill(root, "pennix-workflow-lifecycle")
+            destination = Path(temporary) / "host" / "skills" / "pennix-skills"
+            bridge = destination.parent / "pennix-workflow-lifecycle"
+            shutil.copytree(lifecycle, bridge)
+            (bridge / "SKILL.md").write_text("drifted\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(MODULE.InstallError, "unverified standalone"):
+                MODULE.install_skills([("pennix-workflow-lifecycle", lifecycle)], destination)
+
+            self.assertTrue(bridge.exists())
+            self.assertFalse(destination.exists())
 
     def test_uninstall_removes_only_the_managed_collection(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -41,10 +41,20 @@ bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh
 
 它从 AUR 安装当前 `openai-codex-bin`，交互式收集 `base_url` 和隐藏 API key，
 根据 `templates/config.toml.seed`、`templates/auth.json.seed` 只物化 seed 阶段字段。
-它不会覆盖已有 `~/.codex/config.toml` 或 `~/.codex/auth.json`，完成后打印安装 Pennix Skills、
-再使用 `pennix-workflow-lifecycle` 开始部署的提示词。
+它不会覆盖已有 `~/.codex/config.toml` 或 `~/.codex/auth.json`。完成时会输出两 turn 的
+确定入口：先在新 Codex 会话中用系统 `$skill-installer` 从
+`PennixRv/pennix-skills` 的 `main` 安装唯一 bridge
+`skills/pennix-workflow-lifecycle`，在该安装完成后的下一 turn 才使用
+`$pennix-workflow-lifecycle`。
 
-首次引导使用用户明确提供且 Git worktree clean 的本地 source checkout 安装 Pennix Skills；不使用远程下载即执行。
+首次 bridge 安装后，使用 `$pennix-workflow-lifecycle` 在默认
+`$HOME/devel/pennix-skills`（或用户明确选择的路径）创建一个干净的 source checkout，
+再安装完整 Pennix Skills collection；不使用远程下载即执行。完整 collection 安装会在且仅在
+独立 bridge 与 source 内容完全一致时移除它，避免 Codex 发现重复的同名 Skill；任何漂移 bridge
+都会阻断并保留原目录。
+`seed-arch.sh` 没有 `--uninstall`，也不会删除 `auth.json`、`openai-codex-bin`、AUR helper、
+构建依赖、Skills、插件或项目资产。完整 workflow 的反向操作在 collection 安装后由 lifecycle
+逐 component 执行；凭据文件始终需要用户在轮换或撤销凭据后自行删除。
 下面的 `--destination` 是当前宿主的默认发现位置；如果宿主使用其他用户级
 Skill 发现根，可以显式选择一个以 `skills/pennix-skills` 结尾的目标：
 

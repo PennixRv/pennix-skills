@@ -16,6 +16,7 @@ from pathlib import Path
 
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+LIFECYCLE_BRIDGE_NAME = "pennix-workflow-lifecycle"
 INSTALLABLE_ENTRIES = {
     "SKILL.md",
     "LICENSE",
@@ -218,9 +219,48 @@ def same_tree(left: Path, right: Path) -> bool:
     )
 
 
+def same_source_tree(left: Path, right: Path) -> bool:
+    """Compare a GitHub-downloaded bridge with its source, ignoring Python caches."""
+    if left.is_symlink() or right.is_symlink():
+        return False
+    if left.is_dir() != right.is_dir():
+        return False
+    if not left.is_dir():
+        return filecmp.cmp(left, right, shallow=False)
+    left_entries = {
+        entry.name: entry
+        for entry in left.iterdir()
+        if entry.name != "__pycache__" and not entry.name.endswith(".pyc")
+    }
+    right_entries = {
+        entry.name: entry
+        for entry in right.iterdir()
+        if entry.name != "__pycache__" and not entry.name.endswith(".pyc")
+    }
+    if left_entries.keys() != right_entries.keys():
+        return False
+    return all(
+        same_source_tree(left_entries[name], right_entries[name])
+        for name in left_entries
+    )
+
+
+def standalone_lifecycle_bridge(skills: list[tuple[str, Path]], destination: Path) -> Path | None:
+    source = dict(skills).get(LIFECYCLE_BRIDGE_NAME)
+    if source is None:
+        return None
+    bridge = assert_safe_destination(destination.parent / LIFECYCLE_BRIDGE_NAME)
+    if not bridge.exists():
+        return None
+    if not same_source_tree(bridge, source):
+        raise InstallError("refusing to replace an unverified standalone lifecycle bridge")
+    return bridge
+
+
 def install_skills(skills: list[tuple[str, Path]], destination: Path) -> bool:
     destination = assert_safe_destination(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    bridge = standalone_lifecycle_bridge(skills, destination)
     stage = Path(tempfile.mkdtemp(prefix=".pennix-skills-stage-", dir=destination.parent))
     backup: Path | None = None
     try:
@@ -228,20 +268,24 @@ def install_skills(skills: list[tuple[str, Path]], destination: Path) -> bool:
             copy_skill(skill_source, stage / skill_name)
         install_grok_search_dependency(stage)
 
-        if destination.exists() and same_tree(stage, destination):
-            return False
-        if destination.exists():
-            backup = destination.parent / f".pennix-skills-backup-{uuid.uuid4().hex}"
-            os.replace(destination, backup)
-        try:
-            os.replace(stage, destination)
-        except OSError:
-            if backup is not None and backup.exists():
-                os.replace(backup, destination)
-            raise
-        if backup is not None:
-            shutil.rmtree(backup)
-        return True
+        changed = False
+        if not (destination.exists() and same_tree(stage, destination)):
+            if destination.exists():
+                backup = destination.parent / f".pennix-skills-backup-{uuid.uuid4().hex}"
+                os.replace(destination, backup)
+            try:
+                os.replace(stage, destination)
+            except OSError:
+                if backup is not None and backup.exists():
+                    os.replace(backup, destination)
+                raise
+            if backup is not None:
+                shutil.rmtree(backup)
+            changed = True
+        if bridge is not None:
+            shutil.rmtree(bridge)
+            changed = True
+        return changed
     finally:
         if stage.exists():
             shutil.rmtree(stage, ignore_errors=True)

@@ -132,7 +132,10 @@ class SeedTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertNotIn("super-secret-value", result.stdout)
-            self.assertIn("安装 Pennix Skills", result.stdout)
+            self.assertIn("$skill-installer", result.stdout)
+            self.assertIn("PennixRv/pennix-skills", result.stdout)
+            self.assertIn("skills/pennix-workflow-lifecycle", result.stdout)
+            self.assertIn("seed 不提供卸载", result.stdout)
             self.assertNotIn("Stage 1", result.stdout)
             config = (root / "home" / ".codex" / "config.toml").read_text(encoding="utf-8")
             self.assertIn('base_url = "https://api.example.test/v1"', config)
@@ -373,6 +376,24 @@ class SeedTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("openai-codex", result.stderr)
             self.assertEqual(pacman_log.read_text(encoding="utf-8").splitlines(), ["-Qq openai-codex"])
+
+    def test_seed_rejects_lifecycle_arguments_before_any_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin, pacman_log = self.fake_commands(root)
+            environment = self.environment(root, fake_bin)
+
+            result = subprocess.run(
+                ["bash", str(SCRIPT), "--uninstall"],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("only supports initial installation", result.stderr)
+            self.assertFalse(pacman_log.exists())
 
     def test_existing_auth_cache_is_not_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -45,8 +45,18 @@ the seed-owned fields in `CODEX_HOME/config.toml` and `CODEX_HOME/auth.json`.
 The seed refuses to overwrite an existing `CODEX_HOME/config.toml` or
 `CODEX_HOME/auth.json`. It does not clone or execute remote Pennix source,
 write the key to TOML, print the key, or add the current package candidate to
-the fixed component catalog. After a new Codex session starts, install Pennix
-Skills, then use this lifecycle entry for the remaining system actions.
+the fixed component catalog. It accepts no arguments: `seed-arch.sh --uninstall`
+is rejected before any write.
+
+Its completion output is a two-turn bridge. In a new Codex session, use the
+system `$skill-installer` to install only
+`PennixRv/pennix-skills` `main` path
+`skills/pennix-workflow-lifecycle`. When that installer reports success, start
+another turn and invoke this Skill. Unless the user names another path, create
+the clean source checkout at `$HOME/devel/pennix-skills`, install the full
+collection from it, then run read-only `discover`. The collection installer
+removes the standalone bridge only if it exactly matches the source Skill;
+otherwise it blocks and preserves the unverified directory.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed
@@ -127,4 +137,8 @@ Do not add a second version table to this Skill or to an adapter. Do not print
 secret values, full configuration, sessions, databases, logs, caches, locks, or
 runtime state. `uninstall` only removes exact lifecycle-owned files, an exact
 Pennix Skills collection, or a package/plugin through its native owner; drifted
-content is left untouched.
+content is left untouched. Stage 0 has no uninstall mode and never removes
+`auth.json`, its Codex package, AUR helpers, build dependencies, full Skills,
+plugins, or project assets. After the collection is present, remove one explicit
+lifecycle component at a time; revoke or rotate credentials before manually
+removing `auth.json`.
