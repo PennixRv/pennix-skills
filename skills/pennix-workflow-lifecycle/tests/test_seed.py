@@ -24,6 +24,7 @@ class SeedTests(unittest.TestCase):
             f"printf '%s\\n' \"$*\" >> {root / 'pacman.log'}\n"
             "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
             "if [[ \"$1\" == -Qq ]]; then exit 1; fi\n"
+            "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
             "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
             "exit 1\n",
             encoding="utf-8",
@@ -135,7 +136,13 @@ class SeedTests(unittest.TestCase):
             self.assertIn("$skill-installer", result.stdout)
             self.assertIn("PennixRv/pennix-skills", result.stdout)
             self.assertIn("skills/pennix-workflow-lifecycle", result.stdout)
-            self.assertIn("seed 不提供卸载", result.stdout)
+            self.assertIn("--dest", result.stdout)
+            self.assertIn("first new Codex session", result.stdout)
+            self.assertIn("second new Codex session", result.stdout)
+            self.assertNotIn("bridge", result.stdout)
+            self.assertNotIn("PennixRv/grok-search", result.stdout)
+            self.assertNotIn("PennixRv/windsurf-code-search", result.stdout)
+            self.assertNotIn("npm ci --omit=dev --ignore-scripts", result.stdout)
             self.assertNotIn("Stage 1", result.stdout)
             config = (root / "home" / ".codex" / "config.toml").read_text(encoding="utf-8")
             self.assertIn('base_url = "https://api.example.test/v1"', config)
@@ -221,46 +228,28 @@ class SeedTests(unittest.TestCase):
             self.assertIn("cannot download the remote Codex template", result.stderr)
             self.assertNotIn("-Syu", pacman_log.read_text(encoding="utf-8"))
 
-    def test_existing_config_is_not_overwritten(self) -> None:
+    def test_existing_config_is_preserved_and_only_missing_auth_is_prompted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            fake_bin = root / "bin"
-            fake_bin.mkdir()
-            pacman_log = root / "pacman.log"
-            (fake_bin / "pacman").write_text(
-                "#!/usr/bin/env bash\n"
-                f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
-                "if [[ \"$1\" == -Si ]]; then echo 'Version : 0.154.0-1'; exit 0; fi\n"
-                "exit 1\n",
-                encoding="utf-8",
-            )
-            (fake_bin / "sudo").write_text("#!/usr/bin/env bash\nexec \"$@\"\n", encoding="utf-8")
-            for command in ("pacman", "sudo"):
-                (fake_bin / command).chmod(0o700)
+            fake_bin, _ = self.fake_commands(root)
             codex_home = root / "home" / ".codex"
             codex_home.mkdir(parents=True)
             config = codex_home / "config.toml"
             config.write_text("model_provider = \"existing\"\n", encoding="utf-8")
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "PATH": f"{fake_bin}:{environment['PATH']}",
-                    "HOME": str(root / "home"),
-                    "XDG_CONFIG_HOME": str(root / "config"),
-                    "CODEX_HOME": str(codex_home),
-                    "SHELL": "/bin/bash",
-                }
-            )
+            environment = self.environment(root, fake_bin)
             result = subprocess.run(
                 ["bash", str(SCRIPT)],
+                input="missing-auth-secret\n",
                 capture_output=True,
                 text=True,
                 env=environment,
                 check=False,
             )
-            self.assertNotEqual(result.returncode, 0)
+            rendered = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 0, rendered)
             self.assertEqual(config.read_text(encoding="utf-8"), "model_provider = \"existing\"\n")
-            self.assertFalse(pacman_log.exists())
+            self.assertIn("missing-auth-secret", (codex_home / "auth.json").read_text(encoding="utf-8"))
+            self.assertNotIn("OpenAI-compatible base URL", rendered)
 
     def test_seed_bootstraps_yay_when_no_aur_helper_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -331,7 +320,7 @@ class SeedTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
                 pacman_log.read_text(encoding="utf-8").splitlines(),
-                ["-Qq openai-codex", "-S --needed --noconfirm base-devel git"],
+                ["-Qq openai-codex", "-S --needed --noconfirm npm", "-S --needed --noconfirm base-devel git"],
             )
             self.assertTrue(
                 git_log.read_text(encoding="utf-8").startswith("clone --depth 1 https://aur.archlinux.org/yay.git ")
@@ -395,44 +384,53 @@ class SeedTests(unittest.TestCase):
             self.assertIn("only supports initial installation", result.stderr)
             self.assertFalse(pacman_log.exists())
 
-    def test_existing_auth_cache_is_not_overwritten(self) -> None:
+    def test_existing_auth_is_preserved_and_only_missing_config_is_prompted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            fake_bin = root / "bin"
-            fake_bin.mkdir()
-            pacman_log = root / "pacman.log"
-            (fake_bin / "pacman").write_text(
-                "#!/usr/bin/env bash\n"
-                f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
-                "exit 1\n",
-                encoding="utf-8",
-            )
-            (fake_bin / "pacman").chmod(0o700)
+            fake_bin, _ = self.fake_commands(root)
             codex_home = root / "home" / ".codex"
             codex_home.mkdir(parents=True)
             auth_file = codex_home / "auth.json"
             auth_file.write_text('{"existing":true}\n', encoding="utf-8")
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "PATH": f"{fake_bin}:{environment['PATH']}",
-                    "HOME": str(root / "home"),
-                    "XDG_CONFIG_HOME": str(root / "config"),
-                    "CODEX_HOME": str(codex_home),
-                    "SHELL": "/bin/bash",
-                }
-            )
+            environment = self.environment(root, fake_bin)
             result = subprocess.run(
                 ["bash", str(SCRIPT)],
+                input="https://api.example.test/v1\n",
                 capture_output=True,
                 text=True,
                 env=environment,
                 check=False,
             )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("auth.json", result.stderr)
+            rendered = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 0, rendered)
             self.assertEqual(auth_file.read_text(encoding="utf-8"), '{"existing":true}\n')
-            self.assertFalse(pacman_log.exists())
+            self.assertIn('base_url = "https://api.example.test/v1"', (codex_home / "config.toml").read_text(encoding="utf-8"))
+            self.assertNotIn("API key (hidden)", rendered)
+
+    def test_reentry_with_existing_files_needs_no_tty_or_template_download(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin, _ = self.fake_commands(root)
+            codex_home = root / "home" / ".codex"
+            codex_home.mkdir(parents=True)
+            config = codex_home / "config.toml"
+            auth_file = codex_home / "auth.json"
+            config.write_text("model_provider = \"existing\"\n", encoding="utf-8")
+            auth_file.write_text('{"existing":true}\n', encoding="utf-8")
+            environment = self.environment(root, fake_bin)
+            result = subprocess.run(
+                ["bash", "-c", f"cat {shlex.quote(str(SCRIPT))} | bash"],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+            rendered = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 0, rendered)
+            self.assertEqual(config.read_text(encoding="utf-8"), "model_provider = \"existing\"\n")
+            self.assertEqual(auth_file.read_text(encoding="utf-8"), '{"existing":true}\n')
+            self.assertNotIn("OpenAI-compatible base URL", rendered)
+            self.assertNotIn("API key (hidden)", rendered)
 
     def test_symlinked_codex_home_is_rejected_before_package_install(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -475,27 +473,23 @@ class SeedTests(unittest.TestCase):
             self.skipTest("zsh is not installed")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            fake_bin, _ = self.fake_commands(root)
             codex_home = root / "home" / ".codex"
             codex_home.mkdir(parents=True)
             config = codex_home / "config.toml"
             config.write_text("model_provider = \"existing\"\n", encoding="utf-8")
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "HOME": str(root / "home"),
-                    "CODEX_HOME": str(codex_home),
-                }
-            )
+            environment = self.environment(root, fake_bin)
             result = subprocess.run(
                 ["zsh", "-c", 'exec "$1"', "seed-arch.sh", str(SCRIPT)],
+                input="zsh-secret\n",
                 capture_output=True,
                 text=True,
                 env=environment,
                 check=False,
             )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("existing Codex config", result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(config.read_text(encoding="utf-8"), "model_provider = \"existing\"\n")
+            self.assertIn("zsh-secret", (codex_home / "auth.json").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

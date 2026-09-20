@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 SKILL_ROOT = Path(__file__).parents[1]
 SCRIPT = SKILL_ROOT / "scripts" / "lifecycle.py"
-SOURCE_ROOT = Path(__file__).parents[3]
 sys.path.insert(0, str(SCRIPT.parent))
 
 import lifecycle as bootstrap
@@ -55,8 +54,6 @@ class BootstrapTests(unittest.TestCase):
                 str(self.catalog(root)),
                 "--codex-home",
                 str(root / "codex"),
-                "--source",
-                str(SOURCE_ROOT),
                 *arguments,
             ],
             capture_output=True,
@@ -85,7 +82,6 @@ class BootstrapTests(unittest.TestCase):
             args = SimpleNamespace(
                 catalog=self.catalog(root),
                 codex_home=root / "codex",
-                source=SOURCE_ROOT,
                 destination=None,
             )
             with (
@@ -153,7 +149,7 @@ class BootstrapTests(unittest.TestCase):
             component["package"]["source"] = "aur"
             catalog_path.write_text(json.dumps(value), encoding="utf-8")
             catalog = bootstrap.load_catalog(catalog_path)
-            args = SimpleNamespace(catalog=catalog_path, codex_home=root / "codex", source=SOURCE_ROOT, destination=None)
+            args = SimpleNamespace(catalog=catalog_path, codex_home=root / "codex", destination=None)
             with (
                 patch.object(bootstrap, "probe_component", return_value=("drifted", "1.0.0")),
                 patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
@@ -175,7 +171,7 @@ class BootstrapTests(unittest.TestCase):
                     "fixture": {"status": "match"},
                 }
             }
-            args = SimpleNamespace(source=SOURCE_ROOT)
+            args = SimpleNamespace()
             self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), [])
             self.assertEqual(inventory["verification"]["status"], "match")
 
@@ -210,7 +206,7 @@ class BootstrapTests(unittest.TestCase):
             home.mkdir()
             config = home / "config.toml"
             config.write_text(bootstrap.codex_static.seed_config("https://api.example.test/v1"), encoding="utf-8")
-            args = SimpleNamespace(codex_home=home, source=SOURCE_ROOT, destination=None)
+            args = SimpleNamespace(codex_home=home, destination=None)
 
             config_component = {"adapter": "codex-config"}
             agents_component = {"adapter": "codex-agents"}
@@ -230,7 +226,7 @@ class BootstrapTests(unittest.TestCase):
             home.mkdir()
             target = home / "AGENTS.md"
             target.write_text("# user instructions\n", encoding="utf-8")
-            args = SimpleNamespace(codex_home=home, source=SOURCE_ROOT, destination=None)
+            args = SimpleNamespace(codex_home=home, destination=None)
             with self.assertRaisesRegex(bootstrap.BootstrapError, "refusing drifted"):
                 bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "uninstall")
             self.assertTrue(target.exists())
@@ -315,6 +311,113 @@ class BootstrapTests(unittest.TestCase):
         ):
             bootstrap.component_operation(args, {"components": {}}, "fixture", component, "uninstall")
 
+    def test_collection_discover_and_verify_need_no_source_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "skills" / "pennix-skills"
+            catalog_path = self.catalog(root)
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            value["components"] = {
+                "pennix-skills": {
+                    "delivery": "collection",
+                    "source": "public GitHub Skills installed by Codex system $skill-installer",
+                    "owner": "pennix",
+                    "scope": "global",
+                    "verify_key": "skills/pennix-skills direct entry set",
+                    "actions": {
+                        "install": "native-owner",
+                        "configure": "not-applicable",
+                        "upgrade": "native-owner",
+                        "uninstall": "managed",
+                        "verify": "managed",
+                    },
+                    "project_init": "not-applicable",
+                    "adapter": "pennix-skills",
+                    "native_owner_reason": "Codex system $skill-installer owns installation.",
+                    "collection_contract": {
+                        "skills": ["alpha", "beta"],
+                        "bootstrap": {"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/alpha"]},
+                        "remaining": [{"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/beta"]}],
+                    },
+                }
+            }
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            for name in ("alpha", "beta"):
+                skill = destination / name
+                skill.mkdir(parents=True)
+                (skill / "SKILL.md").write_text(
+                    f"---\nname: {name}\ndescription: Fixture.\n---\n",
+                    encoding="utf-8",
+                )
+
+            args = SimpleNamespace(catalog=catalog_path, codex_home=root / "codex", destination=str(destination))
+            catalog = bootstrap.load_catalog(catalog_path)
+            inventory = bootstrap.discover(args, catalog)
+
+            self.assertEqual(inventory["components"]["pennix-skills"]["status"], "match")
+            self.assertNotIn("source", inventory)
+            self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), [])
+
+    def test_collection_install_and_upgrade_are_owned_by_system_installer(self) -> None:
+        args = SimpleNamespace(command="install", component="pennix-skills", yes=True)
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
+            bootstrap.run_lifecycle(args, catalog)
+
+        args.command = "upgrade"
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
+            bootstrap.run_lifecycle(args, catalog)
+
+    def test_collection_uninstall_removes_an_exact_installed_collection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "skills" / "pennix-skills"
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            component = catalog["components"]["pennix-skills"]
+            for name in bootstrap.collection_skill_names(component):
+                skill = destination / name
+                skill.mkdir(parents=True)
+                (skill / "SKILL.md").write_text(
+                    f"---\nname: {name}\ndescription: Fixture.\n---\n",
+                    encoding="utf-8",
+                )
+            args = SimpleNamespace(codex_home=root / "codex", destination=str(destination))
+
+            self.assertEqual(bootstrap.static_operation(args, "pennix-skills", component, "uninstall"), "changed")
+            self.assertFalse(destination.exists())
+
+    def test_collection_bootstrap_state_is_known_and_removable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "skills" / "pennix-skills"
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            component = catalog["components"]["pennix-skills"]
+            name = bootstrap.collection_bootstrap_skill(component)
+            skill = destination / name
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(
+                f"---\nname: {name}\ndescription: Fixture.\n---\n",
+                encoding="utf-8",
+            )
+            args = SimpleNamespace(codex_home=root / "codex", destination=str(destination))
+
+            self.assertEqual(bootstrap.probe_component(component, args.codex_home, args.destination)[0], "bootstrap")
+            self.assertEqual(bootstrap.static_operation(args, "pennix-skills", component, "uninstall"), "changed")
+            self.assertFalse(destination.exists())
+
+    def test_collection_contract_names_every_current_skill(self) -> None:
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        component = catalog["components"]["pennix-skills"]
+        expected = bootstrap.collection_skill_names(component)
+        observed = {
+            directory.name
+            for directory in SKILL_ROOT.parent.iterdir()
+            if directory.is_dir() and (directory / "SKILL.md").is_file()
+        }
+        self.assertEqual(expected, observed)
+        contract = component["collection_contract"]
+        self.assertEqual(bootstrap.collection_source_names([contract["bootstrap"]]) | bootstrap.collection_source_names(contract["remaining"]), expected)
+
     def test_default_catalog_accepts_scoped_npm_packages(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         self.assertEqual(catalog["components"]["fastctx"]["package"]["name"], "@pennixrv/fastctx")
@@ -332,7 +435,7 @@ class BootstrapTests(unittest.TestCase):
             "package": {"source": "npm", "name": "@example/fastctx", "registry": "https://registry.npmjs.org/"},
             "replaces": ["fastctx"],
         }
-        args = SimpleNamespace(codex_home=Path("/tmp/codex"), source=SOURCE_ROOT)
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
         host_state = {"supported": True, "installers": {"npm": "npm"}}
         with (
             patch.object(bootstrap.host, "detect_host", return_value=host_state),
@@ -373,7 +476,7 @@ class BootstrapTests(unittest.TestCase):
             "version_args": ["--version"],
             "package": {"source": "official", "name": "fixture-package"},
         }
-        args = SimpleNamespace(codex_home=Path("/tmp/codex"), source=SOURCE_ROOT)
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
         with (
             patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"official": "pacman"}}),
             patch.object(bootstrap, "probe_component", return_value=("drifted", "1.0.0")),
@@ -388,6 +491,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["schema"], 2)
         self.assertEqual(catalog["components"]["codex-config"]["delivery"], "static")
         self.assertEqual(catalog["components"]["cch-status"]["actions"]["install"], "native-owner")
+        self.assertEqual(catalog["components"]["pennix-skills"]["delivery"], "collection")
 
     def test_non_managed_action_is_rejected_before_adapter(self) -> None:
         args = SimpleNamespace(command="install", component="cch-status", yes=True)

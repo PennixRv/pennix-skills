@@ -22,5 +22,3 @@ jobs:
           find skills -path '*/tests/test_*.py' -type f -print0 \
             | sort -z \
             | xargs -0 -n1 python3
-      - name: Validate collection source
-        run: python3 skills/pennix-workflow-lifecycle/scripts/adapters/skills_install.py --source "$GITHUB_WORKSPACE" --check

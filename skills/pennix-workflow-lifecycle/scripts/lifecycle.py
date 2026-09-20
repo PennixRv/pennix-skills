@@ -27,6 +27,9 @@ VERSION_RE = re.compile(r"(?<![A-Za-z0-9])v?(\d+(?:\.\d+)+(?:[A-Za-z][A-Za-z0-9.
 PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:/-]+$")
 PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9-]*@[a-z0-9][a-z0-9-]*$")
 PLUGIN_REF = re.compile(r"^[A-Za-z0-9._-]+$")
+GITHUB_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
 class BootstrapError(RuntimeError):
     """Raised when bootstrap cannot safely continue."""
 
@@ -87,6 +90,40 @@ def valid_plugin(value: Any) -> bool:
     )
 
 
+def collection_source_names(value: Any) -> set[str] | None:
+    if not isinstance(value, list) or not value:
+        return None
+    names: set[str] = set()
+    for source in value:
+        if not isinstance(source, dict):
+            return None
+        repo = source.get("repo")
+        ref = source.get("ref")
+        paths = source.get("paths")
+        name = source.get("name")
+        if (
+            not isinstance(repo, str)
+            or not GITHUB_REPO.fullmatch(repo)
+            or not isinstance(ref, str)
+            or not PLUGIN_REF.fullmatch(ref)
+            or not isinstance(paths, list)
+            or not paths
+            or (name is not None and (not isinstance(name, str) or not skills_install.SKILL_NAME.fullmatch(name)))
+            or (name is not None and len(paths) != 1)
+        ):
+            return None
+        for path in paths:
+            if not isinstance(path, str) or not path or path.startswith("/") or ".." in Path(path).parts:
+                return None
+            if path == "." and name is None:
+                return None
+            skill_name = name or Path(path).name
+            if not skills_install.SKILL_NAME.fullmatch(skill_name) or skill_name in names:
+                return None
+            names.add(skill_name)
+    return names
+
+
 def load_catalog(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -109,7 +146,7 @@ def load_catalog(path: Path) -> dict[str, Any]:
         if component["project_init"] not in ACTION_STATES:
             raise BootstrapError(f"catalog project initialization capability is invalid: {key}")
         delivery = component["delivery"]
-        if delivery not in {"package", "plugin", "native", "static", "source"}:
+        if delivery not in {"package", "plugin", "native", "static", "collection"}:
             raise BootstrapError(f"catalog delivery is invalid: {key}")
         version_policy = component.get("version_policy", "pinned")
         if version_policy not in VERSION_POLICIES:
@@ -136,21 +173,25 @@ def load_catalog(path: Path) -> dict[str, Any]:
                 or "sha256:" + hashlib.sha256(template_path.read_bytes()).hexdigest() != revision
             ):
                 raise BootstrapError(f"catalog template revision is invalid: {key}")
-        if delivery == "source" and not isinstance(component.get("source_contract"), dict):
-            raise BootstrapError(f"catalog source contract is missing: {key}")
-        if delivery == "source":
-            submodules = component["source_contract"].get("submodules")
+        if delivery == "collection":
+            contract = component.get("collection_contract")
+            names = contract.get("skills") if isinstance(contract, dict) else None
+            bootstrap = contract.get("bootstrap") if isinstance(contract, dict) else None
+            remaining = contract.get("remaining") if isinstance(contract, dict) else None
+            bootstrap_names = collection_source_names([bootstrap])
+            remaining_names = collection_source_names(remaining)
             if (
-                not isinstance(submodules, dict)
-                or not submodules
-                or any(
-                    not isinstance(path, str)
-                    or not isinstance(commit, str)
-                    or not re.fullmatch(r"[0-9a-f]{40}", commit)
-                    for path, commit in submodules.items()
-                )
+                not isinstance(names, list)
+                or not names
+                or any(not isinstance(name, str) or not skills_install.SKILL_NAME.fullmatch(name) for name in names)
+                or len(names) != len(set(names))
+                or bootstrap_names is None
+                or remaining_names is None
+                or len(bootstrap_names) != 1
+                or bootstrap_names | remaining_names != set(names)
+                or bootstrap_names & remaining_names
             ):
-                raise BootstrapError(f"catalog source revision is invalid: {key}")
+                raise BootstrapError(f"catalog collection contract is invalid: {key}")
         package = component.get("package")
         if package is not None and (
             not isinstance(package, dict)
@@ -213,6 +254,26 @@ def component_target_version(component: dict[str, Any]) -> str | None:
     if not isinstance(installer, str):
         return None
     return package_candidate_version(installer, package["name"], package.get("registry"))
+
+
+def collection_skill_names(component: dict[str, Any]) -> set[str]:
+    contract = component.get("collection_contract")
+    if not isinstance(contract, dict):
+        raise BootstrapError("catalog collection contract is missing")
+    names = contract.get("skills")
+    if not isinstance(names, list):
+        raise BootstrapError("catalog collection skill names are missing")
+    return set(names)
+
+
+def collection_bootstrap_skill(component: dict[str, Any]) -> str:
+    contract = component.get("collection_contract")
+    if not isinstance(contract, dict):
+        raise BootstrapError("catalog collection contract is missing")
+    bootstrap_names = collection_source_names([contract.get("bootstrap")])
+    if bootstrap_names is None or len(bootstrap_names) != 1:
+        raise BootstrapError("catalog bootstrap Skill is missing")
+    return next(iter(bootstrap_names))
 
 
 def parse_package_owner(output: str) -> str | None:
@@ -328,7 +389,6 @@ def package_command(component: dict[str, Any], command: list[str]) -> list[str]:
 def probe_component(
     component: dict[str, Any],
     codex_home: Path | None = None,
-    source: Path | None = None,
     destination: str | None = None,
 ) -> tuple[str, str | None]:
     adapter = component.get("adapter")
@@ -341,19 +401,14 @@ def probe_component(
         state = codex_static.template_state(target)
         return {"current": "match", "absent": "missing"}.get(state, "drifted"), state
     if adapter == "pennix-skills":
-        if source is None:
-            return "unknown", None
         try:
-            expected = {name for name, _ in skills_install.discover_skills(source)}
-            destination = skills_install.resolve_destination(destination)
+            destination_path = skills_install.resolve_destination(destination)
+            state = skills_install.collection_state(
+                collection_skill_names(component), destination_path, collection_bootstrap_skill(component)
+            )
         except skills_install.InstallError:
             return "unknown", None
-        if not destination.exists():
-            return "missing", None
-        entries = {entry.name for entry in destination.iterdir()}
-        if entries != expected or any(not (destination / name / "SKILL.md").is_file() for name in expected):
-            return "drifted", None
-        return "match", str(destination)
+        return state, str(destination_path) if state in {"match", "bootstrap"} else None
     plugin = component.get("plugin")
     if isinstance(plugin, dict):
         target_home = codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -418,9 +473,7 @@ def probe_component(
 def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any]:
     components = {}
     for key, component in catalog["components"].items():
-        status, observed = probe_component(
-            component, args.codex_home, args.source, getattr(args, "destination", None)
-        )
+        status, observed = probe_component(component, args.codex_home, getattr(args, "destination", None))
         package = component.get("package")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
         observed_package = None
@@ -460,8 +513,6 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "target_package": target_package,
             "candidate_owner": candidate_owner,
         }
-    source = args.source
-    source_ready = (source / "skills" / "pennix-workflow-lifecycle" / "SKILL.md").is_file()
     agents = args.codex_home / "AGENTS.md"
     config = args.codex_home / "config.toml"
     agents_state = codex_static.template_state(agents)
@@ -470,7 +521,6 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
         "schema": 2,
         "observed_at": now(),
         "catalog": str(args.catalog),
-        "source": {"path": str(source), "ready": source_ready},
         "host": host.detect_host(),
         "static": {
             "agents_path": str(agents),
@@ -488,16 +538,6 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
         observed = inventory["components"][key]
         if observed["status"] != "match":
             failures.append(f"{key}: observed status is {observed['status']}")
-        if component["delivery"] == "source":
-            try:
-                source = skills_install.resolve_source(str(args.source))
-                skills_install.ensure_submodules(
-                    source,
-                    initialize=False,
-                    expected_commits=component["source_contract"]["submodules"],
-                )
-            except skills_install.InstallError as error:
-                failures.append(f"{key}: {error}")
         if isinstance(component.get("upstream_inspection"), dict):
             try:
                 evidence = upstream.inspect_component(component)
@@ -582,21 +622,19 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
             return "changed"
         raise BootstrapError(f"refusing {state} lifecycle template: {path}")
 
-    source = skills_install.resolve_source(str(args.source))
-    skills_install.ensure_submodules(
-        source,
-        initialize=operation != "uninstall",
-        expected_commits=component.get("source_contract", {}).get("submodules"),
-    )
-    skills = skills_install.discover_skills(source)
-    destination = skills_install.resolve_destination(args.destination)
-    if operation == "uninstall":
-        existed = destination.exists()
-        skills_install.uninstall_skills(skills, destination)
-        return "changed" if existed else "no-op"
-    else:
-        changed = skills_install.install_skills(skills, destination)
-    return "changed" if operation == "uninstall" or changed else "no-op"
+    if adapter == "pennix-skills":
+        if operation != "uninstall":
+            raise BootstrapError("Pennix Skills installation and upgrade belong to the system $skill-installer")
+        destination = skills_install.resolve_destination(getattr(args, "destination", None))
+        try:
+            changed = skills_install.uninstall_collection(
+                collection_skill_names(component), destination, collection_bootstrap_skill(component)
+            )
+        except skills_install.InstallError as error:
+            raise BootstrapError(str(error)) from error
+        return "changed" if changed else "no-op"
+
+    raise BootstrapError(f"unsupported static adapter: {adapter}")
 
 
 def component_operation(
@@ -607,7 +645,7 @@ def component_operation(
     current_host = host.detect_host()
     if not current_host["supported"]:
         raise BootstrapError(str(current_host["reason"]))
-    status, _ = probe_component(component, args.codex_home, getattr(args, "source", None))
+    status, _ = probe_component(component, args.codex_home, getattr(args, "destination", None))
     if status == "unknown":
         raise BootstrapError(f"cannot safely identify {key}; refusing {operation}")
     plugin = component.get("plugin")
@@ -619,7 +657,7 @@ def component_operation(
                 codex_plugins.remove_plugin(args.codex_home, plugin["id"])
             except codex_plugins.PluginError as error:
                 raise BootstrapError(str(error)) from error
-            if probe_component(component, args.codex_home, getattr(args, "source", None))[0] != "missing":
+            if probe_component(component, args.codex_home, getattr(args, "destination", None))[0] != "missing":
                 raise BootstrapError("plugin uninstall postcondition failed")
             return "changed"
         metadata = component.get("package")
@@ -644,7 +682,7 @@ def component_operation(
             raise BootstrapError(f"package manager could not start: {error}") from error
         if result.returncode:
             raise BootstrapError(f"package manager failed ({result.returncode})")
-        if probe_component(component, args.codex_home, getattr(args, "source", None))[0] != "missing":
+        if probe_component(component, args.codex_home, getattr(args, "destination", None))[0] != "missing":
             raise BootstrapError("package uninstall postcondition failed")
         return "changed"
 
@@ -725,7 +763,7 @@ def component_operation(
             raise BootstrapError(f"package manager could not start: {error}") from error
         if result.returncode:
             raise BootstrapError(f"package manager failed ({result.returncode})")
-    if probe_component(component, args.codex_home, getattr(args, "source", None))[0] != "match":
+    if probe_component(component, args.codex_home, getattr(args, "destination", None))[0] != "match":
         raise BootstrapError(f"{operation} postcondition failed: {key} does not match catalog")
     return "changed"
 
@@ -746,7 +784,7 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
     current_host = host.detect_host()
     if not current_host["supported"]:
         raise BootstrapError(str(current_host["reason"]))
-    if metadata["delivery"] in {"static", "source"}:
+    if metadata["delivery"] in {"static", "collection"}:
         status = static_operation(args, component, metadata, args.command)
     else:
         status = component_operation(args, catalog, component, metadata, args.command)
@@ -758,7 +796,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("command", choices=("discover", *ACTION_NAMES))
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
-    parser.add_argument("--source", type=Path, default=SCRIPT_ROOT.parents[2])
     parser.add_argument("--destination")
     parser.add_argument("--component")
     parser.add_argument("--yes", action="store_true")
@@ -771,7 +808,6 @@ def main(argv: list[str]) -> int:
         args.catalog = args.catalog.expanduser().resolve()
         # Preserve symlink information so codex_static can reject unsafe targets.
         args.codex_home = args.codex_home.expanduser().absolute()
-        args.source = args.source.expanduser().resolve()
         catalog = load_catalog(args.catalog)
         inventory = discover(args, catalog)
         if args.command == "discover":

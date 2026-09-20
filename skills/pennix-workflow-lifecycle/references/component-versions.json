@@ -159,15 +159,24 @@
       "template": {"name": "AGENTS.md.install", "revision": "sha256:f58e5963ff4071c5282672073ee76b3dccabdf5d42dd0bb97dcd960c1f3f339b"}
     },
     "pennix-skills": {
-      "delivery": "source",
-      "source": "clean local pennix-skills checkout with pinned submodules",
+      "delivery": "collection",
+      "source": "public GitHub Skills installed by Codex system $skill-installer",
       "owner": "pennix",
       "scope": "global",
       "verify_key": "skills/pennix-skills direct entry set",
-      "actions": {"install": "managed", "configure": "managed", "upgrade": "managed", "uninstall": "managed", "verify": "managed"},
+      "actions": {"install": "native-owner", "configure": "not-applicable", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed"},
       "project_init": "not-applicable",
       "adapter": "pennix-skills",
-      "source_contract": {"submodules": {"skills/grok-search": "31cd9ace320c9b62bb80e1b2de66363173862681", "skills/windsurf-code-search": "89e2576ff3f3413ac432de43827fba0f3d1a9b0d"}}
+      "native_owner_reason": "Pennix Skills installation and upgrade use Codex's system $skill-installer in an agent turn; target hosts do not keep a local repository checkout.",
+      "collection_contract": {
+        "skills": ["grok-search", "pennix-decision-gates", "pennix-fastctx-routing", "pennix-session-handoff", "pennix-workflow-lifecycle", "pennix-workflow-routing", "pennix-worktime-memory", "tavily-hikari", "windsurf-code-search", "workflow-doctor"],
+        "bootstrap": {"repo": "PennixRv/pennix-skills", "ref": "main", "paths": ["skills/pennix-workflow-lifecycle"]},
+        "remaining": [
+          {"repo": "PennixRv/pennix-skills", "ref": "main", "paths": ["skills/pennix-decision-gates", "skills/pennix-fastctx-routing", "skills/pennix-session-handoff", "skills/pennix-workflow-routing", "skills/pennix-worktime-memory", "skills/tavily-hikari", "skills/workflow-doctor"]},
+          {"repo": "PennixRv/grok-search", "ref": "main", "paths": ["."], "name": "grok-search"},
+          {"repo": "PennixRv/windsurf-code-search", "ref": "main", "paths": ["."], "name": "windsurf-code-search"}
+        ]
+      }
     }
   }
 }

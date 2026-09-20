@@ -183,6 +183,7 @@ write_file_atomic() {
 
 install_codex() {
   local candidate
+  run_pacman -S --needed --noconfirm npm
   select_aur_helper
   candidate="$("$AUR_HELPER" -Si "$CODEX_PACKAGE" 2>/dev/null | awk '$1 == "Version" { print $3; exit }')"
   [[ -n "$candidate" ]] || fail "AUR Codex package is unavailable: $CODEX_PACKAGE"
@@ -217,14 +218,6 @@ select_aur_helper() {
   bootstrap_yay
 }
 
-require_fresh_codex_config() {
-  [[ ! -e "$CONFIG_FILE" ]] || fail "existing Codex config found; Stage 0 refuses to overwrite: $CONFIG_FILE"
-}
-
-require_fresh_codex_auth() {
-  [[ ! -e "$AUTH_FILE" ]] || fail "existing Codex auth cache found; Stage 0 refuses to overwrite: $AUTH_FILE"
-}
-
 require_fresh_codex_package() {
   if pacman -Qq "$CONFLICTING_CODEX_PACKAGE" >/dev/null 2>&1; then
     fail "conflicting Codex package is already installed; Stage 0 refuses package-owner migration: $CONFLICTING_CODEX_PACKAGE"
@@ -232,8 +225,13 @@ require_fresh_codex_package() {
 }
 
 configure_provider() {
-  require_fresh_codex_config
-  require_fresh_codex_auth
+  local needs_config=0 needs_auth=0
+  [[ -e "$CONFIG_FILE" ]] || needs_config=1
+  [[ -e "$AUTH_FILE" ]] || needs_auth=1
+  if (( ! needs_config && ! needs_auth )); then
+    return 0
+  fi
+
   require_template "$CONFIG_TEMPLATE"
   require_template "$AUTH_TEMPLATE"
   if [[ ! -d "$CODEX_HOME_DIR" ]]; then
@@ -241,21 +239,24 @@ configure_provider() {
     chmod 700 "$CODEX_HOME_DIR"
   fi
 
-  local base_url api_key
-  prompt_read "OpenAI-compatible base URL: " base_url
-  [[ "$base_url" =~ ^https?://[^[:space:]]+$ ]] || fail "base URL must be an absolute HTTP(S) URL"
-  prompt_read_secret "API key (hidden): " api_key
-  printf '\n'
-  [[ -n "$api_key" ]] || fail "API key cannot be empty"
+  local base_url api_key escaped_key
+  if (( needs_config )); then
+    prompt_read "OpenAI-compatible base URL: " base_url
+    [[ "$base_url" =~ ^https?://[^[:space:]]+$ ]] || fail "base URL must be an absolute HTTP(S) URL"
+    [[ "$base_url" != *$'\n'* && "$base_url" != *$'\r'* && "$base_url" != *'"'* && "$base_url" != *\\* ]] || fail "base URL contains unsupported TOML characters"
+    write_file_atomic "$CONFIG_FILE" < <(render_seed_template "$CONFIG_TEMPLATE" "$base_url" "")
+    CONFIG_CREATED=1
+  fi
 
-  [[ "$base_url" != *$'\n'* && "$base_url" != *$'\r'* && "$base_url" != *'"'* && "$base_url" != *\\* ]] || fail "base URL contains unsupported TOML characters"
-  local escaped_key
-  escaped_key="$(json_string "$api_key")"
-  write_file_atomic "$CONFIG_FILE" < <(render_seed_template "$CONFIG_TEMPLATE" "$base_url" "")
-  CONFIG_CREATED=1
-  write_file_atomic "$AUTH_FILE" < <(render_seed_template "$AUTH_TEMPLATE" "" "$escaped_key")
-  AUTH_CREATED=1
-  unset api_key
+  if (( needs_auth )); then
+    prompt_read_secret "API key (hidden): " api_key
+    printf '\n'
+    [[ -n "$api_key" ]] || fail "API key cannot be empty"
+    escaped_key="$(json_string "$api_key")"
+    write_file_atomic "$AUTH_FILE" < <(render_seed_template "$AUTH_TEMPLATE" "" "$escaped_key")
+    AUTH_CREATED=1
+    unset api_key
+  fi
 }
 
 print_next_step() {
@@ -263,20 +264,13 @@ print_next_step() {
 
 Pennix workflow seed complete.
 
-Start a new Codex session, then paste exactly:
+Start the first new Codex session, then paste exactly:
 
-请使用系统内置 `$skill-installer`，从公开 GitHub 仓库
-`PennixRv/pennix-skills` 的 `main` 安装路径
-`skills/pennix-workflow-lifecycle`。
-本 turn 只安装 lifecycle bridge；安装成功后停止，不要假定该 Skill 会在本 turn 可用。
+请使用系统内置 `$skill-installer`，从 `PennixRv/pennix-skills` 的 `main` 将 `skills/pennix-workflow-lifecycle` 安装到 `$CODEX_HOME/skills/pennix-skills`（传为 `--dest`）。这是 Pennix 的 bootstrap Skill；成功后结束当前会话，不要安装其他 Pennix Skills，也不要假定它会在当前会话可用。
 
-After the installer reports success, start another turn and paste exactly:
+Start the second new Codex session, then paste exactly:
 
-使用 `$pennix-workflow-lifecycle` 开始 Pennix 工作流部署。
-请创建并核验 `PennixRv/pennix-skills` 的干净本地 source checkout，
-再安装完整 Pennix Skills collection。随后只执行只读 `discover`，核对宿主、
-component owner 和 version catalog。完整 workflow 的移除必须由 lifecycle
-对单一 component 执行 `uninstall`；seed 不提供卸载。
+使用 `$pennix-workflow-lifecycle` 完整部署 Pennix 工作流。先执行只读 `discover`；若 collection 处于 bootstrap 状态，按该 Skill 的 catalog 合同通过系统 `$skill-installer` 补齐 collection，然后继续部署。
 EOF
 }
 
@@ -285,12 +279,12 @@ main() {
   umask 077
   require_arch_wsl2_or_native
   require_safe_codex_home
-  require_fresh_codex_config
-  require_fresh_codex_auth
   require_command pacman
   require_fresh_codex_package
-  resolve_templates
-  open_prompt_fd
+  if [[ ! -e "$CONFIG_FILE" || ! -e "$AUTH_FILE" ]]; then
+    resolve_templates
+    open_prompt_fd
+  fi
   install_codex
   configure_provider
   print_next_step

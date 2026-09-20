@@ -25,10 +25,12 @@ remote seed entry:
 curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh | bash
 ```
 
-The remote entry fetches the two static seed templates over HTTPS and reads
-answers from `/dev/tty`; it fails before package/config writes when no control
-terminal is available. When no AUR helper exists, it also checks out and builds
-the `yay` AUR package. It does not clone or execute the Pennix source.
+When either seed file is missing, the remote entry fetches the two static
+templates over HTTPS and reads the needed answers from `/dev/tty`; it fails
+before package/config writes when no control terminal is available. It needs
+neither templates nor a terminal when both files already exist. When no AUR
+helper exists, it also checks out and builds the `yay` AUR package. It does not
+clone or execute the Pennix source.
 
 For maintenance and offline fixture testing, the executable may be launched
 from either `bash` or `zsh`; its Bash shebang selects the required interpreter.
@@ -36,27 +38,36 @@ Execute it as a command rather than sourcing it into the caller shell. The local
 seed reads the adjacent `templates/` directory; copy the whole
 `pennix-workflow-lifecycle` directory if relocating it.
 
-It supports native Arch Linux and Arch Linux under WSL2. It installs the
-current `openai-codex-bin` candidate from AUR, prompts
-for an OpenAI-compatible `base_url` and a hidden API key, renders the tracked
+It supports native Arch Linux and Arch Linux under WSL2. It installs `npm` from
+the official repository and the current `openai-codex-bin` candidate from AUR,
+prompts only for a missing
+OpenAI-compatible `base_url` or hidden API key, renders the tracked
 `templates/config.toml.seed` and `templates/auth.json.seed`, and materializes
-the seed-owned fields in `CODEX_HOME/config.toml` and `CODEX_HOME/auth.json`.
+only missing seed-owned files in `CODEX_HOME`. Existing files are preserved
+exactly, so the seed is reentrant without prompting when both already exist.
 
-The seed refuses to overwrite an existing `CODEX_HOME/config.toml` or
-`CODEX_HOME/auth.json`. It does not clone or execute remote Pennix source,
-write the key to TOML, print the key, or add the current package candidate to
-the fixed component catalog. It accepts no arguments: `seed-arch.sh --uninstall`
-is rejected before any write.
+The seed does not clone or execute remote Pennix source, write the key to TOML,
+print the key, or add the current package candidate to the fixed component
+catalog. It accepts no arguments: `seed-arch.sh --uninstall` is rejected before
+any write.
 
-Its completion output is a two-turn bridge. In a new Codex session, use the
-system `$skill-installer` to install only
-`PennixRv/pennix-skills` `main` path
-`skills/pennix-workflow-lifecycle`. When that installer reports success, start
-another turn and invoke this Skill. Unless the user names another path, create
-the clean source checkout at `$HOME/devel/pennix-skills`, install the full
-collection from it, then run read-only `discover`. The collection installer
-removes the standalone bridge only if it exactly matches the source Skill;
-otherwise it blocks and preserves the unverified directory.
+Its completion output uses two new Codex sessions. The first installs only this
+bootstrap Skill from the catalog's `collection_contract.bootstrap` into
+`$CODEX_HOME/skills/pennix-skills`, then ends. The second invokes this Skill;
+the bootstrap Skill is already discoverable there and remains available while
+the collection is completed.
+
+In the second session, run read-only `discover` first. If `pennix-skills` is
+`bootstrap`, read `collection_contract.remaining` from
+`references/component-versions.json` and use the system `$skill-installer` to
+install every listed source into `$CODEX_HOME/skills/pennix-skills`. Pass that
+destination to every installer invocation, do not reinstall the bootstrap
+Skill, and do not create a repository copy. Then run
+`npm ci --omit=dev --ignore-scripts` in the installed `grok-search` directory,
+rerun `discover`, and continue the requested deployment in this same second
+session. The catalog is the sole source for the remaining collection's
+repositories, refs, and paths; do not retype a parallel Skill list in user
+prompts or this document.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed
@@ -73,11 +84,13 @@ After the seed, the system-installation lifecycle is direct and component-scoped
 `verify`. `discover` is read-only and reports the catalog target, observed
 version, actual package owner, and repository candidate; it never writes the
 catalog or applies a candidate.
-The supported static components are `pennix-skills`, `codex-config`, and
-`codex-agents`; catalog keys address package and plugin components.
-The Skills source must be a clean, explicit Git checkout; the installer atomically
-replaces only its managed `skills/pennix-skills` destination and rejects symbolic-link
-paths or an unrelated file at that destination.
+`pennix-skills` is an installed collection, not a static component: its
+install and upgrade actions belong to the system `$skill-installer`; lifecycle
+discovers and verifies the catalog's exact entry set and only uninstalls that
+exact collection. A `bootstrap` state is an exact single-Skill initial shape,
+not drift: the second-session procedure above completes it without another
+user prompt or another session. `codex-config` and `codex-agents` are the
+supported static components; catalog keys address package and plugin components.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
 user model, security, UI, or history preferences. Catalog package actions install
