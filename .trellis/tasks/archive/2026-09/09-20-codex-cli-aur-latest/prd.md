@@ -17,15 +17,20 @@
 - [x] catalog 明确 `codex-cli` 为 `repository-latest`，无静态版本；非法的动态 catalog 组合被拒绝。
 - [x] `probe_component`、`discover`、`verify` 和 package action 对动态组件使用当前 AUR candidate；candidate 无法获取时安全阻止写操作。
 - [x] seed 查询并安装 `openai-codex-bin`，不再使用官方 `openai-codex`；缺失 helper 的 bootstrap 和既有 helper 路径均有测试。
-- [x] 全部 lifecycle 定向单元测试和 Shell 语法检查通过；collection source check 待首个干净提交后执行。
-- [ ] 修改以独立组件提交推送；根仓库只记录提交与验收结果。
+- [x] 全部 lifecycle 定向单元测试、Shell 语法检查和干净 checkout collection source check 通过。
+- [x] 修改已通过独立组件提交推送；根仓库只记录提交与验收结果。
 
 ## Evidence
 
 - `bash -n skills/pennix-workflow-lifecycle/scripts/seed-arch.sh`
 - `python3 -m unittest discover -s skills/pennix-workflow-lifecycle/tests -p 'test_*.py'` (`79` tests passed)
+- CI-equivalent per-file Python test invocation passed for every `skills/**/tests/test_*.py` file.
+- `python3 skills/pennix-workflow-lifecycle/scripts/adapters/skills_install.py --source "$PWD" --check` validated `10` Skills from a clean checkout.
 - `git diff --check`
 - `.github/workflows/verify.yml` 的 collection check 已从退役的 `pennix-workflow-bootstrap` 路径改为当前 lifecycle adapter；将在干净 checkout 上按 CI 命令验证。
+- Component commit `7f7d4c1` (`feat: track Codex CLI from AUR latest`) fast-forwarded and pushed to `origin/main`.
+- Anonymous raw `main` seed was fetched over HTTPS and confirmed to contain `openai-codex-bin`, `select_aur_helper`, and `bootstrap_yay`.
+- Root `node scripts/run-workflow-integration.mjs --full-local` exited `0`, including the Pennix Skills collection check.
 
 ## Notes
 
