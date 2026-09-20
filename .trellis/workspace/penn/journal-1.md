@@ -99,3 +99,25 @@ Implemented source-ready pair and ownership gates, recoverable one-target intake
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: 修复远程 Seed 首会话入口
+<!-- trellis-session: v=2 fp=5e5b954146388f46 -->
+
+**Date**: 2026-09-20
+**Task**: 修复远程 Seed 首会话入口
+**Branch**: `task/remote-seed-entry-uninstall`
+
+### Summary
+
+将远程 seed 的无来源提示替换为两轮 lifecycle bridge；拒绝 seed 参数；完整 collection 安装仅迁移精确一致的 standalone bridge，并完成全量验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `553995f` | feat: bridge fresh Pennix seed into lifecycle |
+
+### Status
+
+[OK] **Completed**
