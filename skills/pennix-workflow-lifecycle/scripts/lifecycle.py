@@ -33,6 +33,7 @@ class BootstrapError(RuntimeError):
 
 ACTION_NAMES = ("install", "configure", "upgrade", "uninstall", "verify")
 ACTION_STATES = {"managed", "native-owner", "verify-only", "project-only", "not-applicable"}
+VERSION_POLICIES = {"pinned", "repository-latest"}
 
 
 def now() -> str:
@@ -110,7 +111,14 @@ def load_catalog(path: Path) -> dict[str, Any]:
         delivery = component["delivery"]
         if delivery not in {"package", "plugin", "native", "static", "source"}:
             raise BootstrapError(f"catalog delivery is invalid: {key}")
-        if delivery in {"package", "plugin", "native"} and not isinstance(component.get("approved_version"), str):
+        version_policy = component.get("version_policy", "pinned")
+        if version_policy not in VERSION_POLICIES:
+            raise BootstrapError(f"catalog version policy is invalid: {key}")
+        if (
+            version_policy == "pinned"
+            and delivery in {"package", "plugin", "native"}
+            and not isinstance(component.get("approved_version"), str)
+        ):
             raise BootstrapError(f"catalog approved version is missing: {key}")
         if delivery == "static" and not isinstance(component.get("template"), dict):
             raise BootstrapError(f"catalog template contract is missing: {key}")
@@ -154,6 +162,13 @@ def load_catalog(path: Path) -> dict[str, Any]:
             or (package.get("source") != "npm" and "registry" in package)
         ):
             raise BootstrapError(f"catalog package metadata is invalid: {key}")
+        if version_policy == "repository-latest" and (
+            delivery != "package"
+            or "approved_version" in component
+            or not isinstance(package, dict)
+            or package.get("source") != "aur"
+        ):
+            raise BootstrapError(f"catalog repository-latest policy is invalid: {key}")
         plugin = component.get("plugin")
         if plugin is not None and (package is not None or not valid_plugin(plugin)):
             raise BootstrapError(f"catalog plugin metadata is invalid: {key}")
@@ -182,6 +197,22 @@ def load_catalog(path: Path) -> dict[str, Any]:
 def normalize_version(raw: str) -> str | None:
     matches = VERSION_RE.findall(raw.replace("_", ""))
     return matches[-1] if matches else None
+
+
+def component_version_policy(component: dict[str, Any]) -> str:
+    return str(component.get("version_policy", "pinned"))
+
+
+def component_target_version(component: dict[str, Any]) -> str | None:
+    if component_version_policy(component) == "pinned":
+        return normalize_version(str(component.get("approved_version", "")))
+    package = component.get("package")
+    if not isinstance(package, dict):
+        return None
+    installer = host.detect_host().get("installers", {}).get(package.get("source"))
+    if not isinstance(installer, str):
+        return None
+    return package_candidate_version(installer, package["name"], package.get("registry"))
 
 
 def parse_package_owner(output: str) -> str | None:
@@ -335,9 +366,9 @@ def probe_component(
         observed = installed.get("version")
         if not isinstance(observed, str) or not isinstance(installed.get("enabled"), bool):
             return "unknown", observed if isinstance(observed, str) else None
-        expected = normalize_version(str(component["approved_version"]))
+        expected = component_target_version(component)
         return (
-            "match" if installed["enabled"] and normalize_version(observed) == expected else "drifted",
+            "match" if expected is not None and installed["enabled"] and normalize_version(observed) == expected else "drifted",
             observed,
         )
     probe = component.get("probe")
@@ -347,8 +378,8 @@ def probe_component(
             observed = installed_npm_version(package["name"])
             if observed is None:
                 return "missing", None
-            expected = normalize_version(str(component["approved_version"]))
-            return ("match" if normalize_version(observed) == expected else "drifted"), observed
+            expected = component_target_version(component)
+            return ("match" if expected is not None and normalize_version(observed) == expected else "drifted"), observed
         return "unknown", None
     command = shutil.which(str(probe))
     if not command:
@@ -366,7 +397,9 @@ def probe_component(
     observed = normalize_version((result.stdout or result.stderr).strip())
     if result.returncode or observed is None:
         return "unknown", observed
-    expected = normalize_version(str(component["approved_version"]))
+    expected = component_target_version(component)
+    if expected is None:
+        return "unknown", observed
     status = "match" if observed == expected else "drifted"
     package = component.get("package")
     if status == "match" and isinstance(package, dict):
@@ -415,6 +448,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "status": status,
             "observed_version": observed,
             "catalog_version": component.get("approved_version"),
+            "version_policy": component_version_policy(component),
             "candidate_version": candidate_version,
             "owner": component["owner"],
             "scope": component["scope"],
@@ -659,14 +693,17 @@ def component_operation(
                 raise BootstrapError("installed command has no verifiable package owner")
             if command_owner not in {None, package_name, *replacements}:
                 raise BootstrapError(f"installed command is owned by unmanaged package {command_owner}")
-        expected = normalize_version(str(component["approved_version"]))
+        expected = component_target_version(component)
         if (
             metadata.get("source") == "npm"
             and status != "match"
             and normalize_version(installed_npm_version(package_name) or "") == expected
         ):
             raise BootstrapError("installed npm package does not provide an effective matching command")
-        if package_candidate_version(installer, package_name, registry) != expected:
+        candidate = package_candidate_version(installer, package_name, registry)
+        if candidate is None:
+            raise BootstrapError("repository candidate is unavailable")
+        if component_version_policy(component) == "pinned" and candidate != expected:
             raise BootstrapError("repository candidate does not match catalog")
         if replacement_owner:
             try:

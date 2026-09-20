@@ -12,7 +12,8 @@
 
 当前 lifecycle 的宿主边界是 Linux 上的 Arch Linux，包括原生 Arch Linux 和 WSL2
 中的 Arch Linux。生命周期包操作优先使用已存在的 `yay`，没有时回退到已存在的 `paru`，最后才使用
-`pacman`；Stage 0 的 Codex 最小安装仍直接使用官方 `pacman`。非 Arch、WSL1 或无法确认 WSL 版本的环境不允许生命周期写入。
+`pacman`。Stage 0 的 Codex 最小安装也通过 AUR 的 `openai-codex-bin`：缺少 AUR helper 时会先通过
+`pacman` 安装构建前置并 bootstrap `yay`。非 Arch、WSL1 或无法确认 WSL 版本的环境不允许生命周期写入。
 
 ## 系统安装：全新 Arch 环境
 
@@ -22,7 +23,7 @@
 curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh | bash
 ```
 
-它只下载同一 `main` 上受控的两个静态 seed 模板，并从 `/dev/tty` 读取交互输入；没有控制终端时会在任何包或配置写入前失败。
+它下载同一 `main` 上受控的两个静态 seed 模板，并从 `/dev/tty` 读取交互输入；没有控制终端时会在任何包或配置写入前失败。若本机没有 AUR helper，随后还会检出并构建 `yay` 的 AUR package；它不下载或执行 Pennix 的远端源码。
 
 seed 脚本在源码仓库中的明确位置是：
 
@@ -38,7 +39,7 @@ bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh
 应直接执行，不要使用 `source` 将它加载进调用者 shell。若要复制到其他位置，
 请复制整个 `skills/pennix-workflow-lifecycle/` 目录，以保留 `templates/`。
 
-它从 Arch 官方仓库安装当前 `openai-codex`，交互式收集 `base_url` 和隐藏 API key，
+它从 AUR 安装当前 `openai-codex-bin`，交互式收集 `base_url` 和隐藏 API key，
 根据 `templates/config.toml.seed`、`templates/auth.json.seed` 只物化 seed 阶段字段。
 它不会覆盖已有 `~/.codex/config.toml` 或 `~/.codex/auth.json`，完成后打印安装 Pennix Skills、
 再使用 `pennix-workflow-lifecycle` 开始部署的提示词。

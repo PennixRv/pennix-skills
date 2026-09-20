@@ -1,0 +1,29 @@
+{
+  "id": "codex-cli-aur-latest",
+  "name": "codex-cli-aur-latest",
+  "title": "Codex CLI tracks AUR latest",
+  "description": "将 seed 和 lifecycle 的 codex-cli 安装策略统一为 AUR openai-codex-bin 当次可用候选版本。移除该组件的静态 approved_version；由 catalog 仅声明 repository-latest 版本策略。seed 必须使用 AUR helper，lifecycle 的 discover/install/upgrade/verify 必须以当次 AUR 候选与实际安装版本比较。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-09-20",
+  "completedAt": null,
+  "branch": "task/codex-cli-aur-latest",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change",
+    "acceptance": "no fixed codex-cli version; seed installs AUR openai-codex-bin through yay/paru; lifecycle tracks current repository candidate; targeted tests pass"
+  }
+}

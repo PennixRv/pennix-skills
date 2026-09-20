@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly CODEX_PACKAGE="openai-codex"
-readonly CONFLICTING_CODEX_PACKAGE="openai-codex-bin"
+readonly CODEX_PACKAGE="openai-codex-bin"
+readonly CONFLICTING_CODEX_PACKAGE="openai-codex"
 readonly PROVIDER_ID="OpenAI"
 readonly REMOTE_TEMPLATE_BASE_URL="https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/templates"
 SCRIPT_SOURCE="${BASH_SOURCE[0]-}"
@@ -18,6 +18,8 @@ readonly AUTH_FILE="$CODEX_HOME_DIR/auth.json"
 CONFIG_TEMPLATE="${TEMPLATE_DIR:+$TEMPLATE_DIR/config.toml.seed}"
 AUTH_TEMPLATE="${TEMPLATE_DIR:+$TEMPLATE_DIR/auth.json.seed}"
 REMOTE_TEMPLATE_DIR=""
+AUR_BOOTSTRAP_DIR=""
+AUR_HELPER=""
 PROMPT_FD=0
 REMOTE_MODE=0
 CONFIG_CREATED=0
@@ -32,6 +34,9 @@ cleanup() {
   if [[ -n "$REMOTE_TEMPLATE_DIR" ]]; then
     rm -f "$REMOTE_TEMPLATE_DIR/config.toml.seed" "$REMOTE_TEMPLATE_DIR/auth.json.seed"
     rmdir "$REMOTE_TEMPLATE_DIR" 2>/dev/null || true
+  fi
+  if [[ -n "$AUR_BOOTSTRAP_DIR" ]]; then
+    rm -rf -- "$AUR_BOOTSTRAP_DIR"
   fi
   exit "$status"
 }
@@ -58,6 +63,15 @@ require_arch_wsl2_or_native() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "required command is missing: $1"
+}
+
+run_pacman() {
+  if (( EUID == 0 )); then
+    pacman "$@"
+    return
+  fi
+  require_command sudo
+  sudo pacman "$@"
 }
 
 require_template() {
@@ -169,16 +183,38 @@ write_file_atomic() {
 
 install_codex() {
   local candidate
-  candidate="$(pacman -Si "$CODEX_PACKAGE" 2>/dev/null | awk '$1 == "Version" { print $3; exit }')"
-  [[ -n "$candidate" ]] || fail "Arch official package is unavailable: $CODEX_PACKAGE"
-  printf 'Arch official Codex candidate: %s\n' "$candidate"
-  if (( EUID == 0 )); then
-    pacman -Syu --needed "$CODEX_PACKAGE"
-  else
-    require_command sudo
-    sudo pacman -Syu --needed "$CODEX_PACKAGE"
-  fi
+  select_aur_helper
+  candidate="$("$AUR_HELPER" -Si "$CODEX_PACKAGE" 2>/dev/null | awk '$1 == "Version" { print $3; exit }')"
+  [[ -n "$candidate" ]] || fail "AUR Codex package is unavailable: $CODEX_PACKAGE"
+  printf 'AUR Codex candidate: %s\n' "$candidate"
+  "$AUR_HELPER" -Syu --needed --noconfirm "$CODEX_PACKAGE"
   require_command codex
+}
+
+bootstrap_yay() {
+  (( EUID != 0 )) || fail "Stage 0 cannot bootstrap an AUR helper as root"
+  run_pacman -S --needed --noconfirm base-devel git
+  require_command git
+  require_command makepkg
+  AUR_BOOTSTRAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pennix-yay.XXXXXX")" || fail "cannot create an AUR helper build directory"
+  git clone --depth 1 https://aur.archlinux.org/yay.git "$AUR_BOOTSTRAP_DIR/yay" \
+    || fail "cannot clone the yay AUR package"
+  (cd "$AUR_BOOTSTRAP_DIR/yay" && makepkg -si --needed --noconfirm) \
+    || fail "cannot build the yay AUR helper"
+  require_command yay
+  AUR_HELPER="yay"
+}
+
+select_aur_helper() {
+  if command -v yay >/dev/null 2>&1; then
+    AUR_HELPER="yay"
+    return
+  fi
+  if command -v paru >/dev/null 2>&1; then
+    AUR_HELPER="paru"
+    return
+  fi
+  bootstrap_yay
 }
 
 require_fresh_codex_config() {

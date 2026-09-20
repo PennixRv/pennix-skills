@@ -3,7 +3,7 @@
   "components": {
     "codex-cli": {
       "delivery": "package",
-      "approved_version": "0.155.1",
+      "version_policy": "repository-latest",
       "source": "AUR openai-codex-bin package",
       "owner": "codex",
       "scope": "global",

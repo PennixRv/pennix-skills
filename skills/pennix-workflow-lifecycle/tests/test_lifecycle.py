@@ -102,6 +102,70 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(fixture["observed_package"], "fixture-package")
             self.assertEqual(fixture["target_package"], "fixture-package")
 
+    def test_repository_latest_catalog_is_aur_only_and_has_no_pinned_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog_path = self.catalog(root)
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            component = value["components"]["fixture"]
+            component.pop("approved_version")
+            component["version_policy"] = "repository-latest"
+            component["package"]["source"] = "aur"
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            self.assertEqual(
+                bootstrap.load_catalog(catalog_path)["components"]["fixture"]["version_policy"],
+                "repository-latest",
+            )
+
+            component["approved_version"] = "1.2.3"
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "repository-latest"):
+                bootstrap.load_catalog(catalog_path)
+
+    def test_repository_latest_probe_matches_the_current_aur_candidate(self) -> None:
+        component = {
+            "version_policy": "repository-latest",
+            "probe": "fixture",
+            "version_args": ["--version"],
+            "package": {"source": "aur", "name": "fixture-package"},
+        }
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"installers": {"aur": "yay"}}),
+            patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(
+                bootstrap.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="fixture 1.2.3", stderr=""),
+            ),
+            patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+        ):
+            self.assertEqual(bootstrap.probe_component(component), ("match", "1.2.3"))
+
+    def test_discover_reports_repository_latest_policy_and_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog_path = self.catalog(root)
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            component = value["components"]["fixture"]
+            component.pop("approved_version")
+            component["version_policy"] = "repository-latest"
+            component["package"]["source"] = "aur"
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            catalog = bootstrap.load_catalog(catalog_path)
+            args = SimpleNamespace(catalog=catalog_path, codex_home=root / "codex", source=SOURCE_ROOT, destination=None)
+            with (
+                patch.object(bootstrap, "probe_component", return_value=("drifted", "1.0.0")),
+                patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+                patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+                patch.object(bootstrap.host, "detect_host", return_value={"installers": {"aur": "yay"}}),
+                patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
+            ):
+                discovered = bootstrap.discover(args, catalog)["components"]["fixture"]
+            self.assertIsNone(discovered["catalog_version"])
+            self.assertEqual(discovered["version_policy"], "repository-latest")
+            self.assertEqual(discovered["candidate_version"], "1.2.3")
+
     def test_verify_reports_match_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -211,6 +275,33 @@ class BootstrapTests(unittest.TestCase):
             )
         self.assertEqual(run.call_args.args[0], ["sudo", "pacman", "-R", "--noconfirm", "fixture-package"])
 
+    def test_repository_latest_upgrade_uses_the_current_aur_candidate(self) -> None:
+        component = {
+            "version_policy": "repository-latest",
+            "source": "fixture",
+            "owner": "test",
+            "scope": "global",
+            "verify_key": "fixture --version",
+            "probe": "fixture",
+            "version_args": ["--version"],
+            "package": {"source": "aur", "name": "fixture-package"},
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"))
+        host_state = {"supported": True, "installers": {"aur": "yay"}}
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value=host_state),
+            patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("match", "1.2.3")]),
+            patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+            patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+        ):
+            self.assertEqual(
+                bootstrap.component_operation(args, {"components": {}}, "fixture", component, "upgrade"),
+                "changed",
+            )
+        self.assertEqual(run.call_args.args[0], ["yay", "-S", "--needed", "--noconfirm", "fixture-package"])
+
     def test_component_operation_refuses_an_unknown_state(self) -> None:
         component = {
             "approved_version": "1.2.3",
@@ -229,6 +320,8 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["fastctx"]["package"]["name"], "@pennixrv/fastctx")
         self.assertEqual(catalog["components"]["fastctx"]["replaces"], ["fastctx"])
         self.assertEqual(catalog["components"]["codex-cli"]["package"]["source"], "aur")
+        self.assertEqual(catalog["components"]["codex-cli"]["version_policy"], "repository-latest")
+        self.assertNotIn("approved_version", catalog["components"]["codex-cli"])
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
 
     def test_npm_replacement_is_removed_before_install(self) -> None:

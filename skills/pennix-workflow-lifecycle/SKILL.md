@@ -25,9 +25,10 @@ remote seed entry:
 curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh | bash
 ```
 
-The remote entry fetches only the two static seed templates over HTTPS and reads
+The remote entry fetches the two static seed templates over HTTPS and reads
 answers from `/dev/tty`; it fails before package/config writes when no control
-terminal is available. It does not clone or execute the Pennix source.
+terminal is available. When no AUR helper exists, it also checks out and builds
+the `yay` AUR package. It does not clone or execute the Pennix source.
 
 For maintenance and offline fixture testing, the executable may be launched
 from either `bash` or `zsh`; its Bash shebang selects the required interpreter.
@@ -36,7 +37,7 @@ seed reads the adjacent `templates/` directory; copy the whole
 `pennix-workflow-lifecycle` directory if relocating it.
 
 It supports native Arch Linux and Arch Linux under WSL2. It installs the
-current `openai-codex` candidate from the Arch official repository, prompts
+current `openai-codex-bin` candidate from AUR, prompts
 for an OpenAI-compatible `base_url` and a hidden API key, renders the tracked
 `templates/config.toml.seed` and `templates/auth.json.seed`, and materializes
 the seed-owned fields in `CODEX_HOME/config.toml` and `CODEX_HOME/auth.json`.
@@ -49,11 +50,13 @@ Skills, then use this lifecycle entry for the remaining system actions.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed
-`yay`, then `paru`, and finally `pacman`; Stage 0 Codex installation uses the
-official `pacman` path directly. Lifecycle does not install an AUR helper,
-guess package names, or force independent/forked components through a package
-manager. Non-Arch hosts and unknown/WSL1 environments are discoverable but all
-write actions are blocked.
+`yay`, then `paru`, and finally `pacman`. Stage 0 Codex installation follows
+the same AUR path: when neither helper exists, it installs `base-devel` and
+`git` through `pacman`, then builds `yay` from its AUR package before installing
+`openai-codex-bin`. Lifecycle itself does not install an AUR helper, guess
+package names, or force independent/forked components through a package manager.
+Non-Arch hosts and unknown/WSL1 environments are discoverable but all write
+actions are blocked.
 
 After the seed, the system-installation lifecycle is direct and component-scoped:
 `discover` → `install|configure|upgrade|uninstall --component <name> --yes` → fresh
@@ -68,7 +71,8 @@ paths or an unrelated file at that destination.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
 user model, security, UI, or history preferences. Catalog package actions install
-only a matching fixed candidate. A catalog `replaces` entry is the complete
+only a matching fixed candidate, except `codex-cli`, which follows its current
+AUR repository candidate. A catalog `replaces` entry is the complete
 allow-list for a known package-owner migration (for example the unscoped
 `fastctx` npm package to `@pennixrv/fastctx`); the old owner is removed through
 the same native package manager before installation. An unlisted or

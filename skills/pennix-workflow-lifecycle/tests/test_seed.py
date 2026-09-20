@@ -30,7 +30,15 @@ class SeedTests(unittest.TestCase):
         )
         (fake_bin / "sudo").write_text("#!/usr/bin/env bash\nexec \"$@\"\n", encoding="utf-8")
         (fake_bin / "codex").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-        for command in ("pacman", "sudo", "codex"):
+        (fake_bin / "yay").write_text(
+            "#!/usr/bin/env bash\n"
+            f"printf '%s\\n' \"$*\" >> {root / 'yay.log'}\n"
+            "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
+            "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        for command in ("pacman", "sudo", "codex", "yay"):
             (fake_bin / command).chmod(0o700)
         if curl_fixture is not None:
             assert curl_log is not None
@@ -135,6 +143,10 @@ class SeedTests(unittest.TestCase):
             auth_file = root / "home" / ".codex" / "auth.json"
             self.assertIn("super-secret-value", auth_file.read_text(encoding="utf-8"))
             self.assertEqual(auth_file.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(
+                (root / "yay.log").read_text(encoding="utf-8").splitlines(),
+                ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
+            )
 
     def test_remote_pipe_seed_fetches_only_templates_and_reads_tty(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -247,6 +259,86 @@ class SeedTests(unittest.TestCase):
             self.assertEqual(config.read_text(encoding="utf-8"), "model_provider = \"existing\"\n")
             self.assertFalse(pacman_log.exists())
 
+    def test_seed_bootstraps_yay_when_no_aur_helper_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin = root / "bin"
+            tool_bin = root / "tools"
+            fake_bin.mkdir()
+            tool_bin.mkdir()
+            for command in ("awk", "bash", "cat", "chmod", "dirname", "grep", "mkdir", "mktemp", "mv", "pwd", "rm", "rmdir"):
+                resolved = shutil.which(command)
+                assert resolved is not None
+                (tool_bin / command).symlink_to(resolved)
+
+            pacman_log = root / "pacman.log"
+            git_log = root / "git.log"
+            makepkg_log = root / "makepkg.log"
+            yay_log = root / "yay.log"
+            (fake_bin / "pacman").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
+                "if [[ \"$1\" == -Qq ]]; then exit 1; fi\n"
+                "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "sudo").write_text("#!/usr/bin/env bash\nexec \"$@\"\n", encoding="utf-8")
+            (fake_bin / "codex").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (fake_bin / "git").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {git_log}\n"
+                "[[ \"$1\" == clone ]] && mkdir -p \"$5\"\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "makepkg").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {makepkg_log}\n"
+                "cat > \"$FAKE_BIN/yay\" <<'EOF'\n"
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {yay_log}\n"
+                "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
+                "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+                "exit 1\n"
+                "EOF\n"
+                "chmod 700 \"$FAKE_BIN/yay\"\n",
+                encoding="utf-8",
+            )
+            for command in ("pacman", "sudo", "codex", "git", "makepkg"):
+                (fake_bin / command).chmod(0o700)
+
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}:{tool_bin}",
+                    "HOME": str(root / "home"),
+                    "XDG_CONFIG_HOME": str(root / "config"),
+                    "CODEX_HOME": str(root / "home" / ".codex"),
+                    "FAKE_BIN": str(fake_bin),
+                }
+            )
+            result = subprocess.run(
+                [str(tool_bin / "bash"), str(SCRIPT)],
+                input="https://api.example.test/v1\nbootstrap-secret\n",
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                pacman_log.read_text(encoding="utf-8").splitlines(),
+                ["-Qq openai-codex", "-S --needed --noconfirm base-devel git"],
+            )
+            self.assertTrue(
+                git_log.read_text(encoding="utf-8").startswith("clone --depth 1 https://aur.archlinux.org/yay.git ")
+            )
+            self.assertEqual(makepkg_log.read_text(encoding="utf-8").splitlines(), ["-si --needed --noconfirm"])
+            self.assertEqual(
+                yay_log.read_text(encoding="utf-8").splitlines(),
+                ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
+            )
+
     def test_conflicting_codex_package_is_rejected_before_install(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -256,7 +348,7 @@ class SeedTests(unittest.TestCase):
             (fake_bin / "pacman").write_text(
                 "#!/usr/bin/env bash\n"
                 f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
-                "if [[ \"$1\" == -Qq && \"$2\" == openai-codex-bin ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -Qq && \"$2\" == openai-codex ]]; then exit 0; fi\n"
                 "exit 1\n",
                 encoding="utf-8",
             )
@@ -279,8 +371,8 @@ class SeedTests(unittest.TestCase):
                 check=False,
             )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("openai-codex-bin", result.stderr)
-            self.assertEqual(pacman_log.read_text(encoding="utf-8").splitlines(), ["-Qq openai-codex-bin"])
+            self.assertIn("openai-codex", result.stderr)
+            self.assertEqual(pacman_log.read_text(encoding="utf-8").splitlines(), ["-Qq openai-codex"])
 
     def test_existing_auth_cache_is_not_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
