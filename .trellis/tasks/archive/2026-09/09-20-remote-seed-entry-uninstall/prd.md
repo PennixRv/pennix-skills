@@ -15,12 +15,20 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1: seed 输出不再使用无来源的“安装 Pennix Skills”指令，并准确表达至少一个 turn 的 bridge 安装边界。
-- [ ] AC2: 新会话可按输出通过 `$skill-installer` 获得 `pennix-workflow-lifecycle`，不需要猜测仓库或路径。
-- [ ] AC3: bridge 文档给出全 collection 的 clean-checkout 与 `discover` 路径，不声称会自动创建 checkout。
-- [ ] AC4: 文档和 seed 输出明确完整卸载仅由 lifecycle 逐 component 处理，且 seed 本身没有未声明的反向删除行为。
-- [ ] AC5: `bash -n`、seed 与 lifecycle Python 测试、collection source check 通过。
-- [ ] AC6: 完整 collection 安装只迁移与 source 完全一致的 standalone bridge；漂移 bridge 保留并阻断，且不产生重复的同名 Skill。
+- [x] AC1: seed 输出不再使用无来源的“安装 Pennix Skills”指令，并准确表达至少一个 turn 的 bridge 安装边界。
+- [x] AC2: 新会话可按输出通过 `$skill-installer` 获得 `pennix-workflow-lifecycle`，不需要猜测仓库或路径。
+- [x] AC3: bridge 文档给出全 collection 的 clean-checkout 与 `discover` 路径，不声称会自动创建 checkout。
+- [x] AC4: 文档和 seed 输出明确完整卸载仅由 lifecycle 逐 component 处理，且 seed 本身没有未声明的反向删除行为。
+- [x] AC5: `bash -n`、seed 与 lifecycle Python 测试、collection source check 通过。
+- [x] AC6: 完整 collection 安装只迁移与 source 完全一致的 standalone bridge；漂移 bridge 保留并阻断，且不产生重复的同名 Skill。
+
+## Verification
+
+- `bash -n skills/pennix-workflow-lifecycle/scripts/seed-arch.sh && python3 skills/pennix-workflow-lifecycle/tests/test_seed.py`: 12 tests passed.
+- `python3 skills/pennix-workflow-lifecycle/tests/test_skills_install.py`: 18 tests passed.
+- `python3 -m unittest discover -s skills/pennix-workflow-lifecycle/tests -p 'test_*.py'`: 82 tests passed.
+- `python3 skills/pennix-workflow-lifecycle/scripts/adapters/skills_install.py --source "$PWD" --check`: validated 10 Pennix Skills.
+- `node scripts/run-workflow-integration.mjs --full-local` (root repository): passed with exit code 0.
 
 ## Confirmed Facts
 
