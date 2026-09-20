@@ -121,3 +121,25 @@ Implemented source-ready pair and ownership gates, recoverable one-target intake
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: 完成两会话 Pennix Skills 部署入口
+<!-- trellis-session: v=2 fp=6b3f91d6acf7817e -->
+
+**Date**: 2026-09-20
+**Task**: 完成两会话 Pennix Skills 部署入口
+**Branch**: `task/reentrant-seed-runtime-ready`
+
+### Summary
+
+将 Arch Seed 收敛为可重入基线；首个新 Codex 会话仅安装 lifecycle bootstrap，第二个会话由 lifecycle 按 catalog 补齐 collection 并继续部署。移除 target-host source checkout 和自定义 collection 安装路径，补齐原生 installer、精确 collection 状态及测试合同。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a4bcdc9` | feat: bootstrap Pennix Skills in two sessions |
+
+### Status
+
+[OK] **Completed**
