@@ -16,11 +16,19 @@
 
 ## 系统安装：全新 Arch 环境
 
-seed 脚本的明确位置是：
+新环境的首选入口是不预下载源码的远程 seed：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh | bash
+```
+
+它只下载同一 `main` 上受控的两个静态 seed 模板，并从 `/dev/tty` 读取交互输入；没有控制终端时会在任何包或配置写入前失败。
+
+seed 脚本在源码仓库中的明确位置是：
 
 `skills/pennix-workflow-lifecycle/scripts/seed-arch.sh`
 
-必须连同相邻模板目录一起使用。在本仓库根目录中可直接复制执行：
+维护和测试本地 checkout 时必须连同相邻模板目录一起使用。在本仓库根目录中可直接复制执行：
 
 ```bash
 bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh

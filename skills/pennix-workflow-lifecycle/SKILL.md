@@ -18,16 +18,22 @@ Lifecycle 必须把系统安装和项目初始化分开显示、计划和确认�
 
 ### 系统安装
 
-On a fresh Arch Linux host, before Codex or Pennix Skills exists, run:
+On a fresh Arch Linux host, before Codex or Pennix Skills exists, prefer the
+remote seed entry:
 
 ```bash
-bash "/path/to/pennix-skills/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh"
+curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh | bash
 ```
 
-The executable may be launched from either `bash` or `zsh`; its Bash shebang
-selects the required interpreter. Execute it as a command rather than sourcing
-it into the caller shell. The seed reads the adjacent `templates/` directory;
-copy the whole `pennix-workflow-lifecycle` directory if relocating it.
+The remote entry fetches only the two static seed templates over HTTPS and reads
+answers from `/dev/tty`; it fails before package/config writes when no control
+terminal is available. It does not clone or execute the Pennix source.
+
+For maintenance and offline fixture testing, the executable may be launched
+from either `bash` or `zsh`; its Bash shebang selects the required interpreter.
+Execute it as a command rather than sourcing it into the caller shell. The local
+seed reads the adjacent `templates/` directory; copy the whole
+`pennix-workflow-lifecycle` directory if relocating it.
 
 It supports native Arch Linux and Arch Linux under WSL2. It installs the
 current `openai-codex` candidate from the Arch official repository, prompts

@@ -4,13 +4,22 @@ set -euo pipefail
 readonly CODEX_PACKAGE="openai-codex"
 readonly CONFLICTING_CODEX_PACKAGE="openai-codex-bin"
 readonly PROVIDER_ID="OpenAI"
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly TEMPLATE_DIR="$SCRIPT_DIR/../templates"
-readonly CONFIG_TEMPLATE="$TEMPLATE_DIR/config.toml.seed"
-readonly AUTH_TEMPLATE="$TEMPLATE_DIR/auth.json.seed"
+readonly REMOTE_TEMPLATE_BASE_URL="https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/templates"
+SCRIPT_SOURCE="${BASH_SOURCE[0]-}"
+SCRIPT_DIR=""
+if [[ -n "$SCRIPT_SOURCE" && -f "$SCRIPT_SOURCE" ]]; then
+  SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd)"
+fi
+readonly SCRIPT_DIR
+readonly TEMPLATE_DIR="${SCRIPT_DIR:+$SCRIPT_DIR/../templates}"
 readonly CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
 readonly CONFIG_FILE="$CODEX_HOME_DIR/config.toml"
 readonly AUTH_FILE="$CODEX_HOME_DIR/auth.json"
+CONFIG_TEMPLATE="${TEMPLATE_DIR:+$TEMPLATE_DIR/config.toml.seed}"
+AUTH_TEMPLATE="${TEMPLATE_DIR:+$TEMPLATE_DIR/auth.json.seed}"
+REMOTE_TEMPLATE_DIR=""
+PROMPT_FD=0
+REMOTE_MODE=0
 CONFIG_CREATED=0
 AUTH_CREATED=0
 
@@ -19,6 +28,10 @@ cleanup() {
   if (( status != 0 )); then
     (( CONFIG_CREATED )) && rm -f "$CONFIG_FILE"
     (( AUTH_CREATED )) && rm -f "$AUTH_FILE"
+  fi
+  if [[ -n "$REMOTE_TEMPLATE_DIR" ]]; then
+    rm -f "$REMOTE_TEMPLATE_DIR/config.toml.seed" "$REMOTE_TEMPLATE_DIR/auth.json.seed"
+    rmdir "$REMOTE_TEMPLATE_DIR" 2>/dev/null || true
   fi
   exit "$status"
 }
@@ -48,7 +61,67 @@ require_command() {
 }
 
 require_template() {
-  [[ -r "$1" && ! -L "$1" ]] || fail "required Codex template is missing or unsafe: $1"
+  [[ -f "$1" && -r "$1" && ! -L "$1" ]] || fail "required Codex template is missing or unsafe: $1"
+}
+
+validate_template_contract() {
+  local config_content auth_content
+  config_content="$(<"$CONFIG_TEMPLATE")"
+  auth_content="$(<"$AUTH_TEMPLATE")"
+  [[ "$config_content" == *'{{PENNIX_BASE_URL}}'* ]] || fail "Codex config template is missing the base URL placeholder"
+  [[ "$auth_content" == *'{{PENNIX_API_KEY}}'* ]] || fail "Codex auth template is missing the API key placeholder"
+}
+
+resolve_templates() {
+  if [[ -f "$CONFIG_TEMPLATE" && -f "$AUTH_TEMPLATE" && ! -L "$CONFIG_TEMPLATE" && ! -L "$AUTH_TEMPLATE" ]]; then
+    validate_template_contract
+    return
+  fi
+
+  REMOTE_MODE=1
+  require_command curl
+  REMOTE_TEMPLATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pennix-seed.XXXXXX")" || fail "cannot create a temporary template directory"
+  local base_url="$REMOTE_TEMPLATE_BASE_URL"
+  [[ "$base_url" =~ ^https://[^[:space:]]+$ ]] || fail "seed template base URL must use HTTPS"
+  local template_name
+  for template_name in config.toml.seed auth.json.seed; do
+    curl -fsSL --proto '=https' --tlsv1.2 --max-time 30 \
+      "$base_url/$template_name" -o "$REMOTE_TEMPLATE_DIR/$template_name" \
+      || fail "cannot download the remote Codex template: $template_name"
+    require_template "$REMOTE_TEMPLATE_DIR/$template_name"
+  done
+  CONFIG_TEMPLATE="$REMOTE_TEMPLATE_DIR/config.toml.seed"
+  AUTH_TEMPLATE="$REMOTE_TEMPLATE_DIR/auth.json.seed"
+  validate_template_contract
+}
+
+open_prompt_fd() {
+  if (( ! REMOTE_MODE )); then
+    PROMPT_FD=0
+    return
+  fi
+  [[ -r /dev/tty && -w /dev/tty ]] || fail "remote seed requires an interactive control terminal (/dev/tty)"
+  exec {PROMPT_FD}</dev/tty || fail "cannot open the interactive control terminal (/dev/tty)"
+}
+
+prompt_read() {
+  local prompt="$1"
+  local variable="$2"
+  if (( PROMPT_FD == 0 )); then
+    IFS= read -r -p "$prompt" "$variable" || fail "interactive input ended before seed configuration completed"
+  else
+    IFS= read -r -u "$PROMPT_FD" -p "$prompt" "$variable" || fail "interactive input ended before seed configuration completed"
+  fi
+}
+
+prompt_read_secret() {
+  local prompt="$1"
+  local variable="$2"
+  if (( PROMPT_FD == 0 )); then
+    IFS= read -r -s -p "$prompt" "$variable" || fail "interactive input ended before seed configuration completed"
+  else
+    IFS= read -r -s -u "$PROMPT_FD" -p "$prompt" "$variable" || fail "interactive input ended before seed configuration completed"
+  fi
 }
 
 require_safe_codex_home() {
@@ -133,9 +206,9 @@ configure_provider() {
   fi
 
   local base_url api_key
-  read -r -p "OpenAI-compatible base URL: " base_url
+  prompt_read "OpenAI-compatible base URL: " base_url
   [[ "$base_url" =~ ^https?://[^[:space:]]+$ ]] || fail "base URL must be an absolute HTTP(S) URL"
-  read -r -s -p "API key (hidden): " api_key
+  prompt_read_secret "API key (hidden): " api_key
   printf '\n'
   [[ -n "$api_key" ]] || fail "API key cannot be empty"
 
@@ -150,7 +223,7 @@ configure_provider() {
 }
 
 print_next_step() {
-  cat <<EOF
+  cat <<'EOF'
 
 Pennix workflow seed complete. Start a new Codex session, then paste:
 
@@ -168,6 +241,8 @@ main() {
   require_fresh_codex_auth
   require_command pacman
   require_fresh_codex_package
+  resolve_templates
+  open_prompt_fd
   install_codex
   configure_provider
   print_next_step
