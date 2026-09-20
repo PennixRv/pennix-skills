@@ -43,11 +43,11 @@ bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh
 或隐藏 API key，根据 `templates/config.toml.seed`、`templates/auth.json.seed` 只物化 seed 阶段字段。已有
 `~/.codex/config.toml` 和 `~/.codex/auth.json` 会原样保留；两者都存在时可以无交互重入。
 
-完成时，seed 会给出两个新 Codex 会话的确定提示。第一个会话仅通过系统
+完成时，seed 会给出一个新 Codex 会话的两轮确定提示。第一轮仅通过系统
 `$skill-installer` 将 `pennix-workflow-lifecycle` bootstrap Skill 安装到最终的
-`$CODEX_HOME/skills/pennix-skills` 目录后结束。第二个会话直接使用该 Skill：它先执行只读
-`discover`，识别精确的 `bootstrap` 状态后，按 catalog 的内部合同通过系统安装器补齐其余
-collection，并在同一第二会话继续部署。系统安装器只使用临时下载，不保留本地仓库副本。
+`$CODEX_HOME/skills/pennix-skills` 目录；安装器确认成功后不结束该会话，下一轮直接使用该
+Skill。它先执行只读 `discover`，识别精确的 `bootstrap` 状态后，按 catalog 的内部合同通过系统
+安装器补齐其余 collection，并在同一会话继续部署。系统安装器只使用临时下载，不保留本地仓库副本。
 
 `seed-arch.sh` 没有 `--uninstall`，也不会删除 `auth.json`、`openai-codex-bin`、AUR helper、
 构建依赖、Skills、插件或项目资产。凭据文件始终需要用户在轮换或撤销凭据后自行删除。

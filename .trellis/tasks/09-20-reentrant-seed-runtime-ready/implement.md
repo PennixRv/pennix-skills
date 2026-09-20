@@ -2,8 +2,8 @@
 
 1. 将 seed 的配置/凭据前置检查改为按文件缺失情况创建，扩展测试覆盖 fresh、
    完整重入和单文件修复，不改变 secret 输出与权限合同。
-2. 用第一个会话的 lifecycle bootstrap 与第二个会话的 lifecycle prompt 替换
-   bridge/source-checkout 完成文案，并同步 README 与 lifecycle Skill。
+2. 用同一会话第一轮的 lifecycle bootstrap 与下一轮的 lifecycle prompt 替换
+   bridge/source-checkout 和重开会话的完成文案，并同步 README 与 lifecycle Skill。
 3. 从 catalog 导出 bootstrap 与剩余 collection 的安装合同；将 `pennix-skills` 的
    discover/verify/uninstall 改为完整安装副本或精确 bootstrap 合同，取消目标机
    checkout-backed install/upgrade 声明。

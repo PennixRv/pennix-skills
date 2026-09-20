@@ -51,21 +51,20 @@ print the key, or add the current package candidate to the fixed component
 catalog. It accepts no arguments: `seed-arch.sh --uninstall` is rejected before
 any write.
 
-Its completion output uses two new Codex sessions. The first installs only this
-bootstrap Skill from the catalog's `collection_contract.bootstrap` into
-`$CODEX_HOME/skills/pennix-skills`, then ends. The second invokes this Skill;
-the bootstrap Skill is already discoverable there and remains available while
-the collection is completed.
+Its completion output uses one new Codex session with two turns. The first turn
+installs only this bootstrap Skill from the catalog's `collection_contract.bootstrap`
+into `$CODEX_HOME/skills/pennix-skills`. The system installer makes it available
+on the next turn, which stays in the same session and invokes this Skill.
 
-In the second session, run read-only `discover` first. If `pennix-skills` is
+In that second turn, run read-only `discover` first. If `pennix-skills` is
 `bootstrap`, read `collection_contract.remaining` from
 `references/component-versions.json` and use the system `$skill-installer` to
 install every listed source into `$CODEX_HOME/skills/pennix-skills`. Pass that
 destination to every installer invocation, do not reinstall the bootstrap
 Skill, and do not create a repository copy. Then run
 `npm ci --omit=dev --ignore-scripts` in the installed `grok-search` directory,
-rerun `discover`, and continue the requested deployment in this same second
-session. The catalog is the sole source for the remaining collection's
+rerun `discover`, and continue the requested deployment in this same session.
+The catalog is the sole source for the remaining collection's
 repositories, refs, and paths; do not retype a parallel Skill list in user
 prompts or this document.
 
@@ -88,8 +87,8 @@ catalog or applies a candidate.
 install and upgrade actions belong to the system `$skill-installer`; lifecycle
 discovers and verifies the catalog's exact entry set and only uninstalls that
 exact collection. A `bootstrap` state is an exact single-Skill initial shape,
-not drift: the second-session procedure above completes it without another
-user prompt or another session. `codex-config` and `codex-agents` are the
+not drift: the same-session second-turn procedure above completes it without
+another session. `codex-config` and `codex-agents` are the
 supported static components; catalog keys address package and plugin components.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
