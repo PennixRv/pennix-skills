@@ -358,6 +358,45 @@ class BootstrapTests(unittest.TestCase):
             self.assertNotIn("source", inventory)
             self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), [])
 
+    def test_collection_discover_reports_missing_names_for_a_safe_partial_collection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "skills" / "pennix-skills"
+            catalog_path = self.catalog(root)
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            value["components"] = {
+                "pennix-skills": {
+                    "delivery": "collection",
+                    "source": "fixture",
+                    "owner": "pennix",
+                    "scope": "global",
+                    "verify_key": "fixture",
+                    "actions": {"install": "native-owner", "configure": "not-applicable", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed"},
+                    "project_init": "not-applicable",
+                    "adapter": "pennix-skills",
+                    "native_owner_reason": "fixture",
+                    "collection_contract": {
+                        "skills": ["alpha", "beta", "bootstrap"],
+                        "bootstrap": {"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/bootstrap"]},
+                        "remaining": [{"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/alpha", "skills/beta"]}],
+                    },
+                }
+            }
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            for name in ("alpha", "bootstrap"):
+                skill = destination / name
+                skill.mkdir(parents=True)
+                (skill / "SKILL.md").write_text(
+                    f"---\nname: {name}\ndescription: Fixture.\n---\n",
+                    encoding="utf-8",
+                )
+
+            args = SimpleNamespace(catalog=catalog_path, codex_home=root / "codex", destination=str(destination))
+            inventory = bootstrap.discover(args, bootstrap.load_catalog(catalog_path))
+
+            self.assertEqual(inventory["components"]["pennix-skills"]["status"], "partial")
+            self.assertEqual(inventory["components"]["pennix-skills"]["missing_skills"], ["beta"])
+
     def test_collection_install_and_upgrade_are_owned_by_system_installer(self) -> None:
         args = SimpleNamespace(command="install", component="pennix-skills", yes=True)
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
@@ -426,6 +465,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["codex-cli"]["version_policy"], "repository-latest")
         self.assertNotIn("approved_version", catalog["components"]["codex-cli"])
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
+        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.6.43")
 
     def test_npm_replacement_is_removed_before_install(self) -> None:
         component = {
@@ -440,7 +480,7 @@ class BootstrapTests(unittest.TestCase):
         with (
             patch.object(bootstrap.host, "detect_host", return_value=host_state),
             patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("match", "2.0.0")]),
-            patch.object(bootstrap, "installed_npm_packages", side_effect=[{"fastctx": "1.0.0"}, {"fastctx": "1.0.0"}]),
+            patch.object(bootstrap, "installed_npm_packages", side_effect=[{"fastctx": "1.0.0"}, {}, {}]),
             patch.object(bootstrap, "npm_global_root", return_value=None),
             patch.object(bootstrap, "npm_owner_for_command", return_value="fastctx"),
             patch.object(bootstrap, "package_candidate_version", return_value="2.0.0"),
@@ -453,6 +493,48 @@ class BootstrapTests(unittest.TestCase):
             )
         self.assertEqual(run.call_args_list[0].args[0], ["npm", "uninstall", "--global", "fastctx"])
         self.assertEqual(run.call_args_list[1].args[0][-1], "@example/fastctx@2.0.0")
+
+    def test_match_cleans_catalogued_npm_replacement(self) -> None:
+        component = {
+            "approved_version": "2.0.0",
+            "probe": "fastctx",
+            "version_args": ["--version"],
+            "package": {"source": "npm", "name": "@example/fastctx", "registry": "https://registry.npmjs.org/"},
+            "replaces": ["fastctx"],
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"npm": "npm"}}),
+            patch.object(bootstrap, "probe_component", return_value=("match", "2.0.0")),
+            patch.object(bootstrap, "installed_npm_packages", side_effect=[{"fastctx": "1.0.0"}, {}]),
+            patch.object(bootstrap, "npm_global_root", return_value=None),
+            patch.object(bootstrap, "npm_owner_for_command", return_value="@example/fastctx"),
+            patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+        ):
+            self.assertEqual(bootstrap.component_operation(args, {"components": {}}, "fastctx", component, "upgrade"), "changed")
+        run.assert_called_once_with(["npm", "uninstall", "--global", "fastctx"], check=False)
+
+    def test_match_cleans_catalogued_package_replacement(self) -> None:
+        component = {
+            "approved_version": "2.0.0",
+            "probe": "fixture",
+            "version_args": ["--version"],
+            "package": {"source": "aur", "name": "fixture-package"},
+            "replaces": ["legacy-package"],
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"aur": "yay"}}),
+            patch.object(bootstrap, "probe_component", return_value=("match", "2.0.0")),
+            patch.object(bootstrap, "installed_pacman_package", side_effect=[True, False]),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+            patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+        ):
+            self.assertEqual(
+                bootstrap.component_operation(args, {"components": {}}, "fixture", component, "upgrade"), "changed"
+            )
+        run.assert_called_once_with(["yay", "-R", "--noconfirm", "legacy-package"], check=False)
 
     def test_system_npm_root_uses_sudo_for_package_actions(self) -> None:
         component = {"package": {"source": "npm"}}

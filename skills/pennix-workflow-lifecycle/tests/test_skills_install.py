@@ -31,13 +31,15 @@ class SkillsCollectionTest(unittest.TestCase):
 
             self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "match")
 
-    def test_collection_state_rejects_name_or_content_drift(self) -> None:
+    def test_collection_state_recognizes_a_safe_partial_collection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "skills" / "pennix-skills"
             self.make_skill(destination, "alpha")
-            self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "drifted")
+            self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "partial")
+            self.assertEqual(MODULE.collection_missing_names({"alpha", "beta"}, destination), ["beta"])
             (destination / "alpha" / "SKILL.md").write_text("drifted\n", encoding="utf-8")
             self.assertEqual(MODULE.collection_state({"alpha"}, destination), "drifted")
+            self.assertIsNone(MODULE.collection_missing_names({"alpha"}, destination))
 
     def test_collection_state_recognizes_an_exact_bootstrap_skill(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

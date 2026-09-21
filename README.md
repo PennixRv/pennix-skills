@@ -48,14 +48,15 @@ bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh
 完成时，seed 会给出一个新 Codex 会话的两轮确定提示。第一轮仅通过系统
 `$skill-installer` 将 `pennix-workflow-lifecycle` bootstrap Skill 安装到最终的
 `$CODEX_HOME/skills/pennix-skills` 目录；安装器确认成功后不结束该会话，下一轮直接使用该
-Skill。它先执行只读 `discover`，识别精确的 `bootstrap` 状态后，按 catalog 的内部合同通过系统
-安装器补齐其余 collection，并在同一会话继续部署。系统安装器只使用临时下载，不保留本地仓库副本。
+Skill。它先执行只读 `discover`；对 `bootstrap` 或可验证的 `partial` 状态，只按 catalog 输出的
+`missing_skills` 补齐缺失条目，再在同一会话继续部署。重复执行不会向系统安装器传入已存在的
+Skill。系统安装器只使用临时下载，不保留本地仓库副本。
 
 `seed-arch.sh` 没有 `--uninstall`，也不会删除 `auth.json`、`openai-codex-bin`、AUR helper、
 构建依赖、Skills、插件或项目资产。凭据文件始终需要用户在轮换或撤销凭据后自行删除。
 完整 collection 的安装和升级由系统 `$skill-installer` 在 Codex 会话中拥有；lifecycle 负责
 发现、验证，以及仅在目录条目和每个 `SKILL.md` 都完全匹配 catalog 时的精确卸载。更新 collection
-时，先由 lifecycle 卸载该单一 component，再在一个新 Codex 会话中按 catalog 的安装合同重装。
+时，先由 lifecycle 卸载该单一 component，再在同一 Codex 会话按 catalog 的两轮安装合同重装。
 
 `config.toml.install` 只包含工作流必需的静态策略，排除用户 model、sandbox/approval、TUI、Web、
 history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook hash。静态配置和 Agents 模板的

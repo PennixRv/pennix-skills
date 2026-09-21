@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import call, patch
 
 
@@ -50,6 +51,35 @@ class CodexPluginTests(unittest.TestCase):
             state = MODULE.marketplace_status(Path("/tmp/codex"), "fixture", "https://example.test/fixture.git")
         self.assertEqual(state, "matching-source")
 
+    def test_marketplace_state_verifies_the_native_marketplace_root_ref(self) -> None:
+        with (
+            patch.object(
+                MODULE,
+                "run_json",
+                return_value={
+                    "marketplaces": [
+                        {
+                            "name": "fixture",
+                            "root": "/tmp/fixture",
+                            "marketplaceSource": {"source": "https://example.test/fixture.git"},
+                        }
+                    ]
+                },
+            ),
+            patch.object(
+                MODULE.subprocess,
+                "run",
+                side_effect=[
+                    SimpleNamespace(returncode=0, stdout="abc123\n"),
+                    SimpleNamespace(returncode=0, stdout="abc123\n"),
+                ],
+            ),
+        ):
+            state = MODULE.marketplace_status(
+                Path("/tmp/codex"), "fixture", "https://example.test/fixture.git", "v1.2.3"
+            )
+        self.assertEqual(state, "matching-ref")
+
     def test_install_only_adds_an_absent_marketplace(self) -> None:
         home = Path("/tmp/codex")
         with (
@@ -81,10 +111,19 @@ class CodexPluginTests(unittest.TestCase):
             with self.assertRaisesRegex(MODULE.PluginError, "cannot be ref-verified"):
                 MODULE.install_plugin(Path("/tmp/codex"), PLUGIN)
 
+    def test_install_resumes_at_a_ref_verified_marketplace(self) -> None:
+        home = Path("/tmp/codex")
+        with (
+            patch.object(MODULE, "marketplace_status", return_value="matching-ref"),
+            patch.object(MODULE, "run_json", return_value={}) as run_json,
+        ):
+            MODULE.install_plugin(home, PLUGIN)
+        run_json.assert_called_once_with(home, "add", "fixture@fixture", "--json")
+
     def test_install_removes_new_marketplace_when_plugin_add_fails(self) -> None:
         home = Path("/tmp/codex")
         with (
-            patch.object(MODULE, "marketplace_status", side_effect=["absent", "matching-source"]),
+            patch.object(MODULE, "marketplace_status", side_effect=["absent", "matching-ref"]),
             patch.object(MODULE, "installed_plugin", return_value=None),
             patch.object(
                 MODULE,

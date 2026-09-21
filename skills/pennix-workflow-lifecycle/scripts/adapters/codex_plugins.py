@@ -51,7 +51,7 @@ def installed_plugin(codex_home: Path, plugin_id: str) -> dict[str, Any] | None:
     return None
 
 
-def marketplace_status(codex_home: Path, name: str, source: str) -> str:
+def marketplace_status(codex_home: Path, name: str, source: str, ref: str | None = None) -> str:
     marketplaces = run_json(codex_home, "marketplace", "list", "--json").get("marketplaces")
     if not isinstance(marketplaces, list):
         raise PluginError("Codex marketplace list has no marketplaces array")
@@ -59,28 +59,54 @@ def marketplace_status(codex_home: Path, name: str, source: str) -> str:
         if not isinstance(marketplace, dict) or marketplace.get("name") != name:
             continue
         current = marketplace.get("marketplaceSource")
-        if isinstance(current, dict) and current.get("source") == source:
+        if not isinstance(current, dict) or current.get("source") != source:
+            return "different-source"
+        if ref is None:
             return "matching-source"
-        return "different-source"
+        root = marketplace.get("root")
+        if not isinstance(root, str):
+            return "unverified-ref"
+        try:
+            expected = subprocess.run(
+                ["git", "-C", root, "rev-parse", "--verify", f"{ref}^{{commit}}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            actual = subprocess.run(
+                ["git", "-C", root, "rev-parse", "--verify", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "unverified-ref"
+        if expected.returncode == 0 and actual.returncode == 0 and expected.stdout.strip() == actual.stdout.strip():
+            return "matching-ref"
+        return "unverified-ref"
     return "absent"
 
 
 def install_plugin(codex_home: Path, plugin: dict[str, Any]) -> None:
     marketplace = plugin["marketplace"]
-    state = marketplace_status(codex_home, marketplace["name"], marketplace["source"])
-    if state != "absent":
+    state = marketplace_status(codex_home, marketplace["name"], marketplace["source"], marketplace["ref"])
+    created_marketplace = state == "absent"
+    if state not in {"absent", "matching-ref"}:
         raise PluginError(f"marketplace is already present and cannot be ref-verified: {state}")
-    add_marketplace = ["marketplace", "add", marketplace["source"], "--ref", marketplace["ref"], "--json"]
-    for sparse_path in marketplace.get("sparse", []):
-        add_marketplace.extend(["--sparse", sparse_path])
     try:
-        run_json(codex_home, *add_marketplace)
+        if created_marketplace:
+            add_marketplace = ["marketplace", "add", marketplace["source"], "--ref", marketplace["ref"], "--json"]
+            for sparse_path in marketplace.get("sparse", []):
+                add_marketplace.extend(["--sparse", sparse_path])
+            run_json(codex_home, *add_marketplace)
         run_json(codex_home, "add", plugin["id"], "--json")
     except PluginError as error:
         try:
             installed = installed_plugin(codex_home, plugin["id"])
-            state = marketplace_status(codex_home, marketplace["name"], marketplace["source"])
-            if installed is None and state == "matching-source":
+            state = marketplace_status(codex_home, marketplace["name"], marketplace["source"], marketplace["ref"])
+            if installed is None and created_marketplace and state == "matching-ref":
                 run_json(codex_home, "marketplace", "remove", marketplace["name"], "--json")
             elif installed is None:
                 raise PluginError(f"marketplace recovery is unsafe: {state}")

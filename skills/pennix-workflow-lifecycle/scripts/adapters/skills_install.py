@@ -72,9 +72,9 @@ def collection_state(expected_names: set[str], destination: Path, bootstrap_name
             return "bootstrap" if read_skill_name(destination / bootstrap_name) == bootstrap_name else "drifted"
         except (InstallError, OSError):
             return "drifted"
-    if entries != expected_names:
+    if not entries <= expected_names:
         return "drifted"
-    for name in expected_names:
+    for name in entries:
         skill_directory = destination / name
         if skill_directory.is_symlink() or not skill_directory.is_dir():
             return "drifted"
@@ -83,7 +83,14 @@ def collection_state(expected_names: set[str], destination: Path, bootstrap_name
                 return "drifted"
         except (InstallError, OSError):
             return "drifted"
-    return "match"
+    return "match" if entries == expected_names else "partial"
+
+
+def collection_missing_names(expected_names: set[str], destination: Path, bootstrap_name: str | None = None) -> list[str] | None:
+    state = collection_state(expected_names, destination, bootstrap_name)
+    if state not in {"bootstrap", "partial", "match"}:
+        return None
+    return sorted(expected_names - {entry.name for entry in destination.iterdir()})
 
 
 def uninstall_collection(expected_names: set[str], destination: Path, bootstrap_name: str | None = None) -> bool:

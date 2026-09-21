@@ -331,6 +331,35 @@ def installed_npm_packages() -> dict[str, str]:
     }
 
 
+def installed_pacman_package(package: str) -> bool:
+    pacman = shutil.which("pacman")
+    if not pacman:
+        return False
+    try:
+        result = subprocess.run(
+            [pacman, "-Qq", package],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def installed_replacements(component: dict[str, Any]) -> list[str]:
+    metadata = component.get("package")
+    if not isinstance(metadata, dict):
+        return []
+    replacements = component.get("replaces", [])
+    if metadata.get("source") == "npm":
+        installed = installed_npm_packages()
+        return [name for name in replacements if name in installed]
+    return [name for name in replacements if installed_pacman_package(name)]
+
+
 def npm_global_root() -> Path | None:
     npm = shutil.which("npm")
     if not npm:
@@ -408,7 +437,7 @@ def probe_component(
             )
         except skills_install.InstallError:
             return "unknown", None
-        return state, str(destination_path) if state in {"match", "bootstrap"} else None
+        return state, str(destination_path) if state in {"match", "bootstrap", "partial"} else None
     plugin = component.get("plugin")
     if isinstance(plugin, dict):
         target_home = codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -513,6 +542,11 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "target_package": target_package,
             "candidate_owner": candidate_owner,
         }
+        if component.get("adapter") == "pennix-skills":
+            destination_path = skills_install.resolve_destination(getattr(args, "destination", None))
+            components[key]["missing_skills"] = skills_install.collection_missing_names(
+                collection_skill_names(component), destination_path, collection_bootstrap_skill(component)
+            )
     agents = args.codex_home / "AGENTS.md"
     config = args.codex_home / "config.toml"
     agents_state = codex_static.template_state(agents)
@@ -686,7 +720,8 @@ def component_operation(
             raise BootstrapError("package uninstall postcondition failed")
         return "changed"
 
-    if status == "match":
+    replacements = installed_replacements(component)
+    if status == "match" and not replacements:
         return "no-op"
     if isinstance(plugin, dict):
         if operation == "upgrade":
@@ -696,7 +731,9 @@ def component_operation(
             raise BootstrapError("Codex CLI does not match catalog")
         marketplace = plugin["marketplace"]
         try:
-            if codex_plugins.marketplace_status(args.codex_home, marketplace["name"], marketplace["source"]) != "absent":
+            if codex_plugins.marketplace_status(
+                args.codex_home, marketplace["name"], marketplace["source"], marketplace["ref"]
+            ) not in {"absent", "matching-ref"}:
                 raise BootstrapError("existing marketplace cannot be ref-verified")
             codex_plugins.install_plugin(args.codex_home, plugin)
         except codex_plugins.PluginError as error:
@@ -711,26 +748,36 @@ def component_operation(
         if not isinstance(installer, str) or not isinstance(package_name, str):
             raise BootstrapError(f"{key} has no supported package installer")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
-        replacements = component.get("replaces", [])
-        replacement_owner = None
         if metadata.get("source") == "npm":
-            installed = installed_npm_packages()
-            replacement_owner = next((name for name in replacements if name in installed), None)
             if command:
                 command_owner = npm_owner_for_command(command)
                 if command_owner not in {None, package_name, *replacements}:
                     raise BootstrapError(f"installed command is owned by unmanaged npm package {command_owner}")
-                if command_owner is None and package_name not in installed and replacement_owner is None:
+                if command_owner is None and package_name not in installed_npm_packages() and not replacements:
                     raise BootstrapError("installed command has no verifiable npm owner")
         elif command:
             command_owner = installed_package_owner(command)
             if command_owner in component.get("conflicts", []):
                 raise BootstrapError("installed command is owned by a conflicting package")
-            replacement_owner = command_owner if command_owner in replacements else None
             if command_owner is None and status != "missing":
                 raise BootstrapError("installed command has no verifiable package owner")
             if command_owner not in {None, package_name, *replacements}:
                 raise BootstrapError(f"installed command is owned by unmanaged package {command_owner}")
+        if replacements:
+            for replacement_owner in replacements:
+                try:
+                    result = subprocess.run(
+                        package_command(metadata, host.package_remove_command(installer, replacement_owner)),
+                        check=False,
+                    )
+                except (OSError, ValueError) as error:
+                    raise BootstrapError(f"package manager could not remove replacement owner: {error}") from error
+                if result.returncode:
+                    raise BootstrapError(f"replacement owner removal failed ({result.returncode})")
+            if installed_replacements(component):
+                raise BootstrapError("replacement owner removal postcondition failed")
+            if status == "match":
+                return "changed"
         expected = component_target_version(component)
         if (
             metadata.get("source") == "npm"
@@ -743,16 +790,6 @@ def component_operation(
             raise BootstrapError("repository candidate is unavailable")
         if component_version_policy(component) == "pinned" and candidate != expected:
             raise BootstrapError("repository candidate does not match catalog")
-        if replacement_owner:
-            try:
-                result = subprocess.run(
-                    package_command(metadata, host.package_remove_command(installer, replacement_owner)),
-                    check=False,
-                )
-            except (OSError, ValueError) as error:
-                raise BootstrapError(f"package manager could not remove replacement owner: {error}") from error
-            if result.returncode:
-                raise BootstrapError(f"replacement owner removal failed ({result.returncode})")
         install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
         try:
             result = subprocess.run(

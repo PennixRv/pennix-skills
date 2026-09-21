@@ -60,11 +60,12 @@ into `$CODEX_HOME/skills/pennix-skills`. The system installer makes it available
 on the next turn, which stays in the same session and invokes this Skill.
 
 In that second turn, run read-only `discover` first. If `pennix-skills` is
-`bootstrap`, read `collection_contract.remaining` from
-`references/component-versions.json` and use the system `$skill-installer` to
-install every listed source into `$CODEX_HOME/skills/pennix-skills`. Pass that
-destination to every installer invocation, do not reinstall the bootstrap
-Skill, and do not create a repository copy. Then run
+`bootstrap` or `partial`, read `missing_skills` and
+`collection_contract` from `references/component-versions.json`. Use the system
+`$skill-installer` only for source paths whose derived Skill name is in
+`missing_skills`; omit an empty source invocation, pass the same destination to
+every invocation, do not reinstall an existing Skill, and do not create a
+repository copy. Then run
 `npm ci --omit=dev --ignore-scripts` in the installed `grok-search` directory,
 rerun `discover`, and continue the requested deployment in this same session.
 The catalog is the sole source for the remaining collection's
@@ -89,9 +90,11 @@ catalog or applies a candidate.
 `pennix-skills` is an installed collection, not a static component: its
 install and upgrade actions belong to the system `$skill-installer`; lifecycle
 discovers and verifies the catalog's exact entry set and only uninstalls that
-exact collection. A `bootstrap` state is an exact single-Skill initial shape,
-not drift: the same-session second-turn procedure above completes it without
-another session. `codex-config` and `codex-agents` are the
+exact collection. `bootstrap` is an exact single-Skill initial shape; `partial`
+is a safe, catalog-named subset with valid frontmatter and an explicit
+`missing_skills` list. Both resume through the same-session procedure above;
+unrelated entries, invalid frontmatter, and unknown content remain drifted and
+are never repaired or removed automatically. `codex-config` and `codex-agents` are the
 supported static components; catalog keys address package and plugin components.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
@@ -103,7 +106,8 @@ allow-list for a known package-owner migration (for example the unscoped
 the same native package manager before installation. An unlisted or
 unverifiable command owner blocks the operation and is never deleted
 automatically. Catalog plugin actions use Codex's native plugin
-lifecycle only when the target marketplace is absent; an existing marketplace whose
+lifecycle when the target marketplace is absent or Codex reports a native marketplace
+root whose Git `HEAD` exactly resolves to the catalog ref; an existing marketplace whose
 ref cannot be verified is blocked rather than modified. If the subsequent plugin add
 fails, lifecycle removes the marketplace it just created only when native inventory
 proves no plugin was installed; any ambiguous state remains blocked for manual owner recovery.

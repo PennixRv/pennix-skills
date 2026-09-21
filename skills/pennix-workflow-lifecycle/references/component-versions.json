@@ -18,7 +18,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.6.41",
+      "approved_version": "0.6.43",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
