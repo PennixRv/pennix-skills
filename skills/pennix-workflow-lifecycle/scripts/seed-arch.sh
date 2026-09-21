@@ -225,7 +225,8 @@ select_aur_helper() {
 }
 
 detect_codex_replacement() {
-  if pacman -Qq "$CODEX_REPLACEMENT_PACKAGE" >/dev/null 2>&1; then
+  if pacman -Qq | awk -v package="$CODEX_REPLACEMENT_PACKAGE" \
+    '$0 == package { found=1 } END { exit !found }'; then
     CODEX_REPLACEMENT_PRESENT=1
   fi
 }

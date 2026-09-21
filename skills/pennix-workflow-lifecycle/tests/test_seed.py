@@ -324,7 +324,7 @@ class SeedTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
                 pacman_log.read_text(encoding="utf-8").splitlines(),
-                ["-Qq openai-codex", "-S --needed --noconfirm npm", "-S --needed --noconfirm base-devel git"],
+                ["-Qq", "-S --needed --noconfirm npm", "-S --needed --noconfirm base-devel git"],
             )
             self.assertTrue(
                 git_log.read_text(encoding="utf-8").startswith("clone --depth 1 https://aur.archlinux.org/yay.git ")
@@ -342,7 +342,7 @@ class SeedTests(unittest.TestCase):
             (fake_bin / "pacman").write_text(
                 "#!/usr/bin/env bash\n"
                 f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
-                "if [[ \"$1\" == -Qq && \"$2\" == openai-codex ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -Qq ]]; then printf '%s\\n' openai-codex; exit 0; fi\n"
                 "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
                 "exit 1\n",
                 encoding="utf-8",
@@ -371,7 +371,7 @@ class SeedTests(unittest.TestCase):
             self.assertIn("openai-codex -> openai-codex-bin", result.stdout)
             self.assertEqual(
                 pacman_log.read_text(encoding="utf-8").splitlines(),
-                ["-Qq openai-codex", "-S --needed --noconfirm npm"],
+                ["-Qq", "-S --needed --noconfirm npm"],
             )
             self.assertEqual(
                 (root / "yay.log").read_text(encoding="utf-8").splitlines(),
@@ -382,6 +382,39 @@ class SeedTests(unittest.TestCase):
                 ],
             )
 
+    def test_target_codex_package_providing_legacy_name_is_not_migrated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin, pacman_log = self.fake_commands(root)
+            (fake_bin / "pacman").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
+                "if [[ \"$1\" == -Qq ]]; then printf '%s\\n' openai-codex-bin; exit 0; fi\n"
+                "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "pacman").chmod(0o700)
+            result = subprocess.run(
+                ["bash", str(SCRIPT)],
+                input="https://api.example.test/v1\nprovider-secret\n",
+                capture_output=True,
+                text=True,
+                env=self.environment(root, fake_bin),
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("Migrating Codex package owner", result.stdout)
+            self.assertEqual(
+                pacman_log.read_text(encoding="utf-8").splitlines(),
+                ["-Qq", "-S --needed --noconfirm npm"],
+            )
+            self.assertEqual(
+                (root / "yay.log").read_text(encoding="utf-8").splitlines(),
+                ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
+            )
+
     def test_codex_package_owner_migration_failure_stops_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -389,7 +422,7 @@ class SeedTests(unittest.TestCase):
             (fake_bin / "pacman").write_text(
                 "#!/usr/bin/env bash\n"
                 f"printf '%s\\n' \"$*\" >> {pacman_log}\n"
-                "if [[ \"$1\" == -Qq && \"$2\" == openai-codex ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -Qq ]]; then printf '%s\\n' openai-codex; exit 0; fi\n"
                 "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
                 "exit 1\n",
                 encoding="utf-8",
@@ -414,7 +447,7 @@ class SeedTests(unittest.TestCase):
             self.assertIn("package-owner migration failed", result.stderr)
             self.assertEqual(
                 pacman_log.read_text(encoding="utf-8").splitlines(),
-                ["-Qq openai-codex", "-S --needed --noconfirm npm"],
+                ["-Qq", "-S --needed --noconfirm npm"],
             )
             self.assertFalse((root / "home" / ".codex" / "config.toml").exists())
 
