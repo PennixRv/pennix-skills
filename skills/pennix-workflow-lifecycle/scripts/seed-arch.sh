@@ -194,7 +194,7 @@ install_codex() {
   candidate="$("$AUR_HELPER" -Si "$CODEX_PACKAGE" 2>/dev/null | awk '$1 == "Version" { version=$3 } END { if (version) print version }')"
   [[ -n "$candidate" ]] || fail "AUR Codex package is unavailable: $CODEX_PACKAGE"
   printf 'AUR Codex candidate: %s\n' "$candidate"
-  "$AUR_HELPER" -Syu --needed --noconfirm "$CODEX_PACKAGE"
+  "$AUR_HELPER" -S --needed --noconfirm "$CODEX_PACKAGE"
   require_command codex
 }
 

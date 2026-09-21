@@ -25,7 +25,6 @@ class SeedTests(unittest.TestCase):
             "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
             "if [[ \"$1\" == -Qq ]]; then exit 1; fi\n"
             "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
-            "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
             "exit 1\n",
             encoding="utf-8",
         )
@@ -35,7 +34,7 @@ class SeedTests(unittest.TestCase):
             "#!/usr/bin/env bash\n"
             f"printf '%s\\n' \"$*\" >> {root / 'yay.log'}\n"
             "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
-            "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+            "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
             "exit 1\n",
             encoding="utf-8",
         )
@@ -159,7 +158,7 @@ class SeedTests(unittest.TestCase):
             self.assertEqual(auth_file.stat().st_mode & 0o777, 0o600)
             self.assertEqual(
                 (root / "yay.log").read_text(encoding="utf-8").splitlines(),
-                ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
+                ["-Si openai-codex-bin", "-S --needed --noconfirm openai-codex-bin"],
             )
 
     def test_remote_pipe_seed_fetches_only_templates_and_reads_tty(self) -> None:
@@ -294,7 +293,7 @@ class SeedTests(unittest.TestCase):
                 "#!/usr/bin/env bash\n"
                 f"printf '%s\\n' \"$*\" >> {yay_log}\n"
                 "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
-                "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
                 "exit 1\n"
                 "EOF\n"
                 "chmod 700 \"$FAKE_BIN/yay\"\n",
@@ -332,7 +331,7 @@ class SeedTests(unittest.TestCase):
             self.assertEqual(makepkg_log.read_text(encoding="utf-8").splitlines(), ["-si --needed --noconfirm"])
             self.assertEqual(
                 yay_log.read_text(encoding="utf-8").splitlines(),
-                ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
+                ["-Si openai-codex-bin", "-S --needed --noconfirm openai-codex-bin"],
             )
 
     def test_known_codex_package_owner_is_migrated(self) -> None:
@@ -353,7 +352,7 @@ class SeedTests(unittest.TestCase):
                 f"printf '%s\\n' \"$*\" >> {root / 'yay.log'}\n"
                 "if [[ \"$1\" == -R ]]; then exit 0; fi\n"
                 "if [[ \"$1\" == -Si ]]; then echo 'Version        : 0.154.0-1'; exit 0; fi\n"
-                "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
                 "exit 1\n",
                 encoding="utf-8",
             )
@@ -378,7 +377,7 @@ class SeedTests(unittest.TestCase):
                 [
                     "-R --noconfirm openai-codex",
                     "-Si openai-codex-bin",
-                    "-Syu --needed --noconfirm openai-codex-bin",
+                    "-S --needed --noconfirm openai-codex-bin",
                 ],
             )
 
@@ -412,7 +411,7 @@ class SeedTests(unittest.TestCase):
             )
             self.assertEqual(
                 (root / "yay.log").read_text(encoding="utf-8").splitlines(),
-                ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
+                ["-Si openai-codex-bin", "-S --needed --noconfirm openai-codex-bin"],
             )
 
     def test_aur_candidate_query_consumes_trailing_metadata(self) -> None:
@@ -428,7 +427,7 @@ class SeedTests(unittest.TestCase):
                 "  for _ in {1..256}; do printf '%1024s\\n' trailing; done\n"
                 "  exit 0\n"
                 "fi\n"
-                "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == -S ]]; then exit 0; fi\n"
                 "exit 1\n",
                 encoding="utf-8",
             )
@@ -546,6 +545,10 @@ class SeedTests(unittest.TestCase):
             self.assertEqual(auth_file.read_text(encoding="utf-8"), '{"existing":true}\n')
             self.assertNotIn("OpenAI-compatible base URL", rendered)
             self.assertNotIn("API key (hidden)", rendered)
+            self.assertEqual(
+                (root / "yay.log").read_text(encoding="utf-8").splitlines(),
+                ["-Si openai-codex-bin", "-S --needed --noconfirm openai-codex-bin"],
+            )
 
     def test_symlinked_codex_home_is_rejected_before_package_install(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
