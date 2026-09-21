@@ -415,6 +415,36 @@ class SeedTests(unittest.TestCase):
                 ["-Si openai-codex-bin", "-Syu --needed --noconfirm openai-codex-bin"],
             )
 
+    def test_aur_candidate_query_consumes_trailing_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin, _ = self.fake_commands(root)
+            (fake_bin / "yay").write_text(
+                "#!/usr/bin/env bash\n"
+                "set -e\n"
+                f"printf '%s\\n' \"$*\" >> {root / 'yay.log'}\n"
+                "if [[ \"$1\" == -Si ]]; then\n"
+                "  printf 'Version        : 0.154.0-1\\n'\n"
+                "  for _ in {1..256}; do printf '%1024s\\n' trailing; done\n"
+                "  exit 0\n"
+                "fi\n"
+                "if [[ \"$1\" == -Syu ]]; then exit 0; fi\n"
+                "exit 1\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "yay").chmod(0o700)
+            result = subprocess.run(
+                ["bash", str(SCRIPT)],
+                input="https://api.example.test/v1\nmetadata-secret\n",
+                capture_output=True,
+                text=True,
+                env=self.environment(root, fake_bin),
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("AUR Codex candidate: 0.154.0-1", result.stdout)
+
     def test_codex_package_owner_migration_failure_stops_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
