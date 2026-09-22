@@ -21,3 +21,10 @@ Date: 2026-09-22
 - `npm view @pennixrv/trellis-core@0.7.0-beta.7 version --json` -> `0.7.0-beta.7`
 - `npm view @pennixrv/trellis@0.7.0-beta.7 dist.tarball --json` -> a registry tarball URL
 - Product-source `rg` found no remaining `0.6.43`; the only source hits for “source checkout” are the normal Windsurf release CI check and test.
+
+## Delivery
+
+- Commit: `9ecb96b37671b5e700900a02e6de4a756188037a`.
+- Push: `origin/main` resolves to the same commit.
+- Release/install: this collection has no package release contract or tags; the reproducible delivery path remains Codex `$skill-installer` resolving `PennixRv/pennix-skills` `main`.
+- Verification: shell syntax, Python compilation, all repository test files, and `git diff --check` passed before push.

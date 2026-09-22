@@ -6,17 +6,26 @@
 
 ## Requirements
 
-- TBD
+1. 以 `skills/pennix-workflow-lifecycle/references/component-versions.json` 作为 Trellis lifecycle 版本的唯一静态来源。
+2. 将已核验的 `trellis-cli` 目标更新为 `0.7.0-beta.7`，同步修正直接锁定旧值的测试。
+3. 核对受 Trellis 影响的 Skills、脚本、adapter、测试和发布入口；仅修复有当前合同或可复现测试证据的差异。
+4. 保持 Codex `$skill-installer` 的 Skills collection 所有权，不引入目标主机源码 checkout、第二套 catalog 或第二套安装器。
+5. 在现有 `main` 上完成验证、提交和推送；没有现成的 npm/package release contract 时不虚构发布物。
 
 ## Acceptance Criteria
 
-- [ ] TBD
+- [x] catalog 的 `trellis-cli` 目标为 `0.7.0-beta.7`，对应 npm 包可解析。
+- [x] lifecycle 测试不再锁定 `0.6.43`，相关测试通过。
+- [x] 兼容性矩阵覆盖 lifecycle、routing、decision-gates、handoff、doctor、collection、退役协议和发布元数据。
+- [x] 产品源码未发现需要继续支持的退役协议或目标主机源码 checkout 入口。
+- [x] `main` 已提交并推送；远端 `origin/main` 与本地提交一致。
+- [x] 未创建额外发布物；仓库不存在既有 npm/package release contract 或 tags，Skills 仍由 `$skill-installer` 从 `main` 获取。
 
 ## Notes
 
-- Keep `prd.md` focused on requirements, constraints, and acceptance criteria.
-- Lightweight tasks can remain PRD-only.
-- For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.
+- Delivery commit: `9ecb96b37671b5e700900a02e6de4a756188037a` (`fix: align Trellis catalog with beta.7`).
+- `git ls-remote origin refs/heads/main` verified the same commit after push.
+- The task uses the component repository's existing `main` directly; archive branch validation is skipped because no PR-backed branch exists.
 # 对齐 `pennix-skills` 与 Trellis beta
 
 ## Goal
