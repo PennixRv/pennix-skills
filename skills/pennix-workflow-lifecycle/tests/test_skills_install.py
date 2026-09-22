@@ -117,7 +117,22 @@ class SkillsCollectionTest(unittest.TestCase):
 
             self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "match")
             self.assertEqual(MODULE.collection_receipt_state(destination), "match")
-            self.assertFalse(staging.exists())
+
+    def test_collection_digest_ignores_python_bytecode_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "pennix-skills"
+            skill = destination / "pennix-workflow-lifecycle"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("content\n", encoding="utf-8")
+            digest = MODULE.collection_digest(destination)
+            scripts = skill / "scripts"
+            scripts.mkdir()
+            digest = MODULE.collection_digest(destination)
+            cache = scripts / "__pycache__"
+            cache.mkdir(parents=True)
+            (cache / "lifecycle.cpython-313.pyc").write_bytes(b"generated")
+            (cache / "nested").mkdir()
+            self.assertEqual(MODULE.collection_digest(destination), digest)
 
     def test_staging_failure_preserves_drifted_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

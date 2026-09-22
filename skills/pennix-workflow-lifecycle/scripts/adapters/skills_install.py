@@ -109,8 +109,16 @@ def collection_digest(destination: Path) -> str:
     """Digest a safe managed tree without treating arbitrary entries as content."""
     destination = assert_safe_destination(destination)
     digest = hashlib.sha256()
-    for path in sorted(destination.rglob("*"), key=lambda candidate: candidate.relative_to(destination).as_posix()):
+    paths = (
+        path
+        for path in destination.rglob("*")
+        if "__pycache__" not in path.relative_to(destination).parts
+    )
+    for path in sorted(paths, key=lambda candidate: candidate.relative_to(destination).as_posix()):
         relative = path.relative_to(destination).as_posix()
+        # Python bytecode is regenerable runtime cache, not managed collection content.
+        if "__pycache__" in path.parts or path.suffix == ".pyc":
+            continue
         if path.is_symlink():
             raise InstallError(f"collection contains a symbolic link: {relative}")
         if path.is_dir():

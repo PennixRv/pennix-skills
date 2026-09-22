@@ -19,14 +19,14 @@ Implement the approved Pennix workflow-governance convergence across the owner r
 
 ## Acceptance Criteria
 
-- [ ] 两个 owner 在 `main` 有已验证 commit/tag；Trellis owner 后续只在 `pennix/v0.7-beta` 发布，所有目标分支记录在任务元数据。
-- [ ] `skills/grok-search` 与 `skills/windsurf-code-search` 是完整普通目录，不再为 gitlink，GitHub archive 可直接读取其 `SKILL.md`。
-- [ ] catalog 对物化成员保存准确、不可变来源 SHA；同步 workflow 以该 SHA checkout，不自动刷新到可变 ref。
-- [ ] 配置 profile/receipt 为私有且无 secret；core/selected optional 的 discover/verify、legacy/drift/unknown 保护和 owner ingress 均受测试覆盖。
-- [ ] clean install、reinstall、upgrade、staging failure、旧安装保留、drift/unknown-content 保护和 `grok-search` 后置动作均受自动测试覆盖。
-- [ ] decision-gate 与 routing contract 测试通过，且 FastCtx 不接管任何专用 owner 协议。
-- [ ] 同步工作流 fail closed、只创建/更新 PR、不自动合并；其生成逻辑不引入第二份版本事实。
-- [ ] 完整测试通过，变更提交并推送至 `main`，owner 发布后的原生安装路径可重装并通过 catalog/receipt 验证；所有任务静态待决策点已锁定。
+- [x] 两个 owner 在 `main` 有已验证 commit/tag；Trellis owner 后续只在 `pennix/v0.7-beta` 发布，所有目标分支记录在任务元数据。
+- [x] `skills/grok-search` 与 `skills/windsurf-code-search` 是完整普通目录，不再为 gitlink，GitHub archive 可直接读取其 `SKILL.md`。
+- [x] catalog 对物化成员保存准确、不可变来源 SHA；同步 workflow 以该 SHA checkout，不自动刷新到可变 ref。
+- [x] 配置 profile/receipt 为私有且无 secret；core/selected optional 的 discover/verify、legacy/drift/unknown 保护和 owner ingress 均受测试覆盖。
+- [x] clean install、reinstall、upgrade、staging failure、旧安装保留、drift/unknown-content 保护和 `grok-search` 后置动作均受自动测试覆盖；receipt 忽略可再生 Python bytecode cache，避免生命周期自写缓存造成误报。
+- [x] decision-gate 与 routing contract 测试通过，且 FastCtx 不接管任何专用 owner 协议。
+- [x] 同步工作流 fail closed、只创建/更新 PR、不自动合并；其生成逻辑不引入第二份版本事实。
+- [x] 完整测试通过，变更提交并推送至 `main`，owner 发布后的原生安装路径已完成 beta.9 重装并通过 catalog/receipt 验证；所有任务静态待决策点已锁定。
 
 ## Notes
 

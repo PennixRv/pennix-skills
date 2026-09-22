@@ -96,6 +96,11 @@ partial catalog-only collection is reentrant. A user-created entry is never
 deleted. Rerun `discover` and `verify` after replacement. Do not retype a
 parallel Skill list in prompts or documentation.
 
+The collection receipt excludes Python's regenerable `__pycache__` directories
+and `.pyc` files from its digest. These files are runtime cache, not managed
+Skill content; all other files, modes, directories and symlink checks remain
+part of the integrity contract.
+
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed
 `yay`, then `paru`, and finally `pacman`. Stage 0 Codex installation follows
