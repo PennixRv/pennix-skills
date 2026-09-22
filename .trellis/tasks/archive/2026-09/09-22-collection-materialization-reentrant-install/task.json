@@ -3,7 +3,7 @@
   "name": "collection-materialization-reentrant-install",
   "title": "Workflow governance, lifecycle configuration, and routing convergence",
   "description": "Implement the approved Pennix workflow governance convergence: secure lifecycle configuration targets and reentrant collection delivery, owner-first FastCtx routing, decision-gate closure, and pinned materialized component releases.",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "penn",
   "assignee": "penn",
   "createdAt": "2026-09-22",
-  "completedAt": null,
+  "completedAt": "2026-09-22",
   "branch": "main",
   "base_branch": "main",
   "worktree_path": null,
@@ -22,5 +22,12 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "Expanded from collection-only materialization after confirming configuration, analysis_only routing, decision-gate continuation/closure, subnode output, and native-owner routing gaps. Final scope is sealed in prd.md, design.md, and implement.md. Release evidence: Trellis v0.7.0-beta.9 tag d258508c920f26d6f01e57c2a3065b8f688c2c19 on pennix/v0.7-beta; Pennix source commits b213928, c5f66c5, and 404ed1963778078c70662d4ba52036aafd6bf621 on main; collection staged replacement was initially blocked by regenerable Python cache drift, then fixed by excluding __pycache__/.pyc from receipt digest and must be rerun through the updated source lifecycle.",
-  "meta": {"target_branches": {"pennix-skills": "main", "trellis": "pennix/v0.7-beta", "component_owners": "main"}, "release_policy": "source owner release before collection materialization; no new branches"}
+  "meta": {
+    "target_branches": {
+      "pennix-skills": "main",
+      "trellis": "pennix/v0.7-beta",
+      "component_owners": "main"
+    },
+    "release_policy": "source owner release before collection materialization; no new branches"
+  }
 }
