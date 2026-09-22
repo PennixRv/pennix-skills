@@ -1,0 +1,160 @@
+# Smoke Tests
+
+## 本地 fixture
+
+```bash
+npm test
+```
+
+覆盖 Responses body/解析、Grok 后额外 provider 的顺序执行、Keyless/API-key、额度降级与限流区分、source schema（字段合并、序号标题、opened、域名降级）、Firecrawl 重试 / Retry-After / 冷却、X 原帖 Direct 校验、运行记录、代理与 fetch/map fallback。
+
+## 无 Grok key
+
+```bash
+./bin/grok-search fetch --provider firecrawl https://example.com
+./bin/grok-search fetch --provider direct https://example.com
+./bin/grok-search map --provider direct https://example.com --limit 5
+```
+
+第一条验证 Firecrawl Keyless；输出应含 `diagnostics.firecrawl_auth_mode: keyless`，`metadata.title` 非空，`diagnostics.run_path` 指向一份 `kind: "fetch"` 的运行记录。
+
+### X 原帖（keyless）
+
+```bash
+./bin/grok-search fetch https://x.com/xai/status/2087942296721559607
+./bin/grok-search fetch --provider firecrawl https://x.com/xai/status/2087942296721559607   # 约 30 credits
+```
+
+期望：第一条 `diagnostics.provider` 为 `direct`，`provider_attempts[0]` 带 `x_validated: true`，不消耗 Firecrawl credits；第二条 `credits_used >= 10` 且 `diagnostics.warnings` 里有成本提示，正文含 thread。
+
+### Firecrawl 冷却
+
+```bash
+cat > ~/.cache/grok-search/firecrawl-cooldown.json <<'EOF2'
+{"until":"2099-01-01T00:00:00.000Z","auth_mode":"keyless","reason":"credits","hit_at":"2026-09-08T00:00:00.000Z"}
+EOF2
+./bin/grok-search fetch https://example.com
+./bin/grok-search search "any query"
+./bin/grok-search fetch --provider firecrawl https://example.com
+rm -f ~/.cache/grok-search/firecrawl-cooldown.json
+```
+
+期望：前两条 provider attempts 里 Firecrawl 为 `skipped: true`、`error` 以 `cooldown until` 开头，fetch 落到 Direct，search 的 extra 为空并有 warning（无 Tavily 时）；第三条显式指定仍会真打，成功后冷却文件被删除。
+
+## Direct xAI
+
+```bash
+export GROK_API_PROVIDER="xai"
+export GROK_API_URL="https://api.x.ai/v1"
+export GROK_API_KEY="your-key"
+export GROK_MODEL="grok-4.3"
+
+./bin/grok-search search "latest xAI docs"
+./bin/grok-search search --no-extra "only Grok Responses"
+```
+
+期望：
+
+- `diagnostics.grok_endpoint` 为 `responses`；
+- 默认 `responses_max_turns` 为 3；
+- `diagnostics.options.search_source` 为 `web`，且请求体只挂 `web_search`；
+- `sources.items` 可含 `citation` / `searched`，`sources.omitted` 标记裁剪；
+- 默认 `extra=0`，不会发起 Tavily/Firecrawl 请求；显式 `--extra N` 后，在 Grok 完成后再分配给可用 provider；
+- `sources.raw_path` 非空，文件含 `schema_version: 2`、`query`、`answer`、`sources.items`、`grok_tool_calls`；
+- `diagnostics.responses_tool_calls` 含 `upstream` / `trace` / `by_action`，`diagnostics.search_budget.enforced` 为 `false`。
+
+### 域名限定
+
+```bash
+./bin/grok-search search --responses-allowed-domains github.com "pi coding agent search skill"
+```
+
+期望：`diagnostics.options.extra_domain_filter` 为 `pushed`；`sources.items` 里 extra 结果 host 都在 github.com 内，若有域外结果则排在所有 `searched` 之后，且对应 provider attempt 的 `off_domain` 大于 0。
+
+### 研究指令
+
+```bash
+./bin/grok-search search --instructions "只要官方文档原文和日期，中文回答，找不到就明说" "codex context window"
+```
+
+期望：`answer.text` 为中文且不含配置建议；`diagnostics.options.instructions_chars` 等于指令长度；`raw_path` 记录里 `instructions` 为全文。
+
+## X 检索
+
+```bash
+./bin/grok-search search --source x --no-extra "X 上大家怎么评价 grok-4.6"
+./bin/grok-search search --source both --responses-allowed-x-handles xai "latest xAI news"
+./bin/grok-search search --source x --x-from-date 2026-08-01 --no-extra "query"
+```
+
+期望：
+
+- `diagnostics.options.search_source` 为 `x`，请求体 `tools` 只有 `x_search`；
+- `diagnostics.responses_x_search_calls` 大于 0，且不小于 `usage.server_side_tool_usage_details.x_search_calls` 与 `output[]` 里 `x_search_call` item 数中的任一个（两侧都有中转会漏报，此处须是真实次数，不能是 0）；
+- `sources.items` 中 X 来源带 `tool: x_search`、`title: "@handle"`、`x_handle`、`x_post_id`，且不出现 `"1"` / `"2"` 这类序号标题；
+- `answer.text` 对每条 X 论据署名到 handle 与日期；
+- `diagnostics.search_budget.prompt_x` 为 4，`used_x` 等于 `responses_x_search_calls`。
+
+时间线题（同一话题存在 3 月与 8 月两种说法）：
+
+```bash
+./bin/grok-search search --source x --no-extra --x-from-date 2026-07-01 "codex 1M context availability"
+```
+
+期望：结果里的帖子日期都不早于 2026-07-01；`answer.text` 对新旧说法分别标注日期，不把旧 issue 当现状。
+
+错误路径：
+
+```bash
+./bin/grok-search search --source twitter "query"                        # SEARCH_SOURCE_INVALID，退出码 2
+./bin/grok-search search --source web --x-from-date 2026-08-01 "query"   # SEARCH_SOURCE_CONFLICT
+./bin/grok-search search --x-from-date 08/01/2026 "query"                # ARGUMENT_ERROR
+./bin/grok-search search --x-from-date 2026-02-30 "query"                # ARGUMENT_ERROR（溢出日期不滚动）
+```
+
+配置里已有 `responsesAllowedDomains` 时（命令行只能收紧）：
+
+```bash
+./bin/grok-search search --responses-allowed-domains 清单外域名 "query"   # RESPONSES_FILTER_FORBIDDEN
+./bin/grok-search search --responses-excluded-domains 清单内全部域名 "query"  # RESPONSES_FILTER_EMPTY
+```
+
+## OpenRouter
+
+```bash
+export GROK_API_PROVIDER="openrouter"
+export GROK_API_URL="https://openrouter.ai/api/v1"
+export GROK_API_KEY="your-key"
+export GROK_MODEL="x-ai/grok-4.1-fast"
+
+./bin/grok-search search --responses-openrouter-engine exa "latest OpenAI docs"
+```
+
+期望 tool 为 `openrouter:web_search`，模型名没有自动 `:online`。
+
+## Tavily + Firecrawl
+
+```bash
+export TAVILY_API_KEY="tvly-your-key"
+./bin/grok-search search --extra 1 "latest pi coding agent docs"
+./bin/grok-search search --extra 10 "latest pi coding agent docs"
+
+export FIRECRAWL_API_KEY="fc-your-key"
+./bin/grok-search search --extra 1 "latest pi coding agent docs"
+```
+
+默认 `extra=6` 时应分配 Tavily 3 / Firecrawl 3。移除 Firecrawl key 后仍应成功，auth mode 变为 `keyless`。
+
+## Fetch 主备链
+
+```bash
+./bin/grok-search fetch https://example.com
+./bin/grok-search fetch --provider firecrawl https://example.com
+./bin/grok-search fetch --provider direct https://example.com
+```
+
+配置 Tavily 时顺序为 Tavily → Firecrawl → Direct；未配置 Tavily 时 Firecrawl Keyless → Direct。
+
+## 输出安全
+
+所有非 help 命令都应向 stdout 写 JSON。stderr 只放简短摘要，不得包含 API key。额度降级必须在 `answer.text` 和 `diagnostics.grok_error` 两处都可见。

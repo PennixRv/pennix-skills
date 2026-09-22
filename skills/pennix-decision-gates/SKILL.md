@@ -7,11 +7,10 @@ metadata:
 
 # Pennix Decision Gates
 
-Use this Skill for Trellis `clarify`, `research`, `plan`, `plan-check`, or an
-explicit `grill-me` gate when more than one reasonable choice may change the
-scope, owner, safety boundary, public behavior, data, deployment, cost, or
-acceptance criteria. It does not perform deployment and does not create a
-second task lifecycle.
+Use this Skill for every Trellis planning gate (`clarify`, `research`, `plan`,
+`plan-check`, or `grill-me`) when a choice may change scope, owner, safety
+boundary, public behavior, data, deployment, cost, or acceptance criteria. It
+does not perform deployment and does not create a second task lifecycle.
 
 ## Decide Whether To Ask
 
@@ -35,24 +34,41 @@ Build the dependency order before asking:
   risk, owner, validation path, or next action.
 - Keep execution authorization separate from design decisions.
 
+## Decision Chain State
+
+At the start of planning, inspect the task evidence and create a decision
+inventory in the active Trellis PRD or research artifact. Each node records an
+id, owner, question, options, recommendation, evidence, dependencies, impact,
+and revisit condition. Mark nodes `open`, `answered`, `blocked`, or `sealed`;
+facts that the repository or approved sources can answer are closed by the
+agent and are not user questions.
+
+The planning artifact is the durable state. Do not keep the decision graph only
+in the conversation, runtime state, Codex configuration, or a parallel ledger.
+
 ## Frontier And Rounds
 
-For a grill-style planning gate, first build a small decision tree. Each node
-records its owner, dependencies, options, recommendation, evidence, impact,
-and revisit condition. Facts the repository or approved sources can answer are
-closed by the agent; only user-owned choices remain open.
+At each round, calculate the frontier: unresolved user-owned nodes whose
+dependencies are sealed. Ask all independent frontier nodes in one native
+request, with at most three questions. If only one independent node is ready,
+ask one; batching is conditional, not a quota. Do not ask a dependent node
+early. Keep execution approval separate from design decisions.
 
-At each round, calculate the frontier: unresolved nodes whose dependencies are
-already sealed. Ask only independent frontier nodes in one native request,
-with at most three questions. Do not ask a dependent node early. After the
-user answers, end the round; the next round records every answer in the active
-Trellis PRD/research artifact, rechecks evidence, and recalculates the
-frontier. Stop planning interaction only when the frontier is empty and write
-the final planning summary before implementation approval.
+After the user answers, end the round. On the next turn, read the answers,
+record every selected option and rationale in the active PRD/research artifact,
+recheck evidence and downstream dependencies, and recalculate the frontier.
+Do not ask the next round before the previous answers are durable.
 
-This protocol belongs to an explicit decision/grill gate. It does not replace
-the ordinary one-question `trellis-brainstorm` flow and does not create a
-second task, ADR, or runtime Skill dependency.
+When the frontier becomes empty, run a conflict audit across scope, ownership,
+security, compatibility, rollout, rollback, cost, and acceptance. If any two
+sealed decisions conflict, mark the affected nodes `blocked`, explain the
+conflict, and ask a new conflict-resolution question. Repeat the
+answer-record-frontier-audit cycle until no conflict remains.
+
+Only then write the final seal: all nodes are `sealed`, the conflict audit is
+clean, `prd.md`, `design.md`, and `implement.md` agree, and implementation has
+no user-owned ambiguity. Stop at the Trellis planning approval boundary;
+implementation starts only after the normal task approval.
 
 Call the current session's native `request_user_input` directly when it is
 available. Do not detect or replace it through `functions.exec`, nested
@@ -61,23 +77,23 @@ host refusal, cancellation, timeout, or genuine unavailability may use a
 plain-text fallback, but the unanswered decision still stops the turn. Never
 silently choose the recommendation.
 
-After asking, stop the turn. The next turn must read the answers before
-writing, applying, committing, archiving, or advancing the dependent gate.
+After asking, stop the turn. The next turn must read and persist the answers
+before writing new questions, applying, committing, archiving, or advancing a
+dependent gate.
 
 ## During Implementation
 
 Use sealed task/spec decisions for ordinary implementation choices. For a
 local reversible choice, continue and record the decision. For a material
 unresolved ambiguity, do not open a popup during implementation or apply:
-record `decision-needed`, restore the smallest safe state if necessary, return
-to the Trellis planning/design step, and continue only after the decision is
-sealed. If evidence disproves the approach, use the same smallest-state
-rollback and preserve the retracted conclusion in the task history.
+record `decision-needed`, run `task.py replan <task> "<reason>"`, and return to
+the Trellis planning/design step. Continue implementation only after the new
+frontier is answered, conflict-audited, and sealed. If evidence disproves the
+approach, preserve the retracted conclusion and the reason in task history.
 
-Trellis supports this as a workflow return to an earlier planning step. If the
-local CLI does not provide a controlled `replan` or `reopen` transition, do
-not edit `task.json.status` by hand; keep the task facts honest and follow the
-available planning/continue route.
+Never edit `task.json.status` by hand. If the installed Trellis runtime lacks
+the controlled `replan` transition, stop at the planning boundary and report
+the runtime gap instead of opening a popup or silently choosing.
 
 ## Decision Record
 

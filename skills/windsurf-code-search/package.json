@@ -1,0 +1,62 @@
+{
+  "name": "@pennixrv/windsurf-code-search",
+  "version": "0.1.15",
+  "description": "Agent Skill and CLI for Windsurf Devstral semantic code search without an MCP server.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "windsurf-code-search": "bin/windsurf-code-search"
+  },
+  "files": [
+    "SKILL.md",
+    "README.md",
+    "NOTICE.md",
+    "LICENSE",
+    "references/script-contract.md",
+    "references/source-provenance.json",
+    "agents/openai.yaml",
+    "bin/windsurf-code-search",
+    "scripts/windsurf-code-search.mjs",
+    "scripts/lib/LICENSE.fast-context-mcp",
+    "scripts/lib/credentials.mjs",
+    "scripts/lib/core.mjs",
+    "scripts/lib/devin-credential-helper.mjs",
+    "scripts/lib/executor.mjs",
+    "scripts/lib/path-guard.mjs",
+    "scripts/lib/protobuf.mjs",
+    "scripts/lib/public-error.mjs"
+  ],
+  "scripts": {
+    "search": "node scripts/windsurf-code-search.mjs",
+    "test": "node --test test/*.test.mjs",
+    "verify:provenance": "node scripts/release/verify-provenance.mjs",
+    "pack:check": "node test/package-content.test.mjs",
+    "release:preflight": "node scripts/release/preflight-release.mjs",
+    "release:prepare-artifact": "node scripts/release/prepare-release-artifact.mjs",
+    "release:verify-evidence": "node scripts/release/verify-release-evidence.mjs",
+    "release:publish": "node scripts/release/publish-release.mjs",
+    "release:tag-message": "node scripts/release/tag-message.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PennixRv/windsurf-code-search.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PennixRv/windsurf-code-search/issues"
+  },
+  "homepage": "https://github.com/PennixRv/windsurf-code-search#readme",
+  "keywords": [
+    "agent-skill",
+    "skills-cli",
+    "codex",
+    "skill",
+    "windsurf-code-search",
+    "semantic-search",
+    "windsurf",
+    "devstral",
+    "code-search"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

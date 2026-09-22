@@ -68,6 +68,58 @@ class SkillsCollectionTest(unittest.TestCase):
                 MODULE.uninstall_collection({"alpha"}, destination)
             self.assertTrue(destination.exists())
 
+    def test_staged_collection_replaces_a_partial_collection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination = root / "pennix-skills"
+            staging = root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(staging, "alpha")
+            self.make_skill(staging, "beta")
+
+            MODULE.replace_collection({"alpha", "beta"}, staging, destination)
+
+            self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "match")
+            self.assertFalse(staging.exists())
+
+    def test_staging_failure_preserves_drifted_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination = root / "pennix-skills"
+            staging = root / ".pennix-stage"
+            self.make_skill(destination, "unrelated")
+            self.make_skill(staging, "alpha")
+
+            with self.assertRaisesRegex(MODULE.InstallError, "drifted"):
+                MODULE.replace_collection({"alpha"}, staging, destination)
+            self.assertTrue((destination / "unrelated" / "SKILL.md").exists())
+            self.assertTrue(staging.exists())
+
+    def test_replace_failure_restores_the_previous_collection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination = root / "pennix-skills"
+            staging = root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            (destination / "alpha" / "old").write_text("old\n", encoding="utf-8")
+            self.make_skill(staging, "alpha")
+            original_replace = os.replace
+            calls = 0
+
+            def fail_staging_replace(source: Path | str, target: Path | str) -> None:
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise OSError("staging rename failed")
+                original_replace(source, target)
+
+            with mock.patch.object(MODULE.os, "replace", side_effect=fail_staging_replace):
+                with self.assertRaisesRegex(OSError, "staging rename failed"):
+                    MODULE.replace_collection({"alpha"}, staging, destination)
+
+            self.assertTrue((destination / "alpha" / "old").is_file())
+            self.assertTrue(staging.exists())
+
     def test_destination_must_be_collection_root(self) -> None:
         with self.assertRaises(MODULE.InstallError):
             MODULE.resolve_destination("/tmp/not-a-pennix-install")

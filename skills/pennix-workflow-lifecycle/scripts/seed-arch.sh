@@ -271,11 +271,11 @@ print_next_step() {
 
 Pennix workflow seed complete.
 
-Start one new Codex session. In its first turn, paste exactly:
+继续当前 Codex 会话，不要新建会话。在下一轮用户消息中粘贴：
 
 请使用系统内置 `$skill-installer`，从 `PennixRv/pennix-skills` 的 `main` 将 `skills/pennix-workflow-lifecycle` 安装到 `$CODEX_HOME/skills/pennix-skills`（传为 `--dest`）。这是 Pennix 的 bootstrap Skill；不要安装其他 Pennix Skills，也不要假定它会在本轮对话可用。
 
-After `$skill-installer` confirms success, stay in that same Codex session. In its next turn, paste exactly:
+`$skill-installer` 确认成功后仍留在当前会话，在再下一轮用户消息中粘贴：
 
 使用 `$pennix-workflow-lifecycle` 完整部署 Pennix 工作流。先执行只读 `discover`；若 collection 处于 bootstrap 状态，按该 Skill 的 catalog 合同通过系统 `$skill-installer` 补齐 collection，然后继续部署。
 EOF

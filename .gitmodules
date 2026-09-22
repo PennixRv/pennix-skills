@@ -1,6 +1,0 @@
-[submodule "skills/windsurf-code-search"]
-	path = skills/windsurf-code-search
-	url = https://github.com/PennixRv/windsurf-code-search.git
-[submodule "skills/grok-search"]
-	path = skills/grok-search
-	url = https://github.com/PennixRv/grok-search.git

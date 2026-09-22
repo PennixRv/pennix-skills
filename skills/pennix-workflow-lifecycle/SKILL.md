@@ -54,23 +54,35 @@ print the key, or add the current package candidate to the fixed component
 catalog. It accepts no arguments: `seed-arch.sh --uninstall` is rejected before
 any write.
 
-Its completion output uses one new Codex session with two turns. The first turn
-installs only this bootstrap Skill from the catalog's `collection_contract.bootstrap`
-into `$CODEX_HOME/skills/pennix-skills`. The system installer makes it available
-on the next turn, which stays in the same session and invokes this Skill.
+Its completion output uses the current Codex session's next user turn, not a
+new session. The first turn installs only the catalog's `bootstrap_skill` with
+the system `$skill-installer`. The installer reports that a newly installed
+Skill is available on the next turn; the next turn stays in the same session
+and invokes this Skill.
 
-In that second turn, run read-only `discover` first. If `pennix-skills` is
-`bootstrap` or `partial`, read `missing_skills` and
-`collection_contract` from `references/component-versions.json`. Use the system
-`$skill-installer` only for source paths whose derived Skill name is in
-`missing_skills`; omit an empty source invocation, pass the same destination to
-every invocation, do not reinstall an existing Skill, and do not create a
-repository copy. Then run
-`npm ci --omit=dev --ignore-scripts` in the installed `grok-search` directory,
-rerun `discover`, and continue the requested deployment in this same session.
-The catalog is the sole source for the remaining collection's
-repositories, refs, and paths; do not retype a parallel Skill list in user
-prompts or this document.
+In that next turn, run read-only `discover` first. If `pennix-skills` is
+`bootstrap` or `partial`, read `missing_skills` and the single
+`collection_contract` from `references/component-versions.json`. For a complete
+install or upgrade, install all catalog paths into a new sibling staging
+directory under `$CODEX_HOME/skills` using `$skill-installer`; do not install
+into the live collection and do not create a repository checkout. The catalog
+collection source paths are the only input to those installer calls; materialized
+entries provide provenance and post-install metadata. Run each catalog
+`post_install` action in staging, then verify
+that the staged tree contains exactly the catalog Skill names and valid
+frontmatter. Finally run:
+
+```bash
+python3 <installed-lifecycle>/scripts/lifecycle.py replace-staged \
+  --component pennix-skills --staging "$CODEX_HOME/skills/.pennix-skills-stage" \
+  --destination "$CODEX_HOME/skills/pennix-skills" --yes
+```
+
+`replace-staged` refuses unknown or drifted live content and leaves it in place
+when staging validation or replacement fails. A missing or partial catalog-only
+collection is therefore reentrant; a user-created entry is never silently
+deleted. Rerun `discover` and `verify` after replacement. Do not retype a
+parallel Skill list in prompts or documentation.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed

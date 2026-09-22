@@ -1,0 +1,50 @@
+# Public benchmark
+
+This directory contains the public, reproducible part of the grok-search evaluation.
+
+Included:
+
+- `lib/benchmark-15q-v2.mjs`: frozen 15-question set, expected fields, official URLs, and deterministic patterns.
+- `run-responses-15q.mjs`: provider-neutral Responses runner using the normal grok-search configuration.
+- `score-responses-15q.mjs`: deterministic correctness and official-source scoring.
+- `public/2026-07-11-summary.json`: sanitized aggregate sample from the original study.
+
+Excluded from Git:
+
+- raw provider responses and internal IDs;
+- complete fetched page bodies;
+- private proxy and relay configuration;
+- per-request channel pricing and failure logs;
+- historical Chat protocol probes.
+
+Run a small subset first to control cost:
+
+```bash
+npm run benchmark -- --only node,rust,python
+npm run benchmark:score
+```
+
+Runs write raw responses to `benchmarks/results/`, which is intentionally ignored by Git. The historical experiment archive and internal reports remain under the separate local-only `.private/` directory.
+
+## Experiment scripts
+
+Not part of the scored benchmark. Both send real, billed requests and write one JSON per case
+plus a summary to `--out DIR` (default under `benchmarks/results/`, ignored by Git). Findings and
+decisions are kept in the local-only `.agent/` notes.
+
+- `provider-compare.mjs`: the same questions, URLs and sites through Grok, Tavily, Firecrawl and
+  Direct (`--part search|fetch|map|all`). Used on 2026-09-08 to decide X-post routing
+  (Direct first) and to turn extras off for `--source x`.
+- `tool-call-cap-experiment.mjs`: one web and one X query posted straight to the Responses
+  endpoint with `max_tool_calls`, `parallel_tool_calls` and `max_turns` variants
+  (`--only web|x --ids a,b --repeat N`). Result: `max_tool_calls` is ignored by api.x.ai and by
+  relays; `parallel_tool_calls: false` gives one call per turn; the model matters more than
+  either knob.
+
+## Grader amendments
+
+The question set, truth snapshots, and official URLs stay frozen. Scoring regexes may gain
+synonym translations when a semantically correct answer is rejected on vocabulary alone:
+
+- 2026-08-10: the `rust` criterion for "symbol mangling v0" also accepts 修饰 (the
+  `rust-vs-deno` criterion already did); a correct answer phrased as 符号修饰 had scored as a miss.

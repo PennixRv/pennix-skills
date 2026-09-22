@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 
 
@@ -91,6 +92,41 @@ def collection_missing_names(expected_names: set[str], destination: Path, bootst
     if state not in {"bootstrap", "partial", "match"}:
         return None
     return sorted(expected_names - {entry.name for entry in destination.iterdir()})
+
+
+def validate_staged_collection(expected_names: set[str], staging: Path) -> Path:
+    """Validate a native-installer staging tree before it can replace a collection."""
+    staging = assert_safe_destination(staging)
+    if collection_state(expected_names, staging) != "match":
+        raise InstallError("native installer staging is not an exact Pennix Skills collection")
+    return staging
+
+
+def replace_collection(expected_names: set[str], staging: Path, destination: Path, bootstrap_name: str | None = None) -> None:
+    """Replace a known collection only after the complete staged tree validates."""
+    staging = validate_staged_collection(expected_names, staging)
+    destination = assert_safe_destination(destination)
+    if staging.parent != destination.parent:
+        raise InstallError("staging and destination must share a parent for transactional replacement")
+    current_state = collection_state(expected_names, destination, bootstrap_name)
+    if current_state not in {"missing", "bootstrap", "partial", "match"}:
+        raise InstallError("refusing to replace a drifted or unknown Pennix Skills collection")
+    if staging == destination:
+        return
+
+    backup: Path | None = None
+    if destination.exists():
+        backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.previous-", dir=destination.parent))
+        shutil.rmtree(backup)
+        os.replace(destination, backup)
+    try:
+        os.replace(staging, destination)
+    except OSError:
+        if backup is not None and not destination.exists():
+            os.replace(backup, destination)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup)
 
 
 def uninstall_collection(expected_names: set[str], destination: Path, bootstrap_name: str | None = None) -> bool:

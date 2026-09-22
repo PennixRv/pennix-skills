@@ -91,10 +91,11 @@ def valid_plugin(value: Any) -> bool:
 
 
 def collection_source_names(value: Any) -> set[str] | None:
-    if not isinstance(value, list) or not value:
+    sources = value if isinstance(value, list) else [value]
+    if not sources:
         return None
     names: set[str] = set()
-    for source in value:
+    for source in sources:
         if not isinstance(source, dict):
             return None
         repo = source.get("repo")
@@ -121,6 +122,37 @@ def collection_source_names(value: Any) -> set[str] | None:
             if not skills_install.SKILL_NAME.fullmatch(skill_name) or skill_name in names:
                 return None
             names.add(skill_name)
+    return names
+
+
+def collection_materialized_names(value: Any) -> set[str] | None:
+    if not isinstance(value, dict):
+        return None
+    names: set[str] = set()
+    for name, source in value.items():
+        if (
+            not isinstance(name, str)
+            or not skills_install.SKILL_NAME.fullmatch(name)
+            or not isinstance(source, dict)
+            or not isinstance(source.get("repo"), str)
+            or not GITHUB_REPO.fullmatch(source["repo"])
+            or not isinstance(source.get("ref"), str)
+            or not PLUGIN_REF.fullmatch(source["ref"])
+            or not isinstance(source.get("commit"), str)
+            or not re.fullmatch(r"[0-9a-f]{40}", source["commit"])
+            or not isinstance(source.get("path"), str)
+            or not source["path"]
+            or source["path"].startswith("/")
+            or ".." in Path(source["path"]).parts
+            or not isinstance(source.get("name", name), str)
+            or source.get("name", name) != name
+            or source.get("snapshot", "archive") not in {"archive", "npm-pack"}
+        ):
+            return None
+        post_install = source.get("post_install", [])
+        if not isinstance(post_install, list) or not all(isinstance(item, str) and item for item in post_install):
+            return None
+        names.add(name)
     return names
 
 
@@ -176,20 +208,22 @@ def load_catalog(path: Path) -> dict[str, Any]:
         if delivery == "collection":
             contract = component.get("collection_contract")
             names = contract.get("skills") if isinstance(contract, dict) else None
-            bootstrap = contract.get("bootstrap") if isinstance(contract, dict) else None
-            remaining = contract.get("remaining") if isinstance(contract, dict) else None
-            bootstrap_names = collection_source_names([bootstrap])
-            remaining_names = collection_source_names(remaining)
+            bootstrap_skill = contract.get("bootstrap_skill") if isinstance(contract, dict) else None
+            source = contract.get("source") if isinstance(contract, dict) else None
+            materialized = contract.get("materialized") if isinstance(contract, dict) else None
+            source_names = collection_source_names(source)
+            materialized_names = collection_materialized_names(materialized)
             if (
                 not isinstance(names, list)
                 or not names
+                or not isinstance(bootstrap_skill, str)
+                or bootstrap_skill not in names
                 or any(not isinstance(name, str) or not skills_install.SKILL_NAME.fullmatch(name) for name in names)
                 or len(names) != len(set(names))
-                or bootstrap_names is None
-                or remaining_names is None
-                or len(bootstrap_names) != 1
-                or bootstrap_names | remaining_names != set(names)
-                or bootstrap_names & remaining_names
+                or source_names is None
+                or materialized_names is None
+                or source_names != set(names)
+                or not materialized_names <= source_names
             ):
                 raise BootstrapError(f"catalog collection contract is invalid: {key}")
         package = component.get("package")
@@ -270,10 +304,13 @@ def collection_bootstrap_skill(component: dict[str, Any]) -> str:
     contract = component.get("collection_contract")
     if not isinstance(contract, dict):
         raise BootstrapError("catalog collection contract is missing")
-    bootstrap_names = collection_source_names([contract.get("bootstrap")])
-    if bootstrap_names is None or len(bootstrap_names) != 1:
+    bootstrap_skill = contract.get("bootstrap_skill")
+    source_names = collection_source_names(contract.get("source"))
+    materialized_names = collection_materialized_names(contract.get("materialized"))
+    all_names = (source_names or set()) | (materialized_names or set())
+    if not isinstance(bootstrap_skill, str) or bootstrap_skill not in all_names:
         raise BootstrapError("catalog bootstrap Skill is missing")
-    return next(iter(bootstrap_names))
+    return bootstrap_skill
 
 
 def parse_package_owner(output: str) -> str | None:
@@ -828,12 +865,34 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
     print(json.dumps({"operation": args.command, "component": component, "status": status}, ensure_ascii=False))
 
 
+def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
+    if not args.component or args.component not in catalog["components"]:
+        raise BootstrapError("replace-staged requires a known --component")
+    if args.component != "pennix-skills" or not args.yes or not args.staging:
+        raise BootstrapError("replace-staged requires --component pennix-skills --staging PATH --yes")
+    component = catalog["components"][args.component]
+    if component.get("delivery") != "collection":
+        raise BootstrapError("replace-staged only supports collections")
+    destination = skills_install.resolve_destination(getattr(args, "destination", None))
+    try:
+        skills_install.replace_collection(
+            collection_skill_names(component),
+            Path(args.staging).expanduser().absolute(),
+            destination,
+            collection_bootstrap_skill(component),
+        )
+    except skills_install.InstallError as error:
+        raise BootstrapError(str(error)) from error
+    print(json.dumps({"operation": "replace-staged", "component": args.component, "status": "changed"}, ensure_ascii=False))
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("discover", *ACTION_NAMES))
+    parser.add_argument("command", choices=("discover", "replace-staged", *ACTION_NAMES))
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--destination")
+    parser.add_argument("--staging")
     parser.add_argument("--component")
     parser.add_argument("--yes", action="store_true")
     return parser.parse_args(argv)
@@ -855,6 +914,8 @@ def main(argv: list[str]) -> int:
             if failures:
                 print("error: verification blocked: " + "; ".join(failures), file=sys.stderr)
                 return 2
+        elif args.command == "replace-staged":
+            replace_staged_collection(args, catalog)
         else:
             run_lifecycle(args, catalog)
         return 0

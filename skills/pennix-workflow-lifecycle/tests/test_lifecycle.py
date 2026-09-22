@@ -336,8 +336,9 @@ class BootstrapTests(unittest.TestCase):
                     "native_owner_reason": "Codex system $skill-installer owns installation.",
                     "collection_contract": {
                         "skills": ["alpha", "beta"],
-                        "bootstrap": {"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/alpha"]},
-                        "remaining": [{"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/beta"]}],
+                        "bootstrap_skill": "alpha",
+                        "source": {"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/alpha", "skills/beta"]},
+                        "materialized": {},
                     },
                 }
             }
@@ -377,8 +378,9 @@ class BootstrapTests(unittest.TestCase):
                     "native_owner_reason": "fixture",
                     "collection_contract": {
                         "skills": ["alpha", "beta", "bootstrap"],
-                        "bootstrap": {"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/bootstrap"]},
-                        "remaining": [{"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/alpha", "skills/beta"]}],
+                        "bootstrap_skill": "bootstrap",
+                        "source": {"repo": "PennixRv/fixture", "ref": "main", "paths": ["skills/alpha", "skills/beta", "skills/bootstrap"]},
+                        "materialized": {},
                     },
                 }
             }
@@ -402,6 +404,31 @@ class BootstrapTests(unittest.TestCase):
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
             bootstrap.run_lifecycle(args, catalog)
+
+    def test_replace_staged_collection_uses_catalog_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "skills" / "pennix-skills"
+            staging = root / "skills" / ".pennix-skills-stage"
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            component = catalog["components"]["pennix-skills"]
+            for name in bootstrap.collection_skill_names(component):
+                skill = staging / name
+                skill.mkdir(parents=True)
+                (skill / "SKILL.md").write_text(
+                    f"---\nname: {name}\ndescription: Fixture.\n---\n",
+                    encoding="utf-8",
+                )
+            args = SimpleNamespace(
+                component="pennix-skills",
+                yes=True,
+                staging=str(staging),
+                destination=str(destination),
+            )
+
+            bootstrap.replace_staged_collection(args, catalog)
+
+            self.assertEqual(bootstrap.probe_component(component, root / "codex", str(destination))[0], "match")
 
         args.command = "upgrade"
         with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
@@ -455,7 +482,15 @@ class BootstrapTests(unittest.TestCase):
         }
         self.assertEqual(expected, observed)
         contract = component["collection_contract"]
-        self.assertEqual(bootstrap.collection_source_names([contract["bootstrap"]]) | bootstrap.collection_source_names(contract["remaining"]), expected)
+        self.assertEqual(bootstrap.collection_source_names(contract["source"]) | bootstrap.collection_materialized_names(contract["materialized"]), expected)
+
+    def test_materialized_snapshots_exclude_repository_runtime_metadata(self) -> None:
+        forbidden = {".agents", ".codex", ".github", ".trellis", "dist", "node_modules", "__pycache__"}
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        contract = catalog["components"]["pennix-skills"]["collection_contract"]
+        for name in contract["materialized"]:
+            entries = {entry.name for entry in (SKILL_ROOT.parent / name).iterdir()}
+            self.assertFalse(entries & forbidden, name)
 
     def test_default_catalog_accepts_scoped_npm_packages(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)

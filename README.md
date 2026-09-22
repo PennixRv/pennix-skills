@@ -3,9 +3,10 @@
 用户自维护的 Codex 工作流 Skills 源码。
 
 通用 Trellis Skill 随 Trellis 组件交付；本仓库只维护用户工作流策略、确定性辅助脚本和
-对应测试。`skills/windsurf-code-search` 是独立 `windsurf-code-search` 组件的 Git submodule：该组件
-继续拥有 CLI、测试和 npm 发布，本仓库只固定其在私有 Skills 组合中的版本。其 npm 包、GitHub
-仓库和工作流中的可发现名称统一为 `windsurf-code-search`，不要与 `fastctx` 本地操作运行时混用。
+对应测试。`skills/windsurf-code-search` 和 `skills/grok-search` 是发布集合中的普通目录；其上游
+仓库、ref、精确提交和安装后动作由唯一 lifecycle catalog 记录。目标机只接收物化 Skill 集合，
+不创建 submodule 或源码 checkout。其可发现名称保持为 `windsurf-code-search` 和 `grok-search`，
+不要与 `fastctx` 本地操作运行时混用。
 
 工作流部署统一从 `pennix-workflow-lifecycle` 进入；它只编排内部 deployment adapters，
 不接管 Trellis、FastCtx、CodeGraph、Codex Plugin/MCP 或 Hook 的原生所有权。
@@ -45,18 +46,18 @@ bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh
 若已安装 catalog 明确登记的旧 `openai-codex` 包，seed 会先通过已选 AUR helper 将其迁移为
 `openai-codex-bin`；其他未登记的包不会被猜测或删除。
 
-完成时，seed 会给出一个新 Codex 会话的两轮确定提示。第一轮仅通过系统
-`$skill-installer` 将 `pennix-workflow-lifecycle` bootstrap Skill 安装到最终的
+完成时，seed 会给出当前 Codex 会话的两轮确定提示，不要求新建会话。第一轮仅通过系统
+`$skill-installer` 将 catalog 的 `bootstrap_skill` 安装到最终的
 `$CODEX_HOME/skills/pennix-skills` 目录；安装器确认成功后不结束该会话，下一轮直接使用该
-Skill。它先执行只读 `discover`；对 `bootstrap` 或可验证的 `partial` 状态，只按 catalog 输出的
-`missing_skills` 补齐缺失条目，再在同一会话继续部署。重复执行不会向系统安装器传入已存在的
-Skill。系统安装器只使用临时下载，不保留本地仓库副本。
+Skill。它先执行只读 `discover`；完整安装或升级时，所有 catalog 路径先写入同级 staging，
+完成校验后由 `replace-staged` 替换正式 collection。重复执行不会把已存在的 Skill 混入安装器，
+也不会创建本地仓库副本。
 
 `seed-arch.sh` 没有 `--uninstall`，也不会删除 `auth.json`、`openai-codex-bin`、AUR helper、
 构建依赖、Skills、插件或项目资产。凭据文件始终需要用户在轮换或撤销凭据后自行删除。
-完整 collection 的安装和升级由系统 `$skill-installer` 在 Codex 会话中拥有；lifecycle 负责
-发现、验证，以及仅在目录条目和每个 `SKILL.md` 都完全匹配 catalog 时的精确卸载。更新 collection
-时，先由 lifecycle 卸载该单一 component，再在同一 Codex 会话按 catalog 的两轮安装合同重装。
+完整 collection 的下载仍由系统 `$skill-installer` 拥有；lifecycle 负责发现、staging 完整性验证、
+事务替换，以及仅在目录条目和每个 `SKILL.md` 都完全匹配 catalog 时的精确卸载。更新 collection
+时不先删除旧目录；只有新 staging 完整匹配后才替换，失败保留旧安装。
 
 `config.toml.install` 只包含工作流必需的静态策略，排除用户 model、sandbox/approval、TUI、Web、
 history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook hash。静态配置和 Agents 模板的
