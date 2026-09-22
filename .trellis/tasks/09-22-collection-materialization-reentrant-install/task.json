@@ -1,8 +1,8 @@
 {
   "id": "collection-materialization-reentrant-install",
   "name": "collection-materialization-reentrant-install",
-  "title": "Materialize collection skills and reentrant install",
-  "description": "Implement the approved collection-governance plan: materialize grok-search and windsurf-code-search, make lifecycle install transactional and reentrant, and add catalog-driven sync verification.",
+  "title": "Workflow governance, lifecycle configuration, and routing convergence",
+  "description": "Implement the approved Pennix workflow governance convergence: secure lifecycle configuration targets and reentrant collection delivery, owner-first FastCtx routing, decision-gate closure, and pinned materialized component releases.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
-  "meta": {}
+  "notes": "Expanded from collection-only materialization after confirming configuration, analysis_only routing, decision-gate continuation/closure, subnode output, and native-owner routing gaps. Final scope is sealed in prd.md, design.md, and implement.md.",
+  "meta": {"target_branches": {"pennix-skills": "main", "trellis": "pennix/v0.7-beta", "component_owners": "main"}, "release_policy": "source owner release before collection materialization; no new branches"}
 }

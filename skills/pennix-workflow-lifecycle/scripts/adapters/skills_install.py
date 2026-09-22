@@ -7,6 +7,8 @@ import os
 import re
 import shutil
 import tempfile
+import hashlib
+import json
 from pathlib import Path
 
 
@@ -94,6 +96,73 @@ def collection_missing_names(expected_names: set[str], destination: Path, bootst
     return sorted(expected_names - {entry.name for entry in destination.iterdir()})
 
 
+def receipt_path(destination: Path) -> Path:
+    return destination.parent / f".{destination.name}.receipt.json"
+
+
+def _assert_private_regular(path: Path) -> None:
+    if path.is_symlink() or not path.is_file() or (path.stat().st_mode & 0o077) != 0:
+        raise InstallError("collection integrity receipt is unsafe")
+
+
+def collection_digest(destination: Path) -> str:
+    """Digest a safe managed tree without treating arbitrary entries as content."""
+    destination = assert_safe_destination(destination)
+    digest = hashlib.sha256()
+    for path in sorted(destination.rglob("*"), key=lambda candidate: candidate.relative_to(destination).as_posix()):
+        relative = path.relative_to(destination).as_posix()
+        if path.is_symlink():
+            raise InstallError(f"collection contains a symbolic link: {relative}")
+        if path.is_dir():
+            digest.update(f"D\0{relative}\0".encode())
+            continue
+        if not path.is_file():
+            raise InstallError(f"collection contains a non-regular entry: {relative}")
+        mode = path.stat().st_mode & 0o111
+        digest.update(f"F\0{relative}\0{mode:o}\0".encode())
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(64 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def collection_receipt_state(destination: Path) -> str:
+    receipt = receipt_path(destination)
+    if not receipt.exists():
+        return "legacy"
+    try:
+        _assert_private_regular(receipt)
+        value = json.loads(receipt.read_text(encoding="utf-8"))
+        if (
+            not isinstance(value, dict)
+            or value.get("schema") != 1
+            or value.get("destination") != destination.name
+            or not isinstance(value.get("digest"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", value["digest"])
+        ):
+            return "drifted"
+        return "match" if value["digest"] == collection_digest(destination) else "drifted"
+    except (InstallError, OSError, json.JSONDecodeError):
+        return "drifted"
+
+
+def _write_receipt(destination: Path, digest: str) -> Path:
+    receipt = receipt_path(destination)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{receipt.name}.", dir=receipt.parent)
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        os.chmod(temporary, 0o600)
+        temporary.write_text(
+            json.dumps({"schema": 1, "destination": destination.name, "digest": digest}, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return temporary
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
 def validate_staged_collection(expected_names: set[str], staging: Path) -> Path:
     """Validate a native-installer staging tree before it can replace a collection."""
     staging = assert_safe_destination(staging)
@@ -111,22 +180,41 @@ def replace_collection(expected_names: set[str], staging: Path, destination: Pat
     current_state = collection_state(expected_names, destination, bootstrap_name)
     if current_state not in {"missing", "bootstrap", "partial", "match"}:
         raise InstallError("refusing to replace a drifted or unknown Pennix Skills collection")
+    if current_state == "match" and collection_receipt_state(destination) != "match":
+        raise InstallError("refusing to replace a legacy or drifted Pennix Skills collection")
     if staging == destination:
         return
 
+    staged_receipt = _write_receipt(destination, collection_digest(staging))
+
     backup: Path | None = None
-    if destination.exists():
-        backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.previous-", dir=destination.parent))
-        shutil.rmtree(backup)
-        os.replace(destination, backup)
+    receipt_backup: Path | None = None
+    receipt = receipt_path(destination)
     try:
+        if destination.exists():
+            backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.previous-", dir=destination.parent))
+            shutil.rmtree(backup)
+            os.replace(destination, backup)
+        if receipt.exists():
+            descriptor, backup_name = tempfile.mkstemp(prefix=f".{receipt.name}.previous-", dir=destination.parent)
+            os.close(descriptor)
+            receipt_backup = Path(backup_name)
+            receipt_backup.unlink()
+            os.replace(receipt, receipt_backup)
         os.replace(staging, destination)
+        os.replace(staged_receipt, receipt)
     except OSError:
         if backup is not None and not destination.exists():
             os.replace(backup, destination)
+        if receipt_backup is not None and not receipt.exists():
+            os.replace(receipt_backup, receipt)
         raise
+    finally:
+        staged_receipt.unlink(missing_ok=True)
     if backup is not None:
         shutil.rmtree(backup)
+    if receipt_backup is not None:
+        receipt_backup.unlink(missing_ok=True)
 
 
 def uninstall_collection(expected_names: set[str], destination: Path, bootstrap_name: str | None = None) -> bool:
@@ -135,5 +223,8 @@ def uninstall_collection(expected_names: set[str], destination: Path, bootstrap_
         return False
     if state not in {"match", "bootstrap"}:
         raise InstallError("refusing to remove a non-exact Pennix Skills collection")
+    if state == "match" and collection_receipt_state(destination) != "match":
+        raise InstallError("refusing to remove a legacy or drifted Pennix Skills collection")
     shutil.rmtree(destination)
+    receipt_path(destination).unlink(missing_ok=True)
     return True

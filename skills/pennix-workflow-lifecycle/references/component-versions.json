@@ -1,5 +1,15 @@
 {
   "schema": 2,
+  "configuration_targets": [
+    {"id": "codex-provider", "tier": "core", "default_enabled": true, "adapter": "codex-provider", "component": "codex-cli", "readiness": "Codex native authentication is present in a private local record."},
+    {"id": "openviking-connection", "tier": "optional", "default_enabled": false, "adapter": "openviking-owner", "component": "openviking-plugin", "readiness": "OpenViking owner configuration can be verified without exposing credentials."},
+    {"id": "cch-connection", "tier": "optional", "default_enabled": false, "adapter": "cch-owner", "component": "cch-status", "readiness": "CCH owner configuration and token record are private and complete."},
+    {"id": "hikari-connection", "tier": "optional", "default_enabled": false, "adapter": "hikari-json", "component": "tavily-hikari", "readiness": "Hikari endpoint and access token are in a private owner record."},
+    {"id": "grok-search-provider", "tier": "optional", "default_enabled": false, "adapter": "grok-provider", "collection": "pennix-skills", "member": "grok-search", "readiness": "Grok provider settings are in a private lifecycle-marked owner record."},
+    {"id": "grok-tavily-extra", "tier": "optional", "default_enabled": false, "adapter": "grok-tavily", "collection": "pennix-skills", "member": "grok-search", "readiness": "Tavily extra settings are in a private lifecycle-marked owner record."},
+    {"id": "grok-firecrawl-extra", "tier": "optional", "default_enabled": false, "adapter": "grok-firecrawl", "collection": "pennix-skills", "member": "grok-search", "readiness": "Firecrawl extra settings are in a private lifecycle-marked owner record."},
+    {"id": "windsurf-credential", "tier": "optional", "default_enabled": false, "adapter": "windsurf-owner", "collection": "pennix-skills", "member": "windsurf-code-search", "readiness": "Windsurf owner credential state is configured without exposing its value."}
+  ],
   "components": {
     "codex-cli": {
       "delivery": "package",
@@ -84,7 +94,7 @@
     },
     "cch-status": {
       "delivery": "native",
-      "approved_version": "0.1.39",
+      "approved_version": "0.1.41",
       "source": "native CCH installation",
       "owner": "cch",
       "scope": "global",
@@ -191,16 +201,16 @@
           "grok-search": {
             "repo": "PennixRv/grok-search",
             "ref": "main",
-            "commit": "31cd9ace320c9b62bb80e1b2de66363173862681",
+            "commit": "29edb8f6f76bd048c436f921279a84db19c20bc0",
             "path": ".",
             "name": "grok-search",
             "snapshot": "archive",
-            "post_install": ["npm ci --omit=dev --ignore-scripts"]
+            "post_install": ["grok-search-runtime"]
           },
           "windsurf-code-search": {
             "repo": "PennixRv/windsurf-code-search",
-            "ref": "main",
-            "commit": "89e2576ff3f3413ac432de43827fba0f3d1a9b0d",
+            "ref": "v0.1.16",
+            "commit": "bc27fbf2dd04f9b8583193cc8b43a1e89ee37da1",
             "path": ".",
             "name": "windsurf-code-search",
             "snapshot": "npm-pack"

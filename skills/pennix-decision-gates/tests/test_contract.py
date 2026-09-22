@@ -20,6 +20,21 @@ class DecisionGatesContractTests(unittest.TestCase):
         self.assertIn("run `task.py replan <task>", content)
         self.assertIn("Never edit `task.json.status` by hand", content)
 
+    def test_analysis_only_does_not_bypass_complex_planning(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("`analysis_only` means the", content)
+        self.assertIn("it does not make a task\nsimple", content)
+
+    def test_same_continuation_answers_continue_after_persistence(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("Continue the\nsame planning flow", content)
+        self.assertNotIn("After asking, stop the turn.", content)
+
+    def test_final_seal_has_no_static_pending_decisions(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("no `TBD`, `TODO`, `decision-needed`", content)
+        self.assertIn("completion\ncondition determined", content)
+
 
 if __name__ == "__main__":
     unittest.main()

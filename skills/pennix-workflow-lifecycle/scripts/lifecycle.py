@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from adapters import codex_plugins, codex_static, skills_install, upstream
+from adapters import codex_plugins, codex_static, configuration, skills_install, upstream
 import host
 
 
@@ -37,6 +37,18 @@ class BootstrapError(RuntimeError):
 ACTION_NAMES = ("install", "configure", "upgrade", "uninstall", "verify")
 ACTION_STATES = {"managed", "native-owner", "verify-only", "project-only", "not-applicable"}
 VERSION_POLICIES = {"pinned", "repository-latest"}
+CONFIGURATION_TIERS = {"core", "optional"}
+CONFIGURATION_ADAPTERS = {
+    "codex-provider",
+    "cch-owner",
+    "grok-provider",
+    "grok-tavily",
+    "grok-firecrawl",
+    "hikari-json",
+    "openviking-owner",
+    "windsurf-owner",
+}
+POST_INSTALL_ACTIONS = {"grok-search-runtime"}
 
 
 def now() -> str:
@@ -150,10 +162,70 @@ def collection_materialized_names(value: Any) -> set[str] | None:
         ):
             return None
         post_install = source.get("post_install", [])
-        if not isinstance(post_install, list) or not all(isinstance(item, str) and item for item in post_install):
+        if (
+            not isinstance(post_install, list)
+            or len(post_install) != len(set(post_install))
+            or not all(isinstance(item, str) and item in POST_INSTALL_ACTIONS for item in post_install)
+        ):
             return None
         names.add(name)
     return names
+
+
+def configuration_digest(catalog: dict[str, Any]) -> str:
+    try:
+        normalized = json.dumps(catalog.get("configuration_targets", []), sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError) as error:
+        raise BootstrapError("cannot serialize configuration contract") from error
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def configuration_target_map(catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    targets = catalog.get("configuration_targets", [])
+    return {target["id"]: target for target in targets if isinstance(target, dict) and isinstance(target.get("id"), str)}
+
+
+def validate_configuration_targets(value: dict[str, Any], components: dict[str, Any]) -> None:
+    targets = value.get("configuration_targets", [])
+    if not isinstance(targets, list):
+        raise BootstrapError("catalog configuration targets are invalid")
+    seen: set[str] = set()
+    for target in targets:
+        if not isinstance(target, dict):
+            raise BootstrapError("catalog configuration target is invalid")
+        target_id = target.get("id")
+        tier = target.get("tier")
+        adapter = target.get("adapter")
+        readiness = target.get("readiness")
+        component = target.get("component")
+        collection = target.get("collection")
+        member = target.get("member")
+        direct_component = isinstance(component, str)
+        collection_member = isinstance(collection, str) or isinstance(member, str)
+        if (
+            not isinstance(target_id, str)
+            or not skills_install.SKILL_NAME.fullmatch(target_id)
+            or target_id in seen
+            or tier not in CONFIGURATION_TIERS
+            or not isinstance(target.get("default_enabled"), bool)
+            or adapter not in CONFIGURATION_ADAPTERS
+            or not isinstance(readiness, str)
+            or not readiness.strip()
+            or direct_component == collection_member
+        ):
+            raise BootstrapError("catalog configuration target is invalid")
+        if direct_component:
+            if component not in components:
+                raise BootstrapError("catalog configuration target component is invalid")
+        elif (
+            not isinstance(collection, str)
+            or collection not in components
+            or components[collection].get("delivery") != "collection"
+            or not isinstance(member, str)
+            or member not in collection_skill_names(components[collection])
+        ):
+            raise BootstrapError("catalog configuration target collection member is invalid")
+        seen.add(target_id)
 
 
 def load_catalog(path: Path) -> dict[str, Any]:
@@ -266,6 +338,7 @@ def load_catalog(path: Path) -> dict[str, Any]:
             upstream.validate_component(component)
         except upstream.UpstreamInspectionError as error:
             raise BootstrapError(f"catalog upstream inspection metadata is invalid: {key}: {error}") from error
+    validate_configuration_targets(value, components)
     return value
 
 
@@ -580,14 +653,34 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "candidate_owner": candidate_owner,
         }
         if component.get("adapter") == "pennix-skills":
-            destination_path = skills_install.resolve_destination(getattr(args, "destination", None))
-            components[key]["missing_skills"] = skills_install.collection_missing_names(
-                collection_skill_names(component), destination_path, collection_bootstrap_skill(component)
-            )
+            try:
+                destination_path = skills_install.resolve_destination(getattr(args, "destination", None))
+                components[key]["missing_skills"] = skills_install.collection_missing_names(
+                    collection_skill_names(component), destination_path, collection_bootstrap_skill(component)
+                )
+                components[key]["collection_integrity"] = (
+                    skills_install.collection_receipt_state(destination_path) if status == "match" else "not-applicable"
+                )
+            except skills_install.InstallError:
+                components[key]["collection_integrity"] = "unknown"
     agents = args.codex_home / "AGENTS.md"
     config = args.codex_home / "config.toml"
     agents_state = codex_static.template_state(agents)
     config_state = codex_static.config_state(codex_static.read(config))
+    digest = configuration_digest(catalog)
+    profile_state, selected = configuration.load_profile(args.codex_home, digest)
+    targets = []
+    for target in configuration_target_map(catalog).values():
+        enabled = target["default_enabled"] or target["id"] in selected
+        targets.append(
+            {
+                "id": target["id"],
+                "tier": target["tier"],
+                "enabled": enabled,
+                "status": configuration.target_state(target["adapter"], args.codex_home),
+                "readiness": target["readiness"],
+            }
+        )
     return {
         "schema": 2,
         "observed_at": now(),
@@ -600,6 +693,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "config_install": config_state,
         },
         "components": components,
+        "configuration": {"profile_status": profile_state, "targets": targets},
     }
 
 
@@ -609,6 +703,8 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
         observed = inventory["components"][key]
         if observed["status"] != "match":
             failures.append(f"{key}: observed status is {observed['status']}")
+        if component.get("adapter") == "pennix-skills" and observed.get("collection_integrity") != "match":
+            failures.append(f"{key}: collection integrity is {observed.get('collection_integrity')}")
         if isinstance(component.get("upstream_inspection"), dict):
             try:
                 evidence = upstream.inspect_component(component)
@@ -617,6 +713,13 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
             observed["upstream"] = evidence
             if evidence.get("status") != "match":
                 failures.append(f"{key}: upstream inspection is {evidence.get('status')}")
+    for target in inventory.get("configuration", {}).get("targets", []):
+        if target.get("tier") == "core" or target.get("enabled"):
+            if target.get("status") not in {"ready", "configured"}:
+                failures.append(f"configuration {target.get('id')}: status is {target.get('status')}")
+    profile_status = inventory.get("configuration", {}).get("profile_status")
+    if profile_status is not None and profile_status not in {"missing", "match"}:
+        failures.append(f"configuration profile is {profile_status}")
     inventory["verification"] = {
         "status": "match" if not failures else "blocked",
         "failures": failures,
@@ -842,12 +945,49 @@ def component_operation(
     return "changed"
 
 
+def configuration_parent_status(
+    args: argparse.Namespace, catalog: dict[str, Any], target: dict[str, Any]
+) -> str:
+    key = target.get("component", target.get("collection"))
+    if not isinstance(key, str):
+        raise BootstrapError("configuration target has no delivery component")
+    component = catalog["components"][key]
+    status, _ = probe_component(component, args.codex_home, getattr(args, "destination", None))
+    if status != "match":
+        raise BootstrapError(f"configuration delivery is {status}: {key}")
+    if component.get("delivery") == "collection":
+        destination = skills_install.resolve_destination(getattr(args, "destination", None))
+        integrity = skills_install.collection_receipt_state(destination)
+        if integrity != "match":
+            raise BootstrapError(f"configuration collection integrity is {integrity}")
+    return key
+
+
+def configure_configuration_target(args: argparse.Namespace, catalog: dict[str, Any], target: dict[str, Any]) -> None:
+    configuration_parent_status(args, catalog, target)
+    digest = configuration_digest(catalog)
+    configuration.enable_target(args.codex_home, digest, target["id"])
+    state = configuration.configure_target(target["adapter"], args.codex_home)
+    if state not in {"ready", "configured"}:
+        raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
+    print(
+        json.dumps(
+            {"operation": "configure", "target": target["id"], "status": state},
+            ensure_ascii=False,
+        )
+    )
+
+
 def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
     if not args.component:
         raise BootstrapError(f"{args.command} requires --component")
     if not args.yes:
         raise BootstrapError(f"{args.command} requires --yes")
     component = args.component
+    targets = configuration_target_map(catalog)
+    if args.command == "configure" and component in targets:
+        configure_configuration_target(args, catalog, targets[component])
+        return
     if component not in catalog["components"]:
         raise BootstrapError(f"unknown lifecycle component: {component}")
     metadata = catalog["components"][component]
@@ -865,6 +1005,41 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
     print(json.dumps({"operation": args.command, "component": component, "status": status}, ensure_ascii=False))
 
 
+def prepare_staged_collection(component: dict[str, Any], staging: Path) -> None:
+    contract = component.get("collection_contract")
+    materialized = contract.get("materialized") if isinstance(contract, dict) else None
+    if not isinstance(materialized, dict):
+        raise BootstrapError("collection materialization contract is missing")
+    for name, source in materialized.items():
+        if not isinstance(source, dict):
+            raise BootstrapError("collection materialization source is invalid")
+        for action in source.get("post_install", []):
+            if action != "grok-search-runtime":
+                raise BootstrapError("collection post-install action is invalid")
+            skill = staging / name
+            package = skill / "package.json"
+            lockfile = skill / "package-lock.json"
+            if package.is_symlink() or lockfile.is_symlink() or not package.is_file() or not lockfile.is_file():
+                raise BootstrapError("Grok staging runtime contract is missing")
+            npm = shutil.which("npm")
+            if not npm:
+                raise BootstrapError("npm is required to prepare the Grok runtime")
+            try:
+                result = subprocess.run([npm, "ci", "--omit=dev", "--ignore-scripts"], cwd=skill, check=False)
+            except OSError as error:
+                raise BootstrapError("Grok runtime preparation could not start") from error
+            if result.returncode:
+                raise BootstrapError(f"Grok runtime preparation failed ({result.returncode})")
+            command = skill / "bin" / "grok-search"
+            try:
+                metadata = command.lstat()
+            except OSError as error:
+                raise BootstrapError("Grok staging command is missing") from error
+            if command.is_symlink() or not command.is_file():
+                raise BootstrapError("Grok staging command is unsafe")
+            os.chmod(command, metadata.st_mode | 0o755)
+
+
 def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
     if not args.component or args.component not in catalog["components"]:
         raise BootstrapError("replace-staged requires a known --component")
@@ -874,10 +1049,13 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
     if component.get("delivery") != "collection":
         raise BootstrapError("replace-staged only supports collections")
     destination = skills_install.resolve_destination(getattr(args, "destination", None))
+    staging = Path(args.staging).expanduser().absolute()
     try:
+        skills_install.validate_staged_collection(collection_skill_names(component), staging)
+        prepare_staged_collection(component, staging)
         skills_install.replace_collection(
             collection_skill_names(component),
-            Path(args.staging).expanduser().absolute(),
+            staging,
             destination,
             collection_bootstrap_skill(component),
         )
@@ -919,7 +1097,7 @@ def main(argv: list[str]) -> int:
         else:
             run_lifecycle(args, catalog)
         return 0
-    except (BootstrapError, codex_static.StaticError) as error:
+    except (BootstrapError, codex_static.StaticError, configuration.ConfigurationError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

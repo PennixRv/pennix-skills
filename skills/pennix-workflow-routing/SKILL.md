@@ -16,8 +16,8 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 
 | 调用语义 | 首选路径 | 事实与持久化边界 |
 | --- | --- | --- |
-| 修改文件、导航、进程控制、短小观察 | 宿主原生工具 | 不额外持久化 |
-| 生命周期、事件等待、交互、有限结构化结果或专用错误协议 | 直接调用原工具 | 采用原协议状态，不套 FastCtx |
+| 普通本地文件、非交互 CLI、构建/测试、递归检索或大输出分析 | FastCtx（按 `$pennix-fastctx-routing`） | 不额外持久化 |
+| Trellis task/phase/Channel、formal handoff、Codex 原生交互/Hook、owner MCP/TUI、lifecycle action 或专用错误协议 | 直接调用唯一原生 owner | 采用原协议状态，不套 FastCtx；原生不可用即停止 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |
 | 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `windsurf-code-search` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
@@ -25,7 +25,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 | 测试、日志、长差异、递归检索、构建/依赖输出或大文件分析 | FastCtx 有界工具或 job | 默认当前请求/显式 job 处理；不要把结果自动写入 OpenViking 或任务事实 |
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用原生读取或 FastCtx 分页分析 | 不把原始结果重新塞回工具参数 |
 
-无法预判本地文本规模且没有独立协议时，使用 FastCtx 的有界读取、搜索或 job；无法判断一个结构化工具是否有界时，先使用其原协议。FastCtx 不可用时直接降级到宿主原生工具，不重新引入旧的 `ctx_*` 路径。
+无法预判本地文本规模且没有独立协议时，使用 FastCtx 的有界读取、搜索或 job；无法判断一个结构化工具是否有界时，先使用其原协议。FastCtx 不可用时直接降级到宿主原生工具，不重新引入旧的 `ctx_*` 路径。专用 owner 不可用时不允许降级到 FastCtx 或 shell 模拟。
 
 ## 本地证据优先
 
@@ -64,6 +64,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 - FastCtx 的文件、搜索和 job 结果只描述当前操作，不是 OpenViking 记忆、实时任务事实或授权；需要长期语义记忆时走 OpenViking，需要任务事实时回到 Trellis/Git。
 - CodeGraph、Windsurf Code Search、Tavily 和 FastCtx 的结果都不能直接成为 task、Issue 或配置事实；先回到当前权威文件核验。
 - 不用 FastCtx 重实现 Trellis channel watcher、事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
+- `grok-search` 是外部检索 owner，不是 FastCtx 的 provider 或 adapter；只有用户确实需要当前外部资料时才按它自己的 Skill 调用。FastCtx 不能把它的网络调用、credential path、provider fallback 或错误协议收纳为本地 job。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
 - 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选写入 Git 或持久索引。
 - handoff 的 OpenViking observation 只能作为有界、已验证的 source convergence 证据；OpenViking/MCP 不写本地 core、Trellis task 或 receipt truth，也不通过 shell HTTP 绕过官方工具路由。没有对应 exact-read proof 时保持 `core_only` 或报告 `pending|unsupported|unavailable`。

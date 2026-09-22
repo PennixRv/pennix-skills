@@ -11,6 +11,14 @@ Use this Skill only for an explicit workflow deployment request. It is the
 single user-facing deployment entry; component setup logic lives in its
 internal adapters.
 
+Lifecycle manages configuration intent and readiness, not a shared secret
+store. The catalog declares the finite configuration targets, and a local
+private profile records only which optional targets the operator selected.
+Secret values stay in a private owner record or an owner-controlled terminal
+flow. Do not create a shared `.env`, place a value in chat, task artifacts,
+arguments, environment variables, or inventory output, or copy one component's
+credential into another component's configuration.
+
 ## 两类工作
 
 Lifecycle 必须把系统安装和项目初始化分开显示、计划和确认。系统安装可以部署全局工具，
@@ -67,10 +75,9 @@ install or upgrade, install all catalog paths into a new sibling staging
 directory under `$CODEX_HOME/skills` using `$skill-installer`; do not install
 into the live collection and do not create a repository checkout. The catalog
 collection source paths are the only input to those installer calls; materialized
-entries provide provenance and post-install metadata. Run each catalog
-`post_install` action in staging, then verify
-that the staged tree contains exactly the catalog Skill names and valid
-frontmatter. Finally run:
+entries provide provenance and closed post-install metadata. Verify that the
+staged tree contains exactly the catalog Skill names and valid frontmatter, then
+run:
 
 ```bash
 python3 <installed-lifecycle>/scripts/lifecycle.py replace-staged \
@@ -78,11 +85,14 @@ python3 <installed-lifecycle>/scripts/lifecycle.py replace-staged \
   --destination "$CODEX_HOME/skills/pennix-skills" --yes
 ```
 
-`replace-staged` refuses unknown or drifted live content and leaves it in place
-when staging validation or replacement fails. A missing or partial catalog-only
-collection is therefore reentrant; a user-created entry is never silently
-deleted. Rerun `discover` and `verify` after replacement. Do not retype a
-parallel Skill list in prompts or documentation.
+`replace-staged` runs only catalog-defined post-install action IDs, creates a
+private integrity receipt for the final tree, and refuses unknown or drifted
+live content. It leaves live content in place when staging validation,
+preparation, or replacement fails. A missing or partial catalog-only collection
+is reentrant; a complete legacy collection with no matching receipt is not
+silently replaced or removed and must be restaged through this procedure. A
+user-created entry is never deleted. Rerun `discover` and `verify` after
+replacement. Do not retype a parallel Skill list in prompts or documentation.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed
@@ -101,12 +111,13 @@ version, actual package owner, and repository candidate; it never writes the
 catalog or applies a candidate.
 `pennix-skills` is an installed collection, not a static component: its
 install and upgrade actions belong to the system `$skill-installer`; lifecycle
-discovers and verifies the catalog's exact entry set and only uninstalls that
-exact collection. `bootstrap` is an exact single-Skill initial shape; `partial`
-is a safe, catalog-named subset with valid frontmatter and an explicit
-`missing_skills` list. Both resume through the same-session procedure above;
-unrelated entries, invalid frontmatter, and unknown content remain drifted and
-are never repaired or removed automatically. `codex-config` and `codex-agents` are the
+discovers the catalog's exact entry set, receipt state, and only uninstalls an
+exact receipt-matched collection. `bootstrap` is an exact single-Skill initial
+shape; `partial` is a safe, catalog-named subset with valid frontmatter and an
+explicit `missing_skills` list. Both resume through the same-session procedure
+above; unrelated entries, invalid frontmatter, legacy complete collections, and
+unknown content remain blocked and are never repaired or removed automatically.
+`codex-config` and `codex-agents` are the
 supported static components; catalog keys address package and plugin components.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
@@ -127,11 +138,39 @@ FastCtx itself never materializes or refreshes user `AGENTS.md`; its normal Appl
 and TUI paths leave that file untouched. The static Pennix template is the only
 workflow-owned guidance source.
 
-CCH and Tavily Hikari are catalogued for version discovery, but their endpoint/token
-configuration remains under their native or external owners. A missing CCH installation
-or Hikari CLI is therefore not installed with guessed credentials or copied host
-configuration. OpenViking plugin installation similarly verifies Codex plugin presence;
-remote server configuration and health remain outside local lifecycle.
+### 配置目标
+
+After the relevant delivery component is `match`, use the explicit target ID:
+
+```bash
+python3 <installed-lifecycle>/scripts/lifecycle.py configure \
+  --component <target-id> --yes
+```
+
+`discover` reports every catalog target's redacted readiness state and whether
+it is enabled. `codex-provider` is the only core target. It delegates to the
+native `codex login` terminal flow, which OpenAI's official documentation names
+as the default browser sign-in path. Each optional target becomes enabled only
+after an explicit configure attempt, so a later `verify` checks the selected
+integration without requiring unrelated services on every host.
+
+The catalog currently defines `openviking-connection`, `cch-connection`,
+`hikari-connection`, `grok-search-provider`, `grok-tavily-extra`,
+`grok-firecrawl-extra`, and `windsurf-credential`. CCH and Windsurf delegate
+to their owner `configure` command. Hikari and Grok accept values only through
+`/dev/tty`, conceal secret input, and write a private owner record. Grok refuses
+to overwrite a non-lifecycle-marked record. OpenViking has no local owner setup
+adapter yet; selecting it reports a blocked result instead of guessing remote
+server configuration. A target's delivery must match first, and collection
+targets additionally require a matching collection receipt.
+
+The profile is stored below `CODEX_HOME` with mode `0600`, contains target IDs
+and a normalized configuration-contract digest only, and is safe to recreate.
+Ordinary component version updates preserve it. If the configuration contract
+changes, `discover` marks it `stale`; rerun the relevant explicit configure
+action to reseal it. `verify` requires the core target and every enabled optional
+target to be ready or configured, while never printing a secret, its path, or a
+configuration value.
 
 ### 上游安装器与提问
 
@@ -158,12 +197,16 @@ present in the current session. Do not
 probe for it through `functions.exec`, nested `tools.*`, `ALL_TOOLS`, shell, or
 MCP. A schema error may be corrected and retried once; host refusal,
 cancellation, timeout, or unavailable native interaction falls back to text and
-stops the turn. Never auto-select the recommendation. Batch independent
-decisions from the same gate when the host allows it; keep dependent decisions
-separate. During implementation, do not ask a new question: use the sealed
-task/spec decision, or record `decision-needed` if the ambiguity is material.
+stops the turn. If answers arrive in the same native continuation, persist the
+decision, re-evaluate dependent gates, and continue the current lifecycle flow;
+do not close the turn merely because a question was asked. Never auto-select the
+recommendation. Batch independent decisions from the same gate when the host
+allows it; keep dependent decisions separate. During implementation, do not ask
+a new question: use the sealed task/spec decision, or record `decision-needed`
+if the ambiguity is material.
 
-All component versions and refs come from `references/component-versions.json`.
+All component versions, refs, configuration targets, and closed post-install
+action IDs come from `references/component-versions.json`.
 Do not add a second version table to this Skill or to an adapter. Do not print
 secret values, full configuration, sessions, databases, logs, caches, locks, or
 runtime state. `uninstall` only removes exact lifecycle-owned files, an exact

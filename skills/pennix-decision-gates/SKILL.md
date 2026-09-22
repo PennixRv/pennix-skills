@@ -12,6 +12,14 @@ Use this Skill for every Trellis planning gate (`clarify`, `research`, `plan`,
 boundary, public behavior, data, deployment, cost, or acceptance criteria. It
 does not perform deployment and does not create a second task lifecycle.
 
+Before routing, distinguish mutation from complexity. `analysis_only` means the
+current activity does not modify an owner target; it does not make a task
+simple. A request with multiple owners, a workflow/governance contract, a
+release or rollout path, material security/configuration implications, or
+several dependent implementation steps is complex even when its first step is
+research. Create or continue its Trellis task and run the relevant planning
+gate before treating research conclusions as sealed.
+
 ## Decide Whether To Ask
 
 Do not ask when an existing task, spec, sealed decision, or project convention
@@ -54,10 +62,11 @@ request, with at most three questions. If only one independent node is ready,
 ask one; batching is conditional, not a quota. Do not ask a dependent node
 early. Keep execution approval separate from design decisions.
 
-After the user answers, end the round. On the next turn, read the answers,
+When the native request returns answers in the current continuation, immediately
 record every selected option and rationale in the active PRD/research artifact,
 recheck evidence and downstream dependencies, and recalculate the frontier.
-Do not ask the next round before the previous answers are durable.
+Do not ask the next round before the previous answers are durable. Continue the
+same planning flow after that persistence; a question is not a terminal state.
 
 When the frontier becomes empty, run a conflict audit across scope, ownership,
 security, compatibility, rollout, rollback, cost, and acceptance. If any two
@@ -67,7 +76,12 @@ answer-record-frontier-audit cycle until no conflict remains.
 
 Only then write the final seal: all nodes are `sealed`, the conflict audit is
 clean, `prd.md`, `design.md`, and `implement.md` agree, and implementation has
-no user-owned ambiguity. Stop at the Trellis planning approval boundary;
+no user-owned ambiguity. The closure pass must resolve every static pending
+choice: no `TBD`, `TODO`, `decision-needed`, unowned option, unspecified
+target branch, open implementation path, validation gap, or conditional
+acceptance point may remain. Each implementation step must have its target
+owner, intended change, verification, rollout/rollback boundary, and completion
+condition determined. Stop at the Trellis planning approval boundary;
 implementation starts only after the normal task approval.
 
 Call the current session's native `request_user_input` directly when it is
@@ -77,9 +91,11 @@ host refusal, cancellation, timeout, or genuine unavailability may use a
 plain-text fallback, but the unanswered decision still stops the turn. Never
 silently choose the recommendation.
 
-After asking, stop the turn. The next turn must read and persist the answers
+If native interaction yields without answers because of host refusal,
+cancellation, timeout, or genuine unavailability, stop the turn with the
+decision open. If it returns answers in the current continuation, persist them
 before writing new questions, applying, committing, archiving, or advancing a
-dependent gate.
+dependent gate, then continue the planning flow as above.
 
 ## During Implementation
 

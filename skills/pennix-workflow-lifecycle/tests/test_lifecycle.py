@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,10 @@ import lifecycle as bootstrap
 
 
 class BootstrapTests(unittest.TestCase):
+    def trust_collection(self, destination: Path) -> None:
+        staged = bootstrap.skills_install._write_receipt(destination, bootstrap.skills_install.collection_digest(destination))
+        os.replace(staged, bootstrap.skills_install.receipt_path(destination))
+
     def catalog(self, root: Path) -> Path:
         catalog = root / "catalog.json"
         catalog.write_text(
@@ -202,6 +207,59 @@ class BootstrapTests(unittest.TestCase):
     def test_configure_is_a_supported_command(self) -> None:
         self.assertEqual(bootstrap.parse_args(["configure"]).command, "configure")
 
+    def test_configuration_contract_rejects_unknown_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            catalog_path = self.catalog(Path(temporary))
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            value["configuration_targets"] = [
+                {
+                    "id": "fixture-credential",
+                    "tier": "optional",
+                    "default_enabled": False,
+                    "adapter": "grok-provider",
+                    "component": "missing-component",
+                    "readiness": "fixture",
+                }
+            ]
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "configuration target component"):
+                bootstrap.load_catalog(catalog_path)
+
+    def test_configuration_target_persists_only_its_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog_path = self.catalog(root)
+            catalog = bootstrap.load_catalog(catalog_path)
+            catalog["configuration_targets"] = [
+                {
+                    "id": "fixture-provider",
+                    "tier": "core",
+                    "default_enabled": True,
+                    "adapter": "codex-provider",
+                    "component": "fixture",
+                    "readiness": "fixture",
+                }
+            ]
+            args = SimpleNamespace(
+                command="configure",
+                component="fixture-provider",
+                yes=True,
+                catalog=catalog_path,
+                codex_home=root / "codex",
+                destination=None,
+            )
+            with (
+                patch.object(bootstrap, "configuration_parent_status"),
+                patch.object(bootstrap.configuration, "configure_target", return_value="ready"),
+            ):
+                bootstrap.run_lifecycle(args, catalog)
+            profile_state, selected = bootstrap.configuration.load_profile(
+                args.codex_home,
+                bootstrap.configuration_digest(catalog),
+            )
+            self.assertEqual(profile_state, "match")
+            self.assertEqual(selected, {"fixture-provider"})
+
     def test_static_install_upgrade_and_uninstall_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -353,6 +411,7 @@ class BootstrapTests(unittest.TestCase):
                     f"---\nname: {name}\ndescription: Fixture.\n---\n",
                     encoding="utf-8",
                 )
+            self.trust_collection(destination)
 
             args = SimpleNamespace(catalog=catalog_path, codex_home=root / "codex", destination=str(destination))
             catalog = bootstrap.load_catalog(catalog_path)
@@ -429,13 +488,33 @@ class BootstrapTests(unittest.TestCase):
                 destination=str(destination),
             )
 
-            bootstrap.replace_staged_collection(args, catalog)
+            with patch.object(bootstrap, "prepare_staged_collection"):
+                bootstrap.replace_staged_collection(args, catalog)
 
             self.assertEqual(bootstrap.probe_component(component, root / "codex", str(destination))[0], "match")
 
         args.command = "upgrade"
         with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
             bootstrap.run_lifecycle(args, catalog)
+
+    def test_post_install_actions_are_a_closed_runtime_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            staging = Path(temporary) / "pennix-skills"
+            skill = staging / "grok-search"
+            (skill / "bin").mkdir(parents=True)
+            (skill / "package.json").write_text("{}\n", encoding="utf-8")
+            (skill / "package-lock.json").write_text("{}\n", encoding="utf-8")
+            command = skill / "bin" / "grok-search"
+            command.write_text("#!/usr/bin/env node\n", encoding="utf-8")
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            component = catalog["components"]["pennix-skills"]
+            with (
+                patch.object(bootstrap.shutil, "which", return_value="/usr/bin/npm"),
+                patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+            ):
+                bootstrap.prepare_staged_collection(component, staging)
+            self.assertEqual(run.call_args.args[0], ["/usr/bin/npm", "ci", "--omit=dev", "--ignore-scripts"])
+            self.assertTrue(command.stat().st_mode & 0o111)
 
     def test_collection_uninstall_removes_an_exact_installed_collection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -450,6 +529,7 @@ class BootstrapTests(unittest.TestCase):
                     f"---\nname: {name}\ndescription: Fixture.\n---\n",
                     encoding="utf-8",
                 )
+            self.trust_collection(destination)
             args = SimpleNamespace(codex_home=root / "codex", destination=str(destination))
 
             self.assertEqual(bootstrap.static_operation(args, "pennix-skills", component, "uninstall"), "changed")

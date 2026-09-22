@@ -23,6 +23,10 @@ class SkillsCollectionTest(unittest.TestCase):
         )
         return skill
 
+    def trust_collection(self, destination: Path) -> None:
+        staged = MODULE._write_receipt(destination, MODULE.collection_digest(destination))
+        os.replace(staged, MODULE.receipt_path(destination))
+
     def test_collection_state_accepts_exact_installed_names(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "skills" / "pennix-skills"
@@ -30,6 +34,37 @@ class SkillsCollectionTest(unittest.TestCase):
             self.make_skill(destination, "beta")
 
             self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "match")
+
+    def test_receipt_requires_the_exact_private_collection_contents(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "skills" / "pennix-skills"
+            self.make_skill(destination, "alpha")
+            self.trust_collection(destination)
+            self.assertEqual(MODULE.collection_receipt_state(destination), "match")
+
+            (destination / "alpha" / "SKILL.md").write_text("changed\n", encoding="utf-8")
+            self.assertEqual(MODULE.collection_receipt_state(destination), "drifted")
+
+    def test_exact_legacy_collection_cannot_be_replaced_or_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination = root / "pennix-skills"
+            staging = root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(staging, "alpha")
+
+            with self.assertRaisesRegex(MODULE.InstallError, "legacy"):
+                MODULE.replace_collection({"alpha"}, staging, destination)
+            with self.assertRaisesRegex(MODULE.InstallError, "legacy"):
+                MODULE.uninstall_collection({"alpha"}, destination)
+
+    def test_receipt_must_not_be_public(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "skills" / "pennix-skills"
+            self.make_skill(destination, "alpha")
+            self.trust_collection(destination)
+            os.chmod(MODULE.receipt_path(destination), 0o644)
+            self.assertEqual(MODULE.collection_receipt_state(destination), "drifted")
 
     def test_collection_state_recognizes_a_safe_partial_collection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -54,6 +89,7 @@ class SkillsCollectionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "skills" / "pennix-skills"
             self.make_skill(destination, "alpha")
+            self.trust_collection(destination)
 
             self.assertTrue(MODULE.uninstall_collection({"alpha"}, destination))
             self.assertFalse(destination.exists())
@@ -80,6 +116,7 @@ class SkillsCollectionTest(unittest.TestCase):
             MODULE.replace_collection({"alpha", "beta"}, staging, destination)
 
             self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "match")
+            self.assertEqual(MODULE.collection_receipt_state(destination), "match")
             self.assertFalse(staging.exists())
 
     def test_staging_failure_preserves_drifted_destination(self) -> None:
@@ -102,6 +139,7 @@ class SkillsCollectionTest(unittest.TestCase):
             staging = root / ".pennix-stage"
             self.make_skill(destination, "alpha")
             (destination / "alpha" / "old").write_text("old\n", encoding="utf-8")
+            self.trust_collection(destination)
             self.make_skill(staging, "alpha")
             original_replace = os.replace
             calls = 0
