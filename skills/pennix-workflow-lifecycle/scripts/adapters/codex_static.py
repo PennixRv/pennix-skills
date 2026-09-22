@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 import tempfile
 import tomllib
 from pathlib import Path
@@ -45,6 +46,27 @@ def read(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
         raise StaticError(f"cannot safely read static file: {path}") from error
+
+
+def auth_state(codex_home: Path) -> str:
+    """Return redacted native-auth readiness without reading credential values."""
+    auth = codex_home / "auth.json"
+    try:
+        assert_no_symlink_ancestor(auth)
+        metadata = auth.lstat()
+    except FileNotFoundError:
+        return "not-configured"
+    except OSError:
+        return "unknown"
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o077:
+        return "blocked"
+    try:
+        if metadata.st_size == 0:
+            return "not-configured"
+        auth.read_bytes()
+    except OSError:
+        return "unknown"
+    return "ready"
 
 
 def template(name: str) -> str:

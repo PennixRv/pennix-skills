@@ -534,7 +534,10 @@ def probe_component(
     if adapter == "codex-config":
         target = (codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))) / "config.toml"
         state = codex_static.config_state(codex_static.read(target))
-        return {"current": "match", "seeded": "seeded", "absent": "missing"}.get(state, "drifted"), state
+        if state in {"current", "seeded"}:
+            auth = codex_static.auth_state(target.parent)
+            return ("match" if auth == "ready" else "drifted"), f"{state}:{auth}"
+        return {"absent": "missing"}.get(state, "drifted"), state
     if adapter == "codex-agents":
         target = (codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))) / "AGENTS.md"
         state = codex_static.template_state(target)

@@ -260,6 +260,17 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(profile_state, "match")
             self.assertEqual(selected, {"fixture-provider"})
 
+    def test_codex_config_requires_private_native_auth_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            config = home / "config.toml"
+            config.write_text(bootstrap.codex_static.seed_config("https://example.test"), encoding="utf-8")
+            self.assertEqual(bootstrap.probe_component({"adapter": "codex-config"}, home)[0], "drifted")
+            auth = home / "auth.json"
+            auth.write_text('{"access_token":"redacted"}\n', encoding="utf-8")
+            os.chmod(auth, 0o600)
+            self.assertEqual(bootstrap.probe_component({"adapter": "codex-config"}, home)[0], "match")
+
     def test_static_install_upgrade_and_uninstall_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
