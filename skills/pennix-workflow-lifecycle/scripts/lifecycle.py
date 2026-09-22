@@ -23,7 +23,7 @@ import host
 SCRIPT_ROOT = Path(__file__).resolve().parent
 SKILL_ROOT = SCRIPT_ROOT.parent
 DEFAULT_CATALOG = SKILL_ROOT / "references" / "component-versions.json"
-VERSION_RE = re.compile(r"(?<![A-Za-z0-9])v?(\d+(?:\.\d+)+(?:[A-Za-z][A-Za-z0-9.-]*)?)")
+VERSION_RE = re.compile(r"(?<![A-Za-z0-9])v?(\d+(?:\.\d+)+(?:[-+][A-Za-z0-9.-]+|[A-Za-z][A-Za-z0-9.-]*)?)")
 PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:/-]+$")
 PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9-]*@[a-z0-9][a-z0-9-]*$")
 PLUGIN_REF = re.compile(r"^[A-Za-z0-9._-]+$")

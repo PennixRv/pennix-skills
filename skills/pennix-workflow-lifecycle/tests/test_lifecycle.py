@@ -196,6 +196,9 @@ class BootstrapTests(unittest.TestCase):
             "0.6.41",
         )
 
+    def test_normalize_version_preserves_semver_prerelease(self) -> None:
+        self.assertEqual(bootstrap.normalize_version("trellis 0.7.0-beta.8"), "0.7.0-beta.8")
+
     def test_configure_is_a_supported_command(self) -> None:
         self.assertEqual(bootstrap.parse_args(["configure"]).command, "configure")
 
