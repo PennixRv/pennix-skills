@@ -1058,6 +1058,7 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
             staging,
             destination,
             collection_bootstrap_skill(component),
+            allow_legacy=True,
         )
     except skills_install.InstallError as error:
         raise BootstrapError(str(error)) from error

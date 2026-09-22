@@ -26,7 +26,9 @@ the owner adapter to private files, and never enter `.env`, argv, task files,
 inventory, or chat. `CODEX_HOME/pennix-workflow-lifecycle/profile.json` stores
 only selected target IDs plus a normalized configuration-contract digest. A
 receipt beside the installed collection stores only its tree digest and is
-required for full collection replacement/removal.
+required for automatic full collection refresh/removal. An explicitly
+confirmed `replace-staged --yes` may create the first receipt when the exact
+legacy tree matches the catalog; that is the only legacy migration path.
 
 ## Routing and Planning
 

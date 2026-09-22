@@ -171,7 +171,13 @@ def validate_staged_collection(expected_names: set[str], staging: Path) -> Path:
     return staging
 
 
-def replace_collection(expected_names: set[str], staging: Path, destination: Path, bootstrap_name: str | None = None) -> None:
+def replace_collection(
+    expected_names: set[str],
+    staging: Path,
+    destination: Path,
+    bootstrap_name: str | None = None,
+    allow_legacy: bool = False,
+) -> None:
     """Replace a known collection only after the complete staged tree validates."""
     staging = validate_staged_collection(expected_names, staging)
     destination = assert_safe_destination(destination)
@@ -180,7 +186,7 @@ def replace_collection(expected_names: set[str], staging: Path, destination: Pat
     current_state = collection_state(expected_names, destination, bootstrap_name)
     if current_state not in {"missing", "bootstrap", "partial", "match"}:
         raise InstallError("refusing to replace a drifted or unknown Pennix Skills collection")
-    if current_state == "match" and collection_receipt_state(destination) != "match":
+    if current_state == "match" and collection_receipt_state(destination) != "match" and not allow_legacy:
         raise InstallError("refusing to replace a legacy or drifted Pennix Skills collection")
     if staging == destination:
         return

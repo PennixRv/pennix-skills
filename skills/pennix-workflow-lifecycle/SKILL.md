@@ -87,12 +87,14 @@ python3 <installed-lifecycle>/scripts/lifecycle.py replace-staged \
 
 `replace-staged` runs only catalog-defined post-install action IDs, creates a
 private integrity receipt for the final tree, and refuses unknown or drifted
-live content. It leaves live content in place when staging validation,
-preparation, or replacement fails. A missing or partial catalog-only collection
-is reentrant; a complete legacy collection with no matching receipt is not
-silently replaced or removed and must be restaged through this procedure. A
-user-created entry is never deleted. Rerun `discover` and `verify` after
-replacement. Do not retype a parallel Skill list in prompts or documentation.
+live content. An explicit, confirmed `replace-staged --yes` may migrate an
+exact legacy collection that has no receipt; this is the one-time receipt
+bootstrap and is still transactional. Automatic refresh and `uninstall` refuse
+legacy or drifted full collections. The command leaves live content in place
+when staging validation, preparation, or replacement fails. A missing or
+partial catalog-only collection is reentrant. A user-created entry is never
+deleted. Rerun `discover` and `verify` after replacement. Do not retype a
+parallel Skill list in prompts or documentation.
 
 The supported host boundary is Arch Linux on Linux: native Arch Linux and
 Arch Linux under WSL2. Lifecycle package actions prefer an already-installed

@@ -497,6 +497,33 @@ class BootstrapTests(unittest.TestCase):
         with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
             bootstrap.run_lifecycle(args, catalog)
 
+    def test_explicit_replace_staged_bootstraps_exact_legacy_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "skills" / "pennix-skills"
+            staging = root / "skills" / ".pennix-skills-stage"
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            component = catalog["components"]["pennix-skills"]
+            for parent in (destination, staging):
+                for name in bootstrap.collection_skill_names(component):
+                    skill = parent / name
+                    skill.mkdir(parents=True)
+                    (skill / "SKILL.md").write_text(
+                        f"---\nname: {name}\ndescription: Fixture.\n---\n",
+                        encoding="utf-8",
+                    )
+            args = SimpleNamespace(
+                component="pennix-skills",
+                yes=True,
+                staging=str(staging),
+                destination=str(destination),
+            )
+
+            with patch.object(bootstrap, "prepare_staged_collection"):
+                bootstrap.replace_staged_collection(args, catalog)
+
+            self.assertEqual(bootstrap.skills_install.collection_receipt_state(destination), "match")
+
     def test_post_install_actions_are_a_closed_runtime_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             staging = Path(temporary) / "pennix-skills"
