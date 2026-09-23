@@ -614,13 +614,20 @@ def probe_component(
     expected = component_target_version(component)
     if expected is None:
         return "unknown", observed
-    if observed == expected:
+    comparable_expected = expected
+    package = component.get("package")
+    if (
+        component_version_policy(component) == "repository-latest"
+        and isinstance(package, dict)
+        and package.get("source") == "aur"
+    ):
+        comparable_expected = re.sub(r"-\d+$", "", expected)
+    if observed == comparable_expected:
         status = "match"
     elif component_version_policy(component) == "repository-latest":
         status = "upgrade-available"
     else:
         status = "drifted"
-    package = component.get("package")
     if status in {"match", "upgrade-available"} and isinstance(package, dict):
         owner = (
             npm_owner_for_command(command)

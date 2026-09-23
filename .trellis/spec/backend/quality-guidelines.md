@@ -40,6 +40,9 @@ Questions to answer:
   is `upgrade-available` and is advisory. Missing, unknown, unsafe-owner,
   pinned-drift, static/collection integrity failure, upstream failure, and
   required configuration readiness failure remain blocking.
+- For AUR packages, compare the CLI-reported version with the repository
+  version without the trailing Arch `pkgrel` (for example, `0.156.1-1` versus
+  `0.156.1`), while retaining the complete candidate version in inventory.
 - Tests must cover scoped isolation, unknown selectors, repository candidate
   advisories, candidate-unavailable blocking, pinned drift, and full
   configuration checks.

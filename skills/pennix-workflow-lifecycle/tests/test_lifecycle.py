@@ -163,6 +163,26 @@ class BootstrapTests(unittest.TestCase):
         ):
             self.assertEqual(bootstrap.probe_component(component), ("upgrade-available", "1.0.0"))
 
+    def test_repository_latest_aur_probe_ignores_the_package_release_suffix(self) -> None:
+        component = {
+            "version_policy": "repository-latest",
+            "probe": "fixture",
+            "version_args": ["--version"],
+            "package": {"source": "aur", "name": "fixture-package"},
+        }
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"installers": {"aur": "yay"}}),
+            patch.object(bootstrap, "package_candidate_version", return_value="1.2.3-1"),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(
+                bootstrap.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="fixture 1.2.3", stderr=""),
+            ),
+            patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+        ):
+            self.assertEqual(bootstrap.probe_component(component), ("match", "1.2.3"))
+
     def test_repository_latest_probe_blocks_when_candidate_is_unavailable(self) -> None:
         component = {
             "version_policy": "repository-latest",
