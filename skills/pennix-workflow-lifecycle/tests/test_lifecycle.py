@@ -420,6 +420,32 @@ class BootstrapTests(unittest.TestCase):
             os.chmod(auth, 0o600)
             self.assertEqual(bootstrap.probe_component({"adapter": "codex-config"}, home)[0], "match")
 
+    def test_codex_config_accepts_compatible_user_extensions_without_rewriting_them(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            config = home / "config.toml"
+            config.write_text(
+                bootstrap.codex_static.install_config("https://example.test")
+                + "\n[projects.\"/home/example\"]\ntrust_level = \"trusted\"\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(bootstrap.codex_static.config_state(config.read_text(encoding="utf-8")), "compatible")
+
+            legacy = config.read_text(encoding="utf-8").replace(
+                "# Pennix Codex seed configuration. Only seed-owned fields appear here.\n"
+                "# pennix-workflow-lifecycle:seed-config\n",
+                "# Existing user configuration.\n",
+            )
+            config.write_text(legacy, encoding="utf-8")
+            self.assertEqual(bootstrap.codex_static.config_state(legacy), "compatible")
+            args = SimpleNamespace(codex_home=home, destination=None)
+            before = config.read_text(encoding="utf-8")
+            self.assertEqual(
+                bootstrap.static_operation(args, "codex-config", {"adapter": "codex-config"}, "upgrade"),
+                "no-op",
+            )
+            self.assertEqual(config.read_text(encoding="utf-8"), before)
+
     def test_static_install_upgrade_and_uninstall_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

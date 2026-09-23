@@ -545,7 +545,7 @@ def probe_component(
     if adapter == "codex-config":
         target = (codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))) / "config.toml"
         state = codex_static.config_state(codex_static.read(target))
-        if state in {"current", "seeded"}:
+        if state in {"current", "seeded", "compatible"}:
             auth = codex_static.auth_state(target.parent)
             return ("match" if auth == "ready" else "drifted"), f"{state}:{auth}"
         return {"absent": "missing"}.get(state, "drifted"), state
@@ -856,13 +856,13 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
         path = args.codex_home / "config.toml"
         state = codex_static.config_state(codex_static.read(path))
         if operation == "uninstall":
-            if state == "seeded":
+            if state in {"seeded", "compatible"}:
                 return "no-op"
             if state != "current":
                 raise BootstrapError(f"refusing {state} lifecycle config: {path}")
             codex_static.remove_config_sections(path)
             return "changed"
-        if state == "current":
+        if state in {"current", "compatible"}:
             return "no-op"
         if state != "seeded":
             raise BootstrapError(f"refusing {state} lifecycle config: {path}")

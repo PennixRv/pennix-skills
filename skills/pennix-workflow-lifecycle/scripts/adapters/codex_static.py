@@ -141,15 +141,26 @@ def install_config(base_url: str) -> str:
     return _replace_section(contents, FEATURE_BEGIN, FEATURE_END, features)
 
 
+def _contains_values(observed: object, expected: object) -> bool:
+    if not isinstance(observed, dict) or not isinstance(expected, dict):
+        return observed == expected
+    return all(key in observed and _contains_values(observed[key], value) for key, value in expected.items())
+
+
 def config_state(contents: str) -> str:
     if not contents:
         return "absent"
-    if contents.count(SEED_MARKER) != 1:
-        return "drifted"
     try:
         base_url = _base_url(contents)
     except StaticError:
         return "drifted"
+    if contents.count(SEED_MARKER) != 1:
+        try:
+            observed = tomllib.loads(contents)
+            expected = tomllib.loads(install_config(base_url))
+        except (StaticError, tomllib.TOMLDecodeError):
+            return "drifted"
+        return "compatible" if _contains_values(observed, expected) else "drifted"
     if contents == seed_config(base_url):
         return "seeded"
     try:
@@ -158,13 +169,20 @@ def config_state(contents: str) -> str:
         return "drifted"
     if contents == installed:
         return "current"
+    try:
+        observed = tomllib.loads(contents)
+        expected = tomllib.loads(installed)
+    except tomllib.TOMLDecodeError:
+        return "drifted"
+    if _contains_values(observed, expected):
+        return "compatible"
     return "drifted"
 
 
 def apply_config(path: Path) -> tuple[str, str]:
     before = read(path)
     state_name = config_state(before)
-    if state_name == "current":
+    if state_name in {"current", "compatible"}:
         return before, before
     if state_name != "seeded":
         raise StaticError(f"refusing {state_name} lifecycle config: {path}")
@@ -178,7 +196,7 @@ def apply_config(path: Path) -> tuple[str, str]:
 def remove_config_sections(path: Path) -> tuple[str, str]:
     before = read(path)
     state_name = config_state(before)
-    if state_name == "seeded":
+    if state_name in {"seeded", "compatible"}:
         return before, before
     if state_name != "current":
         raise StaticError(f"refusing {state_name} lifecycle config: {path}")

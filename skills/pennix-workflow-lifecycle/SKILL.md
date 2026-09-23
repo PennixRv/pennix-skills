@@ -138,7 +138,9 @@ unknown content remain blocked and are never repaired or removed automatically.
 components. Static assets are independent from sensitive configuration targets:
 they use tracked templates, managed blocks, per-asset integrity receipts, and
 fail-closed drift handling; they never read or write the private configuration
-profile or a shared `.env`. `codex-agents` manages only its two lifecycle marker
+profile or a shared `.env`. `codex-config` accepts an existing configuration as
+`compatible` when all lifecycle-owned values are semantically present, and leaves
+additional user-owned values untouched. `codex-agents` manages only its two lifecycle marker
 blocks and preserves all unowned `AGENTS.md` content; missing owned blocks may be
 added, while duplicate, unpaired, or modified owned blocks block the operation.
 `tmux-config` is an explicit component action and manages only the Pennix block in
