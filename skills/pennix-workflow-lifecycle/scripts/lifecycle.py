@@ -28,6 +28,7 @@ PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:/-]+$")
 PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9-]*@[a-z0-9][a-z0-9-]*$")
 PLUGIN_REF = re.compile(r"^[A-Za-z0-9._-]+$")
 GITHUB_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+NPM_TAG = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 class BootstrapError(RuntimeError):
@@ -309,6 +310,15 @@ def load_catalog(path: Path) -> dict[str, Any]:
             or (package.get("source") != "npm" and "registry" in package)
         ):
             raise BootstrapError(f"catalog package metadata is invalid: {key}")
+        if package is not None and (
+            "tag" in package
+            and (
+                package.get("source") != "npm"
+                or not isinstance(package.get("tag"), str)
+                or not NPM_TAG.fullmatch(package["tag"])
+            )
+        ):
+            raise BootstrapError(f"catalog package tag metadata is invalid: {key}")
         if version_policy == "repository-latest" and (
             delivery != "package"
             or "approved_version" in component
@@ -360,7 +370,7 @@ def component_target_version(component: dict[str, Any]) -> str | None:
     installer = host.detect_host().get("installers", {}).get(package.get("source"))
     if not isinstance(installer, str):
         return None
-    return package_candidate_version(installer, package["name"], package.get("registry"))
+    return package_candidate_version(installer, package["name"], package.get("registry"), package.get("tag"))
 
 
 def collection_skill_names(component: dict[str, Any]) -> set[str]:
@@ -673,7 +683,9 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             host_info = host.detect_host()
             installer = host_info.get("installers", {}).get(package.get("source"))
             if isinstance(installer, str):
-                candidate_version = package_candidate_version(installer, target_package, package.get("registry"))
+                candidate_version = package_candidate_version(
+                    installer, target_package, package.get("registry"), package.get("tag")
+                )
         components[key] = {
             "status": status,
             "observed_version": observed,
@@ -802,10 +814,15 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
     return failures
 
 
-def package_candidate_version(installer: str, package: str, registry: str | None = None) -> str | None:
+def package_candidate_version(
+    installer: str,
+    package: str,
+    registry: str | None = None,
+    tag: str | None = None,
+) -> str | None:
     try:
         result = subprocess.run(
-            host.package_info_command(installer, package, registry),
+            host.package_info_command(installer, package, registry, tag),
             capture_output=True,
             text=True,
             timeout=30,
@@ -1010,7 +1027,7 @@ def component_operation(
             and normalize_version(installed_npm_version(package_name) or "") == expected
         ):
             raise BootstrapError("installed npm package does not provide an effective matching command")
-        candidate = package_candidate_version(installer, package_name, registry)
+        candidate = package_candidate_version(installer, package_name, registry, metadata.get("tag"))
         if candidate is None:
             raise BootstrapError("repository candidate is unavailable")
         if component_version_policy(component) == "pinned" and candidate != expected:

@@ -12,6 +12,7 @@ WSL_PATTERN = re.compile(r"(?:microsoft|wsl)", re.IGNORECASE)
 WSL2_PATTERN = re.compile(r"(?:wsl2|microsoft-standard-wsl2)", re.IGNORECASE)
 PACKAGE_MANAGERS = ("pacman", "paru", "yay", "npm")
 PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:/-]+$")
+PACKAGE_TAG = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def read_os_release(path: Path = Path("/etc/os-release")) -> dict[str, str]:
@@ -70,11 +71,19 @@ def select_installer(source: str, available: dict[str, bool]) -> str | None:
     return None
 
 
-def package_info_command(installer: str, package: str, registry: str | None = None) -> list[str]:
+def package_info_command(
+    installer: str,
+    package: str,
+    registry: str | None = None,
+    tag: str | None = None,
+) -> list[str]:
     if installer not in PACKAGE_MANAGERS or not PACKAGE_NAME.fullmatch(package):
         raise ValueError("invalid package installer or package name")
     if installer == "npm":
-        command = [installer, "view", package, "version", "--json", "--loglevel", "error"]
+        if tag is not None and not PACKAGE_TAG.fullmatch(tag):
+            raise ValueError("invalid npm package tag")
+        package_ref = f"{package}@{tag}" if tag else package
+        command = [installer, "view", package_ref, "version", "--json", "--loglevel", "error"]
         return command + (["--registry", registry] if registry else [])
     return [installer, "-Si", package]
 

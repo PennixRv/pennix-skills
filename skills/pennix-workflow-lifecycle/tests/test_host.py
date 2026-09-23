@@ -70,6 +70,20 @@ class HostTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
+            host.package_info_command("npm", "@pennixrv/trellis", "https://registry.npmjs.org/", "beta"),
+            [
+                "npm",
+                "view",
+                "@pennixrv/trellis@beta",
+                "version",
+                "--json",
+                "--loglevel",
+                "error",
+                "--registry",
+                "https://registry.npmjs.org/",
+            ],
+        )
+        self.assertEqual(
             host.package_remove_command("pacman", "openai-codex"),
             ["sudo", "pacman", "-R", "--noconfirm", "openai-codex"],
         )
