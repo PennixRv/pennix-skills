@@ -939,6 +939,16 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(bootstrap.component_operation(args, {"components": {}}, "fastctx", component, "upgrade"), "changed")
         run.assert_called_once_with(["npm", "uninstall", "--global", "fastctx"], check=False)
 
+    def test_pacman_package_queries_require_an_exact_name(self) -> None:
+        with patch.object(bootstrap.shutil, "which", return_value="/usr/bin/pacman"):
+            with patch.object(
+                bootstrap.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="openai-codex-bin\n", stderr=""),
+            ):
+                self.assertFalse(bootstrap.installed_pacman_package("openai-codex"))
+                self.assertTrue(bootstrap.installed_pacman_package("openai-codex-bin"))
+
     def test_match_cleans_catalogued_package_replacement(self) -> None:
         component = {
             "approved_version": "2.0.0",

@@ -456,7 +456,7 @@ def installed_pacman_package(package: str) -> bool:
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return result.returncode == 0
+    return result.returncode == 0 and package in {(line.strip()) for line in (result.stdout or "").splitlines()}
 
 
 def installed_replacements(component: dict[str, Any]) -> list[str]:
