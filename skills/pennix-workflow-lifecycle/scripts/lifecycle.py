@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from adapters import codex_plugins, codex_static, configuration, skills_install, upstream
+from adapters import codex_plugins, codex_static, configuration, skills_install, tmux_static, upstream
 import host
 
 
@@ -529,6 +529,7 @@ def probe_component(
     component: dict[str, Any],
     codex_home: Path | None = None,
     destination: str | None = None,
+    home_directory: Path | None = None,
 ) -> tuple[str, str | None]:
     adapter = component.get("adapter")
     if adapter == "codex-config":
@@ -542,6 +543,22 @@ def probe_component(
         target = (codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))) / "AGENTS.md"
         state = codex_static.template_state(target)
         return {"current": "match", "absent": "missing"}.get(state, "drifted"), state
+    if adapter == "tmux-config":
+        template = component.get("template")
+        revision = template.get("revision") if isinstance(template, dict) else None
+        if not isinstance(revision, str):
+            return "unknown", "template revision unavailable"
+        try:
+            observed = tmux_static.inspect(
+                codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")),
+                home_directory,
+                revision,
+            )
+        except tmux_static.TmuxStaticError as error:
+            return "blocked", str(error)
+        state = observed["state"]
+        status = {"current": "match", "absent": "missing", "upgrade-available": "drifted"}.get(state, state)
+        return status, f"{state}:{observed.get('receipt', 'unknown')}"
     if adapter == "pennix-skills":
         try:
             destination_path = skills_install.resolve_destination(destination)
@@ -614,8 +631,14 @@ def probe_component(
 
 def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any]:
     components = {}
+    static_assets = {}
     for key, component in catalog["components"].items():
-        status, observed = probe_component(component, args.codex_home, getattr(args, "destination", None))
+        status, observed = probe_component(
+            component,
+            args.codex_home,
+            getattr(args, "destination", None),
+            getattr(args, "home_directory", None),
+        )
         package = component.get("package")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
         observed_package = None
@@ -655,6 +678,21 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "target_package": target_package,
             "candidate_owner": candidate_owner,
         }
+        if component.get("adapter") == "tmux-config":
+            template = component.get("template")
+            revision = template.get("revision") if isinstance(template, dict) else None
+            try:
+                asset = tmux_static.inspect(args.codex_home, getattr(args, "home_directory", None), revision)
+            except (tmux_static.TmuxStaticError, TypeError) as error:
+                asset = {
+                    "state": "blocked",
+                    "reason": str(error),
+                    "target": str(tmux_static.target_path(getattr(args, "home_directory", None))),
+                }
+            asset = {name: value for name, value in asset.items() if name != "body"}
+            components[key]["static_state"] = asset.get("state")
+            components[key]["static_target"] = asset.get("target")
+            static_assets[key] = asset
         if component.get("adapter") == "pennix-skills":
             try:
                 destination_path = skills_install.resolve_destination(getattr(args, "destination", None))
@@ -694,6 +732,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "agents_template": agents_state,
             "config_path": str(config),
             "config_install": config_state,
+            "assets": static_assets,
         },
         "components": components,
         "configuration": {"profile_status": profile_state, "targets": targets},
@@ -706,6 +745,8 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
         observed = inventory["components"][key]
         if observed["status"] != "match":
             failures.append(f"{key}: observed status is {observed['status']}")
+        if component.get("adapter") == "tmux-config" and observed.get("static_state") != "current":
+            failures.append(f"{key}: static state is {observed.get('static_state')}")
         if component.get("adapter") == "pennix-skills" and observed.get("collection_integrity") != "match":
             failures.append(f"{key}: collection integrity is {observed.get('collection_integrity')}")
         if isinstance(component.get("upstream_inspection"), dict):
@@ -810,6 +851,16 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
         except skills_install.InstallError as error:
             raise BootstrapError(str(error)) from error
         return "changed" if changed else "no-op"
+
+    if adapter == "tmux-config":
+        template = component.get("template")
+        revision = template.get("revision") if isinstance(template, dict) else None
+        if not isinstance(revision, str):
+            raise BootstrapError("tmux-config template revision is unavailable")
+        try:
+            return tmux_static.operate(args.codex_home, getattr(args, "home_directory", None), revision, operation)
+        except tmux_static.TmuxStaticError as error:
+            raise BootstrapError(str(error)) from error
 
     raise BootstrapError(f"unsupported static adapter: {adapter}")
 
@@ -1101,7 +1152,7 @@ def main(argv: list[str]) -> int:
         else:
             run_lifecycle(args, catalog)
         return 0
-    except (BootstrapError, codex_static.StaticError, configuration.ConfigurationError) as error:
+    except (BootstrapError, codex_static.StaticError, configuration.ConfigurationError, tmux_static.TmuxStaticError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

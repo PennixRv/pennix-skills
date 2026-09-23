@@ -118,6 +118,17 @@
       "version_args": ["-V"],
       "package": {"source": "official", "name": "tmux"}
     },
+    "tmux-config": {
+      "delivery": "static",
+      "source": "tracked Pennix tmux baseline template",
+      "owner": "pennix",
+      "scope": "global",
+      "verify_key": "HOME/.tmux.conf Pennix managed block",
+      "actions": {"install": "managed", "configure": "managed", "upgrade": "managed", "uninstall": "managed", "verify": "managed"},
+      "project_init": "not-applicable",
+      "adapter": "tmux-config",
+      "template": {"name": "tmux.conf.install", "revision": "sha256:41715d030309cdb256a592ffebbae456a478c89ab101bc7c69db27ac4a137cd8"}
+    },
     "aoe": {
       "delivery": "package",
       "approved_version": "1.16.1",

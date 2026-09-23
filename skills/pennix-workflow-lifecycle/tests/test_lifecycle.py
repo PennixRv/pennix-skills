@@ -303,6 +303,145 @@ class BootstrapTests(unittest.TestCase):
                 bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "uninstall")
             self.assertTrue(target.exists())
 
+    def tmux_fixture(self, root: Path) -> tuple[SimpleNamespace, dict[str, object], Path, Path]:
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        component = catalog["components"]["tmux-config"]
+        codex_home = root / "codex"
+        home = root / "home"
+        codex_home.mkdir()
+        home.mkdir()
+        return SimpleNamespace(codex_home=codex_home, home_directory=home, destination=None), component, codex_home, home
+
+    def test_tmux_static_preserves_existing_cch_content_and_reenters(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, component, codex_home, home = self.tmux_fixture(root)
+            target = home / ".tmux.conf"
+            original = (
+                'set -g @user-option "keep-me"\n'
+                "# >>> cch-codex-tmux-status managed block >>>\n"
+                "set-option -g focus-events on\n"
+                "# <<< cch-codex-tmux-status managed block <<<\n"
+            )
+            target.write_bytes(original.encode())
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                self.assertEqual(bootstrap.static_operation(args, "tmux-config", component, "install"), "changed")
+                first = target.read_bytes()
+                self.assertIn(original.encode(), first)
+                self.assertEqual(bootstrap.static_operation(args, "tmux-config", component, "configure"), "no-op")
+                self.assertEqual(bootstrap.static_operation(args, "tmux-config", component, "verify"), "no-op")
+            receipt = bootstrap.tmux_static.receipt_path(codex_home)
+            self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(target.read_bytes(), first)
+            self.assertEqual(bootstrap.tmux_static.inspect(codex_home, home, component["template"]["revision"])["state"], "current")
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                self.assertEqual(bootstrap.static_operation(args, "tmux-config", component, "uninstall"), "changed")
+            self.assertEqual(target.read_bytes(), original.encode())
+            self.assertFalse(receipt.exists())
+
+    def test_tmux_static_upgrades_only_an_owned_old_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, component, codex_home, home = self.tmux_fixture(root)
+            old_revision = "sha256:" + "0" * 64
+            old_body = "set -g default-terminal \"xterm-256color\""
+            old_block, old_digest = bootstrap.tmux_static._block(old_revision, old_body)
+            target = home / ".tmux.conf"
+            prefix = b"# user prefix\r\n"
+            suffix = b"\r\n# user suffix\r\n"
+            target.write_bytes(prefix + old_block.encode() + suffix)
+            bootstrap.tmux_static._write_receipt(
+                bootstrap.tmux_static.receipt_path(codex_home),
+                bootstrap.tmux_static._receipt_value(old_revision, old_digest),
+            )
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                self.assertEqual(
+                    bootstrap.static_operation(args, "tmux-config", component, "upgrade"),
+                    "changed",
+                )
+            contents = target.read_bytes()
+            self.assertTrue(contents.startswith(prefix))
+            self.assertTrue(contents.endswith(suffix))
+            self.assertEqual(
+                bootstrap.tmux_static.inspect(codex_home, home, component["template"]["revision"])["state"],
+                "current",
+            )
+
+    def test_tmux_static_refuses_drift_and_missing_dependency_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, component, _, home = self.tmux_fixture(root)
+            target = home / ".tmux.conf"
+            target.write_text("# user file\n", encoding="utf-8")
+            before = target.read_bytes()
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value=None):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "dependency"):
+                    bootstrap.static_operation(args, "tmux-config", component, "install")
+            self.assertEqual(target.read_bytes(), before)
+
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                bootstrap.static_operation(args, "tmux-config", component, "install")
+                target.write_text(target.read_text(encoding="utf-8").replace("# block-digest:", "# block-digest: sha256:"), encoding="utf-8")
+                drifted = target.read_bytes()
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "refusing drifted"):
+                    bootstrap.static_operation(args, "tmux-config", component, "upgrade")
+            self.assertEqual(target.read_bytes(), drifted)
+
+    def test_tmux_static_refuses_missing_receipt_duplicate_markers_and_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, component, codex_home, home = self.tmux_fixture(root)
+            target = home / ".tmux.conf"
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                bootstrap.static_operation(args, "tmux-config", component, "install")
+            receipt = bootstrap.tmux_static.receipt_path(codex_home)
+            receipt.unlink()
+            before = target.read_bytes()
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "receipt"):
+                    bootstrap.static_operation(args, "tmux-config", component, "upgrade")
+            self.assertEqual(target.read_bytes(), before)
+
+            receipt.parent.mkdir(parents=True, exist_ok=True)
+            bootstrap.tmux_static._write_receipt(
+                receipt,
+                bootstrap.tmux_static._receipt_value(
+                    component["template"]["revision"],
+                    bootstrap.tmux_static._block(
+                        component["template"]["revision"], bootstrap.tmux_static._template_body()
+                    )[1],
+                ),
+            )
+            target.write_bytes(before + before)
+            duplicate = target.read_bytes()
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicated"):
+                    bootstrap.static_operation(args, "tmux-config", component, "upgrade")
+            self.assertEqual(target.read_bytes(), duplicate)
+
+            target.unlink()
+            target.symlink_to(root / "unsafe.conf")
+            with patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "symbolic-link"):
+                    bootstrap.static_operation(args, "tmux-config", component, "install")
+
+    def test_tmux_discover_exposes_static_state_separately(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, component, codex_home, home = self.tmux_fixture(root)
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            args.catalog = bootstrap.DEFAULT_CATALOG
+            with (
+                patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"),
+                patch.object(bootstrap, "host", SimpleNamespace(detect_host=lambda: {"installers": {}})),
+            ):
+                inventory = bootstrap.discover(args, catalog)
+            observed = inventory["components"]["tmux-config"]
+            self.assertEqual(observed["status"], "missing")
+            self.assertEqual(observed["static_state"], "absent")
+            self.assertEqual(inventory["static"]["assets"]["tmux-config"]["state"], "absent")
+            self.assertNotIn("configuration", inventory["static"])
+
     def test_component_upgrade_and_uninstall_use_the_native_owner(self) -> None:
         component = {
             "approved_version": "1.2.3",
@@ -728,6 +867,19 @@ class BootstrapTests(unittest.TestCase):
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         self.assertEqual(catalog["schema"], 2)
         self.assertEqual(catalog["components"]["codex-config"]["delivery"], "static")
+        tmux = catalog["components"]["tmux-config"]
+        self.assertEqual(tmux["delivery"], "static")
+        self.assertEqual(tmux["adapter"], "tmux-config")
+        self.assertEqual(tmux["template"]["name"], "tmux.conf.install")
+        self.assertEqual(
+            (SKILL_ROOT / "templates" / "tmux.conf.install").read_text(encoding="utf-8").splitlines(),
+            [
+                'set -g default-terminal "xterm-256color"',
+                'set-option -ga terminal-overrides ",xterm-256color:Tc"',
+                'set -g window-style "fg=#F5F5F5,bg=#1E1E1E"',
+                'set -g window-active-style "fg=#F5F5F5,bg=#1E1E1E"',
+            ],
+        )
         self.assertEqual(catalog["components"]["cch-status"]["actions"]["install"], "native-owner")
         self.assertEqual(catalog["components"]["pennix-skills"]["delivery"], "collection")
 

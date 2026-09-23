@@ -124,8 +124,19 @@ shape; `partial` is a safe, catalog-named subset with valid frontmatter and an
 explicit `missing_skills` list. Both resume through the same-session procedure
 above; unrelated entries, invalid frontmatter, legacy complete collections, and
 unknown content remain blocked and are never repaired or removed automatically.
-`codex-config` and `codex-agents` are the
-supported static components; catalog keys address package and plugin components.
+`codex-config`, `codex-agents`, and `tmux-config` are the supported static
+components. Static assets are independent from sensitive configuration targets:
+they use tracked templates, managed blocks, per-asset integrity receipts, and
+fail-closed drift handling; they never read or write the private configuration
+profile or a shared `.env`. `tmux-config` is an explicit component action and
+manages only the Pennix block in `HOME/.tmux.conf`. Its baseline covers
+`default-terminal`, true-color `terminal-overrides`, and the paired tmux window
+foreground/background styles. It does not manage the CCH block, CCH runtime
+files, status-bar layout, shell startup, user shortcuts, or project assets.
+Install and collection replacement do not implicitly write this block. Use
+`discover` and `verify` to see the static asset state separately from package
+installation and configuration readiness. Catalog keys address package and
+plugin components separately.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
 user model, security, UI, or history preferences. Catalog package actions install
