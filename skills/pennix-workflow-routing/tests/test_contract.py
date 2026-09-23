@@ -17,6 +17,12 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("`grok-search` 是外部检索 owner", content)
         self.assertIn("不能把它的网络调用", content)
 
+    def test_project_trellis_updates_have_a_native_owner(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("`$pennix-trellis-project-update` 负责", content)
+        self.assertIn("原生 `trellis update` / `trellis workflow`", content)
+        self.assertIn("`workflow-doctor` 只做只读诊断", content)
+
 
 if __name__ == "__main__":
     unittest.main()

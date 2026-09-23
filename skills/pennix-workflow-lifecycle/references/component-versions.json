@@ -190,7 +190,7 @@
       "adapter": "pennix-skills",
       "native_owner_reason": "Pennix Skills installation and upgrade use Codex's system $skill-installer in an agent turn; target hosts do not keep a local repository checkout.",
       "collection_contract": {
-        "skills": ["grok-search", "pennix-decision-gates", "pennix-fastctx-routing", "pennix-session-handoff", "pennix-workflow-lifecycle", "pennix-workflow-routing", "pennix-worktime-memory", "tavily-hikari", "windsurf-code-search", "workflow-doctor"],
+        "skills": ["grok-search", "pennix-decision-gates", "pennix-fastctx-routing", "pennix-session-handoff", "pennix-trellis-project-update", "pennix-workflow-lifecycle", "pennix-workflow-routing", "pennix-worktime-memory", "tavily-hikari", "windsurf-code-search", "workflow-doctor"],
         "bootstrap_skill": "pennix-workflow-lifecycle",
         "source": {
           "repo": "PennixRv/pennix-skills",
@@ -199,6 +199,7 @@
             "skills/pennix-decision-gates",
             "skills/pennix-fastctx-routing",
             "skills/pennix-session-handoff",
+            "skills/pennix-trellis-project-update",
             "skills/pennix-workflow-lifecycle",
             "skills/pennix-workflow-routing",
             "skills/pennix-worktime-memory",

@@ -223,6 +223,9 @@ Trellis, CodeGraph, and AOE binaries may be installed or upgraded by their
 catalog component key, but project initialization remains a separate native
 operation. Lifecycle never creates `.trellis/`, `codegraph.json`, indexes, or
 project workflow assets as a side effect of a system lifecycle command.
+For an already initialized project, use `$pennix-trellis-project-update` for
+native Trellis asset updates or an explicitly selected workflow refresh;
+lifecycle does not replace that project-owner flow.
 
 Before a direct lifecycle command, show the component key, source/ref from the
 catalog, target, risk, and expected owner operation. Use Codex's native `request_user_input` directly when it is

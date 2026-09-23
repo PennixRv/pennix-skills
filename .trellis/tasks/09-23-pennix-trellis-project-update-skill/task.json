@@ -1,0 +1,30 @@
+{
+  "id": "pennix-trellis-project-update-skill",
+  "name": "pennix-trellis-project-update-skill",
+  "title": "新增 Trellis 项目更新 Skill",
+  "description": "实现面向任意 Trellis 项目的可重入更新 Skill：调用原生 Trellis 更新协议，锁定工作流来源，保护项目修改，完成验证并纳入发布安装清单。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-09-23",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "target_component": "pennix-skills",
+    "release_required": "true"
+  }
+}
