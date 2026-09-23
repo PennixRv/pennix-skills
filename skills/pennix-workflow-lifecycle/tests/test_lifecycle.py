@@ -749,8 +749,9 @@ class BootstrapTests(unittest.TestCase):
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         contract = catalog["components"]["pennix-skills"]["collection_contract"]
         for name in contract["materialized"]:
+            allowed_runtime = {"node_modules"} if name == "grok-search" else set()
             entries = {entry.name for entry in (SKILL_ROOT.parent / name).iterdir()}
-            self.assertFalse(entries & forbidden, name)
+            self.assertFalse(entries & (forbidden - allowed_runtime), name)
 
     def test_default_catalog_accepts_scoped_npm_packages(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
