@@ -68,7 +68,7 @@
     },
     "openviking-plugin": {
       "delivery": "plugin",
-      "approved_version": "0.9.2",
+      "approved_version": "0.10.1",
       "source": "Codex native plugin from pinned OpenViking marketplace",
       "owner": "openviking",
       "scope": "global",
@@ -77,7 +77,7 @@
       "project_init": "not-applicable",
       "probe": null,
       "version_args": [],
-      "plugin": {"id": "openviking-memory@openviking", "marketplace": {"name": "openviking", "source": "https://github.com/volcengine/OpenViking.git", "ref": "20ec78a149a0889a85b038627dddc70b46dceae3", "sparse": ["examples/codex-memory-plugin"]}}
+      "plugin": {"id": "openviking-memory@openviking", "marketplace": {"name": "openviking", "source": "https://github.com/volcengine/OpenViking.git", "ref": "914078f7cc4f2c9f2c8a65538658d21a64e82888", "sparse": ["examples/codex-memory-plugin"]}}
     },
     "ponytail-plugin": {
       "delivery": "plugin",

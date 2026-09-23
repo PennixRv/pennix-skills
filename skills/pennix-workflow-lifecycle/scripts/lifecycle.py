@@ -614,9 +614,14 @@ def probe_component(
     expected = component_target_version(component)
     if expected is None:
         return "unknown", observed
-    status = "match" if observed == expected else "drifted"
+    if observed == expected:
+        status = "match"
+    elif component_version_policy(component) == "repository-latest":
+        status = "upgrade-available"
+    else:
+        status = "drifted"
     package = component.get("package")
-    if status == "match" and isinstance(package, dict):
+    if status in {"match", "upgrade-available"} and isinstance(package, dict):
         owner = (
             npm_owner_for_command(command)
             if package.get("source") == "npm"
@@ -739,11 +744,26 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
     }
 
 
+def verification_component_keys(args: argparse.Namespace, catalog: dict[str, Any]) -> list[str]:
+    component = getattr(args, "component", None)
+    if component is None:
+        return list(catalog["components"])
+    if component not in catalog["components"]:
+        raise BootstrapError(f"unknown lifecycle component: {component}")
+    return [component]
+
+
 def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventory: dict[str, Any]) -> list[str]:
+    checked_components = verification_component_keys(args, catalog)
+    scope = "component" if getattr(args, "component", None) is not None else "full"
     failures: list[str] = []
-    for key, component in catalog["components"].items():
+    advisories: list[str] = []
+    for key in checked_components:
+        component = catalog["components"][key]
         observed = inventory["components"][key]
-        if observed["status"] != "match":
+        if observed["status"] == "upgrade-available":
+            advisories.append(f"{key}: upgrade available")
+        elif observed["status"] != "match":
             failures.append(f"{key}: observed status is {observed['status']}")
         if component.get("adapter") == "tmux-config" and observed.get("static_state") != "current":
             failures.append(f"{key}: static state is {observed.get('static_state')}")
@@ -757,16 +777,20 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
             observed["upstream"] = evidence
             if evidence.get("status") != "match":
                 failures.append(f"{key}: upstream inspection is {evidence.get('status')}")
-    for target in inventory.get("configuration", {}).get("targets", []):
-        if target.get("tier") == "core" or target.get("enabled"):
-            if target.get("status") not in {"ready", "configured"}:
-                failures.append(f"configuration {target.get('id')}: status is {target.get('status')}")
-    profile_status = inventory.get("configuration", {}).get("profile_status")
-    if profile_status is not None and profile_status not in {"missing", "match"}:
-        failures.append(f"configuration profile is {profile_status}")
+    if scope == "full":
+        for target in inventory.get("configuration", {}).get("targets", []):
+            if target.get("tier") == "core" or target.get("enabled"):
+                if target.get("status") not in {"ready", "configured"}:
+                    failures.append(f"configuration {target.get('id')}: status is {target.get('status')}")
+        profile_status = inventory.get("configuration", {}).get("profile_status")
+        if profile_status is not None and profile_status not in {"missing", "match"}:
+            failures.append(f"configuration profile is {profile_status}")
     inventory["verification"] = {
+        "scope": scope,
+        "checked_components": checked_components,
         "status": "match" if not failures else "blocked",
         "failures": failures,
+        "advisories": advisories,
     }
     return failures
 

@@ -143,6 +143,45 @@ class BootstrapTests(unittest.TestCase):
         ):
             self.assertEqual(bootstrap.probe_component(component), ("match", "1.2.3"))
 
+    def test_repository_latest_probe_reports_an_upgrade_without_blocking_state(self) -> None:
+        component = {
+            "version_policy": "repository-latest",
+            "probe": "fixture",
+            "version_args": ["--version"],
+            "package": {"source": "aur", "name": "fixture-package"},
+        }
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"installers": {"aur": "yay"}}),
+            patch.object(bootstrap, "package_candidate_version", return_value="1.2.3"),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(
+                bootstrap.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="fixture 1.0.0", stderr=""),
+            ),
+            patch.object(bootstrap, "installed_package_owner", return_value="fixture-package"),
+        ):
+            self.assertEqual(bootstrap.probe_component(component), ("upgrade-available", "1.0.0"))
+
+    def test_repository_latest_probe_blocks_when_candidate_is_unavailable(self) -> None:
+        component = {
+            "version_policy": "repository-latest",
+            "probe": "fixture",
+            "version_args": ["--version"],
+            "package": {"source": "aur", "name": "fixture-package"},
+        }
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"installers": {"aur": "yay"}}),
+            patch.object(bootstrap, "package_candidate_version", return_value=None),
+            patch.object(bootstrap.shutil, "which", return_value="/usr/bin/fixture"),
+            patch.object(
+                bootstrap.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="fixture 1.0.0", stderr=""),
+            ),
+        ):
+            self.assertEqual(bootstrap.probe_component(component), ("unknown", "1.0.0"))
+
     def test_discover_reports_repository_latest_policy_and_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -179,6 +218,96 @@ class BootstrapTests(unittest.TestCase):
             args = SimpleNamespace()
             self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), [])
             self.assertEqual(inventory["verification"]["status"], "match")
+            self.assertEqual(inventory["verification"]["scope"], "full")
+            self.assertEqual(inventory["verification"]["checked_components"], ["fixture"])
+            self.assertEqual(inventory["verification"]["advisories"], [])
+
+    def test_component_verify_isolated_from_unrelated_components(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog_path = self.catalog(root)
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            value["components"]["other"] = dict(value["components"]["fixture"])
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            catalog = bootstrap.load_catalog(catalog_path)
+            inventory = {"components": {"fixture": {"status": "match"}, "other": {"status": "missing"}}}
+
+            args = SimpleNamespace(component="fixture")
+            self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), [])
+            self.assertEqual(inventory["verification"]["scope"], "component")
+            self.assertEqual(inventory["verification"]["checked_components"], ["fixture"])
+
+            full_args = SimpleNamespace()
+            self.assertEqual(bootstrap.verify_inventory(full_args, catalog, inventory), ["other: observed status is missing"])
+
+    def test_component_verify_reports_upgrade_as_advisory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog_path = self.catalog(root)
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            component = value["components"]["fixture"]
+            component.pop("approved_version")
+            component["version_policy"] = "repository-latest"
+            component["package"]["source"] = "aur"
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            catalog = bootstrap.load_catalog(catalog_path)
+            inventory = {"components": {"fixture": {"status": "upgrade-available"}}}
+
+            args = SimpleNamespace(component="fixture")
+            self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), [])
+            self.assertEqual(inventory["verification"]["status"], "match")
+            self.assertEqual(inventory["verification"]["advisories"], ["fixture: upgrade available"])
+
+    def test_full_verify_keeps_configuration_and_pinned_drift_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog_path = self.catalog(root)
+            value = json.loads(catalog_path.read_text(encoding="utf-8"))
+            value["configuration_targets"] = [
+                {
+                    "id": "fixture-provider",
+                    "tier": "core",
+                    "default_enabled": True,
+                    "adapter": "codex-provider",
+                    "component": "fixture",
+                    "readiness": "fixture",
+                }
+            ]
+            catalog_path.write_text(json.dumps(value), encoding="utf-8")
+            catalog = bootstrap.load_catalog(catalog_path)
+            inventory = {
+                "components": {"fixture": {"status": "drifted"}},
+                "configuration": {
+                    "targets": [{"id": "fixture-provider", "tier": "core", "enabled": True, "status": "blocked"}],
+                    "profile_status": "stale",
+                },
+            }
+
+            args = SimpleNamespace(component="fixture")
+            self.assertEqual(bootstrap.verify_inventory(args, catalog, inventory), ["fixture: observed status is drifted"])
+            self.assertEqual(inventory["verification"]["scope"], "component")
+
+            full = SimpleNamespace()
+            failures = bootstrap.verify_inventory(full, catalog, inventory)
+            self.assertEqual(
+                failures,
+                [
+                    "fixture: observed status is drifted",
+                    "configuration fixture-provider: status is blocked",
+                    "configuration profile is stale",
+                ],
+            )
+
+    def test_component_verify_rejects_unknown_selector(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog = bootstrap.load_catalog(self.catalog(root))
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "unknown lifecycle component"):
+                bootstrap.verify_inventory(SimpleNamespace(component="missing"), catalog, {"components": {}})
+
+            result = self.run_cli(root, "verify", "--component", "missing")
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("unknown lifecycle component", result.stderr)
 
     def test_removed_orchestration_commands_are_not_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

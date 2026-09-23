@@ -116,6 +116,16 @@ After the seed, the system-installation lifecycle is direct and component-scoped
 `verify`. `discover` is read-only and reports the catalog target, observed
 version, actual package owner, and repository candidate; it never writes the
 catalog or applies a candidate.
+`verify --component <name> --yes` validates only that catalog component, its
+component-specific integrity and upstream contract. An unknown component is an
+error and never falls back to full verification. `verify --yes` is the full
+workflow baseline and also checks core and enabled configuration targets. Both
+forms return a structured `verification` object with `scope`,
+`checked_components`, `failures`, and `advisories`; only `failures` produce a
+blocking status and exit code. For a `repository-latest` package, a readable
+installed version behind a readable repository candidate is an
+`upgrade-available` advisory. Missing, unknown, unsafe-owner, pinned-drift,
+static-drift, and required-readiness states remain blocking.
 `pennix-skills` is an installed collection, not a static component: its
 install and upgrade actions belong to the system `$skill-installer`; lifecycle
 discovers the catalog's exact entry set, receipt state, and only uninstalls an

@@ -28,6 +28,24 @@ Questions to answer:
 
 ---
 
+## Lifecycle Verification Contract
+
+- `verify --component <key>` validates only the selected catalog component and
+  fails closed for an unknown key. It must not evaluate unrelated components,
+  static assets, or configuration targets.
+- Full `verify` checks every catalog component and the core/enabled
+  configuration targets. Its result distinguishes `scope`, `failures`, and
+  `advisories`; only failures make the status `blocked`.
+- A readable installed version below a readable `repository-latest` candidate
+  is `upgrade-available` and is advisory. Missing, unknown, unsafe-owner,
+  pinned-drift, static/collection integrity failure, upstream failure, and
+  required configuration readiness failure remain blocking.
+- Tests must cover scoped isolation, unknown selectors, repository candidate
+  advisories, candidate-unavailable blocking, pinned drift, and full
+  configuration checks.
+
+---
+
 ## Required Patterns
 
 ### Skill collection deployment boundary
