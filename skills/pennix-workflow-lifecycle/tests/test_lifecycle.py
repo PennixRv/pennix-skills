@@ -448,9 +448,60 @@ class BootstrapTests(unittest.TestCase):
             target = home / "AGENTS.md"
             target.write_text("# user instructions\n", encoding="utf-8")
             args = SimpleNamespace(codex_home=home, destination=None)
-            with self.assertRaisesRegex(bootstrap.BootstrapError, "refusing drifted"):
-                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "uninstall")
+            self.assertEqual(
+                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "uninstall"),
+                "no-op",
+            )
             self.assertTrue(target.exists())
+
+    def test_agents_install_adds_missing_owned_blocks_without_replacing_custom_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "codex"
+            home.mkdir()
+            target = home / "AGENTS.md"
+            template = bootstrap.codex_static.template("AGENTS.md.install")
+            fastctx = bootstrap.codex_static._agent_block(
+                template,
+                "<!-- pennix-fastctx:begin -->",
+                "<!-- pennix-fastctx:end -->",
+            )
+            self.assertIsNotNone(fastctx)
+            original = "# user instructions\n\n" + fastctx + "\n"
+            target.write_text(original, encoding="utf-8")
+            args = SimpleNamespace(codex_home=home, destination=None)
+
+            self.assertEqual(
+                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "install"),
+                "changed",
+            )
+            updated = target.read_text(encoding="utf-8")
+            self.assertIn("# user instructions", updated)
+            self.assertIn("$pennix-fastctx", updated)
+            self.assertEqual(updated.count("<!-- pennix-workflow-lifecycle:begin -->"), 1)
+
+    def test_agents_install_refuses_modified_owned_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "codex"
+            home.mkdir()
+            target = home / "AGENTS.md"
+            target.write_text(
+                "<!-- pennix-fastctx:begin -->\nmodified\n<!-- pennix-fastctx:end -->\n",
+                encoding="utf-8",
+            )
+            args = SimpleNamespace(codex_home=home, destination=None)
+            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "pennix-fastctx"):
+                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "install")
+
+    def test_agents_install_refuses_duplicate_owned_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "codex"
+            home.mkdir()
+            target = home / "AGENTS.md"
+            block = "<!-- pennix-fastctx:begin -->\nkeep\n<!-- pennix-fastctx:end -->\n"
+            target.write_text(block + block, encoding="utf-8")
+            args = SimpleNamespace(codex_home=home, destination=None)
+            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "markers are invalid"):
+                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "install")
 
     def tmux_fixture(self, root: Path) -> tuple[SimpleNamespace, dict[str, object], Path, Path]:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
@@ -910,7 +961,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["codex-cli"]["version_policy"], "repository-latest")
         self.assertNotIn("approved_version", catalog["components"]["codex-cli"])
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
-        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.9")
+        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.10")
 
     def test_npm_replacement_is_removed_before_install(self) -> None:
         component = {

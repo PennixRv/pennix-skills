@@ -858,14 +858,14 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
         if operation == "uninstall":
             if state == "absent":
                 return "no-op"
-            if state != "current":
+            if state not in {"current", "partial"}:
                 raise BootstrapError(f"refusing {state} lifecycle template: {path}")
-            path.unlink()
-            return "changed"
+            before, after = codex_static.remove_template(path)
+            return "changed" if before != after else "no-op"
         if state == "current":
             return "no-op"
-        if state == "absent":
-            if operation == "upgrade":
+        if state in {"absent", "partial"}:
+            if operation == "upgrade" and state == "absent":
                 raise BootstrapError("cannot upgrade an uninstalled AGENTS.md template")
             codex_static.apply_template(path)
             return "changed"

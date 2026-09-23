@@ -138,8 +138,11 @@ unknown content remain blocked and are never repaired or removed automatically.
 components. Static assets are independent from sensitive configuration targets:
 they use tracked templates, managed blocks, per-asset integrity receipts, and
 fail-closed drift handling; they never read or write the private configuration
-profile or a shared `.env`. `tmux-config` is an explicit component action and
-manages only the Pennix block in `HOME/.tmux.conf`. Its baseline covers
+profile or a shared `.env`. `codex-agents` manages only its two lifecycle marker
+blocks and preserves all unowned `AGENTS.md` content; missing owned blocks may be
+added, while duplicate, unpaired, or modified owned blocks block the operation.
+`tmux-config` is an explicit component action and manages only the Pennix block in
+`HOME/.tmux.conf`. Its baseline covers
 `default-terminal`, true-color `terminal-overrides`, and the paired tmux window
 foreground/background styles. It does not manage the CCH block, CCH runtime
 files, status-bar layout, shell startup, user shortcuts, or project assets.
