@@ -418,7 +418,8 @@ def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[s
 
 def staging_candidates(destination: str | None) -> list[str]:
     try:
-        root = skills_install.resolve_destination(destination)
+        collection = skills_install.resolve_destination(destination)
+        root = collection.parent
         if not root.is_dir() or root.is_symlink():
             return []
         return sorted(entry.name for entry in root.iterdir() if entry.name.startswith(STAGING_PREFIX))

@@ -94,7 +94,7 @@ class BootstrapTests(unittest.TestCase):
             root = Path(temporary)
             destination = root / "skills" / "pennix-skills"
             destination.mkdir(parents=True)
-            (destination / ".pennix-skills-stage-example").mkdir()
+            (destination.parent / ".pennix-skills-stage-example").mkdir()
             catalog_path = self.catalog(root)
             catalog = bootstrap.load_catalog(catalog_path)
             args = SimpleNamespace(
