@@ -12,14 +12,13 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from . import codex_static
+from . import codex_static, configuration
 
 
 BEGIN = "# >>> pennix-workflow-lifecycle:tmux-config:v1 >>>"
 END = "# <<< pennix-workflow-lifecycle:tmux-config:v1 <<<"
 TEMPLATE_NAME = "tmux.conf.install"
 RECEIPT_SCHEMA = 1
-RECEIPT_RELATIVE = Path("pennix-workflow-lifecycle") / "static-assets" / "tmux-config.json"
 REVISION_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
@@ -33,7 +32,11 @@ def target_path(home_directory: Path | None = None) -> Path:
 
 
 def receipt_path(codex_home: Path) -> Path:
-    return codex_home / RECEIPT_RELATIVE
+    return configuration.static_receipt_path(codex_home, "tmux-config")
+
+
+def legacy_receipt_path(codex_home: Path) -> Path:
+    return codex_home / "pennix-workflow-lifecycle" / "static-assets" / "tmux-config.json"
 
 
 def _assert_regular(path: Path, mode: int | None = None) -> None:
@@ -169,6 +172,7 @@ def _write_receipt(path: Path, value: dict[str, Any]) -> None:
         codex_static.assert_no_symlink_ancestor(path)
     except codex_static.StaticError as error:
         raise TmuxStaticError(str(error)) from error
+    configuration.ensure_state_namespace(path.parents[1])
     path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
     if path.parent.is_symlink() or not path.parent.is_dir():
         raise TmuxStaticError("tmux receipt directory is unsafe")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import errno
 import shutil
@@ -17,6 +18,7 @@ from typing import Any
 MAX_CONFIG_BYTES = 64 * 1024
 PROFILE_SCHEMA = 1
 MARKER_KEY = "pennixLifecycle"
+STATE_DIRECTORY = "pennix-workflow-lifecycle"
 
 
 class ConfigurationError(RuntimeError):
@@ -34,6 +36,45 @@ def _assert_no_symlink_ancestor(path: Path) -> None:
         if current.is_symlink():
             raise ConfigurationError("configuration path is blocked")
         current = current.parent
+
+
+def state_root() -> Path:
+    raw = os.environ.get("XDG_STATE_HOME")
+    base = Path(raw).expanduser() if raw else Path.home() / ".local" / "state"
+    if not base.is_absolute():
+        raise ConfigurationError("XDG state directory must be absolute")
+    root = base / STATE_DIRECTORY
+    _assert_no_symlink_ancestor(root)
+    return root
+
+
+def state_namespace(codex_home: Path) -> Path:
+    try:
+        resolved = codex_home.resolve(strict=False)
+    except OSError as error:
+        raise ConfigurationError("CODEX_HOME cannot be resolved safely") from error
+    digest = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()
+    namespace = state_root() / "homes" / digest
+    _assert_no_symlink_ancestor(namespace)
+    return namespace
+
+
+def ensure_state_namespace(namespace: Path) -> Path:
+    root = namespace.parents[1]
+    homes = namespace.parent
+    for directory in (root, homes, namespace):
+        _assert_no_symlink_ancestor(directory)
+        directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+        metadata = directory.lstat()
+        if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o700:
+            raise ConfigurationError("lifecycle state directory is unsafe")
+        if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
+            raise ConfigurationError("lifecycle state directory owner is unsafe")
+    return namespace
+
+
+def ensure_state_directory(codex_home: Path) -> Path:
+    return ensure_state_namespace(state_namespace(codex_home))
 
 
 def _private_file(path: Path) -> tuple[str, bytes | None]:
@@ -108,7 +149,19 @@ def _write_private_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def profile_path(codex_home: Path) -> Path:
-    return codex_home / "pennix-workflow-lifecycle" / "profile.json"
+    return state_namespace(codex_home) / "profile.json"
+
+
+def legacy_state_root(codex_home: Path) -> Path:
+    return codex_home / STATE_DIRECTORY
+
+
+def legacy_profile_path(codex_home: Path) -> Path:
+    return legacy_state_root(codex_home) / "profile.json"
+
+
+def static_receipt_path(codex_home: Path, asset: str) -> Path:
+    return state_namespace(codex_home) / "static-assets" / f"{asset}.json"
 
 
 def load_profile(codex_home: Path, catalog_digest: str) -> tuple[str, set[str]]:
@@ -132,6 +185,7 @@ def enable_target(codex_home: Path, catalog_digest: str, target: str) -> set[str
     if state not in {"missing", "match", "stale"}:
         raise ConfigurationError("profile record is blocked")
     targets.add(target)
+    ensure_state_directory(codex_home)
     _write_private_json(
         profile_path(codex_home),
         {"schema": PROFILE_SCHEMA, "catalog_digest": catalog_digest, "targets": sorted(targets)},

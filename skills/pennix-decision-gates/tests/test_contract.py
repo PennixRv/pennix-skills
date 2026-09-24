@@ -25,6 +25,14 @@ class DecisionGatesContractTests(unittest.TestCase):
         self.assertIn("`analysis_only` means the", content)
         self.assertIn("it does not make a task\nsimple", content)
 
+    def test_request_is_classified_before_gate_selection(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("The caller must classify the request before entering this Skill", content)
+        for marker in ("`work_domain`", "`delivery_mode`", "`execution_class`", "`decision_frontier`", "`approval_mode`"):
+            self.assertIn(marker, content)
+        self.assertIn("an unresolved user-owned choice may materially change", content)
+        self.assertIn("A frontier may contain one decision", content)
+
     def test_same_continuation_answers_continue_after_persistence(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         self.assertIn("Continue the\nsame planning flow", content)

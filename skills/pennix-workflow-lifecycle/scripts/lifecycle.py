@@ -11,6 +11,8 @@ import re
 import shutil
 import subprocess
 import sys
+import stat
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,7 +37,7 @@ class BootstrapError(RuntimeError):
     """Raised when bootstrap cannot safely continue."""
 
 
-ACTION_NAMES = ("install", "configure", "upgrade", "uninstall", "verify")
+ACTION_NAMES = ("install", "configure", "upgrade", "uninstall", "verify", "reconcile")
 ACTION_STATES = {"managed", "native-owner", "verify-only", "project-only", "not-applicable"}
 VERSION_POLICIES = {"pinned", "repository-latest"}
 CONFIGURATION_TIERS = {"core", "optional"}
@@ -50,6 +52,8 @@ CONFIGURATION_ADAPTERS = {
     "windsurf-owner",
 }
 POST_INSTALL_ACTIONS = {"grok-search-runtime"}
+STATE_COMPONENT = "pennix-workflow-state"
+STAGING_PREFIX = ".pennix-skills-stage"
 
 
 def now() -> str:
@@ -186,6 +190,242 @@ def configuration_target_map(catalog: dict[str, Any]) -> dict[str, dict[str, Any
     return {target["id"]: target for target in targets if isinstance(target, dict) and isinstance(target.get("id"), str)}
 
 
+STATE_RECORDS = {
+    "profile": Path("profile.json"),
+    "tmux-config": Path("static-assets") / "tmux-config.json",
+}
+
+
+def _state_directory(path: Path, strict: bool) -> str:
+    try:
+        configuration._assert_no_symlink_ancestor(path)
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return "missing"
+    except (OSError, configuration.ConfigurationError):
+        return "blocked"
+    if not stat.S_ISDIR(metadata.st_mode):
+        return "blocked"
+    if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
+        return "blocked"
+    mode = stat.S_IMODE(metadata.st_mode)
+    return "configured" if (mode == 0o700 if strict else not mode & 0o022) else "blocked"
+
+
+def _state_file(path: Path) -> tuple[str, bytes | None]:
+    state, content = configuration._private_file(path)
+    if state != "configured" or content is None:
+        return state, content
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return "blocked", None
+    if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
+        return "blocked", None
+    return "configured", content
+
+
+def _valid_profile(content: bytes, expected_digest: str | None) -> str:
+    try:
+        value = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return "invalid"
+    targets = value.get("targets") if isinstance(value, dict) else None
+    digest = value.get("catalog_digest") if isinstance(value, dict) else None
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"schema", "catalog_digest", "targets"}
+        or value.get("schema") != configuration.PROFILE_SCHEMA
+        or not isinstance(digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", digest)
+        or not isinstance(targets, list)
+        or any(not isinstance(target, str) for target in targets)
+        or len(targets) != len(set(targets))
+    ):
+        return "invalid"
+    return "match" if expected_digest is None or digest == expected_digest else "stale"
+
+
+def _inspect_state_tree(root: Path, legacy: bool, expected_digest: str | None) -> dict[str, Any]:
+    directory_state = _state_directory(root, strict=not legacy)
+    if directory_state == "missing":
+        return {"status": "missing", "records": {}}
+    if directory_state != "configured":
+        return {"status": "blocked", "records": {}, "reason": "state directory is unsafe"}
+    try:
+        entries = {entry.name: entry for entry in root.iterdir()}
+    except OSError:
+        return {"status": "blocked", "records": {}, "reason": "state directory cannot be read"}
+    if any(name not in {"profile.json", "static-assets"} for name in entries):
+        return {"status": "blocked", "records": {}, "reason": "state directory contains unknown entries"}
+    records: dict[str, bytes] = {}
+    statuses: list[str] = []
+    profile = root / STATE_RECORDS["profile"]
+    if profile.name in entries:
+        state, content = _state_file(profile)
+        if state != "configured" or content is None:
+            return {"status": "blocked", "records": {}, "reason": "profile record is unsafe"}
+        profile_state = _valid_profile(content, None if legacy else expected_digest)
+        if profile_state == "invalid":
+            return {"status": "blocked", "records": {}, "reason": "profile record is invalid"}
+        statuses.append(profile_state)
+        records["profile"] = content
+    static_directory = root / "static-assets"
+    if static_directory.name in entries:
+        if _state_directory(static_directory, strict=not legacy) != "configured":
+            return {"status": "blocked", "records": {}, "reason": "static state directory is unsafe"}
+        try:
+            static_entries = {entry.name: entry for entry in static_directory.iterdir()}
+        except OSError:
+            return {"status": "blocked", "records": {}, "reason": "static state directory cannot be read"}
+        if any(name != "tmux-config.json" for name in static_entries):
+            return {"status": "blocked", "records": {}, "reason": "static state contains unknown entries"}
+        receipt = static_directory / STATE_RECORDS["tmux-config"].name
+        if receipt.name in static_entries:
+            state, content = _state_file(receipt)
+            receipt_state, _ = tmux_static._read_receipt(receipt)
+            if state != "configured" or content is None or receipt_state != "match":
+                return {"status": "blocked", "records": {}, "reason": "tmux receipt is invalid"}
+            statuses.append("match")
+            records["tmux-config"] = content
+    if not records:
+        return {"status": "missing", "records": {}}
+    if legacy:
+        return {"status": "legacy", "records": records}
+    if "stale" in statuses:
+        return {"status": "stale", "records": records, "reason": "profile catalog digest is stale"}
+    return {"status": "match", "records": records}
+
+
+def state_component_probe(codex_home: Path, catalog_digest: str) -> tuple[str, str | None]:
+    current = _inspect_state_tree(configuration.state_namespace(codex_home), False, catalog_digest)
+    legacy = _inspect_state_tree(configuration.legacy_state_root(codex_home), True, None)
+    if legacy["status"] == "legacy":
+        return "legacy", "legacy state requires explicit reconcile"
+    if legacy["status"] != "missing":
+        return "blocked", legacy.get("reason")
+    return current["status"], current.get("reason")
+
+
+def _state_record_paths(codex_home: Path, legacy: bool) -> dict[str, Path]:
+    root = configuration.legacy_state_root(codex_home) if legacy else configuration.state_namespace(codex_home)
+    return {name: root / relative for name, relative in STATE_RECORDS.items()}
+
+
+def _write_state_record(path: Path, content: bytes) -> None:
+    configuration._assert_no_symlink_ancestor(path)
+    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    if _state_directory(path.parent, strict=True) != "configured":
+        raise BootstrapError("state record directory is unsafe")
+    state, _ = _state_file(path)
+    if state not in {"missing", "configured"}:
+        raise BootstrapError("state record destination is unsafe")
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        except OSError:
+            directory_fd = -1
+        if directory_fd >= 0:
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any]:
+    if args.component != STATE_COMPONENT or not args.yes:
+        raise BootstrapError("reconcile requires --component pennix-workflow-state --yes")
+    component = catalog["components"].get(STATE_COMPONENT)
+    if not isinstance(component, dict) or component.get("actions", {}).get("reconcile") != "managed":
+        raise BootstrapError("catalog does not expose a managed workflow state component")
+    digest = configuration_digest(catalog)
+    namespace_id = configuration.state_namespace(args.codex_home).name
+    legacy_root = configuration.legacy_state_root(args.codex_home)
+    legacy = _inspect_state_tree(legacy_root, True, None)
+    current = _inspect_state_tree(configuration.state_namespace(args.codex_home), False, digest)
+    if legacy["status"] == "missing":
+        if current["status"] in {"missing", "match"}:
+            return {
+                "operation": "reconcile",
+                "component": STATE_COMPONENT,
+                "namespace": namespace_id,
+                "status": "already-match",
+            }
+        return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": current.get("reason", current["status"])}
+    if legacy["status"] != "legacy":
+        return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": legacy.get("reason", "legacy state is unsafe")}
+    if current["status"] not in {"missing", "match"}:
+        return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": current.get("reason", current["status"])}
+    source_paths = _state_record_paths(args.codex_home, True)
+    destination_paths = _state_record_paths(args.codex_home, False)
+    to_write: list[tuple[str, Path, bytes]] = []
+    for name, content in legacy["records"].items():
+        destination = destination_paths[name]
+        state, existing = _state_file(destination)
+        if state == "configured" and existing == content:
+            continue
+        if state != "missing":
+            return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": f"destination conflict: {name}"}
+        to_write.append((name, destination, content))
+    created: list[Path] = []
+    try:
+        configuration.ensure_state_namespace(configuration.state_namespace(args.codex_home))
+        for name, destination, content in to_write:
+            _write_state_record(destination, content)
+            created.append(destination)
+        for name, content in legacy["records"].items():
+            state, observed = _state_file(destination_paths[name])
+            if state != "configured" or observed != content:
+                raise BootstrapError(f"state record verification failed: {name}")
+        for name, content in legacy["records"].items():
+            state, observed = _state_file(source_paths[name])
+            if state != "configured" or observed != content:
+                raise BootstrapError(f"legacy record changed during reconcile: {name}")
+        for path in source_paths.values():
+            if path.exists():
+                path.unlink()
+        static_directory = legacy_root / "static-assets"
+        if static_directory.is_dir() and not static_directory.is_symlink():
+            static_directory.rmdir()
+        legacy_root.rmdir()
+    except (OSError, BootstrapError, configuration.ConfigurationError) as error:
+        for path in created:
+            try:
+                state, content = _state_file(path)
+                if state == "configured" and content in legacy["records"].values():
+                    path.unlink()
+            except OSError:
+                pass
+        return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": str(error)}
+    return {
+        "operation": "reconcile",
+        "component": STATE_COMPONENT,
+        "namespace": namespace_id,
+        "status": "migrated",
+        "records": sorted(legacy["records"]),
+    }
+
+
+def staging_candidates(destination: str | None) -> list[str]:
+    try:
+        root = skills_install.resolve_destination(destination)
+        if not root.is_dir() or root.is_symlink():
+            return []
+        return sorted(entry.name for entry in root.iterdir() if entry.name.startswith(STAGING_PREFIX))
+    except (OSError, skills_install.InstallError):
+        return []
+
+
 def validate_configuration_targets(value: dict[str, Any], components: dict[str, Any]) -> None:
     targets = value.get("configuration_targets", [])
     if not isinstance(targets, list):
@@ -251,8 +491,15 @@ def load_catalog(path: Path) -> dict[str, Any]:
         if component["project_init"] not in ACTION_STATES:
             raise BootstrapError(f"catalog project initialization capability is invalid: {key}")
         delivery = component["delivery"]
-        if delivery not in {"package", "plugin", "native", "static", "collection"}:
+        if delivery not in {"package", "plugin", "native", "static", "collection", "state"}:
             raise BootstrapError(f"catalog delivery is invalid: {key}")
+        if delivery == "state" and (
+            key != STATE_COMPONENT
+            or component.get("adapter") != STATE_COMPONENT
+            or component["actions"].get("reconcile") != "managed"
+            or any(component["actions"].get(name) != "not-applicable" for name in ACTION_NAMES if name != "reconcile")
+        ):
+            raise BootstrapError(f"catalog state component contract is invalid: {key}")
         version_policy = component.get("version_policy", "pinned")
         if version_policy not in VERSION_POLICIES:
             raise BootstrapError(f"catalog version policy is invalid: {key}")
@@ -654,13 +901,17 @@ def probe_component(
 def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any]:
     components = {}
     static_assets = {}
+    digest = configuration_digest(catalog)
     for key, component in catalog["components"].items():
-        status, observed = probe_component(
-            component,
-            args.codex_home,
-            getattr(args, "destination", None),
-            getattr(args, "home_directory", None),
-        )
+        if component.get("adapter") == STATE_COMPONENT:
+            status, observed = state_component_probe(args.codex_home, digest)
+        else:
+            status, observed = probe_component(
+                component,
+                args.codex_home,
+                getattr(args, "destination", None),
+                getattr(args, "home_directory", None),
+            )
         package = component.get("package")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
         observed_package = None
@@ -732,7 +983,6 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
     config = args.codex_home / "config.toml"
     agents_state = codex_static.template_state(agents)
     config_state = codex_static.config_state(codex_static.read(config))
-    digest = configuration_digest(catalog)
     profile_state, selected = configuration.load_profile(args.codex_home, digest)
     targets = []
     for target in configuration_target_map(catalog).values():
@@ -746,6 +996,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                 "readiness": target["readiness"],
             }
         )
+    candidates = staging_candidates(getattr(args, "destination", None))
     return {
         "schema": 2,
         "observed_at": now(),
@@ -760,6 +1011,10 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
         },
         "components": components,
         "configuration": {"profile_status": profile_state, "targets": targets},
+        "staging": {
+            "status": "unknown" if candidates else "none",
+            "candidates": candidates,
+        },
     }
 
 
@@ -777,11 +1032,15 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
     scope = "component" if getattr(args, "component", None) is not None else "full"
     failures: list[str] = []
     advisories: list[str] = []
+    for candidate in inventory.get("staging", {}).get("candidates", []):
+        advisories.append(f"{candidate}: staging state is unknown")
     for key in checked_components:
         component = catalog["components"][key]
         observed = inventory["components"][key]
         if observed["status"] == "upgrade-available":
             advisories.append(f"{key}: upgrade available")
+        elif component.get("adapter") == STATE_COMPONENT and observed["status"] in {"missing", "match"}:
+            pass
         elif observed["status"] != "match":
             failures.append(f"{key}: observed status is {observed['status']}")
         if component.get("adapter") == "tmux-config" and observed.get("static_state") != "current":
@@ -1080,16 +1339,20 @@ def configure_configuration_target(args: argparse.Namespace, catalog: dict[str, 
     )
 
 
-def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
+def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | None:
     if not args.component:
         raise BootstrapError(f"{args.command} requires --component")
     if not args.yes:
         raise BootstrapError(f"{args.command} requires --yes")
     component = args.component
+    if args.command == "reconcile":
+        result = reconcile_state(args, catalog)
+        print(json.dumps(result, ensure_ascii=False))
+        return result["status"]
     targets = configuration_target_map(catalog)
     if args.command == "configure" and component in targets:
         configure_configuration_target(args, catalog, targets[component])
-        return
+        return None
     if component not in catalog["components"]:
         raise BootstrapError(f"unknown lifecycle component: {component}")
     metadata = catalog["components"][component]
@@ -1105,6 +1368,7 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
     else:
         status = component_operation(args, catalog, component, metadata, args.command)
     print(json.dumps({"operation": args.command, "component": component, "status": status}, ensure_ascii=False))
+    return status
 
 
 def prepare_staged_collection(component: dict[str, Any], staging: Path) -> None:
@@ -1198,7 +1462,9 @@ def main(argv: list[str]) -> int:
         elif args.command == "replace-staged":
             replace_staged_collection(args, catalog)
         else:
-            run_lifecycle(args, catalog)
+            status = run_lifecycle(args, catalog)
+            if args.command == "reconcile" and status == "blocked":
+                return 2
         return 0
     except (BootstrapError, codex_static.StaticError, configuration.ConfigurationError, tmux_static.TmuxStaticError) as error:
         print(f"error: {error}", file=sys.stderr)

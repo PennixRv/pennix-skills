@@ -96,6 +96,13 @@ partial catalog-only collection is reentrant. A user-created entry is never
 deleted. Rerun `discover` and `verify` after replacement. Do not retype a
 parallel Skill list in prompts or documentation.
 
+The lifecycle does not treat an unreceipted `.pennix-skills-stage*` entry as a
+completed install or as lifecycle-owned state. `discover` reports only its
+redacted direct-child name with `unknown` status; it does not inspect contents,
+infer age, PID, process, session, or provenance, and does not delete or adopt
+the entry. This advisory never blocks verification of lifecycle-owned
+components. Cleanup is a separate explicitly authorized action.
+
 The collection receipt excludes Python's regenerable `__pycache__` directories
 and `.pyc` files from its digest. These files are runtime cache, not managed
 Skill content; all other files, modes, directories and symlink checks remain
@@ -152,6 +159,15 @@ Install and collection replacement do not implicitly write this block. Use
 `discover` and `verify` to see the static asset state separately from package
 installation and configuration readiness. Catalog keys address package and
 plugin components separately.
+The catalog also contains `pennix-workflow-state`, a state-only component whose
+only managed action is explicit legacy reconciliation. It keeps lifecycle-owned
+profile and static receipts below
+`${XDG_STATE_HOME:-~/.local/state}/pennix-workflow-lifecycle/homes/<sha256(CODEX_HOME)>`;
+the resolved `CODEX_HOME` is represented only by the namespace digest. The live
+Skills collection receipt remains beside the live collection, while native
+installer temporary directories and credentials remain owned by their respective
+owners. Static asset records and sensitive configuration records are separate
+contracts and are never combined into a shared `.env` file.
 The config template is the portable static baseline only: it excludes host paths,
 project trust, Web location, MCP/plugin state, marketplace state, hook hashes, and
 user model, security, UI, or history preferences. Catalog package actions install
@@ -197,13 +213,28 @@ adapter yet; selecting it reports a blocked result instead of guessing remote
 server configuration. A target's delivery must match first, and collection
 targets additionally require a matching collection receipt.
 
-The profile is stored below `CODEX_HOME` with mode `0600`, contains target IDs
-and a normalized configuration-contract digest only, and is safe to recreate.
+The profile is stored in the lifecycle XDG state namespace with mode `0600`,
+contains target IDs and a normalized configuration-contract digest only, and is
+safe to recreate.
 Ordinary component version updates preserve it. If the configuration contract
 changes, `discover` marks it `stale`; rerun the relevant explicit configure
 action to reseal it. `verify` requires the core target and every enabled optional
 target to be ready or configured, while never printing a secret, its path, or a
 configuration value.
+
+For an existing legacy `CODEX_HOME/pennix-workflow-lifecycle` tree, first run
+read-only `discover`. If its exact allow-listed records are safe, an explicit
+confirmed migration is:
+
+```bash
+python3 <installed-lifecycle>/scripts/lifecycle.py reconcile \
+  --component pennix-workflow-state --yes
+```
+
+Reconciliation validates all source and destination records before atomic
+copying, removes only the exact old records after post-write verification, and
+preserves the legacy tree on conflicts, unsafe entries, or failures. It never
+performs recursive cleanup or migrates credentials.
 
 ### 上游安装器与提问
 

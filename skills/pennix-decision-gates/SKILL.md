@@ -12,6 +12,16 @@ Use this Skill for every Trellis planning gate (`clarify`, `research`, `plan`,
 boundary, public behavior, data, deployment, cost, or acceptance criteria. It
 does not perform deployment and does not create a second task lifecycle.
 
+The caller must classify the request before entering this Skill: `work_domain`,
+`delivery_mode`, `execution_class`, `decision_frontier`, and `approval_mode`. A simple
+single-owner implementation may skip this gate only after recording a lightweight/direct
+classification and an immediate verification path. Enter this gate when planning is already
+required and an unresolved user-owned choice may materially change scope, owner, safety, public
+behavior, data, deployment, cost, or acceptance. A frontier may contain one decision; batch only
+the independent decisions that are ready in the current round. A complex task with no unresolved
+user-owned choice remains planned but does not need a question. Do not use `analysis_only`,
+`subnode`, or an execution approval as a substitute for the classification.
+
 Before routing, distinguish mutation from complexity. `analysis_only` means the
 current activity does not modify an owner target; it does not make a task
 simple. A request with multiple owners, a workflow/governance contract, a

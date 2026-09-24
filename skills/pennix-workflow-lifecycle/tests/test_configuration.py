@@ -38,18 +38,20 @@ class ConfigurationAdapterTest(unittest.TestCase):
     def test_profile_reseals_after_a_configuration_contract_change(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "codex"
-            self.assertEqual(MODULE.load_profile(home, "digest-a"), ("missing", set()))
-            self.assertEqual(MODULE.enable_target(home, "digest-a", "grok-search-provider"), {"grok-search-provider"})
-            self.assertEqual(MODULE.load_profile(home, "digest-a"), ("match", {"grok-search-provider"}))
-            self.assertEqual(MODULE.load_profile(home, "digest-b"), ("stale", {"grok-search-provider"}))
-            self.assertEqual(
-                MODULE.enable_target(home, "digest-b", "windsurf-credential"),
-                {"grok-search-provider", "windsurf-credential"},
-            )
-            self.assertEqual(
-                stat.S_IMODE(MODULE.profile_path(home).stat().st_mode),
-                0o600,
-            )
+            with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(Path(temporary) / "state")}):
+                self.assertEqual(MODULE.load_profile(home, "digest-a"), ("missing", set()))
+                self.assertEqual(MODULE.enable_target(home, "digest-a", "grok-search-provider"), {"grok-search-provider"})
+                self.assertEqual(MODULE.load_profile(home, "digest-a"), ("match", {"grok-search-provider"}))
+                self.assertEqual(MODULE.load_profile(home, "digest-b"), ("stale", {"grok-search-provider"}))
+                self.assertEqual(
+                    MODULE.enable_target(home, "digest-b", "windsurf-credential"),
+                    {"grok-search-provider", "windsurf-credential"},
+                )
+                self.assertEqual(
+                    stat.S_IMODE(MODULE.profile_path(home).stat().st_mode),
+                    0o600,
+                )
+                self.assertNotIn(str(home), str(MODULE.profile_path(home)))
 
     def test_cch_uses_a_private_non_json_token_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

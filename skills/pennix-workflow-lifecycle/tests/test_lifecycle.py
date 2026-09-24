@@ -19,6 +19,15 @@ import lifecycle as bootstrap
 
 
 class BootstrapTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._state_directory = tempfile.TemporaryDirectory()
+        self._state_environment = patch.dict(os.environ, {"XDG_STATE_HOME": self._state_directory.name})
+        self._state_environment.start()
+
+    def tearDown(self) -> None:
+        self._state_environment.stop()
+        self._state_directory.cleanup()
+
     def trust_collection(self, destination: Path) -> None:
         staged = bootstrap.skills_install._write_receipt(destination, bootstrap.skills_install.collection_digest(destination))
         os.replace(staged, bootstrap.skills_install.receipt_path(destination))
@@ -39,7 +48,7 @@ class BootstrapTests(unittest.TestCase):
                             "verify_key": "fixture --version",
                             "probe": "fixture",
                             "version_args": ["--version"],
-                            "actions": {name: "managed" for name in ("install", "configure", "upgrade", "uninstall", "verify")},
+                            "actions": {name: "managed" for name in ("install", "configure", "upgrade", "uninstall", "verify", "reconcile")},
                             "project_init": "not-applicable",
                             "package": {"source": "official", "name": "fixture-package"},
                         }
@@ -79,6 +88,82 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn("observed status is missing", verify.stderr)
             self.assertIn("components", json.loads(verify.stdout))
             self.assertFalse((root / "codex").exists())
+
+    def test_staging_is_an_unknown_advisory_and_does_not_block_verify(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            destination = root / "skills" / "pennix-skills"
+            destination.mkdir(parents=True)
+            (destination / ".pennix-skills-stage-example").mkdir()
+            catalog_path = self.catalog(root)
+            catalog = bootstrap.load_catalog(catalog_path)
+            args = SimpleNamespace(
+                catalog=catalog_path,
+                codex_home=root / "codex",
+                destination=str(destination),
+            )
+            with (
+                patch.object(bootstrap, "probe_component", return_value=("match", "1.2.3")),
+                patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {}}),
+                patch.object(bootstrap.shutil, "which", return_value=None),
+            ):
+                inventory = bootstrap.discover(args, catalog)
+                failures = bootstrap.verify_inventory(args, catalog, inventory)
+            self.assertEqual(failures, [])
+            self.assertEqual(inventory["staging"], {"status": "unknown", "candidates": [".pennix-skills-stage-example"]})
+            self.assertIn("staging state is unknown", inventory["verification"]["advisories"][0])
+
+    def test_reconcile_migrates_exact_legacy_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "codex"
+            legacy = home / "pennix-workflow-lifecycle"
+            static = legacy / "static-assets"
+            static.mkdir(parents=True)
+            os.chmod(static, 0o700)
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            profile = legacy / "profile.json"
+            profile.write_text(
+                json.dumps({"schema": 1, "catalog_digest": bootstrap.configuration_digest(catalog), "targets": []}) + "\n",
+                encoding="utf-8",
+            )
+            receipt = static / "tmux-config.json"
+            receipt.write_text(
+                json.dumps(bootstrap.tmux_static._receipt_value("sha256:" + "a" * 64, "sha256:" + "b" * 64)) + "\n",
+                encoding="utf-8",
+            )
+            os.chmod(profile, 0o600)
+            os.chmod(receipt, 0o600)
+            args = SimpleNamespace(component=bootstrap.STATE_COMPONENT, yes=True, codex_home=home)
+            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root / "state")}):
+                result = bootstrap.reconcile_state(args, catalog)
+                self.assertEqual(result["status"], "migrated")
+                self.assertTrue(bootstrap.configuration.profile_path(home).is_file())
+                self.assertTrue(bootstrap.tmux_static.receipt_path(home).is_file())
+            self.assertFalse(legacy.exists())
+
+    def test_reconcile_keeps_legacy_on_destination_conflict(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "codex"
+            legacy = home / "pennix-workflow-lifecycle"
+            legacy.mkdir(parents=True)
+            profile = legacy / "profile.json"
+            original = json.dumps({"schema": 1, "catalog_digest": "a" * 64, "targets": []}) + "\n"
+            profile.write_text(original, encoding="utf-8")
+            os.chmod(profile, 0o600)
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root / "state")}):
+                destination = bootstrap.configuration.profile_path(home)
+                bootstrap.configuration.ensure_state_namespace(bootstrap.configuration.state_namespace(home))
+                destination.write_text(json.dumps({"schema": 1, "catalog_digest": "c" * 64, "targets": []}) + "\n", encoding="utf-8")
+                os.chmod(destination, 0o600)
+                result = bootstrap.reconcile_state(
+                    SimpleNamespace(component=bootstrap.STATE_COMPONENT, yes=True, codex_home=home), catalog
+                )
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(profile.is_file())
+            self.assertEqual(profile.read_text(encoding="utf-8"), original)
 
     def test_discover_reports_catalog_candidate_and_actual_owner(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -767,6 +852,7 @@ class BootstrapTests(unittest.TestCase):
                         "upgrade": "native-owner",
                         "uninstall": "managed",
                         "verify": "managed",
+                        "reconcile": "not-applicable",
                     },
                     "project_init": "not-applicable",
                     "adapter": "pennix-skills",
@@ -810,7 +896,7 @@ class BootstrapTests(unittest.TestCase):
                     "owner": "pennix",
                     "scope": "global",
                     "verify_key": "fixture",
-                    "actions": {"install": "native-owner", "configure": "not-applicable", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed"},
+                    "actions": {"install": "native-owner", "configure": "not-applicable", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
                     "project_init": "not-applicable",
                     "adapter": "pennix-skills",
                     "native_owner_reason": "fixture",
@@ -1120,6 +1206,7 @@ class BootstrapTests(unittest.TestCase):
         )
         self.assertEqual(catalog["components"]["cch-status"]["actions"]["install"], "native-owner")
         self.assertEqual(catalog["components"]["pennix-skills"]["delivery"], "collection")
+        self.assertEqual(catalog["components"][bootstrap.STATE_COMPONENT]["actions"]["reconcile"], "managed")
 
     def test_non_managed_action_is_rejected_before_adapter(self) -> None:
         args = SimpleNamespace(command="install", component="cch-status", yes=True)
