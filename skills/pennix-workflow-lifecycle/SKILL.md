@@ -73,10 +73,13 @@ In that next turn, run read-only `discover` first. If `pennix-skills` is
 `collection_contract` from `references/component-versions.json`. For a complete
 install or upgrade, install all catalog paths into a new sibling staging
 directory under `$CODEX_HOME/skills` using `$skill-installer`; do not install
-into the live collection and do not create a repository checkout. The catalog
-collection source paths are the only input to those installer calls; materialized
-entries provide provenance and closed post-install metadata. Verify that the
-staged tree contains exactly the catalog Skill names and valid frontmatter, then
+into the live collection. For this collection, use the installer's `--method git`
+mode (or another mode that preserves repository file modes): the tracked
+`seed-arch.sh` is an executable entry point, and download-only staging may reduce
+it to `0644`. The catalog collection source paths are the only input to those
+installer calls; materialized entries provide provenance and closed post-install
+metadata. Before replacement, verify that the staged tree contains exactly the
+catalog Skill names, valid frontmatter, and an executable `seed-arch.sh`, then
 run:
 
 ```bash
