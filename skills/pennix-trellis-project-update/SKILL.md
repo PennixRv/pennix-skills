@@ -25,7 +25,8 @@ owner of project asset generation and conflict classification.
 From the explicit project root:
 
 1. Read the closest `AGENTS.md`, `.trellis/workflow.md`, `.trellis/config.yaml`,
-   `.trellis/.version`, and `.trellis/.template-hashes.json` when present.
+   `.trellis/.version`, `.trellis/.template-hashes.json`, and
+   `.trellis/workflow-provenance.json` when present.
 2. Confirm that `.trellis/` exists. If it does not, stop and use the native
    Trellis initialization flow; this Skill never initializes a project as an
    update side effect.
@@ -91,23 +92,53 @@ trellis workflow --template TEMPLATE_ID \
   --create-new
 ```
 
-Review `.trellis/workflow.md.new` against the current project rules and the
-active task before applying it. Do not silently switch between `native`, a
-Marketplace template, or a saved local variant. The latest Pennix
-`codex-subnode-channel` workflow keeps inline main-session delivery as the
-default; subnodes are only for explicitly requested independent evidence, and
-their durable reports still require coordinator validation and acceptance.
+`--create-new` writes `.trellis/workflow.md.new` only; it does not update the
+active workflow or provenance. Review the entire candidate against the current
+project rules and active task, record acceptance, then apply that same explicit
+template/source/ref. Use `--force` only when the reviewed active file is
+classified as modified and the task explicitly authorizes that replacement.
+After applying, run:
+
+```bash
+trellis workflow --verify
+```
+
+This verifies the recorded workflow id, source/ref, content hash, and active
+bytes. A missing provenance record is not repaired by matching file bytes:
+select the exact source/ref and materialize it through the native command, or
+record the legacy state as unverifiable and stop before replacement. Do not
+silently switch between `native`, a Marketplace template, or a saved local
+variant.
+
+For a `trellis update --create-new` candidate, decide each exact `.new` path
+before cleanup. Keep every pending or non-identical candidate. Remove a
+byte-identical sidecar only after the active file has been accepted and the
+project/task records that disposition; compare that one explicit path, not a
+directory-wide glob:
+
+```bash
+test -f PATH.new && test ! -L PATH.new && cmp -s -- PATH PATH.new && rm -- PATH.new
+```
+
+Delete a non-identical sidecar only when its exact rejection is explicitly
+recorded and authorized. Never use broad `find ... -delete`, recursive cleanup,
+or an unreviewed command to remove `.new` files.
+
+The current Pennix `codex-subnode-channel` workflow keeps inline main-session delivery
+as the default; subnodes are only for explicitly requested independent evidence,
+and their durable reports still require coordinator validation and
+acceptance.
 
 ## Completion check
 
 After resolving every intended candidate:
 
-1. Re-run `trellis update --dry-run` and, when a workflow changed, repeat the
-   explicit workflow discovery/source check.
+1. Re-run `trellis update --dry-run`; when a workflow changed, run
+   `trellis workflow --verify` against its persisted immutable provenance.
 2. Run `git diff --check` and the project's relevant tests, lint, or type checks.
 3. Inspect `git status` and the full diff. Only the requested project assets and
-   durable task evidence may remain changed; no `.new` candidate may be left
-   unexplained.
+   durable task evidence may remain changed; every `.new` candidate must be
+   accepted, explicitly rejected, or retained as an explained pending item.
 4. Confirm `.trellis/.version` and native template hashes were changed only by
    Trellis, and that no secret, session, cache, runtime state, or source
    checkout entered the project diff.

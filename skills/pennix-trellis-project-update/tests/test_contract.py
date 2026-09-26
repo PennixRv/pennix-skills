@@ -15,6 +15,10 @@ class TrellisProjectUpdateContractTest(unittest.TestCase):
             "trellis update --skip-all",
             "--migrate",
             "trellis workflow --list",
+            "trellis workflow --verify",
+            "`.trellis/workflow-provenance.json`",
+            "byte-identical sidecar",
+            "directory-wide glob",
             "`.trellis/.template-hashes.json`",
         ):
             self.assertIn(marker, content)
@@ -28,6 +32,7 @@ class TrellisProjectUpdateContractTest(unittest.TestCase):
             "inline main-session delivery",
             "explicitly requested independent evidence",
             "immutable ref",
+            "`.trellis/workflow.md.new`",
             "Do not copy files from a Trellis checkout",
         ):
             self.assertIn(marker, content)

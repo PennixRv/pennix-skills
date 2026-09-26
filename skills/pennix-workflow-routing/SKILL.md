@@ -56,6 +56,18 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 或解释它。正确 native channel 不可用时保留原始能力缺口并停止。只有 owner 已经完成且
 产生了批准的普通结果文件时，FastCtx 才能做不推进 owner 状态的读取或分析。
 
+## 当前 Trellis fork 并行工作流
+
+此段只负责入口分流；Trellis Channel、subnode profile、queue 和 report/disposition 仍是当前 Pennix Trellis beta fork 的唯一执行合同。先确认项目选择的 workflow 和 Trellis 版本，再按以下顺序路由：
+
+1. 普通实现、审查或研究默认由主会话 inline 完成；“并行”措辞本身不构成派发授权。只有用户明确要求独立证据工作，或计划确认了可独立验证的 evidence units，才考虑 subnode。
+2. 复杂任务、多 owner/依赖/发布影响或存在 material decisions 时，先进入正常 Trellis planning；按决策复杂度调用 `$pennix-decision-gates`，并在 `task.py start` 之前封好任务资产。简单且边界明确的工作不因涉及并行概念自动升级。
+3. 显式 subnode 工作先读项目当前 workflow 和 `trellis-channel` 的 `subnode-work` procedure；按其 brief、持久报告及 coordinator disposition 合同执行，不在本 Skill 复制报告 schema 或 validator。
+4. 多个独立 evidence units 只有在项目可靠性门满足后才进入 FIFO queue。读取项目 `.trellis/agents/subnode-profiles.json`，由 Trellis profile 动态解析模型与 reasoning effort；Skill 不写死映射。仅在证据难度或风险足以说明时选择 `xhigh`。
+5. 创建/派发、发送、barrier/wait、队列推进均走 `$trellis-channel` 与当前 fork 的原生 Channel 命令。使用一个原生终态 wait；不得用持续轮询、多个 waiter、自动重试或常驻调度器代替通知/等待合同。
+6. Worker 终态只表示执行结束，不等于结果验收。协调者核验报告完整性、引用来源和受保护目标，再写入一次 disposition 后才能推进下一项。
+7. Trellis task、Channel、profile、queue、spawn/send、barrier/wait 和状态转换调用必须直达 Trellis owner；不得由 FastCtx 包装、代理、后台 job 化或代为轮询。
+
 ## 本地证据优先
 
 - 涉及当前机器、当前项目、工作树、源码、配置、日志或已存在资源时，先使用本地文件工具、宿主原生工具和已批准的 CodeGraph；本地检索到足以回答问题的证据后，不启动 `grok-search`、`tavily-hikari` 或 `windsurf-code-search`。
