@@ -1073,7 +1073,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["codex-cli"]["version_policy"], "repository-latest")
         self.assertNotIn("approved_version", catalog["components"]["codex-cli"])
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
-        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.10")
+        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.11")
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["tag"], "beta")
 
     def test_npm_replacement_is_removed_before_install(self) -> None:
