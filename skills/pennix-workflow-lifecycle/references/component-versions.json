@@ -98,7 +98,7 @@
     },
     "cch-status": {
       "delivery": "native",
-      "approved_version": "0.1.41",
+      "approved_version": "0.1.43",
       "source": "native CCH installation",
       "owner": "cch",
       "scope": "global",
@@ -145,7 +145,7 @@
     },
     "aoe": {
       "delivery": "package",
-      "approved_version": "1.16.1",
+      "approved_version": "1.17.2",
       "source": "AUR agent-of-empires-bin package; upstream installer inspected as evidence",
       "owner": "aoe",
       "scope": "global/project",
