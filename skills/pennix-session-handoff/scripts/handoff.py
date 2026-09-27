@@ -22,10 +22,11 @@ from workflow_contracts import (  # noqa: E402
     load_json_file, safe_id, validate_attestation,
     validate_observation,
 )
+import hindsight  # noqa: E402
 
 
-SCHEMA_VERSION = 6
-SUPPORTED_SCHEMA_VERSIONS = {4, 5, 6}
+SCHEMA_VERSION = 7
+SUPPORTED_SCHEMA_VERSIONS = {7}
 KIND = "pennix-session-handoff"
 PARSER_VERSION = "codex-jsonl-local-v1"
 HANDOFFS = ".trellis/session-handoffs"
@@ -40,7 +41,7 @@ ARCHIVE_RUNTIME = ".trellis/.runtime/handoff-archive"
 LIFECYCLE_SCHEMA_VERSION = 2
 LIFECYCLE_EVENT_KIND = "pennix-handoff-lifecycle-event"
 CONSUMPTION_STEPS = ("core_read", "prompt_read", "trellis_started", "facts_reconciled")
-SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "pending", "archive_verified", "converged", "unavailable", "unsupported", "failed", "expired"}
+SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "hindsight_verified", "pending", "unavailable", "unsupported", "failed", "expired"}
 TARGET_STATES = {"not_admitted", "admitted", "reconciled", "blocked", "disposed"}
 RETENTION_STATES = {"none", "archive_eligible", "archived", "retained", "restored", "reopened", "purged"}
 LIFECYCLE_ACTOR = "pennix-session-handoff"
@@ -414,7 +415,7 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
             raise ContractError("validation[%d] fields are invalid" % index)
         normalized_validation.append({"command": _text(item["command"], "validation[%d].command" % index), "result": _text(item["result"], "validation[%d].result" % index)})
     memory_projection = value.get("memory_projection", {})
-    if not isinstance(memory_projection, dict) or set(memory_projection) - {"semantic_capsule", "local", "archive_refs", "openviking"}:
+    if not isinstance(memory_projection, dict) or set(memory_projection) - {"semantic_capsule", "local", "archive_refs", "hindsight"}:
         raise ContractError("memory_projection fields are invalid")
     normalized = {
         "session_label": _text(value["session_label"], "session_label"), "facts": _text_list(value["facts"], "facts"),
@@ -425,7 +426,7 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
             "semantic_capsule": free_text(memory_projection.get("semantic_capsule", ""), "memory_projection.semantic_capsule"),
             "local": _text_list(memory_projection.get("local", []), "memory_projection.local"),
             "archive_refs": _text_list(memory_projection.get("archive_refs", []), "memory_projection.archive_refs"),
-            "openviking": _text_list(memory_projection.get("openviking", []), "memory_projection.openviking"),
+            "hindsight": _text_list(memory_projection.get("hindsight", []), "memory_projection.hindsight"),
         },
     }
     _evidence_snapshot(root, evidence_paths)
@@ -474,7 +475,7 @@ def build(root: Path, request: Dict[str, Any], handoff_id: str) -> Dict[str, Any
 
 
 def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str) -> None:
-    legacy = payload.get("schema_version") in {4, 5}
+    legacy = False
     expected = {"schema_version", "kind", "handoff_id", "created_at", "project", "work_context", "source", "verified", "conversation", "pending", "memory_projection", "authorization"}
     if legacy:
         expected.add("integrity")
@@ -535,14 +536,10 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
     memory = payload["memory_projection"]
     if not isinstance(memory, dict):
         raise ContractError("handoff memory projection is invalid")
-    if payload["schema_version"] == 4:
-        if set(memory) != {"local", "archive_refs", "openviking"}:
-            raise ContractError("handoff memory projection is invalid")
-    else:
-        if set(memory) != {"semantic_capsule", "local", "archive_refs", "openviking"}:
-            raise ContractError("handoff memory projection is invalid")
-        free_text(memory["semantic_capsule"], "memory_projection.semantic_capsule")
-    for field in ("local", "archive_refs", "openviking"):
+    if set(memory) != {"semantic_capsule", "local", "archive_refs", "hindsight"}:
+        raise ContractError("handoff memory projection is invalid")
+    free_text(memory["semantic_capsule"], "memory_projection.semantic_capsule")
+    for field in ("local", "archive_refs", "hindsight"):
         _text_list(memory[field], "memory_projection.%s" % field)
     if payload["authorization"] != AUTHORIZATION:
         raise ContractError("handoff authorization is invalid")
@@ -655,12 +652,12 @@ def _transition(axis: str, old: str, new: str) -> bool:
         "source": {
             "unprepared": {"prepared", "failed"},
             "prepared": {"boundary_sealed", "pending", "unsupported", "unavailable", "failed"},
-            "boundary_sealed": {"archive_verified", "converged", "failed"},
-            "archive_verified": {"converged", "failed"},
-            "pending": {"boundary_sealed", "archive_verified", "converged", "unsupported", "unavailable", "failed"},
-            "unsupported": {"boundary_sealed", "pending", "archive_verified", "converged", "failed"},
-            "unavailable": {"boundary_sealed", "pending", "archive_verified", "converged", "failed"},
-            "converged": {"expired"}, "failed": {"failed"}, "expired": set(),
+            "boundary_sealed": {"hindsight_verified", "failed"},
+            "hindsight_verified": {"expired"},
+            "pending": {"boundary_sealed", "hindsight_verified", "unsupported", "unavailable", "failed"},
+            "unsupported": {"boundary_sealed", "pending", "hindsight_verified", "failed"},
+            "unavailable": {"boundary_sealed", "pending", "hindsight_verified", "failed"},
+            "failed": {"failed"}, "expired": set(),
         },
         "target": {"not_admitted": {"admitted", "reconciled", "blocked"}, "admitted": {"reconciled", "blocked", "disposed"}, "reconciled": {"disposed"}, "blocked": {"admitted", "reconciled", "disposed"}, "disposed": set()},
         "retention": {"none": {"archive_eligible"}, "archive_eligible": {"archived"}, "archived": {"retained", "restored", "reopened", "purged"}, "retained": {"restored", "reopened", "purged"}, "restored": {"reopened", "purged"}, "reopened": {"purged"}, "purged": {"restored"}},
@@ -778,14 +775,9 @@ def _attestation_steps(attestation: Dict[str, Any]) -> tuple[str, ...]:
 
 
 def _source_ready(mode: str, state: dict[str, str]) -> bool:
-    required = {
-        "core_only": "boundary_sealed",
-        "capsule_required": "boundary_sealed",
-        "archive_required": "archive_verified",
-        "convergence_required": "converged",
-    }[mode]
+    required = {"core_only": "boundary_sealed", "hindsight_required": "hindsight_verified"}[mode]
     if mode == "core_only":
-        return state["source"] in {"boundary_sealed", "archive_verified", "converged"}
+        return state["source"] in {"boundary_sealed", "hindsight_verified"}
     return state["source"] == required
 
 
@@ -933,12 +925,8 @@ def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[s
 
 
 def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: Optional[str]) -> None:
-    if mode in {"archive_required", "convergence_required"} and observation != "observed":
-        raise ContractError("ownership retirement requires an observed archive for %s" % mode)
-    if mode in {"archive_required", "convergence_required"} and state["source"] not in {"archive_verified", "converged"}:
-        raise ContractError("handoff source archive is not verified")
-    if mode == "convergence_required" and state["source"] != "converged":
-        raise ContractError("handoff source convergence is not verified")
+    if mode == "hindsight_required" and state["source"] != "hindsight_verified":
+        raise ContractError("handoff Hindsight write and readback are not verified")
 
 
 def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
@@ -1078,6 +1066,8 @@ def lifecycle_finalize_observation(root: Path, handoff_path: str, observation: d
         raise ContractError("handoff lifecycle is not prepared")
     mode = _prepared_mode(events)
     observation = validate_observation(observation)
+    if mode == "hindsight_required":
+        raise ContractError("hindsight_required must use the native hindsight operation")
     status = "pending"
     if observation["availability"] == "unsupported":
         status = "unsupported"
@@ -1085,30 +1075,46 @@ def lifecycle_finalize_observation(root: Path, handoff_path: str, observation: d
         status = "unavailable"
     elif observation["boundary"]["status"] == "sealed":
         status = "boundary_sealed"
-        if mode in {"capsule_required", "archive_required", "convergence_required"}:
-            if observation["capsule"]["status"] != "verified" or not observation["capsule"]["proof_ref"]:
-                status = "pending"
-            elif mode in {"archive_required", "convergence_required"}:
-                source_session = payload["source"]["rollout"].get("session_id")
-                if (
-                    source_session is None
-                    or observation["source_session"]["status"] != "verified"
-                    or observation["source_session"]["identity"] != source_session
-                    or observation["archive"]["status"] != "verified"
-                    or not observation["archive"]["proof_ref"]
-                ):
-                    status = "pending"
-                else:
-                    status = "archive_verified"
-                    if mode == "convergence_required":
-                        if observation["task"]["status"] == "completed" and observation["task"]["completion_artifact"] and observation["memory"]["status"] == "verified" and observation["memory"]["proof_ref"]:
-                            status = "converged"
-                        else:
-                            status = "pending"
-    if status == "pending" and _state(events)["source"] in {"boundary_sealed", "archive_verified", "converged"}:
+    if status == "pending" and _state(events)["source"] in {"boundary_sealed", "hindsight_verified"}:
         status = _state(events)["source"]
     result = _append_event(root, handoff_id, "finalize", {"source": status, "target": _state(events)["target"], "retention": _state(events)["retention"]}, [evidence_ref])
     return handoff_id, result
+
+
+def lifecycle_hindsight(root: Path, handoff_path: str, key_fact: str) -> tuple[str, dict[str, Any]]:
+    handoff_id, _, payload = _core(root, handoff_path)
+    _read_paired_prompt(root, handoff_path)
+    key_fact = _text(key_fact, "key_fact")
+    if SECRET_RE.search(key_fact):
+        raise ContractError("key_fact contains a possible credential or secret")
+    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
+    if not events:
+        raise ContractError("handoff lifecycle is not prepared")
+    if _prepared_mode(events) != "hindsight_required":
+        raise ContractError("native hindsight operation requires hindsight_required mode")
+    state = _state(events)
+    if state["source"] == "hindsight_verified":
+        return handoff_id, {"status": "idempotent", "state": state}
+    if state["source"] != "boundary_sealed":
+        raise ContractError("handoff boundary must be sealed before Hindsight write")
+    if not _source_task_ready(payload, events):
+        raise ContractError("handoff task ownership is not sealed")
+    capsule = payload["memory_projection"]["semantic_capsule"]
+    if not capsule.strip():
+        raise ContractError("semantic capsule is required for Hindsight handoff")
+    result = hindsight.complete_handoff(root, handoff_id, capsule, key_fact)
+    references = [
+        "hindsight_document=" + result["document_id"],
+        "hindsight_operation=" + result["operation_id"],
+        "hindsight_readback=" + str(result["readback_count"]),
+        "hindsight_sha256=" + result["content_sha256"],
+    ]
+    lifecycle = _append_event(
+        root, handoff_id, "hindsight_verified",
+        {"source": "hindsight_verified", "target": state["target"], "retention": state["retention"]},
+        references,
+    )
+    return handoff_id, {"status": lifecycle["status"], "state": lifecycle["state"], "hindsight": result}
 
 
 def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tuple[str, dict[str, Any]]:
@@ -1243,10 +1249,13 @@ def main() -> int:
     check.add_argument("--handoff", required=True)
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--handoff", required=True)
-    prepare.add_argument("--mode", default="core_only", choices=sorted(LIFECYCLE_MODES))
+    prepare.add_argument("--mode", default="hindsight_required", choices=sorted(LIFECYCLE_MODES))
     finalize = sub.add_parser("finalize")
     finalize.add_argument("--handoff", required=True)
     finalize.add_argument("--observation", required=True)
+    remote = sub.add_parser("hindsight")
+    remote.add_argument("--handoff", required=True)
+    remote.add_argument("--key-fact", required=True)
     admit = sub.add_parser("admit")
     admit.add_argument("--handoff", required=True)
     admit.add_argument("--attestation", required=True)
@@ -1290,6 +1299,10 @@ def main() -> int:
             handoff_id, result = lifecycle_finalize(root, args.handoff, args.observation)
             _lifecycle_result("finalize", handoff_id, result)
             return 0
+        if args.command == "hindsight":
+            handoff_id, result = lifecycle_hindsight(root, args.handoff, args.key_fact)
+            _lifecycle_result("hindsight", handoff_id, result)
+            return 0
         if args.command == "admit":
             handoff_id, result = lifecycle_admit(root, args.handoff, args.attestation)
             _lifecycle_result("admit", handoff_id, result)
@@ -1326,7 +1339,7 @@ def main() -> int:
         _atomic_json(destination, payload)
         emit("write", "ready", handoff_id=handoff_id, handoff_path=destination.relative_to(root).as_posix())
         return 0
-    except (ContractError, OSError, subprocess.SubprocessError) as exc:
+    except (ContractError, hindsight.HindsightError, OSError, subprocess.SubprocessError) as exc:
         emit(getattr(args, "command", "handoff"), "recovery_required", str(exc))
         return 2
 

@@ -2,7 +2,9 @@
   "schema": 2,
   "configuration_targets": [
     {"id": "codex-provider", "tier": "core", "default_enabled": true, "adapter": "codex-provider", "component": "codex-cli", "readiness": "Codex native authentication is present in a private local record."},
-    {"id": "openviking-connection", "tier": "optional", "default_enabled": false, "adapter": "openviking-owner", "component": "openviking-plugin", "readiness": "OpenViking owner configuration can be verified without exposing credentials."},
+    {"id": "hindsight-static", "tier": "optional", "default_enabled": false, "adapter": "hindsight-static", "component": "hindsight-coding-agents", "settings": {"apiUrl": "https://hindsight.141242.xyz:9999"}, "readiness": "Hindsight self-hosted URL and non-secret client policy match the pinned workflow contract."},
+    {"id": "hindsight-token", "tier": "optional", "default_enabled": false, "adapter": "hindsight-token", "component": "hindsight-coding-agents", "readiness": "Hindsight API bearer token is present in the native private configuration."},
+    {"id": "hindsight-project", "tier": "optional", "default_enabled": false, "adapter": "hindsight-project", "component": "hindsight-coding-agents", "readiness": "At least one explicitly registered Trellis project has a stable Hindsight bank mapping."},
     {"id": "cch-connection", "tier": "optional", "default_enabled": false, "adapter": "cch-owner", "component": "cch-status", "readiness": "CCH owner configuration and token record are private and complete."},
     {"id": "hikari-connection", "tier": "optional", "default_enabled": false, "adapter": "hikari-json", "component": "tavily-hikari", "readiness": "Hikari endpoint and access token are in a private owner record."},
     {"id": "grok-search-provider", "tier": "optional", "default_enabled": false, "adapter": "grok-provider", "collection": "pennix-skills", "member": "grok-search", "readiness": "Grok provider settings are in a private lifecycle-marked owner record."},
@@ -66,18 +68,19 @@
       "version_args": ["--version"],
       "package": {"source": "aur", "name": "codegraph-bin"}
     },
-    "openviking-plugin": {
-      "delivery": "plugin",
-      "approved_version": "0.10.5",
-      "source": "Codex native plugin from pinned OpenViking marketplace",
-      "owner": "openviking",
-      "scope": "global",
-      "verify_key": "codex plugin list --json",
-      "actions": {"install": "managed", "configure": "native-owner", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
-      "project_init": "not-applicable",
+    "hindsight-coding-agents": {
+      "delivery": "native",
+      "approved_version": "0.6.1",
+      "source": "Hindsight official coding-agents npm integration",
+      "owner": "hindsight",
+      "scope": "global/project",
+      "verify_key": "~/.hindsight/coding-agents/package.json",
+      "actions": {"install": "managed", "configure": "not-applicable", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "project_init": "project-only",
+      "conflicts": [],
       "probe": null,
       "version_args": [],
-      "plugin": {"id": "openviking-memory@openviking", "marketplace": {"name": "openviking", "source": "https://github.com/volcengine/OpenViking.git", "ref": "a09a9d20a8e07d08973aee177802d00e08df29e6", "sparse": ["examples/codex-memory-plugin"]}}
+      "integration": {"package": "@vectorize-io/hindsight-coding-agents", "registry": "https://registry.npmjs.org/", "harness": "codex", "server": "self-hosted", "api_url": "https://hindsight.141242.xyz:9999"}
     },
     "ponytail-plugin": {
       "delivery": "plugin",
@@ -200,7 +203,7 @@
       "adapter": "pennix-skills",
       "native_owner_reason": "Pennix Skills installation and upgrade use Codex's system $skill-installer in an agent turn; target hosts do not keep a local repository checkout.",
       "collection_contract": {
-        "skills": ["grok-search", "pennix-decision-gates", "pennix-fastctx-routing", "pennix-session-handoff", "pennix-trellis-project-update", "pennix-workflow-lifecycle", "pennix-workflow-routing", "pennix-worktime-memory", "tavily-hikari", "windsurf-code-search", "workflow-doctor"],
+        "skills": ["grok-search", "pennix-decision-gates", "pennix-fastctx-routing", "pennix-hindsight-memory", "pennix-session-handoff", "pennix-trellis-project-update", "pennix-workflow-lifecycle", "pennix-workflow-routing", "tavily-hikari", "windsurf-code-search", "workflow-doctor"],
         "bootstrap_skill": "pennix-workflow-lifecycle",
         "source": {
           "repo": "PennixRv/pennix-skills",
@@ -212,7 +215,7 @@
             "skills/pennix-trellis-project-update",
             "skills/pennix-workflow-lifecycle",
             "skills/pennix-workflow-routing",
-            "skills/pennix-worktime-memory",
+            "skills/pennix-hindsight-memory",
             "skills/tavily-hikari",
             "skills/workflow-doctor",
             "skills/grok-search",

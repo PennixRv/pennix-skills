@@ -206,14 +206,30 @@ as the default browser sign-in path. Each optional target becomes enabled only
 after an explicit configure attempt, so a later `verify` checks the selected
 integration without requiring unrelated services on every host.
 
-The catalog currently defines `openviking-connection`, `cch-connection`,
+The catalog currently defines Hindsight's `hindsight-static`,
+`hindsight-token`, and `hindsight-project` targets, plus `cch-connection`,
 `hikari-connection`, `grok-search-provider`, `grok-tavily-extra`,
-`grok-firecrawl-extra`, and `windsurf-credential`. CCH and Windsurf delegate
+`grok-firecrawl-extra`, and `windsurf-credential`. Hindsight uses the pinned
+official `@vectorize-io/hindsight-coding-agents@0.6.1` npm installer for the
+Codex harness only; lifecycle does not copy its hooks or Skill. The native
+installer is anchored to the default `$HOME/.codex`, so a different
+`CODEX_HOME` is rejected before it can write. Hindsight's non-secret policy
+and bearer token are configured as separate targets; the token is read only
+from hidden `/dev/tty` input and is never passed as an argument. CCH and Windsurf delegate
 to their owner `configure` command. Hikari and Grok accept values only through
 `/dev/tty`, conceal secret input, and write a private owner record. Grok refuses
-to overwrite a non-lifecycle-marked record. OpenViking has no local owner setup
-adapter yet; selecting it reports a blocked result instead of guessing remote
-server configuration. A target's delivery must match first, and collection
+to overwrite a non-lifecycle-marked record. Hindsight project registration is
+explicit and requires a project root; it writes only the stable
+`.trellis/config.yaml:pennix.memory.bank_id` and the matching native
+`mapPathToBank` entry. For example:
+
+```bash
+python3 <installed-lifecycle>/scripts/lifecycle.py configure \
+  --component hindsight-project --project-root /path/to/project --yes
+```
+
+Use `uninstall --component hindsight-project --project-root ... --yes` to remove
+only that path mapping. A target's delivery must match first, and collection
 targets additionally require a matching collection receipt.
 
 The profile is stored in the lifecycle XDG state namespace with mode `0600`,

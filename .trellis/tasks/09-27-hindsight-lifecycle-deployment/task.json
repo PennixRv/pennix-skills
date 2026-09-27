@@ -1,0 +1,30 @@
+{
+  "id": "hindsight-lifecycle-deployment",
+  "name": "hindsight-lifecycle-deployment",
+  "title": "集成 Hindsight 到 Pennix 生命周期部署与校验",
+  "description": "为根协调任务 09-27-hindsight-memory-base-migration 实现 Hindsight v0.10.1 与 coding-agents 0.6.1 的可重入 Pennix 生命周期集成：静态部署资产与密钥注入分离，版本锁定，Codex hooks/MCP/官方 Skill 幂等合并与移除，Trellis 项目登记/稳定 bank 路由，OV 活动 catalog 与插件安装退役。目标分支 main。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-09-27",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "execution_class": "complex",
+    "approval_mode": "authorized_after_parent_seal"
+  }
+}

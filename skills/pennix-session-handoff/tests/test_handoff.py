@@ -77,7 +77,7 @@ class HandoffTests(unittest.TestCase):
             "evidence_paths": ["evidence.md"], "next_action": "continue the fixture task", "blockers": [], "risks": [],
             "validation": [{"command": "fixture check", "result": "passed"}],
             "rollout": {"path": str(rollout or self.make_rollout()), "session_id": "fixture-session"},
-            "memory_projection": {"semantic_capsule": capsule, "local": [], "archive_refs": [], "openviking": []},
+            "memory_projection": {"semantic_capsule": capsule, "local": [], "archive_refs": [], "hindsight": []},
         }, handle, ensure_ascii=False)
         handle.write("\n")
         handle.close()
@@ -121,7 +121,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(destination.parent.stat().st_mode), 0o700)
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        self.assertEqual(payload["schema_version"], 6)
+        self.assertEqual(payload["schema_version"], 7)
         self.assertNotIn("integrity", payload)
         self.assertEqual(payload["handoff_id"], Path(relative).parts[-2])
         self.assertTrue(any(item["kind"] == "user" for item in payload["conversation"]["candidates"]))
@@ -142,26 +142,26 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "source-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
             "task": {"status": "completed", "completion_artifact": "task-proof"},
             "memory": {"status": "verified", "proof_ref": "memory-proof"},
         })
         self.assertEqual(normalized["boundary"]["proof_ref"], "boundary-proof")
         self.assertEqual(normalized["capsule"]["proof_ref"], "capsule-proof")
-        self.assertEqual(normalized["archive"]["proof_ref"], "archive-proof")
+        self.assertEqual(normalized["hindsight"]["proof_ref"], "hindsight-proof")
         self.assertEqual(normalized["memory"]["proof_ref"], "memory-proof")
 
-    def test_required_source_mode_blocks_admission_until_source_is_ready(self) -> None:
+    def test_core_only_mode_admits_after_boundary_is_sealed(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         (root / ".trellis/scripts/task.py").write_text(
             "import json\nprint(json.dumps({'current_task': None, 'source': 'session:target'}))\n",
             encoding="utf-8",
         )
-        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "archive_required").returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
         package = root / Path(relative).parent
         (package / "session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
         observation = root / ".trellis/.runtime/observation.json"
@@ -169,9 +169,9 @@ class HandoffTests(unittest.TestCase):
         proof = {
             "availability": "available",
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
-            "source_session": {"status": "verified", "identity": "wrong-session"},
+            "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
             "task": {"status": "completed", "completion_artifact": "task-proof"},
             "memory": {"status": "verified", "proof_ref": "memory-proof"},
         }
@@ -184,17 +184,9 @@ class HandoffTests(unittest.TestCase):
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
         blocked = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
-        self.assertEqual(blocked[1]["status"], "pending")
-        self.assertEqual(blocked[1]["state"]["target"], "not_admitted")
-        self.assertEqual(blocked[1]["state"]["retention"], "none")
-
-        proof["source_session"]["identity"] = "fixture-session"
-        observation.write_text(json.dumps(proof), encoding="utf-8")
-        self.assertEqual(self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root))).returncode, 0)
-        admitted = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
-        self.assertEqual(admitted[1]["status"], "recorded")
-        self.assertEqual(admitted[1]["state"]["target"], "reconciled")
-        self.assertEqual(admitted[1]["state"]["retention"], "archive_eligible")
+        self.assertEqual(blocked[1]["status"], "recorded")
+        self.assertEqual(blocked[1]["state"]["target"], "reconciled")
+        self.assertEqual(blocked[1]["state"]["retention"], "archive_eligible")
 
     def test_rollout_append_after_capture_remains_ready(self) -> None:
         root = self.make_git_root()
@@ -222,7 +214,7 @@ class HandoffTests(unittest.TestCase):
         payload = json.loads((root / relative).read_text(encoding="utf-8"))
         self.assertEqual(payload["memory_projection"]["semantic_capsule"], capsule)
         (root / relative).with_name("session-handoff-prompt.md").write_text("prompt\n", encoding="utf-8")
-        prepared = self.run_cli(root, "prepare", "--handoff", relative)
+        prepared = self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only")
         self.assertEqual(prepared.returncode, 0, prepared.stderr)
         observation = root / ".trellis/.runtime/observation.json"
         observation.parent.mkdir(parents=True, exist_ok=True)
@@ -231,7 +223,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -297,14 +289,14 @@ class HandoffTests(unittest.TestCase):
         self.assertNotIn("integrity", payload)
         self.assertNotIn("sha256", json.dumps(payload))
         self.assertEqual(json.loads(self.run_cli(root, "validate", "--handoff", relative).stdout)["status"], "ready")
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative).returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
         receipt = (root / handoff.LIFECYCLE_RUNTIME / (Path(relative).parts[-2] + ".jsonl")).read_text(encoding="utf-8")
         self.assertNotIn("digest", receipt)
 
-    def test_legacy_digest_fields_do_not_block_validation(self) -> None:
+    def test_legacy_schema_is_rejected(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
-        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
         core = root / relative
@@ -316,8 +308,8 @@ class HandoffTests(unittest.TestCase):
         payload["integrity"] = {"payload_digest": "sha256:legacy", "source_digest": "sha256:legacy"}
         core.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         validated = self.run_cli(root, "validate", "--handoff", relative)
-        self.assertEqual(validated.returncode, 0, validated.stderr)
-        self.assertEqual(json.loads(validated.stdout)["status"], "ready")
+        self.assertNotEqual(validated.returncode, 0)
+        self.assertEqual(json.loads(validated.stdout)["status"], "recovery_required")
 
     def test_admit_requires_paired_assets_and_recovers_one_incomplete_intake(self) -> None:
         root = self.make_git_root()
@@ -326,10 +318,10 @@ class HandoffTests(unittest.TestCase):
             "import json\nprint(json.dumps({'current_task': None, 'source': 'session:target'}))\n",
             encoding="utf-8",
         )
-        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative).returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
         attestation = root / ".trellis/.runtime/attestation.json"
         attestation.parent.mkdir(parents=True, exist_ok=True)
         attestation.write_text(json.dumps({
@@ -349,7 +341,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -383,7 +375,7 @@ class HandoffTests(unittest.TestCase):
         written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative).returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
         observation = root / ".trellis/.runtime/observation.json"
         observation.parent.mkdir(parents=True, exist_ok=True)
         observation.write_text(json.dumps({
@@ -391,7 +383,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -460,7 +452,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "local-boundary"},
             "source_session": {"status": "verified", "identity": "source-session"},
             "capsule": {"status": "verified", "proof_ref": "local-capsule"},
-            "archive": {"status": "verified", "proof_ref": "local-archive"},
+            "hindsight": {"status": "verified", "proof_ref": "local-hindsight"},
             "task": {"status": "completed", "completion_artifact": "task-complete"},
             "memory": {"status": "verified", "proof_ref": "local-memory"},
         }), encoding="utf-8")
@@ -552,7 +544,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
         handoff_id, _, _ = handoff._core(root, relative)
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative).returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
 
         desired = {"source": "prepared", "target": "reconciled", "retention": "archive_eligible"}
 
@@ -571,39 +563,33 @@ class HandoffTests(unittest.TestCase):
         events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
         self.assertEqual(sum(event["event_type"] == "admit" and event["target_status"] == "reconciled" for event in events), 1)
 
-    def test_archive_mode_requires_matching_source_session_provenance(self) -> None:
+    def test_hindsight_handoff_is_exactly_read_back_and_idempotent(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
-        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "archive_required").returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "hindsight_required").returncode, 0)
         (root / relative).with_name("session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
-        observation = root / ".trellis/.runtime" / "observation.json"
-        observation.parent.mkdir(parents=True, exist_ok=True)
-        proof = {
-            "availability": "available",
-            "boundary": {"status": "sealed", "proof_ref": "boundary"},
-            "source_session": {"status": "verified", "identity": "wrong-session"},
-            "capsule": {"status": "verified", "proof_ref": "local-capsule"},
-            "archive": {"status": "verified", "proof_ref": "local-archive"},
-            "task": {"status": "completed", "completion_artifact": "complete"},
-            "memory": {"status": "verified", "proof_ref": "local-memory"},
+        handoff_id = Path(relative).parts[-2]
+        handoff._append_event(root, handoff_id, "boundary_sealed", {"source": "boundary_sealed", "target": "not_admitted", "retention": "none"}, ["fixture_boundary=sealed"])
+        original = handoff.hindsight.complete_handoff
+        handoff.hindsight.complete_handoff = lambda *_args: {
+            "document_id": "pennix-handoff-" + handoff_id,
+            "operation_id": "operation-1",
+            "operation_status": "completed",
+            "readback_count": 1,
+            "content_sha256": "a" * 64,
+            "bank_id": "pennix-project-" + "b" * 24,
         }
-        observation.write_text(json.dumps(proof), encoding="utf-8")
-        pending = self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root)))
-        self.assertEqual(pending.returncode, 0, pending.stderr)
-        self.assertEqual(json.loads(pending.stdout)["state"]["source"], "pending")
-        proof["source_session"]["identity"] = "fixture-session"
-        observation.write_text(json.dumps(proof), encoding="utf-8")
-        finalized = self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root)))
-        self.assertEqual(finalized.returncode, 0, finalized.stderr)
-        self.assertEqual(json.loads(finalized.stdout)["state"]["source"], "archive_verified")
-        proof["archive"]["proof_ref"] = None
-        observation.write_text(json.dumps(proof), encoding="utf-8")
-        weaker = self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root)))
-        self.assertEqual(weaker.returncode, 0, weaker.stderr)
-        self.assertEqual(json.loads(weaker.stdout)["state"]["source"], "archive_verified")
+        try:
+            first = handoff.lifecycle_hindsight(root, relative, "verified fixture fact")
+            repeated = handoff.lifecycle_hindsight(root, relative, "verified fixture fact")
+        finally:
+            handoff.hindsight.complete_handoff = original
+        self.assertEqual(first[1]["status"], "recorded")
+        self.assertEqual(first[1]["state"]["source"], "hindsight_verified")
+        self.assertEqual(repeated[1]["status"], "idempotent")
 
     def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:
         root = self.make_git_root(with_task=True)
@@ -638,7 +624,7 @@ class HandoffTests(unittest.TestCase):
         before = (root / relative).read_bytes()
         handoff_id = Path(relative).parts[-2]
 
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative).returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
         package = root / Path(relative).parent
         (package / "session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
         observation = root / ".trellis/.runtime/observation.json"
@@ -648,7 +634,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "archive": {"status": "verified", "proof_ref": "archive-proof"},
+            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")

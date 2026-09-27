@@ -1,0 +1,30 @@
+{
+  "id": "hindsight-memory-handoff-cutover",
+  "name": "hindsight-memory-handoff-cutover",
+  "title": "迁移 Pennix 记忆路由与 Hindsight handoff 合同",
+  "description": "为根协调任务 09-27-hindsight-memory-base-migration 实现 Hindsight 项目/跨项目/用户三层政策 Skill，迁移工作流路由和交接精确完成回执，移除 OpenViking 专属 worktime/checkpoint/mode 活动实现并明确拒绝旧 mode。handoff 默认 ready 必须由本次 Hindsight 操作完成和目标 bank 可读证明；core_only 仍仅显式启用。目标分支 main。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-09-27",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "execution_class": "complex",
+    "approval_mode": "authorized_after_parent_seal"
+  }
+}

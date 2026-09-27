@@ -48,7 +48,9 @@ CONFIGURATION_ADAPTERS = {
     "grok-tavily",
     "grok-firecrawl",
     "hikari-json",
-    "openviking-owner",
+    "hindsight-static",
+    "hindsight-token",
+    "hindsight-project",
     "windsurf-owner",
 }
 POST_INSTALL_ACTIONS = {"grok-search-runtime"}
@@ -193,6 +195,7 @@ def configuration_target_map(catalog: dict[str, Any]) -> dict[str, dict[str, Any
 STATE_RECORDS = {
     "profile": Path("profile.json"),
     "tmux-config": Path("static-assets") / "tmux-config.json",
+    "hindsight-config": Path("static-assets") / "hindsight-config.json",
 }
 
 
@@ -278,16 +281,26 @@ def _inspect_state_tree(root: Path, legacy: bool, expected_digest: str | None) -
             static_entries = {entry.name: entry for entry in static_directory.iterdir()}
         except OSError:
             return {"status": "blocked", "records": {}, "reason": "static state directory cannot be read"}
-        if any(name != "tmux-config.json" for name in static_entries):
+        if any(name not in {"tmux-config.json", "hindsight-config.json"} for name in static_entries):
             return {"status": "blocked", "records": {}, "reason": "static state contains unknown entries"}
-        receipt = static_directory / STATE_RECORDS["tmux-config"].name
-        if receipt.name in static_entries:
+        for record_name in ("tmux-config", "hindsight-config"):
+            receipt = static_directory / STATE_RECORDS[record_name].name
+            if receipt.name not in static_entries:
+                continue
             state, content = _state_file(receipt)
-            receipt_state, _ = tmux_static._read_receipt(receipt)
-            if state != "configured" or content is None or receipt_state != "match":
-                return {"status": "blocked", "records": {}, "reason": "tmux receipt is invalid"}
+            if record_name == "tmux-config":
+                receipt_state, _ = tmux_static._read_receipt(receipt)
+                valid = receipt_state == "match"
+            else:
+                try:
+                    value = json.loads(content.decode("utf-8")) if content is not None else None
+                    valid = isinstance(value, dict) and value.get("schema") == 1 and isinstance(value.get("fields"), dict)
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    valid = False
+            if state != "configured" or content is None or not valid:
+                return {"status": "blocked", "records": {}, "reason": f"{record_name} receipt is invalid"}
             statuses.append("match")
-            records["tmux-config"] = content
+            records[record_name] = content
     if not records:
         return {"status": "missing", "records": {}}
     if legacy:
@@ -783,6 +796,113 @@ def package_command(component: dict[str, Any], command: list[str]) -> list[str]:
     return ["sudo", *command] if not os.access(probe, os.W_OK) else command
 
 
+def probe_hindsight(component: dict[str, Any], codex_home: Path) -> tuple[str, str | None]:
+    expected = component.get("approved_version")
+    runtime = configuration.hindsight_runtime_path()
+    package_path = runtime / "package.json"
+    try:
+        value = json.loads(package_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return "missing", None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return "drifted", None
+    if value.get("name") != "@vectorize-io/hindsight-coding-agents" or value.get("version") != expected:
+        return "drifted", str(value.get("version")) if isinstance(value, dict) else None
+    try:
+        configuration.assert_hindsight_codex_home(codex_home)
+        hooks = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+        toml = (codex_home / "config.toml").read_text(encoding="utf-8")
+    except configuration.ConfigurationError as error:
+        return "blocked", str(error)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return "drifted", str(expected)
+    marker = json.dumps(hooks, ensure_ascii=False)
+    skill = configuration._home() / ".agents" / "skills" / "hindsight-coding-agent" / "SKILL.md"
+    installed = (
+        marker.count("hindsight-coding-agents") >= 3
+        and "[mcp_servers.hindsight]" in toml
+        and skill.is_file()
+    )
+    return ("match" if installed else "drifted"), str(expected)
+
+
+def hindsight_integration_command(component: dict[str, Any], operation: str, codex_home: Path) -> list[str]:
+    integration = component.get("integration")
+    if not isinstance(integration, dict):
+        raise BootstrapError("Hindsight integration metadata is missing")
+    configuration.assert_hindsight_codex_home(codex_home)
+    package = integration.get("package")
+    version = component.get("approved_version")
+    harness = integration.get("harness")
+    if not isinstance(package, str) or not isinstance(version, str) or harness != "codex":
+        raise BootstrapError("Hindsight integration metadata is invalid")
+    npx = shutil.which("npx")
+    if not npx:
+        raise BootstrapError("npx is required for the Hindsight official installer")
+    command = [npx, "--yes", f"{package}@{version}", "install" if operation != "uninstall" else "uninstall", harness]
+    if operation != "uninstall":
+        if integration.get("server") != "self-hosted" or not isinstance(integration.get("api_url"), str):
+            raise BootstrapError("Hindsight self-hosted endpoint is missing")
+        command.extend(["--server", "self-hosted", "--api-url", integration["api_url"]])
+    return command
+
+
+def hindsight_component_operation(
+    args: argparse.Namespace, key: str, component: dict[str, Any], operation: str, catalog: dict[str, Any]
+) -> str:
+    status, _ = probe_hindsight(component, args.codex_home)
+    config_before, _ = configuration._private_json(configuration.hindsight_config_path())
+    if operation == "uninstall" and status == "missing":
+        return "no-op"
+    if operation == "uninstall":
+        static_status = configuration.target_state(
+            "hindsight-static", args.codex_home, {"apiUrl": component["integration"]["api_url"]}
+        )
+        if static_status != "configured":
+            raise BootstrapError("Hindsight static configuration ownership is blocked")
+    if operation != "uninstall" and status == "match":
+        static_status = configuration.target_state(
+            "hindsight-static", args.codex_home, {"apiUrl": component["integration"]["api_url"]}
+        )
+        if static_status == "configured":
+            return "no-op"
+        if static_status != "not-configured":
+            raise BootstrapError("Hindsight static configuration ownership is blocked")
+    elif operation != "uninstall":
+        static_status = configuration.target_state(
+            "hindsight-static", args.codex_home, {"apiUrl": component["integration"]["api_url"]}
+        )
+        if static_status not in {"not-configured"}:
+            raise BootstrapError("Hindsight static configuration ownership is blocked")
+    command = hindsight_integration_command(component, operation, args.codex_home)
+    try:
+        result = subprocess.run(command, check=False, env=os.environ.copy())
+    except (OSError, ValueError) as error:
+        raise BootstrapError(f"Hindsight official installer could not start: {error}") from error
+    if result.returncode:
+        raise BootstrapError(f"Hindsight official installer failed ({result.returncode})")
+    if operation == "uninstall":
+        configuration.remove_hindsight_configuration(args.codex_home)
+        configuration.disable_targets(
+            args.codex_home,
+            configuration_digest(catalog),
+            {"hindsight-static", "hindsight-token", "hindsight-project"},
+        )
+        final, _ = probe_hindsight(component, args.codex_home)
+        if final not in {"missing", "drifted"}:
+            raise BootstrapError("Hindsight uninstall postcondition failed")
+        return "changed"
+    configuration.configure_hindsight_static(
+        args.codex_home,
+        component["integration"]["api_url"],
+        claim_upstream=config_before == "missing",
+    )
+    final, _ = probe_hindsight(component, args.codex_home)
+    if final != "match":
+        raise BootstrapError(f"{operation} postcondition failed: {key} is {final}")
+    return "changed"
+
+
 def probe_component(
     component: dict[str, Any],
     codex_home: Path | None = None,
@@ -790,6 +910,8 @@ def probe_component(
     home_directory: Path | None = None,
 ) -> tuple[str, str | None]:
     adapter = component.get("adapter")
+    if adapter == "hindsight-coding-agents":
+        return probe_hindsight(component, codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     if adapter == "codex-config":
         target = (codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))) / "config.toml"
         state = codex_static.config_state(codex_static.read(target))
@@ -993,7 +1115,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                 "id": target["id"],
                 "tier": target["tier"],
                 "enabled": enabled,
-                "status": configuration.target_state(target["adapter"], args.codex_home),
+                "status": configuration.target_state(target["adapter"], args.codex_home, target.get("settings")),
                 "readiness": target["readiness"],
             }
         )
@@ -1176,6 +1298,8 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
 def component_operation(
     args: argparse.Namespace, catalog: dict[str, Any], key: str, component: dict[str, Any], operation: str
 ) -> str:
+    if component.get("adapter") == "hindsight-coding-agents":
+        return hindsight_component_operation(args, key, component, operation, catalog)
     if operation != "uninstall":
         inspect_for_operation(component)
     current_host = host.detect_host()
@@ -1325,13 +1449,33 @@ def configuration_parent_status(
     return key
 
 
-def configure_configuration_target(args: argparse.Namespace, catalog: dict[str, Any], target: dict[str, Any]) -> None:
+def configure_configuration_target(
+    args: argparse.Namespace, catalog: dict[str, Any], target: dict[str, Any], unregister: bool = False
+) -> None:
     configuration_parent_status(args, catalog, target)
     digest = configuration_digest(catalog)
-    configuration.enable_target(args.codex_home, digest, target["id"])
-    state = configuration.configure_target(target["adapter"], args.codex_home)
+    if target["adapter"] == "hindsight-project" and unregister:
+        state = configuration.configure_target(
+            target["adapter"],
+            args.codex_home,
+            target.get("settings"),
+            Path(args.project_root).expanduser().absolute() if getattr(args, "project_root", None) else None,
+            unregister=True,
+        )
+        configuration.disable_targets(args.codex_home, digest, {target["id"]})
+    else:
+        state = configuration.configure_target(
+            target["adapter"],
+            args.codex_home,
+            target.get("settings"),
+            Path(args.project_root).expanduser().absolute() if getattr(args, "project_root", None) else None,
+        )
+        if state not in {"ready", "configured"}:
+            raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
+        configuration.enable_target(args.codex_home, digest, target["id"])
     if state not in {"ready", "configured"}:
-        raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
+        if not (target["adapter"] == "hindsight-project" and unregister and state == "no-op"):
+            raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
     print(
         json.dumps(
             {"operation": "configure", "target": target["id"], "status": state},
@@ -1353,6 +1497,9 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | No
     targets = configuration_target_map(catalog)
     if args.command == "configure" and component in targets:
         configure_configuration_target(args, catalog, targets[component])
+        return None
+    if args.command == "uninstall" and component in targets and targets[component]["adapter"] == "hindsight-project":
+        configure_configuration_target(args, catalog, targets[component], unregister=args.command == "uninstall")
         return None
     if component not in catalog["components"]:
         raise BootstrapError(f"unknown lifecycle component: {component}")
@@ -1439,6 +1586,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--destination")
     parser.add_argument("--staging")
+    parser.add_argument("--project-root")
     parser.add_argument("--component")
     parser.add_argument("--yes", action="store_true")
     return parser.parse_args(argv)

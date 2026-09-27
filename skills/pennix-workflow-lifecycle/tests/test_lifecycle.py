@@ -1208,6 +1208,42 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["pennix-skills"]["delivery"], "collection")
         self.assertEqual(catalog["components"][bootstrap.STATE_COMPONENT]["actions"]["reconcile"], "managed")
 
+    def test_hindsight_catalog_uses_the_pinned_official_integration_without_openviking(self) -> None:
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        component = catalog["components"]["hindsight-coding-agents"]
+        self.assertEqual(component["approved_version"], "0.6.1")
+        self.assertEqual(component["delivery"], "native")
+        self.assertEqual(component["integration"]["harness"], "codex")
+        self.assertNotIn("openviking-plugin", catalog["components"])
+        self.assertNotIn("openviking-connection", {target["id"] for target in catalog["configuration_targets"]})
+
+    def test_hindsight_probe_requires_runtime_and_all_codex_wiring(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "home"
+            codex = home / ".codex"
+            runtime = home / ".hindsight" / "coding-agents"
+            runtime.mkdir(parents=True)
+            codex.mkdir(parents=True)
+            (runtime / "package.json").write_text(
+                json.dumps({"name": "@vectorize-io/hindsight-coding-agents", "version": "0.6.1"}),
+                encoding="utf-8",
+            )
+            (codex / "hooks.json").write_text(
+                json.dumps({"hooks": {"SessionStart": [{"command": "hindsight-coding-agents"}] * 3}}),
+                encoding="utf-8",
+            )
+            (codex / "config.toml").write_text("hooks = true\n[mcp_servers.hindsight]\n", encoding="utf-8")
+            skill = home / ".agents" / "skills" / "hindsight-coding-agent"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("# Hindsight\n", encoding="utf-8")
+            with patch.dict(os.environ, {"HOME": str(home)}, clear=False):
+                status, version = bootstrap.probe_hindsight(
+                    bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)["components"]["hindsight-coding-agents"],
+                    codex,
+                )
+            self.assertEqual((status, version), ("match", "0.6.1"))
+
     def test_non_managed_action_is_rejected_before_adapter(self) -> None:
         args = SimpleNamespace(command="install", component="cch-status", yes=True)
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)

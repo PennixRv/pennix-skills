@@ -6,6 +6,7 @@ import json
 import hashlib
 import os
 import errno
+import re
 import shutil
 import stat
 import subprocess
@@ -19,6 +20,10 @@ MAX_CONFIG_BYTES = 64 * 1024
 PROFILE_SCHEMA = 1
 MARKER_KEY = "pennixLifecycle"
 STATE_DIRECTORY = "pennix-workflow-lifecycle"
+HINDSIGHT_RECEIPT = "hindsight-config.json"
+HINDSIGHT_CONFIG_RELATIVE = (".hindsight", "coding-agent.json")
+HINDSIGHT_RUNTIME_RELATIVE = (".hindsight", "coding-agents")
+PROJECT_BANK_ID = re.compile(r"^pennix-project-[0-9a-f]{16,64}$")
 
 
 class ConfigurationError(RuntimeError):
@@ -28,6 +33,11 @@ class ConfigurationError(RuntimeError):
 def _xdg_config_home() -> Path:
     raw = os.environ.get("XDG_CONFIG_HOME")
     return Path(raw).expanduser() if raw else Path.home() / ".config"
+
+
+def _home() -> Path:
+    raw = os.environ.get("HOME")
+    return Path(raw).expanduser() if raw else Path.home()
 
 
 def _assert_no_symlink_ancestor(path: Path) -> None:
@@ -164,6 +174,306 @@ def static_receipt_path(codex_home: Path, asset: str) -> Path:
     return state_namespace(codex_home) / "static-assets" / f"{asset}.json"
 
 
+def hindsight_config_path() -> Path:
+    raw = os.environ.get("HINDSIGHT_CONFIG")
+    path = Path(raw).expanduser() if raw else _home().joinpath(*HINDSIGHT_CONFIG_RELATIVE)
+    if not path.is_absolute():
+        raise ConfigurationError("Hindsight config path must be absolute")
+    return path
+
+
+def hindsight_runtime_path() -> Path:
+    return _home().joinpath(*HINDSIGHT_RUNTIME_RELATIVE)
+
+
+def assert_hindsight_codex_home(codex_home: Path) -> None:
+    expected = (_home() / ".codex").resolve(strict=False)
+    actual = codex_home.resolve(strict=False)
+    configured = os.environ.get("CODEX_HOME")
+    if actual != expected or (configured and Path(configured).expanduser().resolve(strict=False) != expected):
+        raise ConfigurationError("Hindsight 0.6.1 requires the default HOME/.codex location")
+
+
+def hindsight_receipt_path(codex_home: Path) -> Path:
+    return static_receipt_path(codex_home, "hindsight-config")
+
+
+def hindsight_policy(api_url: str) -> dict[str, Any]:
+    if not isinstance(api_url, str) or not api_url.strip() or not api_url.startswith(("http://", "https://")):
+        raise ConfigurationError("Hindsight API URL is invalid")
+    return {
+        "serverMode": "self-hosted",
+        "apiUrl": api_url.rstrip("/"),
+        "optInOnly": True,
+        "autoReflect": True,
+        "autoUpdate": False,
+        "autoSeed": False,
+        "codebaseSurvey": False,
+        "gitIngest": "none",
+        "retainSessions": True,
+    }
+
+
+def _hindsight_values(data: dict[str, Any], fields: dict[str, Any]) -> bool:
+    return all(data.get(key) == value for key, value in fields.items())
+
+
+def _hindsight_receipt(codex_home: Path) -> tuple[str, dict[str, Any] | None]:
+    state, value = _private_json(hindsight_receipt_path(codex_home))
+    if state != "configured" or value is None:
+        return state, value
+    fields = value.get("fields")
+    if value.get("schema") != 1 or not isinstance(fields, dict) or not fields:
+        return "invalid", None
+    try:
+        expected = hindsight_policy(fields.get("apiUrl"))
+    except ConfigurationError:
+        return "invalid", None
+    if fields != expected:
+        return "invalid", None
+    return state, value
+
+
+def hindsight_static_state(codex_home: Path, api_url: str) -> str:
+    config_state, data = _private_json(hindsight_config_path())
+    if config_state == "missing":
+        return "not-configured"
+    if config_state != "configured" or data is None:
+        return config_state
+    receipt_state, receipt = _hindsight_receipt(codex_home)
+    if receipt_state != "configured" or receipt is None:
+        return "drifted"
+    expected = hindsight_policy(api_url)
+    owned = receipt.get("fields")
+    if owned != expected or not _hindsight_values(data, expected):
+        return "drifted"
+    return "configured"
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    _assert_no_symlink_ancestor(path)
+    path.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
+    if path.parent.is_symlink() or not path.parent.is_dir():
+        raise ConfigurationError("configuration path is blocked")
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if path.exists():
+            os.chmod(temporary, stat.S_IMODE(path.stat().st_mode))
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def configure_hindsight_static(codex_home: Path, api_url: str, claim_upstream: bool = False) -> str:
+    path = hindsight_config_path()
+    state, current = _private_json(path)
+    if state not in {"missing", "configured"}:
+        raise ConfigurationError("Hindsight config is blocked")
+    data = current or {}
+    policy = hindsight_policy(api_url)
+    receipt_state, receipt = _hindsight_receipt(codex_home)
+    if receipt_state == "invalid":
+        raise ConfigurationError("Hindsight lifecycle ownership receipt is invalid")
+    if receipt_state == "configured" and receipt is not None:
+        previous = receipt["fields"]
+        if not _hindsight_values(data, previous):
+            raise ConfigurationError("Hindsight static configuration was modified outside lifecycle")
+    elif state == "configured":
+        if not claim_upstream or not _hindsight_values(
+            data, {"serverMode": policy["serverMode"], "apiUrl": policy["apiUrl"]}
+        ):
+            raise ConfigurationError("existing Hindsight config has no lifecycle ownership")
+    data.update(policy)
+    _write_private_json(path, data)
+    _write_private_json(
+        hindsight_receipt_path(codex_home),
+        {"schema": 1, "path": str(path), "fields": policy},
+    )
+    return "configured"
+
+
+def configure_hindsight_token(codex_home: Path) -> str:
+    receipt_state, receipt = _hindsight_receipt(codex_home)
+    if receipt_state != "configured" or receipt is None:
+        raise ConfigurationError("Hindsight static policy is not ready")
+    if hindsight_static_state(codex_home, str(receipt["fields"]["apiUrl"])) != "configured":
+        raise ConfigurationError("Hindsight static policy is not ready")
+    path = hindsight_config_path()
+    state, data = _private_json(path)
+    if state != "configured" or data is None:
+        raise ConfigurationError("Hindsight config is not ready")
+    token = _read_tty("Hindsight API token: ", secret=True)
+    data["apiToken"] = token
+    _write_private_json(path, data)
+    return "configured"
+
+
+def hindsight_token_state(codex_home: Path) -> str:
+    state, data = _private_json(hindsight_config_path())
+    if state == "missing":
+        return "not-configured"
+    if state != "configured" or data is None:
+        return state
+    token = data.get("apiToken")
+    return "configured" if isinstance(token, str) and token.strip() else "not-configured"
+
+
+def remove_hindsight_configuration(codex_home: Path) -> str:
+    receipt_state, receipt = _hindsight_receipt(codex_home)
+    if receipt_state == "missing":
+        return "no-op"
+    if receipt_state != "configured" or receipt is None:
+        raise ConfigurationError("Hindsight lifecycle ownership receipt is blocked")
+    path = hindsight_config_path()
+    state, data = _private_json(path)
+    if state != "configured" or data is None:
+        raise ConfigurationError("Hindsight config is blocked")
+    fields = receipt["fields"]
+    if not _hindsight_values(data, fields):
+        raise ConfigurationError("Hindsight static configuration was modified outside lifecycle")
+    for key in (*fields.keys(), "apiToken"):
+        data.pop(key, None)
+    _write_private_json(path, data)
+    receipt_path = hindsight_receipt_path(codex_home)
+    receipt_path.unlink(missing_ok=True)
+    return "changed"
+
+
+def disable_targets(codex_home: Path, catalog_digest: str, target_ids: set[str]) -> None:
+    state, targets = load_profile(codex_home, catalog_digest)
+    if state not in {"missing", "match", "stale"}:
+        raise ConfigurationError("profile record is blocked")
+    remaining = targets - target_ids
+    if not remaining:
+        profile = profile_path(codex_home)
+        profile.unlink(missing_ok=True)
+        return
+    ensure_state_directory(codex_home)
+    _write_private_json(
+        profile_path(codex_home),
+        {"schema": PROFILE_SCHEMA, "catalog_digest": catalog_digest, "targets": sorted(remaining)},
+    )
+
+
+def _project_config_path(project_root: Path) -> Path:
+    if project_root.is_symlink() or not project_root.is_dir():
+        raise ConfigurationError("project root is ambiguous")
+    path = project_root / ".trellis" / "config.yaml"
+    if path.is_symlink() or not path.is_file():
+        raise ConfigurationError("Trellis config is missing or unsafe")
+    return path
+
+
+def _project_bank_id(text: str) -> str | None:
+    lines = text.splitlines()
+    hits: list[tuple[int, int, str]] = []
+    for index, line in enumerate(lines):
+        if line.strip() == "pennix:":
+            pennix_indent = len(line) - len(line.lstrip(" "))
+            for memory_index in range(index + 1, len(lines)):
+                candidate = lines[memory_index]
+                if candidate.strip() and len(candidate) - len(candidate.lstrip(" ")) <= pennix_indent:
+                    break
+                if candidate.strip() == "memory:":
+                    memory_indent = len(candidate) - len(candidate.lstrip(" "))
+                    for bank_index in range(memory_index + 1, len(lines)):
+                        bank = lines[bank_index]
+                        if bank.strip() and len(bank) - len(bank.lstrip(" ")) <= memory_indent:
+                            break
+                        match = re.match(r"^\s+bank_id:\s*([\"']?)([^\"' #]+)\1\s*$", bank)
+                        if match:
+                            hits.append((memory_index, bank_index, match.group(2)))
+                    break
+    if len(hits) > 1 or (hits and not PROJECT_BANK_ID.fullmatch(hits[0][2])):
+        raise ConfigurationError("Trellis project bank identity is ambiguous")
+    return hits[0][2] if hits else None
+
+
+def _add_project_bank_id(path: Path, text: str, bank_id: str) -> str:
+    if "\r\n" in text:
+        newline = "\r\n"
+    else:
+        newline = "\n"
+    if "pennix:" in text:
+        raise ConfigurationError("Trellis pennix config block is unsupported or incomplete")
+    suffix = "" if not text or text.endswith(("\n", "\r")) else newline
+    return text + suffix + newline.join(("# Pennix Hindsight project memory identity", "pennix:", "  memory:", f"    bank_id: {bank_id}", ""))
+
+
+def register_hindsight_project(codex_home: Path, project_root: Path) -> str:
+    path = _project_config_path(project_root)
+    text = path.read_text(encoding="utf-8")
+    bank_id = _project_bank_id(text)
+    updated = text
+    if bank_id is None:
+        bank_id = "pennix-project-" + hashlib.sha256(str(project_root.resolve()).encode("utf-8")).hexdigest()[:24]
+        updated = _add_project_bank_id(path, text, bank_id)
+    config_path = hindsight_config_path()
+    state, data = _private_json(config_path)
+    if state != "configured" or data is None:
+        raise ConfigurationError("Hindsight static config is not ready")
+    original_data = json.loads(json.dumps(data))
+    mappings = dict(data.get("mapPathToBank", {})) if isinstance(data.get("mapPathToBank", {}), dict) else data.get("mapPathToBank", {})
+    if mappings is None:
+        mappings = {}
+    if not isinstance(mappings, dict) or any(not isinstance(key, str) or not isinstance(value, str) for key, value in mappings.items()):
+        raise ConfigurationError("Hindsight path mapping is invalid")
+    canonical = str(project_root.resolve())
+    for mapped_path, mapped_bank in mappings.items():
+        if mapped_path != canonical and mapped_bank == bank_id:
+            raise ConfigurationError("Hindsight bank identity is already mapped")
+    if canonical in mappings and mappings[canonical] != bank_id:
+        raise ConfigurationError("Hindsight project mapping conflicts")
+    mappings[canonical] = bank_id
+    data = dict(data)
+    data["mapPathToBank"] = mappings
+    try:
+        if updated != text:
+            _write_text_atomic(path, updated)
+        _write_private_json(config_path, data)
+    except Exception as error:
+        try:
+            if updated != text:
+                _write_text_atomic(path, text)
+            _write_private_json(config_path, original_data)
+        except Exception as rollback_error:
+            raise ConfigurationError("Hindsight project registration rollback failed") from rollback_error
+        raise ConfigurationError("Hindsight project registration was not applied") from error
+    return bank_id
+
+
+def unregister_hindsight_project(project_root: Path) -> str:
+    path = _project_config_path(project_root)
+    text = path.read_text(encoding="utf-8")
+    bank_id = _project_bank_id(text)
+    if bank_id is None:
+        return "no-op"
+    config_path = hindsight_config_path()
+    state, data = _private_json(config_path)
+    if state != "configured" or data is None:
+        return "no-op"
+    mappings = data.get("mapPathToBank")
+    if not isinstance(mappings, dict):
+        return "no-op"
+    canonical = str(project_root.resolve())
+    if canonical not in mappings:
+        return "no-op"
+    if mappings[canonical] != bank_id:
+        raise ConfigurationError("Hindsight project mapping was modified outside lifecycle")
+    del mappings[canonical]
+    if mappings:
+        data["mapPathToBank"] = mappings
+    else:
+        data.pop("mapPathToBank", None)
+    _write_private_json(config_path, data)
+    return "changed"
+
+
 def load_profile(codex_home: Path, catalog_digest: str) -> tuple[str, set[str]]:
     state, value = _private_json(profile_path(codex_home))
     if state == "missing":
@@ -242,7 +552,7 @@ def _cch_paths() -> tuple[Path, Path]:
     return directory / "config.json", directory / "cch-token"
 
 
-def target_state(adapter: str, codex_home: Path) -> str:
+def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None = None) -> str:
     if adapter == "codex-provider":
         auth = codex_home / "auth.json"
         state, content = _private_file(auth)
@@ -273,12 +583,37 @@ def target_state(adapter: str, codex_home: Path) -> str:
             return "drifted"
         required = {"grok-provider": {"apiUrl", "apiKey"}, "grok-tavily": {"tavilyApiKey"}, "grok-firecrawl": {"firecrawlApiKey"}}[adapter]
         return "configured" if all(isinstance(value.get(key), str) and value[key].strip() for key in required) else "not-configured"
-    if adapter == "openviking-owner":
-        return "unknown"
+    if adapter == "hindsight-static":
+        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_HINDSIGHT_API_URL")
+        if not isinstance(api_url, str) or not api_url.strip():
+            return "blocked"
+        try:
+            return hindsight_static_state(codex_home, api_url)
+        except ConfigurationError:
+            return "blocked"
+    if adapter == "hindsight-token":
+        try:
+            return hindsight_token_state(codex_home)
+        except ConfigurationError:
+            return "blocked"
+    if adapter == "hindsight-project":
+        state, data = _private_json(hindsight_config_path())
+        if state != "configured" or data is None:
+            return "not-configured" if state == "missing" else state
+        mappings = data.get("mapPathToBank")
+        if not isinstance(mappings, dict):
+            return "not-configured"
+        return "configured" if any(isinstance(value, str) and PROJECT_BANK_ID.fullmatch(value) for value in mappings.values()) else "not-configured"
     return "unknown"
 
 
-def configure_target(adapter: str, codex_home: Path) -> str:
+def configure_target(
+    adapter: str,
+    codex_home: Path,
+    settings: dict[str, Any] | None = None,
+    project_root: Path | None = None,
+    unregister: bool = False,
+) -> str:
     if adapter == "codex-provider":
         _run_owner(["codex", "login"])
         return target_state(adapter, codex_home)
@@ -288,8 +623,17 @@ def configure_target(adapter: str, codex_home: Path) -> str:
     if adapter == "windsurf-owner":
         _run_owner(["windsurf-code-search", "configure"])
         return target_state(adapter, codex_home)
-    if adapter == "openviking-owner":
-        raise ConfigurationError("OpenViking owner setup is unavailable in this local lifecycle")
+    if adapter == "hindsight-static":
+        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_HINDSIGHT_API_URL")
+        if not isinstance(api_url, str):
+            raise ConfigurationError("Hindsight API URL is required")
+        return configure_hindsight_static(codex_home, api_url)
+    if adapter == "hindsight-token":
+        return configure_hindsight_token(codex_home)
+    if adapter == "hindsight-project":
+        if project_root is None:
+            raise ConfigurationError("project root is required")
+        return unregister_hindsight_project(project_root) if unregister else "configured" if register_hindsight_project(codex_home, project_root) else "blocked"
     if adapter == "hikari-json":
         base_url = _read_tty("Hikari endpoint: ")
         token = _read_tty("Hikari access token: ", secret=True)

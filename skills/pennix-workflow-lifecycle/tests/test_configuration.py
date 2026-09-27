@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import stat
 import tempfile
@@ -76,6 +77,51 @@ class ConfigurationAdapterTest(unittest.TestCase):
                     '{"apiUrl":"https://example.test","apiKey":"not-printed","pennixLifecycle":1}\n',
                 )
                 self.assertEqual(MODULE.target_state("grok-provider", Path(temporary)), "configured")
+
+    def test_hindsight_static_and_secret_configuration_are_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "home"
+            codex = home / ".codex"
+            config = home / ".hindsight" / "coding-agent.json"
+            with mock.patch.dict(
+                os.environ,
+                {"HOME": str(home), "HINDSIGHT_CONFIG": str(config), "XDG_STATE_HOME": str(root / "state")},
+                clear=False,
+            ):
+                self.assertEqual(MODULE.configure_hindsight_static(codex, "https://hindsight.example.test:9999"), "configured")
+                data = json.loads(config.read_text(encoding="utf-8"))
+                self.assertNotIn("apiToken", data)
+                self.assertEqual(stat.S_IMODE(config.stat().st_mode), 0o600)
+                self.assertEqual(MODULE.target_state("hindsight-static", codex, {"apiUrl": "https://hindsight.example.test:9999"}), "configured")
+                with mock.patch.object(MODULE, "_read_tty", return_value="secret-token"):
+                    self.assertEqual(MODULE.configure_hindsight_token(codex), "configured")
+                self.assertEqual(MODULE.target_state("hindsight-token", codex), "configured")
+
+    def test_hindsight_project_registration_is_explicit_and_reversible(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "home"
+            codex = home / ".codex"
+            config = home / ".hindsight" / "coding-agent.json"
+            project = root / "project"
+            (project / ".trellis").mkdir(parents=True)
+            (project / ".trellis" / "config.yaml").write_text("session_commit_message: test\n", encoding="utf-8")
+            with mock.patch.dict(
+                os.environ,
+                {"HOME": str(home), "HINDSIGHT_CONFIG": str(config), "XDG_STATE_HOME": str(root / "state")},
+                clear=False,
+            ):
+                MODULE.configure_hindsight_static(codex, "https://hindsight.example.test:9999")
+                bank_id = MODULE.register_hindsight_project(codex, project)
+                self.assertRegex(bank_id, r"^pennix-project-[0-9a-f]{24}$")
+                project_text = (project / ".trellis" / "config.yaml").read_text(encoding="utf-8")
+                self.assertIn(f"bank_id: {bank_id}", project_text)
+                data = json.loads(config.read_text(encoding="utf-8"))
+                self.assertEqual(data["mapPathToBank"][str(project.resolve())], bank_id)
+                self.assertEqual(MODULE.unregister_hindsight_project(project), "changed")
+                data = json.loads(config.read_text(encoding="utf-8"))
+                self.assertNotIn("mapPathToBank", data)
 
 
 if __name__ == "__main__":

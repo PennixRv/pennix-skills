@@ -79,7 +79,7 @@ def _payload(root: Path, relative: str) -> Mapping[str, Any]:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PromptError("handoff file is invalid") from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") not in {4, 5, 6} or payload.get("kind") != "pennix-session-handoff":
+    if not isinstance(payload, Mapping) or payload.get("schema_version") != 7 or payload.get("kind") != "pennix-session-handoff":
         raise PromptError("handoff file has an unsupported schema")
     return payload
 
@@ -142,7 +142,7 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "### Memory References", "",
         _markdown_list(memory.get("local", [])),
         _markdown_list(memory.get("archive_refs", [])),
-        _markdown_list(memory.get("openviking", [])),
+        _markdown_list(memory.get("hindsight", [])),
         "### Decision Timeline", "",
     ])
     timeline = conversation.get("timeline", [])
