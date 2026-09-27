@@ -817,9 +817,14 @@ def probe_hindsight(component: dict[str, Any], codex_home: Path) -> tuple[str, s
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return "drifted", str(expected)
     marker = json.dumps(hooks, ensure_ascii=False)
+    hook_markers = (
+        "coding-agents/dist/codex-sessionstart-hook.js",
+        "coding-agents/dist/codex-stop-hook.js",
+        "coding-agents/dist/codex-hook.js",
+    )
     skill = configuration._home() / ".agents" / "skills" / "hindsight-coding-agent" / "SKILL.md"
     installed = (
-        marker.count("hindsight-coding-agents") >= 3
+        all(value in marker for value in hook_markers)
         and "[mcp_servers.hindsight]" in toml
         and skill.is_file()
     )
@@ -864,8 +869,27 @@ def hindsight_component_operation(
         static_status = configuration.target_state(
             "hindsight-static", args.codex_home, {"apiUrl": component["integration"]["api_url"]}
         )
+        reclaimed = False
+        if static_status == "drifted":
+            config_state, config_data = configuration._private_json(configuration.hindsight_config_path())
+            receipt_state, _ = configuration._hindsight_receipt(args.codex_home)
+            expected_policy = configuration.hindsight_policy(component["integration"]["api_url"])
+            official_policy = {key: expected_policy[key] for key in ("serverMode", "apiUrl")}
+            if (
+                config_state == "configured"
+                and receipt_state == "missing"
+                and isinstance(config_data, dict)
+                and configuration._hindsight_values(config_data, official_policy)
+            ):
+                configuration.configure_hindsight_static(
+                    args.codex_home,
+                    component["integration"]["api_url"],
+                    claim_upstream=True,
+                )
+                static_status = "configured"
+                reclaimed = True
         if static_status == "configured":
-            return "no-op"
+            return "changed" if reclaimed else "no-op"
         if static_status != "not-configured":
             raise BootstrapError("Hindsight static configuration ownership is blocked")
     elif operation != "uninstall":

@@ -1231,7 +1231,15 @@ class BootstrapTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (codex / "hooks.json").write_text(
-                json.dumps({"hooks": {"SessionStart": [{"command": "hindsight-coding-agents"}] * 3}}),
+                json.dumps(
+                    {
+                        "hooks": {
+                            "SessionStart": [{"command": "coding-agents/dist/codex-sessionstart-hook.js"}],
+                            "Stop": [{"command": "coding-agents/dist/codex-stop-hook.js"}],
+                            "UserPromptSubmit": [{"command": "coding-agents/dist/codex-hook.js"}],
+                        }
+                    }
+                ),
                 encoding="utf-8",
             )
             (codex / "config.toml").write_text("hooks = true\n[mcp_servers.hindsight]\n", encoding="utf-8")
@@ -1244,6 +1252,54 @@ class BootstrapTests(unittest.TestCase):
                     codex,
                 )
             self.assertEqual((status, version), ("match", "0.6.1"))
+
+    def test_hindsight_install_reclaims_exact_unreceipted_official_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "home"
+            codex = home / ".codex"
+            runtime = home / ".hindsight" / "coding-agents"
+            runtime.mkdir(parents=True)
+            codex.mkdir(parents=True)
+            (runtime / "package.json").write_text(
+                json.dumps({"name": "@vectorize-io/hindsight-coding-agents", "version": "0.6.1"}),
+                encoding="utf-8",
+            )
+            (codex / "hooks.json").write_text(
+                json.dumps(
+                    {
+                        "hooks": {
+                            "SessionStart": [{"command": "coding-agents/dist/codex-sessionstart-hook.js"}],
+                            "Stop": [{"command": "coding-agents/dist/codex-stop-hook.js"}],
+                            "UserPromptSubmit": [{"command": "coding-agents/dist/codex-hook.js"}],
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (codex / "config.toml").write_text("[mcp_servers.hindsight]\n", encoding="utf-8")
+            skill = home / ".agents" / "skills" / "hindsight-coding-agent"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("# Hindsight\n", encoding="utf-8")
+            config = home / ".hindsight" / "coding-agent.json"
+            config.write_text(
+                json.dumps({"serverMode": "self-hosted", "apiUrl": "https://hindsight.141242.xyz:9999"}),
+                encoding="utf-8",
+            )
+            os.chmod(config, 0o600)
+            args = SimpleNamespace(codex_home=codex)
+            component = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)["components"]["hindsight-coding-agents"]
+            with patch.dict(os.environ, {"HOME": str(home)}, clear=False), patch.object(bootstrap.subprocess, "run") as run:
+                status = bootstrap.hindsight_component_operation(
+                    args,
+                    "hindsight-coding-agents",
+                    component,
+                    "upgrade",
+                    bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG),
+                )
+            self.assertEqual(status, "changed")
+            run.assert_not_called()
+            self.assertEqual(bootstrap.configuration._hindsight_receipt(codex)[0], "configured")
 
     def test_non_managed_action_is_rejected_before_adapter(self) -> None:
         args = SimpleNamespace(command="install", component="cch-status", yes=True)
