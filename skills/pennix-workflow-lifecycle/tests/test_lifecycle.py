@@ -1213,6 +1213,7 @@ class BootstrapTests(unittest.TestCase):
         component = catalog["components"]["hindsight-coding-agents"]
         self.assertEqual(component["approved_version"], "0.6.1")
         self.assertEqual(component["delivery"], "native")
+        self.assertEqual(component["adapter"], "hindsight-coding-agents")
         self.assertEqual(component["integration"]["harness"], "codex")
         self.assertNotIn("openviking-plugin", catalog["components"])
         self.assertNotIn("openviking-connection", {target["id"] for target in catalog["configuration_targets"]})

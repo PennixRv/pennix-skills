@@ -70,6 +70,7 @@
     },
     "hindsight-coding-agents": {
       "delivery": "native",
+      "adapter": "hindsight-coding-agents",
       "approved_version": "0.6.1",
       "source": "Hindsight official coding-agents npm integration",
       "owner": "hindsight",
