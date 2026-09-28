@@ -91,14 +91,14 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 
 - `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；FastCtx 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。
-- `Hindsight` 承接已注册项目的会话记忆、跨项目显式提升和用户显式确认的长期记忆；它不是 Trellis 任务事实、当前项目文件或普通会话控制的替代品。Hindsight API、操作等待、精确读回和纠正/删除都走其原生 owner，不通过 FastCtx。
+- `Hindsight` 承接已注册项目的会话记忆、跨项目显式提升和用户显式确认的长期记忆；它不是 Trellis 任务事实、当前项目文件或普通会话控制的替代品。Hindsight API、操作等待、同文档检索证明和纠正/删除都走其原生 owner，不通过 FastCtx。
 - CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置由 `$pennix-workflow-lifecycle` 的 CodeGraph deployment adapter 计划并执行，不因普通检索自动初始化，
   linked Git worktree 不使用 CodeGraph。
 - 确有独立证据价值的工作遵循当前项目选择的 Trellis `subnode` procedure。Trellis 维护其 brief、持久化报告和
   Channel 生命周期；主会话保留项目事实、验收和 Git，不把该合同复制为用户级 Skill。
 - 已初始化 Trellis 项目的 bundled `trellis-research-record` 将核验后的研究事实、候选、不确定项和下一动作写入当前 task；它不是第二套事实台账。
 - 已初始化项目的 Trellis 资产更新和已选 workflow 刷新由 `$pennix-trellis-project-update` 负责，必须调用当前 Trellis fork 的原生 `trellis update` / `trellis workflow`；系统级组件部署仍由 `$pennix-workflow-lifecycle` 负责，`workflow-doctor` 只做只读诊断。
-- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和精确 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；`hindsight_required` 通过 Hindsight 原生 API 完成一次精确写入、有限操作等待和同文档读回，不假设 companion hook 已完成。初始 admission 只在 core、prompt、`$trellis-start` 和当前事实完整核对后记录一次 `reconciled`，不完整消费不写 target reservation；后续 `claim` 必须有新的明确继续授权。组件部署、Skills 物化、CodeGraph project prepare、FastCtx 更新和审查后的用户级 Hook 片段统一由 `$pennix-workflow-lifecycle` 的对应 deployment adapter 规划；不要从普通路由请求推导这些高影响动作的授权。
+- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和确定性 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；`hindsight_required` 通过 Hindsight 原生 API 完成一次确定性写入、有限操作等待和同文档身份检索验证，不把 semantic recall 冒充 canonical 内容相等，也不假设 companion hook 已完成。初始 admission 只在 core、prompt、`$trellis-start` 和当前事实完整核对后记录一次 `reconciled`，不完整消费不写 target reservation；后续 `claim` 必须有新的明确继续授权。组件部署、Skills 物化、CodeGraph project prepare、FastCtx 更新和审查后的用户级 Hook 片段统一由 `$pennix-workflow-lifecycle` 的对应 deployment adapter 规划；不要从普通路由请求推导这些高影响动作的授权。
 - Hook/config 和拥有该行为的运行时负责必须发生的事件、阻断、信任、生命周期和审计；提示词只能表达决策原则，不能宣称确定性保证。
 
 ## 禁止混淆
@@ -111,7 +111,7 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 - 任何改变、确认、等待、重试、轮询或解释专用 owner 状态的本地命令，仍是 owner 调用而不是普通本地 CLI；FastCtx 只能读取 owner 完成后的普通结果。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
 - 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选写入 Git 或持久索引。
-- handoff 的 Hindsight proof 只能作为有界、已验证的 source convergence 证据；Hindsight 不写本地 core、Trellis task 或 receipt truth，也不通过 FastCtx 或 shell wrapper 绕过原生 API。没有对应 exact-read proof 时保持 `core_only` 或报告 `pending|unsupported|unavailable`。
+- handoff 的 Hindsight proof 只能作为有界、已验证的 source convergence 证据；本地 capsule digest 是内容真相，operation/document identity 证明写入边界，semantic recall 只证明 retrieval，不证明 canonical 内容相等。Hindsight 不写本地 core、Trellis task 或 receipt truth，也不通过 FastCtx 或 shell wrapper 绕过原生 API。没有对应 retrieval proof 时保持 `core_only` 或报告 `pending|unsupported|unavailable`。
 - 活动 task 的记忆：先使用官方 Hindsight companion 已注入的项目 recall；历史决策、复杂多步工作、相似故障或跨会话上下文需要深入时，使用 `pennix-hindsight-memory` 的有界 recall，再对关键结果写入 task-scoped research note。只有实际改变后续理解或行动的目标、约束、决定、否决、验证、经验、阻塞或待办才登记。FastCtx 的当前操作输出不自动登记记忆。
 - 工作期语义登记使用 `pennix-hindsight-memory`；它不复制 transcript、不替代官方 companion capture、不创建 scheduler 或本地 memory ledger。跨项目提升和用户级记忆必须由用户显式确认；Hindsight 不可用时只降级记忆增强，不阻断 Trellis、Git 或普通实施。
 

@@ -926,7 +926,7 @@ def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[s
 
 def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: Optional[str]) -> None:
     if mode == "hindsight_required" and state["source"] != "hindsight_verified":
-        raise ContractError("handoff Hindsight write and readback are not verified")
+        raise ContractError("handoff Hindsight write and retrieval verification are not complete")
 
 
 def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
@@ -1104,10 +1104,10 @@ def lifecycle_hindsight(root: Path, handoff_path: str, key_fact: str) -> tuple[s
         raise ContractError("semantic capsule is required for Hindsight handoff")
     result = hindsight.complete_handoff(root, handoff_id, capsule, key_fact)
     references = [
-        "hindsight_document=" + result["document_id"],
-        "hindsight_operation=" + result["operation_id"],
-        "hindsight_readback=" + str(result["readback_count"]),
-        "hindsight_sha256=" + result["content_sha256"],
+        "local_capsule_digest=" + result["content_sha256"],
+        "hindsight_operation_completed=" + result["operation_id"],
+        "hindsight_document_identity=" + result["document_id"] + "@" + result["bank_id"],
+        "hindsight_retrieval_verified=" + str(result["retrieval_count"]),
     ]
     lifecycle = _append_event(
         root, handoff_id, "hindsight_verified",

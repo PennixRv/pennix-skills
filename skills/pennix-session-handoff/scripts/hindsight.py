@@ -20,7 +20,7 @@ HANDOFF_NAMESPACE = uuid.UUID("0c5bdf52-4b48-4ed1-ae25-1e3350f8e1c7")
 
 
 class HindsightError(RuntimeError):
-    """Raised when the exact Hindsight handoff contract cannot be proved."""
+    """Raised when the Hindsight handoff contract cannot be proved."""
 
 
 def _config_path() -> Path:
@@ -137,7 +137,7 @@ class HindsightClient:
             time.sleep(1)
         raise HindsightError("Hindsight handoff operation timed out")
 
-    def verify_readback(self, document_id: str, handoff_id: str) -> int:
+    def verify_retrieval(self, document_id: str, handoff_id: str) -> int:
         value = self._request(
             "POST",
             "/memories/recall",
@@ -145,7 +145,7 @@ class HindsightClient:
         )
         results = value.get("results")
         if not isinstance(results, list):
-            raise HindsightError("Hindsight readback response is invalid")
+            raise HindsightError("Hindsight retrieval response is invalid")
         matches = [
             item
             for item in results
@@ -157,7 +157,7 @@ class HindsightClient:
             and item["metadata"].get("handoff_id") == handoff_id
         ]
         if not matches:
-            raise HindsightError("Hindsight handoff readback did not prove the same document")
+            raise HindsightError("Hindsight handoff retrieval did not prove the same document")
         return len(matches)
 
 
@@ -165,6 +165,6 @@ def complete_handoff(project_root: Path, handoff_id: str, capsule: str, key_fact
     client = HindsightClient.for_project(project_root)
     result = client.retain_handoff(handoff_id, capsule, key_fact)
     result["operation_status"] = client.wait_operation(result["operation_id"])
-    result["readback_count"] = client.verify_readback(result["document_id"], handoff_id)
+    result["retrieval_count"] = client.verify_retrieval(result["document_id"], handoff_id)
     result["bank_id"] = client.bank_id
     return result

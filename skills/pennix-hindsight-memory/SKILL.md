@@ -46,10 +46,12 @@ verified.
 `pennix-session-handoff` owns the explicit handoff boundary. Its default
 `hindsight_required` path writes the semantic capsule to the registered
 project bank with a deterministic document/operation ID, waits only for the
-bounded Hindsight operation, and recalls the same document for exact readback.
-The local lifecycle receipt stores proof references, never the token or
-capsule. `core_only` is allowed only when explicitly selected; it does not
-claim that Hindsight was written.
+bounded Hindsight operation, and verifies retrieval of the same document
+identity. The local lifecycle receipt stores the capsule digest, operation and
+document identity, and retrieval count as separate proof references; it never
+claims canonical content equality from semantic recall and never stores the
+token or capsule. `core_only` is allowed only when explicitly selected; it does
+not claim that Hindsight was written.
 
 Hindsight API calls for this proof are a native owner operation. Do not wrap
 them in FastCtx, a shell HTTP fallback, a generic retry loop, or an unrelated

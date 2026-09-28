@@ -563,7 +563,7 @@ class HandoffTests(unittest.TestCase):
         events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
         self.assertEqual(sum(event["event_type"] == "admit" and event["target_status"] == "reconciled" for event in events), 1)
 
-    def test_hindsight_handoff_is_exactly_read_back_and_idempotent(self) -> None:
+    def test_hindsight_handoff_records_layered_proof_and_is_idempotent(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
@@ -578,7 +578,7 @@ class HandoffTests(unittest.TestCase):
             "document_id": "pennix-handoff-" + handoff_id,
             "operation_id": "operation-1",
             "operation_status": "completed",
-            "readback_count": 1,
+            "retrieval_count": 1,
             "content_sha256": "a" * 64,
             "bank_id": "pennix-project-" + "b" * 24,
         }
@@ -589,6 +589,13 @@ class HandoffTests(unittest.TestCase):
             handoff.hindsight.complete_handoff = original
         self.assertEqual(first[1]["status"], "recorded")
         self.assertEqual(first[1]["state"]["source"], "hindsight_verified")
+        events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
+        proof = events[-1]["evidence_refs"]
+        self.assertIn("local_capsule_digest=" + "a" * 64, proof)
+        self.assertIn("hindsight_operation_completed=operation-1", proof)
+        self.assertIn("hindsight_document_identity=pennix-handoff-" + handoff_id + "@pennix-project-" + "b" * 24, proof)
+        self.assertIn("hindsight_retrieval_verified=1", proof)
+        self.assertNotIn("canonical_persisted", " ".join(proof))
         self.assertEqual(repeated[1]["status"], "idempotent")
 
     def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:

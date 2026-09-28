@@ -17,10 +17,10 @@
 
 - [ ] One new Pennix Hindsight memory policy skill covers project/cross-project/user layers, source/authority precedence, safe recall, explicit promotion, correction/deletion and limits; the upstream Skill remains the only generic tool/API usage guide.
 - [ ] Active Pennix routing, catalog, handoff schema, mode handling and scripts contain no OpenViking-specific branch/adapter/field; archived research/task history is retained and not misrepresented as active runtime.
-- [ ] Handoff default write uses authenticated Hindsight API for the registered project bank, waits for completion using the v0.10.1-supported synchronous or operation-status interface, then verifies a handoff-specific key fact by read-back. Receipt stores only minimal status/IDs/hash/provenance, not transcript or secret.
-- [ ] `ready` is impossible for API unavailable, operation pending/failed/timed-out, wrong bank, empty/unrelated retrieval or failed readback. Repeat invocation is idempotent for the same handoff ID; explicit `core_only` remains usable without Hindsight.
+- [ ] Handoff default write uses authenticated Hindsight API for the registered project bank, waits for completion using the v0.10.1-supported synchronous or operation-status interface, then verifies same-document retrieval for this handoff. Receipt stores only minimal status/IDs/hash/provenance, not transcript or secret; semantic retrieval is not claimed as canonical content equality.
+- [ ] `ready` is impossible for API unavailable, operation pending/failed/timed-out, wrong bank, empty/unrelated retrieval or failed retrieval verification. Repeat invocation is idempotent for the same handoff ID; explicit `core_only` remains usable without Hindsight.
 - [ ] Core-only legacy mode behavior remains deterministic; obsolete OV modes and obsolete OV-shaped core data fail closed with migration guidance and no automatic memory import.
-- [ ] Contract tests cover correct/incorrect bank, async/sync operation state, timeouts, unavailable service, retries, deduplication, readback mismatch, `core_only`, old modes, and no secret/content persistence. Tests run only in the parent's unified post-implementation phase.
+- [ ] Contract tests cover correct/incorrect bank, async/sync operation state, timeouts, unavailable service, retries, deduplication, unrelated retrieval, `core_only`, old modes, and no secret/content persistence. Tests run only in the parent's unified post-implementation phase.
 - [ ] Pennix `main` release/install and root-consumer evidence confirm updated routing/Skills/handoff assets; no API secret or real conversation enters Git.
 
 ## Notes

@@ -92,7 +92,7 @@ final observed source boundary and canonical JSON/prompt pair. When a handoff
 contains a task, its existing Trellis quiesce/seal receipt is also required.
 Current task, Git, evidence, rollout, and Hindsight handoff proof are
 reconciled by the target session. `hindsight_required` additionally requires
-the native authenticated Hindsight write and exact readback before admission;
+the native authenticated Hindsight write and same-document retrieval verification before admission;
 a target attestation cannot bypass that source gate. Neither path silently
 rewrites the capsule. This Skill never changes task status, controls Trellis
 workers, or copies a conversation, credential, cache, or runtime ledger.
@@ -128,9 +128,10 @@ python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.jso
 earlier commands. `prepare` fixes one mode. The default is
 `hindsight_required`: after the final boundary is sealed, `hindsight` performs
 one authenticated Hindsight retain with deterministic document/operation IDs,
-waits for that bounded operation, and recalls the same document to prove
-readback. Retry is safe because both IDs are stable and replace semantics are
-used. The local receipt stores only non-secret proof references.
+waits for that bounded operation, and recalls the same document identity to
+prove retrieval. Retry is safe because both IDs are stable and replace
+semantics are used. The local receipt stores only non-secret proof references;
+the current recall API does not prove canonical content equality.
 
 The source-side sequence is one explicit boundary:
 
@@ -226,7 +227,7 @@ python3 "$PENNIX_HANDOFF" --project-root . hindsight --handoff <core.json> --key
 ```
 
 The `hindsight` command performs the authenticated retain, bounded operation
-wait, and exact same-document readback. It does not retire the Trellis source
+wait, and same-document retrieval verification. It does not retire the Trellis source
 pointer; ownership remains a separate native barrier. An interrupted Hindsight
 request is safely retryable through its deterministic identifiers. `core_only`
 uses the local `finalize` path. Missing capability remains
