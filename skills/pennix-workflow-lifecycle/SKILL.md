@@ -209,12 +209,13 @@ integration without requiring unrelated services on every host.
 The catalog currently defines Hindsight's `hindsight-static`,
 `hindsight-token`, and `hindsight-project` targets, plus `cch-connection`,
 `hikari-connection`, `grok-search-provider`, `grok-tavily-extra`,
-`grok-firecrawl-extra`, and `windsurf-credential`. Hindsight uses the pinned
-official `@vectorize-io/hindsight-coding-agents@0.6.1` npm installer for the
-Codex harness only; lifecycle does not copy its hooks or Skill. The native
-installer is anchored to the default `$HOME/.codex`, so a different
+`grok-firecrawl-extra`, and `windsurf-credential`. Hindsight uses the
+catalog-pinned official `@vectorize-io/hindsight-coding-agents` npm installer
+for the Codex harness only; lifecycle does not copy its hooks or Skill. The
+native installer is anchored to the default `$HOME/.codex`, so a different
 `CODEX_HOME` is rejected before it can write. Hindsight's non-secret policy
-and bearer token are configured as separate targets; the token is read only
+uses the current official `autoInject` contract, while its bearer token is
+configured as a separate target; the token is read only
 from hidden `/dev/tty` input and is never passed as an argument. CCH and Windsurf delegate
 to their owner `configure` command. Hikari and Grok accept values only through
 `/dev/tty`, conceal secret input, and write a private owner record. Grok refuses

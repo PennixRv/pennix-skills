@@ -191,7 +191,7 @@ def assert_hindsight_codex_home(codex_home: Path) -> None:
     actual = codex_home.resolve(strict=False)
     configured = os.environ.get("CODEX_HOME")
     if actual != expected or (configured and Path(configured).expanduser().resolve(strict=False) != expected):
-        raise ConfigurationError("Hindsight 0.6.1 requires the default HOME/.codex location")
+        raise ConfigurationError("Hindsight 0.7.0 requires the default HOME/.codex location")
 
 
 def hindsight_receipt_path(codex_home: Path) -> Path:
@@ -199,6 +199,24 @@ def hindsight_receipt_path(codex_home: Path) -> Path:
 
 
 def hindsight_policy(api_url: str) -> dict[str, Any]:
+    if not isinstance(api_url, str) or not api_url.strip() or not api_url.startswith(("http://", "https://")):
+        raise ConfigurationError("Hindsight API URL is invalid")
+    return {
+        "serverMode": "self-hosted",
+        "apiUrl": api_url.rstrip("/"),
+        "optInOnly": True,
+        "autoInject": "pages",
+        "pageTriggerType": "cron",
+        "pageTriggerCron": "H 3 * * *",
+        "autoUpdate": False,
+        "autoSeed": False,
+        "codebaseSurvey": False,
+        "gitIngest": "none",
+        "retainSessions": True,
+    }
+
+
+def _legacy_hindsight_policy(api_url: str) -> dict[str, Any]:
     if not isinstance(api_url, str) or not api_url.strip() or not api_url.startswith(("http://", "https://")):
         raise ConfigurationError("Hindsight API URL is invalid")
     return {
@@ -223,15 +241,22 @@ def _hindsight_receipt(codex_home: Path) -> tuple[str, dict[str, Any] | None]:
     if state != "configured" or value is None:
         return state, value
     fields = value.get("fields")
-    if value.get("schema") != 1 or not isinstance(fields, dict) or not fields:
+    if not isinstance(fields, dict) or not fields:
         return "invalid", None
     try:
-        expected = hindsight_policy(fields.get("apiUrl"))
+        if value.get("schema") == 2:
+            expected = hindsight_policy(fields.get("apiUrl"))
+            receipt_state = "configured"
+        elif value.get("schema") == 1:
+            expected = _legacy_hindsight_policy(fields.get("apiUrl"))
+            receipt_state = "legacy"
+        else:
+            return "invalid", None
     except ConfigurationError:
         return "invalid", None
     if fields != expected:
         return "invalid", None
-    return state, value
+    return receipt_state, value
 
 
 def hindsight_static_state(codex_home: Path, api_url: str) -> str:
@@ -279,7 +304,7 @@ def configure_hindsight_static(codex_home: Path, api_url: str, claim_upstream: b
     receipt_state, receipt = _hindsight_receipt(codex_home)
     if receipt_state == "invalid":
         raise ConfigurationError("Hindsight lifecycle ownership receipt is invalid")
-    if receipt_state == "configured" and receipt is not None:
+    if receipt_state in {"configured", "legacy"} and receipt is not None:
         previous = receipt["fields"]
         if not _hindsight_values(data, previous):
             raise ConfigurationError("Hindsight static configuration was modified outside lifecycle")
@@ -289,17 +314,18 @@ def configure_hindsight_static(codex_home: Path, api_url: str, claim_upstream: b
         ):
             raise ConfigurationError("existing Hindsight config has no lifecycle ownership")
     data.update(policy)
+    data.pop("autoReflect", None)
     _write_private_json(path, data)
     _write_private_json(
         hindsight_receipt_path(codex_home),
-        {"schema": 1, "path": str(path), "fields": policy},
+        {"schema": 2, "path": str(path), "fields": policy},
     )
     return "configured"
 
 
 def configure_hindsight_token(codex_home: Path) -> str:
     receipt_state, receipt = _hindsight_receipt(codex_home)
-    if receipt_state != "configured" or receipt is None:
+    if receipt_state not in {"configured", "legacy"} or receipt is None:
         raise ConfigurationError("Hindsight static policy is not ready")
     if hindsight_static_state(codex_home, str(receipt["fields"]["apiUrl"])) != "configured":
         raise ConfigurationError("Hindsight static policy is not ready")

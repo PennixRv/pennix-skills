@@ -877,14 +877,14 @@ def hindsight_component_operation(
             official_policy = {key: expected_policy[key] for key in ("serverMode", "apiUrl")}
             if (
                 config_state == "configured"
-                and receipt_state == "missing"
+                and receipt_state in {"missing", "legacy"}
                 and isinstance(config_data, dict)
                 and configuration._hindsight_values(config_data, official_policy)
             ):
                 configuration.configure_hindsight_static(
                     args.codex_home,
                     component["integration"]["api_url"],
-                    claim_upstream=True,
+                    claim_upstream=receipt_state == "missing",
                 )
                 static_status = "configured"
                 reclaimed = True

@@ -26,6 +26,20 @@ Current project files, Trellis state, Git, and newer user instructions win
 when recalled memory conflicts with a fact that must be implemented or
 verified.
 
+## Integration tuning boundary
+
+- The lifecycle-owned Hindsight companion may inject bounded knowledge pages;
+  when page injection is selected, keep it explicit as `autoInject: "pages"`
+  and use a staggered `pageTriggerType: "cron"` schedule rather than the
+  deprecated `autoReflect` switch.
+- Hindsight server model routing belongs to the Hindsight/NAS owner. Configure
+  the retain, reflect, consolidation, and mental-model-refresh operation
+  routes together, inheriting the existing provider, endpoint, and secret;
+  formal handoff writes remain on the retain path.
+- Do not put model IDs, provider credentials, API URLs, or server rollout
+  values into this Skill. Use the lifecycle catalog and the active task's
+  sealed decision for those deployment-owned values.
+
 ## Retrieve and record
 
 - Prefer the official Hindsight companion's bounded recall for ordinary active

@@ -1211,7 +1211,7 @@ class BootstrapTests(unittest.TestCase):
     def test_hindsight_catalog_uses_the_pinned_official_integration_without_openviking(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         component = catalog["components"]["hindsight-coding-agents"]
-        self.assertEqual(component["approved_version"], "0.6.1")
+        self.assertEqual(component["approved_version"], "0.7.0")
         self.assertEqual(component["delivery"], "native")
         self.assertEqual(component["adapter"], "hindsight-coding-agents")
         self.assertEqual(component["integration"]["harness"], "codex")
@@ -1227,7 +1227,7 @@ class BootstrapTests(unittest.TestCase):
             runtime.mkdir(parents=True)
             codex.mkdir(parents=True)
             (runtime / "package.json").write_text(
-                json.dumps({"name": "@vectorize-io/hindsight-coding-agents", "version": "0.6.1"}),
+                json.dumps({"name": "@vectorize-io/hindsight-coding-agents", "version": "0.7.0"}),
                 encoding="utf-8",
             )
             (codex / "hooks.json").write_text(
@@ -1251,7 +1251,7 @@ class BootstrapTests(unittest.TestCase):
                     bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)["components"]["hindsight-coding-agents"],
                     codex,
                 )
-            self.assertEqual((status, version), ("match", "0.6.1"))
+            self.assertEqual((status, version), ("match", "0.7.0"))
 
     def test_hindsight_install_reclaims_exact_unreceipted_official_config(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1262,7 +1262,7 @@ class BootstrapTests(unittest.TestCase):
             runtime.mkdir(parents=True)
             codex.mkdir(parents=True)
             (runtime / "package.json").write_text(
-                json.dumps({"name": "@vectorize-io/hindsight-coding-agents", "version": "0.6.1"}),
+                json.dumps({"name": "@vectorize-io/hindsight-coding-agents", "version": "0.7.0"}),
                 encoding="utf-8",
             )
             (codex / "hooks.json").write_text(

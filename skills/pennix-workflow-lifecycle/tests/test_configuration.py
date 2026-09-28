@@ -98,6 +98,43 @@ class ConfigurationAdapterTest(unittest.TestCase):
                     self.assertEqual(MODULE.configure_hindsight_token(codex), "configured")
                 self.assertEqual(MODULE.target_state("hindsight-token", codex), "configured")
 
+    def test_hindsight_static_migrates_an_owned_legacy_reflect_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "home"
+            codex = home / ".codex"
+            config = home / ".hindsight" / "coding-agent.json"
+            url = "https://hindsight.example.test:9999"
+            legacy = {
+                "serverMode": "self-hosted",
+                "apiUrl": url,
+                "optInOnly": True,
+                "autoReflect": True,
+                "autoUpdate": False,
+                "autoSeed": False,
+                "codebaseSurvey": False,
+                "gitIngest": "none",
+                "retainSessions": True,
+            }
+            with mock.patch.dict(
+                os.environ,
+                {"HOME": str(home), "HINDSIGHT_CONFIG": str(config), "XDG_STATE_HOME": str(root / "state")},
+                clear=False,
+            ):
+                self.private_json(config, json.dumps(legacy))
+                receipt = MODULE.hindsight_receipt_path(codex)
+                self.private_json(
+                    receipt,
+                    json.dumps({"schema": 1, "path": str(config), "fields": legacy}),
+                )
+                self.assertEqual(MODULE.configure_hindsight_static(codex, url), "configured")
+                data = json.loads(config.read_text(encoding="utf-8"))
+                self.assertEqual(data["autoInject"], "pages")
+                self.assertEqual(data["pageTriggerType"], "cron")
+                self.assertEqual(data["pageTriggerCron"], "H 3 * * *")
+                self.assertNotIn("autoReflect", data)
+                self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["schema"], 2)
+
     def test_hindsight_project_registration_is_explicit_and_reversible(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
