@@ -896,7 +896,21 @@ def hindsight_component_operation(
         static_status = configuration.target_state(
             "hindsight-static", args.codex_home, {"apiUrl": component["integration"]["api_url"]}
         )
-        if static_status not in {"not-configured"}:
+        if static_status == "drifted":
+            receipt_state, receipt = configuration._hindsight_receipt(args.codex_home)
+            config_state, config_data = configuration._private_json(configuration.hindsight_config_path())
+            if (
+                receipt_state == "legacy"
+                and config_state == "configured"
+                and receipt is not None
+                and isinstance(config_data, dict)
+                and configuration._hindsight_values(config_data, receipt["fields"])
+            ):
+                # The old, lifecycle-owned contract is a safe upgrade input;
+                # configure_hindsight_static migrates it only after the native
+                # package installer succeeds.
+                static_status = "legacy"
+        if static_status not in {"not-configured", "legacy"}:
             raise BootstrapError("Hindsight static configuration ownership is blocked")
     command = hindsight_integration_command(component, operation, args.codex_home)
     try:
