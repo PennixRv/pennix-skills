@@ -294,7 +294,7 @@ def _inspect_state_tree(root: Path, legacy: bool, expected_digest: str | None) -
             else:
                 try:
                     value = json.loads(content.decode("utf-8")) if content is not None else None
-                    valid = isinstance(value, dict) and value.get("schema") == 1 and isinstance(value.get("fields"), dict)
+                    valid = isinstance(value, dict) and value.get("schema") in {1, 2} and isinstance(value.get("fields"), dict)
                 except (UnicodeDecodeError, json.JSONDecodeError):
                     valid = False
             if state != "configured" or content is None or not valid:

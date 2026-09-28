@@ -165,6 +165,32 @@ class BootstrapTests(unittest.TestCase):
             self.assertTrue(profile.is_file())
             self.assertEqual(profile.read_text(encoding="utf-8"), original)
 
+    def test_state_probe_accepts_the_current_hindsight_receipt_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "codex"
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            digest = bootstrap.configuration_digest(catalog)
+            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root / "state")}):
+                namespace = bootstrap.configuration.ensure_state_namespace(
+                    bootstrap.configuration.state_namespace(home)
+                )
+                static = namespace / "static-assets"
+                static.mkdir(mode=0o700)
+                profile = namespace / "profile.json"
+                profile.write_text(
+                    json.dumps({"schema": 1, "catalog_digest": digest, "targets": []}) + "\n",
+                    encoding="utf-8",
+                )
+                receipt = static / "hindsight-config.json"
+                receipt.write_text(
+                    json.dumps({"schema": 2, "path": "/private/hindsight.json", "fields": {}}) + "\n",
+                    encoding="utf-8",
+                )
+                os.chmod(profile, 0o600)
+                os.chmod(receipt, 0o600)
+                self.assertEqual(bootstrap.state_component_probe(home, digest), ("match", None))
+
     def test_discover_reports_catalog_candidate_and_actual_owner(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
