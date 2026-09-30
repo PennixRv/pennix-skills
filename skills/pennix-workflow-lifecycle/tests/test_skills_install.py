@@ -118,6 +118,20 @@ class SkillsCollectionTest(unittest.TestCase):
             self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "match")
             self.assertEqual(MODULE.collection_receipt_state(destination), "match")
 
+    def test_staged_collection_replaces_known_obsolete_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination = root / "pennix-skills"
+            staging = root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(destination, "obsolete")
+            self.make_skill(staging, "alpha")
+
+            MODULE.replace_collection({"alpha"}, staging, destination, obsolete_names={"obsolete"})
+
+            self.assertEqual(MODULE.collection_state({"alpha"}, destination), "match")
+            self.assertFalse((destination / "obsolete").exists())
+
     def test_collection_digest_ignores_python_bytecode_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "pennix-skills"

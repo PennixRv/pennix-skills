@@ -1480,6 +1480,7 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
             destination,
             collection_bootstrap_skill(component),
             allow_legacy=True,
+            obsolete_names=set(component.get("obsolete_skills", [])),
         )
     except skills_install.InstallError as error:
         raise BootstrapError(str(error)) from error

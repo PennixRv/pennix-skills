@@ -185,6 +185,7 @@ def replace_collection(
     destination: Path,
     bootstrap_name: str | None = None,
     allow_legacy: bool = False,
+    obsolete_names: set[str] | None = None,
 ) -> None:
     """Replace a known collection only after the complete staged tree validates."""
     staging = validate_staged_collection(expected_names, staging)
@@ -192,7 +193,19 @@ def replace_collection(
     if staging.parent != destination.parent:
         raise InstallError("staging and destination must share a parent for transactional replacement")
     current_state = collection_state(expected_names, destination, bootstrap_name)
-    if current_state not in {"missing", "bootstrap", "partial", "match"}:
+    obsolete_names = obsolete_names or set()
+    if current_state == "drifted" and obsolete_names and destination.exists():
+        entries = {entry.name for entry in destination.iterdir()}
+        if entries <= expected_names | obsolete_names:
+            try:
+                obsolete_valid = all(
+                    name not in obsolete_names or read_skill_name(destination / name) == name for name in entries
+                )
+            except (InstallError, OSError):
+                obsolete_valid = False
+            if obsolete_valid and entries & obsolete_names:
+                current_state = "obsolete"
+    if current_state not in {"missing", "bootstrap", "partial", "match", "obsolete"}:
         raise InstallError("refusing to replace a drifted or unknown Pennix Skills collection")
     if current_state == "match" and collection_receipt_state(destination) != "match" and not allow_legacy:
         raise InstallError("refusing to replace a legacy or drifted Pennix Skills collection")
