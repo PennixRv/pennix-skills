@@ -1,0 +1,33 @@
+{
+  "id": "agentmemory-pennix-cutover",
+  "name": "agentmemory-pennix-cutover",
+  "title": "Pennix Skills AgentMemory 硬切与 handoff 迁移",
+  "description": "Pennix main承载官方AgentMemory0.9.29 hooks/Skills、唯一固定native MCP与私有配置生命周期、三层策略/shared候选语义及正式handoff REST精确读回；删除Hindsight活动实现，无兼容/双写/历史导入，发布源推送重装。根不落源码，当前planning到开工边界。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-09-30",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "root_coordinator_task": "09-30-agentmemory-hard-cutover",
+    "delivery_mode": "change_bearing",
+    "execution_class": "complex",
+    "approval_mode": "awaiting_implementation_start",
+    "planning_seal": "closed",
+    "planning_contract": "2026-10-01-agentmemory-native-plugin-mcp"
+  }
+}

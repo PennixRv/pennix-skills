@@ -1,0 +1,5 @@
+{"file": "AGENTS.md", "reason": "Owner instructions and modification boundary"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Applicable owner implementation guidelines"}
+{"file": ".trellis/tasks/09-30-agentmemory-pennix-cutover/prd.md", "reason": "Locked requirements and acceptance"}
+{"file": ".trellis/tasks/09-30-agentmemory-pennix-cutover/design.md", "reason": "Final native AgentMemory configuration and protocol"}
+{"file": ".trellis/tasks/09-30-agentmemory-pennix-cutover/implement.md", "reason": "Execution release reinstall and retirement order"}

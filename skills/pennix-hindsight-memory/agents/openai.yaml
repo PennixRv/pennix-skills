@@ -1,4 +1,0 @@
-interface:
-  display_name: "Pennix Hindsight Memory"
-  short_description: "Maintain project, cross-project, and user-confirmed Hindsight memory"
-  default_prompt: "使用 $pennix-hindsight-memory 按作用域读取和记录 Hindsight 记忆，不把项目记忆自动提升为跨项目或用户记忆。"

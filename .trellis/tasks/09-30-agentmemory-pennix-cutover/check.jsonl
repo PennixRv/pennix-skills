@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Owner quality and safety requirements"}
+{"file": ".trellis/tasks/09-30-agentmemory-pennix-cutover/prd.md", "reason": "Acceptance criteria"}
+{"file": ".trellis/tasks/09-30-agentmemory-pennix-cutover/design.md", "reason": "Protocol and ownership compliance"}
+{"file": ".trellis/tasks/09-30-agentmemory-pennix-cutover/implement.md", "reason": "Unified verification and release gates"}

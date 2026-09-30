@@ -78,87 +78,46 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 )
                 self.assertEqual(MODULE.target_state("grok-provider", Path(temporary)), "configured")
 
-    def test_hindsight_static_and_secret_configuration_are_separate(self) -> None:
+    def test_agentmemory_static_and_secret_configuration_are_separate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             home = root / "home"
             codex = home / ".codex"
-            config = home / ".hindsight" / "coding-agent.json"
             with mock.patch.dict(
                 os.environ,
-                {"HOME": str(home), "HINDSIGHT_CONFIG": str(config), "XDG_STATE_HOME": str(root / "state")},
+                {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")},
                 clear=False,
             ):
-                self.assertEqual(MODULE.configure_hindsight_static(codex, "https://hindsight.example.test:9999"), "configured")
-                data = json.loads(config.read_text(encoding="utf-8"))
-                self.assertNotIn("apiToken", data)
+                url = "https://agentmemory.example.test:9999"
+                self.assertEqual(MODULE.configure_agentmemory_static(codex, url), "configured")
+                config = home / ".config" / "agentmemory" / "client.env"
+                data = config.read_text(encoding="utf-8")
+                self.assertIn("AGENTMEMORY_URL=" + url, data)
+                self.assertNotIn("AGENTMEMORY_SECRET", data)
                 self.assertEqual(stat.S_IMODE(config.stat().st_mode), 0o600)
-                self.assertEqual(MODULE.target_state("hindsight-static", codex, {"apiUrl": "https://hindsight.example.test:9999"}), "configured")
+                self.assertEqual(MODULE.target_state("agentmemory-static", codex, {"apiUrl": url}), "configured")
                 with mock.patch.object(MODULE, "_read_tty", return_value="secret-token"):
-                    self.assertEqual(MODULE.configure_hindsight_token(codex), "configured")
-                self.assertEqual(MODULE.target_state("hindsight-token", codex), "configured")
+                    self.assertEqual(MODULE.configure_agentmemory_secret(codex), "configured")
+                self.assertEqual(MODULE.target_state("agentmemory-secret", codex), "configured")
 
-    def test_hindsight_static_migrates_an_owned_legacy_reflect_receipt(self) -> None:
+    def test_agentmemory_project_registration_is_user_level_and_reversible(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             home = root / "home"
             codex = home / ".codex"
-            config = home / ".hindsight" / "coding-agent.json"
-            url = "https://hindsight.example.test:9999"
-            legacy = {
-                "serverMode": "self-hosted",
-                "apiUrl": url,
-                "optInOnly": True,
-                "autoReflect": True,
-                "autoUpdate": False,
-                "autoSeed": False,
-                "codebaseSurvey": False,
-                "gitIngest": "none",
-                "retainSessions": True,
-            }
-            with mock.patch.dict(
-                os.environ,
-                {"HOME": str(home), "HINDSIGHT_CONFIG": str(config), "XDG_STATE_HOME": str(root / "state")},
-                clear=False,
-            ):
-                self.private_json(config, json.dumps(legacy))
-                receipt = MODULE.hindsight_receipt_path(codex)
-                self.private_json(
-                    receipt,
-                    json.dumps({"schema": 1, "path": str(config), "fields": legacy}),
-                )
-                self.assertEqual(MODULE.configure_hindsight_static(codex, url), "configured")
-                data = json.loads(config.read_text(encoding="utf-8"))
-                self.assertEqual(data["autoInject"], "pages")
-                self.assertEqual(data["pageTriggerType"], "cron")
-                self.assertEqual(data["pageTriggerCron"], "H 3 * * *")
-                self.assertNotIn("autoReflect", data)
-                self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["schema"], 2)
-
-    def test_hindsight_project_registration_is_explicit_and_reversible(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            home = root / "home"
-            codex = home / ".codex"
-            config = home / ".hindsight" / "coding-agent.json"
             project = root / "project"
-            (project / ".trellis").mkdir(parents=True)
-            (project / ".trellis" / "config.yaml").write_text("session_commit_message: test\n", encoding="utf-8")
             with mock.patch.dict(
                 os.environ,
-                {"HOME": str(home), "HINDSIGHT_CONFIG": str(config), "XDG_STATE_HOME": str(root / "state")},
+                {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")},
                 clear=False,
             ):
-                MODULE.configure_hindsight_static(codex, "https://hindsight.example.test:9999")
-                bank_id = MODULE.register_hindsight_project(codex, project)
-                self.assertRegex(bank_id, r"^pennix-project-[0-9a-f]{24}$")
-                project_text = (project / ".trellis" / "config.yaml").read_text(encoding="utf-8")
-                self.assertIn(f"bank_id: {bank_id}", project_text)
-                data = json.loads(config.read_text(encoding="utf-8"))
-                self.assertEqual(data["mapPathToBank"][str(project.resolve())], bank_id)
-                self.assertEqual(MODULE.unregister_hindsight_project(project), "changed")
-                data = json.loads(config.read_text(encoding="utf-8"))
-                self.assertNotIn("mapPathToBank", data)
+                project.mkdir()
+                name = MODULE.register_agentmemory_project(codex, project)
+                self.assertEqual(name, "project")
+                registry = home / ".config" / "agentmemory" / "projects.json"
+                self.assertEqual(json.loads(registry.read_text(encoding="utf-8"))[str(project.resolve())], "project")
+                self.assertEqual(MODULE.unregister_agentmemory_project(project), "changed")
+                self.assertFalse(registry.exists())
 
 
 if __name__ == "__main__":

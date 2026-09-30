@@ -206,30 +206,28 @@ as the default browser sign-in path. Each optional target becomes enabled only
 after an explicit configure attempt, so a later `verify` checks the selected
 integration without requiring unrelated services on every host.
 
-The catalog currently defines Hindsight's `hindsight-static`,
-`hindsight-token`, and `hindsight-project` targets, plus `cch-connection`,
+The catalog currently defines AgentMemory's `agentmemory-static`,
+`agentmemory-secret`, and `agentmemory-project` targets, plus `cch-connection`,
 `hikari-connection`, `grok-search-provider`, `grok-tavily-extra`,
-`grok-firecrawl-extra`, and `windsurf-credential`. Hindsight uses the
-catalog-pinned official `@vectorize-io/hindsight-coding-agents` npm installer
-for the Codex harness only; lifecycle does not copy its hooks or Skill. The
-native installer is anchored to the default `$HOME/.codex`, so a different
-`CODEX_HOME` is rejected before it can write. Hindsight's non-secret policy
-uses the current official `autoInject` contract, while its bearer token is
-configured as a separate target; the token is read only
-from hidden `/dev/tty` input and is never passed as an argument. CCH and Windsurf delegate
+`grok-firecrawl-extra`, and `windsurf-credential`. AgentMemory uses the
+catalog-pinned official `agentmemory@agentmemory` Codex plugin; lifecycle does
+not copy its hooks, MCP, or Skill. AgentMemory's URL and injection policy are
+static configuration while its service secret is configured as a separate
+target; the secret is read only from hidden `/dev/tty` input and is never
+passed as an argument. CCH and Windsurf delegate
 to their owner `configure` command. Hikari and Grok accept values only through
 `/dev/tty`, conceal secret input, and write a private owner record. Grok refuses
-to overwrite a non-lifecycle-marked record. Hindsight project registration is
-explicit and requires a project root; it writes only the stable
-`.trellis/config.yaml:pennix.memory.bank_id` and the matching native
-`mapPathToBank` entry. For example:
+to overwrite a non-lifecycle-marked record. AgentMemory project registration
+is explicit and requires a project root; it writes only the private user-level
+project registry and never modifies `.trellis/config.yaml` or other project
+assets. For example:
 
 ```bash
 python3 <installed-lifecycle>/scripts/lifecycle.py configure \
-  --component hindsight-project --project-root /path/to/project --yes
+  --component agentmemory-project --project-root /path/to/project --yes
 ```
 
-Use `uninstall --component hindsight-project --project-root ... --yes` to remove
+Use `uninstall --component agentmemory-project --project-root ... --yes` to remove
 only that path mapping. A target's delivery must match first, and collection
 targets additionally require a matching collection receipt.
 

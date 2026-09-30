@@ -29,7 +29,7 @@ FastCtx job 模拟、接管或绕过。
 2. 仅当工具 schema 支持批量且已知有多个文本文件时，使用 `inspect_local_file` 的 `files` 批量读取；单一目标或不同视图直接调用对应工具。
 3. `run` 只承载一条非交互式 CLI；长时操作改用 `run_background`、`job_output`、`job_kill`。已有直接 FastCtx schema 的操作不再包一层 shell，也绝不把 `apply_patch` 传给 `run`。
 4. 语义代码编辑使用 Codex `apply_patch`；只有确定性的批量机械替换才使用 FastCtx `replace`，并先 dry-run、设置替换上限。
-5. `grok-search`、`tavily-hikari`、Windsurf semantic search、CodeGraph 和 Hindsight 保持各自的检索或 MCP/API owner；FastCtx 可在它们完成后分析一个已批准的本地结果文件，但不调用、代替或吸收其检索协议。
+5. `grok-search`、`tavily-hikari`、Windsurf semantic search、CodeGraph 和 AgentMemory 保持各自的检索或 MCP/API owner；FastCtx 可在它们完成后分析一个已批准的本地结果文件，但不调用、代替或吸收其检索协议。
 6. 项目 `AGENTS.md`、项目 spec 和已有专用协议优先；无法判断组件所有权时停止 FastCtx 路由，改用 `$pennix-workflow-routing` 收敛。
 
 专用 owner 的 executable 或 CLI 禁止通过 FastCtx `run`、`run_background`、job、`replace`、

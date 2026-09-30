@@ -77,7 +77,7 @@ class HandoffTests(unittest.TestCase):
             "evidence_paths": ["evidence.md"], "next_action": "continue the fixture task", "blockers": [], "risks": [],
             "validation": [{"command": "fixture check", "result": "passed"}],
             "rollout": {"path": str(rollout or self.make_rollout()), "session_id": "fixture-session"},
-            "memory_projection": {"semantic_capsule": capsule, "local": [], "archive_refs": [], "hindsight": []},
+            "memory_projection": {"semantic_capsule": capsule, "local": [], "archive_refs": [], "agentmemory": []},
         }, handle, ensure_ascii=False)
         handle.write("\n")
         handle.close()
@@ -121,7 +121,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(destination.parent.stat().st_mode), 0o700)
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        self.assertEqual(payload["schema_version"], 7)
+        self.assertEqual(payload["schema_version"], 8)
         self.assertNotIn("integrity", payload)
         self.assertEqual(payload["handoff_id"], Path(relative).parts[-2])
         self.assertTrue(any(item["kind"] == "user" for item in payload["conversation"]["candidates"]))
@@ -142,13 +142,13 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "source-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
+            "agentmemory": {"status": "verified", "proof_ref": "agentmemory-proof"},
             "task": {"status": "completed", "completion_artifact": "task-proof"},
             "memory": {"status": "verified", "proof_ref": "memory-proof"},
         })
         self.assertEqual(normalized["boundary"]["proof_ref"], "boundary-proof")
         self.assertEqual(normalized["capsule"]["proof_ref"], "capsule-proof")
-        self.assertEqual(normalized["hindsight"]["proof_ref"], "hindsight-proof")
+        self.assertEqual(normalized["agentmemory"]["proof_ref"], "agentmemory-proof")
         self.assertEqual(normalized["memory"]["proof_ref"], "memory-proof")
 
     def test_core_only_mode_admits_after_boundary_is_sealed(self) -> None:
@@ -171,7 +171,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
+            "agentmemory": {"status": "verified", "proof_ref": "agentmemory-proof"},
             "task": {"status": "completed", "completion_artifact": "task-proof"},
             "memory": {"status": "verified", "proof_ref": "memory-proof"},
         }
@@ -223,7 +223,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
+            "agentmemory": {"status": "verified", "proof_ref": "agentmemory-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -341,7 +341,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
+            "agentmemory": {"status": "verified", "proof_ref": "agentmemory-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -383,7 +383,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
+            "agentmemory": {"status": "verified", "proof_ref": "agentmemory-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -452,7 +452,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "local-boundary"},
             "source_session": {"status": "verified", "identity": "source-session"},
             "capsule": {"status": "verified", "proof_ref": "local-capsule"},
-            "hindsight": {"status": "verified", "proof_ref": "local-hindsight"},
+            "agentmemory": {"status": "verified", "proof_ref": "local-agentmemory"},
             "task": {"status": "completed", "completion_artifact": "task-complete"},
             "memory": {"status": "verified", "proof_ref": "local-memory"},
         }), encoding="utf-8")
@@ -563,38 +563,37 @@ class HandoffTests(unittest.TestCase):
         events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
         self.assertEqual(sum(event["event_type"] == "admit" and event["target_status"] == "reconciled" for event in events), 1)
 
-    def test_hindsight_handoff_records_layered_proof_and_is_idempotent(self) -> None:
+    def test_agentmemory_handoff_records_layered_proof_and_is_idempotent(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stderr)
         relative = self.handoff_path_from(written.stdout)
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "hindsight_required").returncode, 0)
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "agentmemory_required").returncode, 0)
         (root / relative).with_name("session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
         handoff_id = Path(relative).parts[-2]
         handoff._append_event(root, handoff_id, "boundary_sealed", {"source": "boundary_sealed", "target": "not_admitted", "retention": "none"}, ["fixture_boundary=sealed"])
-        original = handoff.hindsight.complete_handoff
-        handoff.hindsight.complete_handoff = lambda *_args: {
-            "document_id": "pennix-handoff-" + handoff_id,
-            "operation_id": "operation-1",
-            "operation_status": "completed",
+        original = handoff.agentmemory.complete_handoff
+        handoff.agentmemory.complete_handoff = lambda *_args: {
+            "memory_id": "memory-1",
+            "content": "Pennix formal handoff " + handoff_id + ".",
             "retrieval_count": 1,
             "content_sha256": "a" * 64,
-            "bank_id": "pennix-project-" + "b" * 24,
+            "project": "fixture-project",
         }
         try:
-            first = handoff.lifecycle_hindsight(root, relative, "verified fixture fact")
-            repeated = handoff.lifecycle_hindsight(root, relative, "verified fixture fact")
+            first = handoff.lifecycle_agentmemory(root, relative, "verified fixture fact")
+            repeated = handoff.lifecycle_agentmemory(root, relative, "verified fixture fact")
         finally:
-            handoff.hindsight.complete_handoff = original
+            handoff.agentmemory.complete_handoff = original
         self.assertEqual(first[1]["status"], "recorded")
-        self.assertEqual(first[1]["state"]["source"], "hindsight_verified")
+        self.assertEqual(first[1]["state"]["source"], "agentmemory_verified")
         events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
         proof = events[-1]["evidence_refs"]
         self.assertIn("local_capsule_digest=" + "a" * 64, proof)
-        self.assertIn("hindsight_operation_completed=operation-1", proof)
-        self.assertIn("hindsight_document_identity=pennix-handoff-" + handoff_id + "@pennix-project-" + "b" * 24, proof)
-        self.assertIn("hindsight_retrieval_verified=1", proof)
+        self.assertIn("agentmemory_memory_id=memory-1", proof)
+        self.assertIn("agentmemory_project=fixture-project", proof)
+        self.assertIn("agentmemory_retrieval_verified=1", proof)
         self.assertNotIn("canonical_persisted", " ".join(proof))
         self.assertEqual(repeated[1]["status"], "idempotent")
 
@@ -641,7 +640,7 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "hindsight": {"status": "verified", "proof_ref": "hindsight-proof"},
+            "agentmemory": {"status": "verified", "proof_ref": "agentmemory-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")

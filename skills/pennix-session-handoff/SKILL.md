@@ -31,7 +31,7 @@ are:
   "validation": [{"command": "check name", "result": "result"}],
   "memory_projection": {
     "semantic_capsule": "task contract, scene, decisions, reversals, validation, experience, blockers, and open work",
-    "local": [], "archive_refs": [], "hindsight": []
+    "local": [], "archive_refs": [], "agentmemory": []
   },
   "rollout": {
     "path": "/absolute/path/to/the-current-codex-rollout.jsonl",
@@ -90,9 +90,9 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 worktree. `core_only` does not require remote proof, but still waits for the
 final observed source boundary and canonical JSON/prompt pair. When a handoff
 contains a task, its existing Trellis quiesce/seal receipt is also required.
-Current task, Git, evidence, rollout, and Hindsight handoff proof are
-reconciled by the target session. `hindsight_required` additionally requires
-the native authenticated Hindsight write and same-document retrieval verification before admission;
+Current task, Git, evidence, rollout, and AgentMemory handoff proof are
+reconciled by the target session. `agentmemory_required` additionally requires
+the native authenticated AgentMemory write and exact project/content retrieval verification before admission;
 a target attestation cannot bypass that source gate. Neither path silently
 rewrites the capsule. This Skill never changes task status, controls Trellis
 workers, or copies a conversation, credential, cache, or runtime ledger.
@@ -117,8 +117,8 @@ PENNIX_HANDOFF="${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-
 Use these commands only as part of the user's explicit formal-handoff request:
 
 ```bash
-python3 "$PENNIX_HANDOFF" --project-root . prepare --handoff <core.json> --mode hindsight_required
-python3 "$PENNIX_HANDOFF" --project-root . hindsight --handoff <core.json> --key-fact "one verified fact that must survive the handoff"
+python3 "$PENNIX_HANDOFF" --project-root . prepare --handoff <core.json> --mode agentmemory_required
+python3 "$PENNIX_HANDOFF" --project-root . agentmemory --handoff <core.json> --key-fact "one verified fact that must survive the handoff"
 python3 "$PENNIX_HANDOFF" --project-root . finalize --handoff <core.json> --observation <project-relative-proof.json>
 python3 "$PENNIX_HANDOFF" --project-root . admit --handoff <core.json> --attestation <project-relative-attestation.json>
 python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.json> --confirm-handoff-id <handoff-id>
@@ -126,25 +126,25 @@ python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.jso
 
 `PENNIX_HANDOFF` above abbreviates the existing `handoff.py` path used in the
 earlier commands. `prepare` fixes one mode. The default is
-`hindsight_required`: after the final boundary is sealed, `hindsight` performs
-one authenticated Hindsight retain with deterministic document/operation IDs,
-waits for that bounded operation, and recalls the same document identity to
-prove retrieval. Retry is safe because both IDs are stable and replace
-semantics are used. The local receipt stores only non-secret proof references;
-the current recall API does not prove canonical content equality.
+`agentmemory_required`: after the final boundary is sealed, `agentmemory` performs
+one authenticated AgentMemory remember with an explicit project and handoff
+identity, then reads the returned memory id and proves exact project/type/content
+equality. A timed-out POST is not blindly repeated; the adapter reconciles a
+unique matching package before retrying. The local receipt stores only
+non-secret proof references.
 
 The source-side sequence is one explicit boundary:
 
 ```text
-write -> validate -> render -> prepare(hindsight_required)
-      -> ownership quiesce -> ownership seal -> hindsight
+write -> validate -> render -> prepare(agentmemory_required)
+      -> ownership quiesce -> ownership seal -> agentmemory
       -> status=ready -> render final prompt
 ```
 
 `core_only` is the explicit offline exception. It uses `finalize` with a local
-sealed-boundary observation and never claims that Hindsight was written. When
+sealed-boundary observation and never claims that AgentMemory was written. When
 a captured task exists, run native ownership `quiesce` and `seal` before either
-source path. Missing Hindsight capability remains `pending`, `unsupported`, or
+source path. Missing AgentMemory capability remains `pending`, `unsupported`, or
 `unavailable`; it never silently downgrades to `core_only`.
 
 `admit` also checks the prepared mode's current source state. A valid target
@@ -223,13 +223,13 @@ implementation; this Skill never edits task pointers itself:
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.json> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> --expected-generation <n> --explicit-user-request
-python3 "$PENNIX_HANDOFF" --project-root . hindsight --handoff <core.json> --key-fact "one verified fact that must survive the handoff"
+python3 "$PENNIX_HANDOFF" --project-root . agentmemory --handoff <core.json> --key-fact "one verified fact that must survive the handoff"
 ```
 
-The `hindsight` command performs the authenticated retain, bounded operation
-wait, and same-document retrieval verification. It does not retire the Trellis source
-pointer; ownership remains a separate native barrier. An interrupted Hindsight
-request is safely retryable through its deterministic identifiers. `core_only`
+The `agentmemory` command performs the authenticated remember and exact
+project/content retrieval verification. It does not retire the Trellis source
+pointer; ownership remains a separate native barrier. An interrupted AgentMemory
+request is reconciled by its explicit handoff identity. `core_only`
 uses the local `finalize` path. Missing capability remains
 `pending`/`unsupported` and never silently downgrades.
 
