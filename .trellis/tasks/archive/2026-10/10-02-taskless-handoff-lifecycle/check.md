@@ -8,4 +8,4 @@
 
 修复提交 4223cb9 已推送并通过 system skill-installer 与 replace-staged 重装完整集合，discover 显示 collection_integrity=match、staging=none。Trellis beta.23 的公共 npm 指定版本与 beta tag 已通过原生 release-preflight 核验；catalog 与既有版本断言同步更新为 beta.23。
 
-后续交付：提交推送 catalog 后重装最终集合，原生升级 Trellis、verify、根消费者升级和真实无任务交接后记录最终结果。
+catalog 9f02e38 已推送并完整重装，lifecycle 回归重新运行 132/132。原生 Trellis 升级 beta.23；重入 agentmemory-static 刷新保留既有选择的 profile，整体 verify=match、failures=[]。根消费者升级及选定 workflow verify 成功，离线组合验收 8/8。归档后用户原请求的真实 taskless 正式交接以单独 ready receipt 为完成证据。
