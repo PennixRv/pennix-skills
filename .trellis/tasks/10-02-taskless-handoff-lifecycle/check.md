@@ -6,4 +6,6 @@
 
 不声称 FORCE_PROXY 保证失败关闭，也不声称 upstream recall/consolidation 提供项目隔离。重要交接使用明确项目的 REST 精确证明，未知写入结果不盲目重复 POST。
 
-后续交付：核对 Trellis beta.23 公共 npm 可见后更新 catalog；提交推送并通过 system skill-installer 与 replace-staged 重装完整集合，原生 verify、根消费者升级和真实无任务交接后记录最终结果。
+修复提交 4223cb9 已推送并通过 system skill-installer 与 replace-staged 重装完整集合，discover 显示 collection_integrity=match、staging=none。Trellis beta.23 的公共 npm 指定版本与 beta tag 已通过原生 release-preflight 核验；catalog 与既有版本断言同步更新为 beta.23。
+
+后续交付：提交推送 catalog 后重装最终集合，原生升级 Trellis、verify、根消费者升级和真实无任务交接后记录最终结果。

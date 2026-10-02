@@ -2,7 +2,7 @@
   "schema": 2,
   "configuration_targets": [
     {"id": "codex-provider", "tier": "core", "default_enabled": true, "adapter": "codex-provider", "component": "codex-cli", "readiness": "Codex native authentication is present in a private local record."},
-    {"id": "agentmemory-static", "tier": "optional", "default_enabled": false, "adapter": "agentmemory-static", "component": "agentmemory-coding-agents", "settings": {"apiUrl": "https://agentmemory.141242.xyz:9999"}, "readiness": "AgentMemory self-hosted URL and non-secret client policy match the workflow contract."},
+    {"id": "agentmemory-static", "tier": "optional", "default_enabled": false, "adapter": "agentmemory-static", "component": "agentmemory-coding-agents", "settings": {"apiUrl": "https://agentmemory.141242.xyz:9999"}, "readiness": "AgentMemory self-hosted URL, client policy and pinned native MCP match the workflow contract."},
     {"id": "agentmemory-secret", "tier": "optional", "default_enabled": false, "adapter": "agentmemory-secret", "component": "agentmemory-coding-agents", "readiness": "AgentMemory service secret is present in the native private client configuration."},
     {"id": "agentmemory-project", "tier": "optional", "default_enabled": false, "adapter": "agentmemory-project", "component": "agentmemory-coding-agents", "readiness": "At least one explicitly registered Trellis project has a stable AgentMemory project mapping."},
     {"id": "cch-connection", "tier": "optional", "default_enabled": false, "adapter": "cch-owner", "component": "cch-status", "readiness": "CCH owner configuration and token record are private and complete."},
@@ -30,7 +30,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.21",
+      "approved_version": "0.7.0-beta.23",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
