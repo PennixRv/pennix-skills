@@ -211,7 +211,10 @@ The catalog currently defines AgentMemory's `agentmemory-static`,
 `hikari-connection`, `grok-search-provider`, `grok-tavily-extra`,
 `grok-firecrawl-extra`, and `windsurf-credential`. AgentMemory uses the
 catalog-pinned official `agentmemory@agentmemory` Codex plugin; lifecycle does
-not copy its hooks, MCP, or Skill. AgentMemory's URL and injection policy are
+not copy its hooks or Skill. The static target also installs the fixed official
+npm MCP pair (0.9.29), configures native stdio with Node --env-file pointing to
+private client.env, and disables the plugin's floating MCP entry. URL, injection
+and FORCE_PROXY policy are
 static configuration while its service secret is configured as a separate
 target; the secret is read only from hidden `/dev/tty` input and is never
 passed as an argument. CCH and Windsurf delegate
@@ -220,7 +223,24 @@ to their owner `configure` command. Hikari and Grok accept values only through
 to overwrite a non-lifecycle-marked record. AgentMemory project registration
 is explicit and requires a project root; it writes only the private user-level
 project registry and never modifies `.trellis/config.yaml` or other project
-assets. For example:
+assets. Same-name roots are rejected rather than silently sharing memory.
+
+Automatic hooks inherit the Codex host environment; they do not read client.env.
+Before launching a new host, source that private file in its actual parent:
+
+```bash
+set -a
+source ~/.config/agentmemory/client.env
+set +a
+codex
+```
+
+A manager that launches Codex directly must pass that environment itself;
+changing a child shell cannot update an already running host. Keep native hook
+trust via /hooks. Reopen the host after configuration, then verify actual session
+registration and capture. MCP has independent env-file loading, but upstream
+runtime fallback still means a success result alone is not central persistence.
+For example:
 
 ```bash
 python3 <installed-lifecycle>/scripts/lifecycle.py configure \

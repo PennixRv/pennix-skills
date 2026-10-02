@@ -10,6 +10,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "agentmemory.py"
@@ -19,38 +20,30 @@ agentmemory = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(agentmemory)
 
 
-class FakeClient:
-    project = "codex-workflow-optimization"
-
-    def __init__(self) -> None:
-        self.retained: tuple[str, str, str] | None = None
-        self.read: tuple[str, str, str] | None = None
-
-    def retain_handoff(self, handoff_id: str, capsule: str, key_fact: str) -> dict[str, str]:
-        self.retained = (handoff_id, capsule, key_fact)
-        content = f"Pennix formal handoff {handoff_id}.\nVerified key fact: {key_fact}\n\n{capsule}"
-        return {"memory_id": "mem-1", "content": content, "content_sha256": "b" * 64, "project": self.project}
-
-    def verify_retrieval(self, memory_id: str, content: str, handoff_id: str) -> int:
-        self.read = (memory_id, content, handoff_id)
-        return 1
-
-
 class AgentMemoryTests(unittest.TestCase):
-    def test_complete_handoff_uses_one_client_and_returns_exact_read_proof(self) -> None:
-        client = FakeClient()
-        original = agentmemory.AgentMemoryClient.__dict__["for_project"]
-        agentmemory.AgentMemoryClient.for_project = classmethod(lambda cls, _root: client)
-        try:
-            with tempfile.TemporaryDirectory() as directory:
-                result = agentmemory.complete_handoff(Path(directory), "20260928T000000000000Z", "capsule", "fact")
-        finally:
-            agentmemory.AgentMemoryClient.for_project = original
-        self.assertEqual(client.retained, ("20260928T000000000000Z", "capsule", "fact"))
-        self.assertEqual(client.read[0], "mem-1")
-        self.assertEqual(result["retrieval_count"], 1)
-        self.assertEqual(result["project"], client.project)
-        self.assertNotIn("content", result)
+    def test_unknown_post_reconciles_second_page_without_repeating_write(self) -> None:
+        content = agentmemory.handoff_content("handoff-1", "capsule", "fact")
+
+        class InterruptedClient(agentmemory.AgentMemoryClient):
+            posts = 0
+            total = 101
+
+            def _request(self, method, path, body=None):
+                if method == "POST":
+                    self.posts += 1
+                    raise agentmemory.AgentMemoryError("response lost after commit")
+                offset = int(parse_qs(urlsplit(path).query)["offset"][0])
+                records = [{"id": "other", "content": "other"}] * 100 if offset == 0 else [{"id": "mem-1", "content": content, "type": "workflow", "project": "project"}]
+                return {"memories": records, "total": self.total, "offset": offset}
+
+        client = InterruptedClient("http://example.invalid", "token", "project")
+        self.assertEqual(client.retain_handoff("handoff-1", "capsule", "fact")["memory_id"], "mem-1")
+        self.assertEqual(client.retain_handoff("handoff-1", "capsule", "fact", reconcile_only=True)["memory_id"], "mem-1")
+        self.assertEqual(client.posts, 1)
+        client.total = 1000
+        with self.assertRaises(agentmemory.AgentMemoryError):
+            client.retain_handoff("handoff-1", "capsule", "fact", reconcile_only=True)
+        self.assertEqual(client.posts, 1)
 
     def test_http_contract_proves_write_and_exact_project_content_read(self) -> None:
         requests: list[tuple[str, dict[str, object] | None, str | None]] = []
@@ -103,6 +96,7 @@ class AgentMemoryTests(unittest.TestCase):
                 if path == "/agentmemory/memories/mem-1":
                     raise agentmemory.AgentMemoryError("by-id unavailable")
                 return {
+                    "total": 1,
                     "memories": [
                         {
                             "id": "mem-1",

@@ -30,6 +30,21 @@ recalled memory conflicts with a fact that must be implemented or verified.
 - Prefer the official AgentMemory plugin and MCP tools for ordinary recall and
   capture; do not build a second search client, cache, transcript mirror, or
   scheduler.
+- Official recall/smart_search has no project filter. Treat its results as
+  shared candidates and verify the project/session before using them. For a
+  strict project fact, use the native REST project's memories and exact read.
+  The handoff adapter consumes the private registry; official hooks still use
+  their own explicit project env or Git-root basename. Same-name projects need
+  an explicit consistent project name at launch; registry alone does not alter
+  upstream hooks or automatic consolidation scope.
+- A successful MCP save alone does not prove central persistence: upstream
+  0.9.29 can fall back locally after some remote errors, even with FORCE_PROXY.
+  Read important writes back from the authenticated central service.
+- Official hooks require the Codex parent process to inherit the private
+  client.env variables and native hook trust. A login shell health check does
+  not prove that the host has that environment or that capture ran. Lifecycle
+  configures fixed MCP with Node --env-file; hooks retain the native launch
+  requirement. Never copy hooks or change plugin caches to mask it.
 - Record only a semantic delta: objective, constraint, decision, reversal,
   verification, failure lesson, blocker, or next safe action that changes
   future work. Keep routine exploration local to the current task.

@@ -112,7 +112,7 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
 - 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选写入 Git 或持久索引。
 - handoff 的 AgentMemory proof 只能作为有界、已验证的 source convergence 证据；本地 capsule digest 是内容真相，memory id/project/type/content 精确读回证明写入边界。AgentMemory 不写本地 core、Trellis task 或 receipt truth，也不通过 FastCtx 或 shell wrapper 绕过原生 API。没有对应 retrieval proof 时保持 `core_only` 或报告 `pending|unsupported|unavailable`。
-- 活动 task 的记忆：先使用官方 AgentMemory plugin/MCP 的有界项目 recall；历史决策、复杂多步工作、相似故障或跨会话上下文需要深入时，使用 `pennix-agentmemory-memory` 的有界 recall，再对关键结果写入 task-scoped research note。只有实际改变后续理解或行动的目标、约束、决定、否决、验证、经验、阻塞或待办才登记。FastCtx 的当前操作输出不自动登记记忆。
+- 活动 task 的记忆：先使用官方 AgentMemory plugin/MCP 有界召回候选；recall/smart_search 没有项目过滤，不声称项目隔离。历史决策、复杂多步工作、相似故障或跨会话上下文需要深入时，使用 `pennix-agentmemory-memory` 核对项目/会话及中心服务证据，再写 task-scoped research note。只有实际改变后续理解或行动的目标、约束、决定、否决、验证、经验、阻塞或待办才登记。FastCtx 的当前操作输出不自动登记记忆。
 - 工作期语义登记使用 `pennix-agentmemory-memory`；它不复制 transcript、不替代官方 capture、不创建 scheduler 或本地 memory ledger。跨项目提升和用户级记忆必须由用户显式确认；AgentMemory 不可用时只降级记忆增强，不阻断 Trellis、Git 或普通实施。
 
 ## 输出

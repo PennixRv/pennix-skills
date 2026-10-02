@@ -118,6 +118,7 @@ Use these commands only as part of the user's explicit formal-handoff request:
 
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . prepare --handoff <core.json> --mode agentmemory_required
+python3 "$PENNIX_HANDOFF" --project-root . seal --handoff <core.json> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . agentmemory --handoff <core.json> --key-fact "one verified fact that must survive the handoff"
 python3 "$PENNIX_HANDOFF" --project-root . finalize --handoff <core.json> --observation <project-relative-proof.json>
 python3 "$PENNIX_HANDOFF" --project-root . admit --handoff <core.json> --attestation <project-relative-attestation.json>
@@ -130,16 +131,27 @@ earlier commands. `prepare` fixes one mode. The default is
 one authenticated AgentMemory remember with an explicit project and handoff
 identity, then reads the returned memory id and proves exact project/type/content
 equality. A timed-out POST is not blindly repeated; the adapter reconciles a
-unique matching package before retrying. The local receipt stores only
+unique matching package without repeating POST. The receipt records write
+intent before the request and the returned memory id before verification;
+an interrupted verification retries only the read. Recovery scans at most
+five 100-record pages; an unresolved or ambiguous outcome remains pending.
+The local receipt stores only
 non-secret proof references.
 
 The source-side sequence is one explicit boundary:
 
 ```text
 write -> validate -> render -> prepare(agentmemory_required)
-      -> ownership quiesce -> ownership seal -> agentmemory
-      -> status=ready -> render final prompt
+      -> task present: ownership quiesce -> ownership seal
+      -> no task: seal --explicit-user-request
+      -> agentmemory -> status=ready -> render final prompt
 ```
+
+The standalone `seal` is only for a captured taskless boundary and requires
+the same canonical source session recorded by `prepare`, a paired prompt,
+and a native current result with no task, stale pointer, error or ambiguity.
+It never creates a task or bypasses task ownership. Session identity comes
+from Trellis's independent `session_source`, not its task-pointer `source`.
 
 `core_only` is the explicit offline exception. It uses `finalize` with a local
 sealed-boundary observation and never claims that AgentMemory was written. When
@@ -161,7 +173,8 @@ reservation and is not consumed. Only the complete four-step prefix records
 an interruption, while a different target cannot consume it. If the source is
 still pending, the attempt is `blocked` and remains retryable without claiming
 consumption. Its `target_source` must exactly equal the current Trellis direct
-source `session:<target-key>`. The source rollout `session_id` is provenance
+session_source `session:<target-key>`. The prepared canonical source and
+source rollout `session_id` are rejected as target identities. The rollout id is provenance
 only and is rejected as target identity. Admission never executes the pending
 action, starts a task, changes a task pointer, or closes a task. A later,
 separately authorized continuation uses native Trellis `task.py start` for an

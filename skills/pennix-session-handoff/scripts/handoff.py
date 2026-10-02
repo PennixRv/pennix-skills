@@ -109,18 +109,8 @@ def _task_snapshot_at(root: Path, raw_path: str, expected: Optional[Dict[str, An
 
 
 def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
-    script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
-    result = subprocess.run(
-        [sys.executable, str(script), "current", "--json"], cwd=root, stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20, check=False,
-    )
-    if result.returncode not in (0, 1) or result.stderr:
-        raise ContractError("task.py current failed")
-    try:
-        current = json.loads(result.stdout.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as exc:
-        raise ContractError("task.py current returned invalid JSON") from exc
-    selected = current.get("current_task") if isinstance(current, dict) else None
+    current = _task_current(root)
+    selected = current["current_task"]
     if selected is None:
         return None
     if not isinstance(selected, dict):
@@ -814,6 +804,14 @@ def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[st
             if existing is not None:
                 if _prepared_mode(events) != next((ref.removeprefix("mode=") for ref in evidence_refs if ref.startswith("mode=")), None):
                     raise ContractError("handoff lifecycle mode is immutable")
+                if existing["evidence_refs"] != evidence_refs:
+                    raise ContractError("handoff prepared source identity is immutable")
+                return {"status": "idempotent", "state": current}
+        if event_type == "agentmemory_write_started":
+            existing = next((event for event in events if event["event_type"] == event_type), None)
+            if existing is not None:
+                if existing["evidence_refs"] != evidence_refs:
+                    raise ContractError("handoff AgentMemory write identity is immutable")
                 return {"status": "idempotent", "state": current}
         if event_type == "admit":
             admission = {"evidence_refs": evidence_refs, "target_status": desired["target"]}
@@ -857,8 +855,12 @@ def _task_current(root: Path) -> dict[str, Any]:
         value = json.loads(result.stdout.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ContractError("task.py current returned invalid JSON") from exc
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or "current_task" not in value:
         raise ContractError("task.py current returned invalid JSON")
+    if value.get("error") or value.get("stale") or value.get("source") == "unbound_ambiguous":
+        raise ContractError("task.py current is stale, ambiguous, or unreadable")
+    if value["current_task"] is None and value.get("candidates"):
+        raise ContractError("task.py current has unresolved task candidates")
     return value
 
 
@@ -874,7 +876,7 @@ def _ownership_task(payload: dict[str, Any]) -> tuple[str, str]:
 
 
 def _direct_session_id(root: Path) -> str:
-    source = _task_current(root).get("source")
+    source = _task_current(root).get("session_source")
     if not isinstance(source, str) or not source.startswith("session:"):
         raise ContractError("Trellis did not expose a direct session identity")
     return safe_id(source.removeprefix("session:"), "direct session id")
@@ -1050,7 +1052,28 @@ def _lifecycle_result(operation: str, handoff_id: str, result: dict[str, Any]) -
 def lifecycle_prepare(root: Path, handoff_path: str, mode: str) -> tuple[str, dict[str, Any]]:
     handoff_id, _, _ = _core(root, handoff_path)
     selected_mode = lifecycle_mode(mode)
-    return handoff_id, _append_event(root, handoff_id, "prepare", {"source": "prepared", "target": "not_admitted", "retention": "none"}, ["mode=" + selected_mode])
+    return handoff_id, _append_event(root, handoff_id, "prepare", {"source": "prepared", "target": "not_admitted", "retention": "none"}, ["mode=" + selected_mode, "source=session:" + _direct_session_id(root)])
+
+
+def lifecycle_seal(root: Path, handoff_path: str, *, explicit: bool) -> tuple[str, dict[str, Any]]:
+    if not explicit:
+        raise ContractError("taskless seal requires --explicit-user-request")
+    handoff_id, _, payload = _core(root, handoff_path)
+    _read_paired_prompt(root, handoff_path)
+    if payload["work_context"]["task"] is not None:
+        raise ContractError("task-bearing handoff must use native ownership seal")
+    current = _task_current(root)
+    if current["current_task"] is not None or current.get("source") != "none":
+        raise ContractError("taskless seal requires an unambiguous taskless current session")
+    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
+    prepare = next((event for event in events if event["event_type"] == "prepare"), None)
+    source = "source=session:" + _direct_session_id(root)
+    if prepare is None or source not in prepare["evidence_refs"]:
+        raise ContractError("taskless seal must run in the prepared source session")
+    state = _state(events)
+    if state["source"] == "agentmemory_verified":
+        return handoff_id, {"status": "idempotent", "state": state}
+    return handoff_id, _append_event(root, handoff_id, "boundary_sealed", {**state, "source": "boundary_sealed"}, ["taskless_seal=" + handoff_id, source])
 
 
 def lifecycle_finalize(root: Path, handoff_path: str, observation_path: str) -> tuple[str, dict[str, Any]]:
@@ -1102,7 +1125,19 @@ def lifecycle_agentmemory(root: Path, handoff_path: str, key_fact: str) -> tuple
     capsule = payload["memory_projection"]["semantic_capsule"]
     if not capsule.strip():
         raise ContractError("semantic capsule is required for AgentMemory handoff")
-    result = agentmemory.complete_handoff(root, handoff_id, capsule, key_fact)
+    client = agentmemory.AgentMemoryClient.for_project(root)
+    content = agentmemory.handoff_content(handoff_id, capsule, key_fact)
+    write_identity = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    intent = _append_event(root, handoff_id, "agentmemory_write_started", state, ["write_identity=" + write_identity, "agentmemory_project=" + client.project])
+    events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
+    retained = next((event for event in events if event["event_type"] == "agentmemory_retained"), None)
+    if retained is not None:
+        memory_id = next(ref.removeprefix("agentmemory_memory_id=") for ref in retained["evidence_refs"] if ref.startswith("agentmemory_memory_id="))
+    else:
+        result = client.retain_handoff(handoff_id, capsule, key_fact, reconcile_only=intent["status"] == "idempotent")
+        memory_id = result["memory_id"]
+        _append_event(root, handoff_id, "agentmemory_retained", state, ["agentmemory_memory_id=" + memory_id, "agentmemory_project=" + client.project])
+    result = {"memory_id": memory_id, "project": client.project, "content_sha256": hashlib.sha256(capsule.encode("utf-8")).hexdigest(), "retrieval_count": client.verify_retrieval(memory_id, content, handoff_id)}
     references = [
         "local_capsule_digest=" + result["content_sha256"],
         "agentmemory_memory_id=" + result["memory_id"],
@@ -1125,12 +1160,14 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     if rollout_session is not None and attestation["target_source"] == "session:" + rollout_session:
         raise ContractError("target source cannot reuse the handoff source session id")
     current = _task_current(root)
-    if current.get("source") != attestation["target_source"]:
+    if current.get("session_source") != attestation["target_source"]:
         raise ContractError("target source is not the current direct session source")
     events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     current_state = _state(events)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
+    if any("source=" + attestation["target_source"] in event["evidence_refs"] for event in events if event["event_type"] == "prepare"):
+        raise ContractError("target source cannot reuse the prepared source session id")
     target_source = attestation["target_source"]
     steps = _attestation_steps(attestation)
     attempt_target = _consumption_attempt_target(events)
@@ -1250,6 +1287,9 @@ def main() -> int:
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--handoff", required=True)
     prepare.add_argument("--mode", default="agentmemory_required", choices=sorted(LIFECYCLE_MODES))
+    seal = sub.add_parser("seal")
+    seal.add_argument("--handoff", required=True)
+    seal.add_argument("--explicit-user-request", action="store_true")
     finalize = sub.add_parser("finalize")
     finalize.add_argument("--handoff", required=True)
     finalize.add_argument("--observation", required=True)
@@ -1298,6 +1338,10 @@ def main() -> int:
         if args.command == "finalize":
             handoff_id, result = lifecycle_finalize(root, args.handoff, args.observation)
             _lifecycle_result("finalize", handoff_id, result)
+            return 0
+        if args.command == "seal":
+            handoff_id, result = lifecycle_seal(root, args.handoff, explicit=args.explicit_user_request)
+            _lifecycle_result("seal", handoff_id, result)
             return 0
         if args.command == "agentmemory":
             handoff_id, result = lifecycle_agentmemory(root, args.handoff, args.key_fact)

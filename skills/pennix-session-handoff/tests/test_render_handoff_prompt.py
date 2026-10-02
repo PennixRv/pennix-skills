@@ -20,7 +20,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="pennix-handoff-prompt-")
         self.root = Path(self.temp.name).resolve()
         (self.root / ".trellis/scripts").mkdir(parents=True)
-        (self.root / ".trellis/scripts/task.py").write_text("print('{\"current_task\": null}')\n", encoding="utf-8")
+        (self.root / ".trellis/scripts/task.py").write_text("print('{\"current_task\": null, \"source\": \"none\", \"session_source\": \"session:source\"}')\n", encoding="utf-8")
         (self.root / "evidence.md").write_text("fixture\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(self.root), "init", "-q"], check=True)
         subprocess.run(["git", "-C", str(self.root), "config", "user.email", "fixture@example.invalid"], check=True)

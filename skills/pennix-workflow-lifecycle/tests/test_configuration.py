@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import stat
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,7 +10,8 @@ from unittest import mock
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "adapters" / "configuration.py"
-SPEC = importlib.util.spec_from_file_location("pennix_configuration", SCRIPT)
+sys.path.insert(0, str(SCRIPT.parents[1]))
+SPEC = importlib.util.spec_from_file_location("adapters.configuration", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
@@ -87,7 +89,7 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 os.environ,
                 {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")},
                 clear=False,
-            ):
+            ), mock.patch.object(MODULE.agentmemory_mcp, "configure"), mock.patch.object(MODULE.agentmemory_mcp, "state", return_value="configured"):
                 url = "https://agentmemory.example.test:9999"
                 self.assertEqual(MODULE.configure_agentmemory_static(codex, url), "configured")
                 config = home / ".config" / "agentmemory" / "client.env"
@@ -116,6 +118,10 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 self.assertEqual(name, "project")
                 registry = home / ".config" / "agentmemory" / "projects.json"
                 self.assertEqual(json.loads(registry.read_text(encoding="utf-8"))[str(project.resolve())], "project")
+                other = root / "other/project"
+                other.mkdir(parents=True)
+                with self.assertRaisesRegex(MODULE.ConfigurationError, "already registered"):
+                    MODULE.register_agentmemory_project(codex, other)
                 self.assertEqual(MODULE.unregister_agentmemory_project(project), "changed")
                 self.assertFalse(registry.exists())
 

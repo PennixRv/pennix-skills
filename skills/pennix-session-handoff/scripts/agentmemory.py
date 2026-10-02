@@ -8,14 +8,12 @@ import os
 import re
 import urllib.error
 import urllib.request
-import uuid
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from pathlib import Path
 from typing import Any
 
 
 PROJECT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-HANDOFF_NAMESPACE = uuid.UUID("0c5bdf52-4b48-4ed1-ae25-1e3350f8e1c7")
 
 
 class AgentMemoryError(RuntimeError):
@@ -47,10 +45,26 @@ def _load_client_config() -> dict[str, str]:
 
 
 def _project_name(project_root: Path) -> str:
-    value = _load_client_config().get("AGENTMEMORY_PROJECT_NAME") or project_root.resolve().name
+    canonical = project_root.resolve()
+    registry = Path.home() / ".config" / "agentmemory" / "projects.json"
+    mappings: dict[str, str] = {}
+    if registry.exists():
+        if registry.is_symlink() or not registry.is_file() or registry.stat().st_mode & 0o077:
+            raise AgentMemoryError("AgentMemory project registry is not private")
+        try:
+            mappings = json.loads(registry.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise AgentMemoryError("AgentMemory project registry is unreadable") from error
+        if not isinstance(mappings, dict) or any(not isinstance(name, str) or not PROJECT_NAME.fullmatch(name) for name in mappings.values()):
+            raise AgentMemoryError("AgentMemory project registry is invalid")
+    value = _load_client_config().get("AGENTMEMORY_PROJECT_NAME") or mappings.get(str(canonical)) or canonical.name
     if not PROJECT_NAME.fullmatch(value):
         raise AgentMemoryError("AgentMemory project identity is invalid")
     return value
+
+
+def handoff_content(handoff_id: str, capsule: str, key_fact: str) -> str:
+    return f"Pennix formal handoff {handoff_id}.\nVerified key fact: {key_fact}\n\n{capsule}"
 
 
 def _load_target(project_root: Path) -> tuple[str, str, str]:
@@ -97,10 +111,29 @@ class AgentMemoryClient:
             raise AgentMemoryError(f"AgentMemory API returned invalid JSON: {method} {path}")
         return value
 
-    def retain_handoff(self, handoff_id: str, capsule: str, key_fact: str) -> dict[str, Any]:
+    def _exact_memories(self, content: str, memory_id: str | None = None) -> list[dict[str, Any]]:
+        matches: list[dict[str, Any]] = []
+        # ponytail: bounded recovery over 500 records; use a native lookup key
+        # if the upstream API later exposes one instead of an unbounded scan.
+        for offset in range(0, 500, 100):
+            query = urlencode({"project": self.project, "type": "workflow", "limit": 100, "offset": offset})
+            page = self._request("GET", "/agentmemory/memories?" + query)
+            records, total = page.get("memories"), page.get("total")
+            if not isinstance(records, list) or not isinstance(total, int) or total < 0 or page.get("offset", offset) != offset:
+                raise AgentMemoryError("AgentMemory recovery returned invalid pagination")
+            matches.extend(item for item in records if isinstance(item, dict) and item.get("project") == self.project and item.get("type") == "workflow" and item.get("content") == content and (memory_id is None or item.get("id") == memory_id))
+            if offset + len(records) >= total:
+                return matches
+            if len(records) != 100:
+                raise AgentMemoryError("AgentMemory recovery returned an incomplete page")
+        raise AgentMemoryError("AgentMemory exact recovery exceeds the bounded 500-record scan")
+
+    def retain_handoff(self, handoff_id: str, capsule: str, key_fact: str, *, reconcile_only: bool = False) -> dict[str, Any]:
         digest = hashlib.sha256(capsule.encode("utf-8")).hexdigest()
-        content = f"Pennix formal handoff {handoff_id}.\nVerified key fact: {key_fact}\n\n{capsule}"
+        content = handoff_content(handoff_id, capsule, key_fact)
         try:
+            if reconcile_only:
+                raise AgentMemoryError("reconcile an interrupted write without repeating POST")
             response = self._request(
                 "POST",
                 "/agentmemory/remember",
@@ -112,17 +145,7 @@ class AgentMemoryClient:
                 },
             )
         except AgentMemoryError:
-            # ponytail: bounded exact-match reconciliation after an unknown POST outcome;
-            # replace with an idempotency key only when the upstream API exposes one.
-            query = urlencode({"project": self.project, "type": "workflow", "limit": "5000"})
-            listed = self._request("GET", "/agentmemory/memories?" + query)
-            matches = [
-                item for item in listed.get("memories", [])
-                if isinstance(item, dict)
-                and item.get("project") == self.project
-                and item.get("type") == "workflow"
-                and item.get("content") == content
-            ]
+            matches = self._exact_memories(content)
             if len(matches) != 1 or not isinstance(matches[0].get("id"), str):
                 raise AgentMemoryError("AgentMemory handoff write outcome is ambiguous")
             return {"memory_id": matches[0]["id"], "content": content, "content_sha256": digest, "project": self.project}
@@ -133,23 +156,14 @@ class AgentMemoryClient:
 
     def verify_retrieval(self, memory_id: str, content: str, handoff_id: str) -> int:
         try:
-            value = self._request("GET", "/agentmemory/memories/" + memory_id)
+            value = self._request("GET", "/agentmemory/memories/" + quote(memory_id, safe=""))
             memory = value.get("memory")
         except AgentMemoryError:
             # ponytail: use the upstream bounded list when the 0.9.x by-id
             # route cannot read a record that the list route just indexed;
             # replace with a native idempotent read endpoint when upstream
             # exposes one consistently.
-            query = urlencode({"project": self.project, "type": "workflow", "limit": "5000"})
-            listed = self._request("GET", "/agentmemory/memories?" + query)
-            matches = [
-                item for item in listed.get("memories", [])
-                if isinstance(item, dict)
-                and item.get("id") == memory_id
-                and item.get("project") == self.project
-                and item.get("type") == "workflow"
-                and item.get("content") == content
-            ]
+            matches = self._exact_memories(content, memory_id)
             if len(matches) != 1:
                 raise AgentMemoryError("AgentMemory handoff retrieval was not uniquely proved")
             memory = matches[0]
@@ -160,12 +174,3 @@ class AgentMemoryClient:
         if f"Pennix formal handoff {handoff_id}." not in content:
             raise AgentMemoryError("AgentMemory handoff identity is missing")
         return 1
-
-
-def complete_handoff(project_root: Path, handoff_id: str, capsule: str, key_fact: str) -> dict[str, Any]:
-    client = AgentMemoryClient.for_project(project_root)
-    result = client.retain_handoff(handoff_id, capsule, key_fact)
-    result["retrieval_count"] = client.verify_retrieval(result["memory_id"], result["content"], handoff_id)
-    result["project"] = client.project
-    result.pop("content", None)
-    return result

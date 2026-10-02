@@ -15,6 +15,8 @@ import termios
 from pathlib import Path
 from typing import Any
 
+from . import agentmemory_mcp, codex_static
+
 
 MAX_CONFIG_BYTES = 64 * 1024
 PROFILE_SCHEMA = 1
@@ -234,7 +236,7 @@ def _write_env(path: Path, values: dict[str, str]) -> None:
 def agentmemory_policy(api_url: str) -> dict[str, str]:
     if not isinstance(api_url, str) or not api_url.strip() or not api_url.startswith(("http://", "https://")):
         raise ConfigurationError("AgentMemory API URL is invalid")
-    return {"AGENTMEMORY_URL": api_url.rstrip("/"), "AGENTMEMORY_INJECT_CONTEXT": "true"}
+    return {"AGENTMEMORY_URL": api_url.rstrip("/"), "AGENTMEMORY_INJECT_CONTEXT": "true", "AGENTMEMORY_FORCE_PROXY": "true"}
 
 
 def agentmemory_static_state(codex_home: Path, api_url: str) -> str:
@@ -245,7 +247,13 @@ def agentmemory_static_state(codex_home: Path, api_url: str) -> str:
         return state
     receipt_state, receipt = _agentmemory_receipt(codex_home)
     expected = agentmemory_policy(api_url)
-    return "configured" if receipt_state == "configured" and receipt and receipt.get("fields") == expected and all(data.get(k) == v for k, v in expected.items()) else "drifted"
+    policy_matches = receipt_state == "configured" and receipt and receipt.get("fields") == expected and all(data.get(k) == v for k, v in expected.items())
+    if not policy_matches:
+        return "drifted"
+    try:
+        return agentmemory_mcp.state(codex_home, agentmemory_config_path(), api_url)
+    except codex_static.StaticError:
+        return "blocked"
 
 
 def configure_agentmemory_static(codex_home: Path, api_url: str) -> str:
@@ -262,6 +270,10 @@ def configure_agentmemory_static(codex_home: Path, api_url: str) -> str:
         raise ConfigurationError("AgentMemory client configuration was modified outside lifecycle")
     data.update(policy)
     _write_env(path, data)
+    try:
+        agentmemory_mcp.configure(codex_home, path, api_url)
+    except codex_static.StaticError as error:
+        raise ConfigurationError(str(error)) from error
     _write_private_json(static_receipt_path(codex_home, "agentmemory-config"), {"schema": 1, "path": str(path), "fields": policy})
     return "configured"
 
@@ -298,6 +310,10 @@ def remove_agentmemory_configuration(codex_home: Path) -> str:
     state, data = _read_env(path)
     if state != "configured" or data is None or any(data.get(k) != v for k, v in receipt["fields"].items()):
         raise ConfigurationError("AgentMemory client configuration is blocked")
+    try:
+        agentmemory_mcp.remove(codex_home, path, data["AGENTMEMORY_URL"])
+    except codex_static.StaticError as error:
+        raise ConfigurationError(str(error)) from error
     for key in (*receipt["fields"].keys(), "AGENTMEMORY_SECRET"):
         data.pop(key, None)
     if data:
@@ -336,6 +352,8 @@ def register_agentmemory_project(codex_home: Path, project_root: Path) -> str:
         raise ConfigurationError("AgentMemory project registry is blocked")
     mappings = data or {}
     canonical = str(project_root.resolve())
+    if any(root != canonical and registered == name for root, registered in mappings.items()):
+        raise ConfigurationError("AgentMemory project name is already registered to another root")
     existing = mappings.get(canonical)
     if existing is not None and existing != name:
         raise ConfigurationError("AgentMemory project mapping conflicts")

@@ -1,0 +1,29 @@
+{
+  "id": "taskless-handoff-lifecycle",
+  "name": "taskless-handoff-lifecycle",
+  "title": "收敛 AgentMemory 集成与无任务交接",
+  "description": "修复 taskless seal、session_source、proof中断恢复与项目registry，完善可重入固定MCP和环境配置、记忆scope及上游能力边界，验证提交推送重装。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-02",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "complexity": "complex",
+    "delivery_mode": "implementation"
+  }
+}

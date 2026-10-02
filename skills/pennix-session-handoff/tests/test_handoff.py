@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 
 
 SKILL = Path(__file__).resolve().parents[1]
@@ -28,7 +29,7 @@ class HandoffTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp(prefix="pennix-session-handoff-"))
         (root / ".trellis/scripts").mkdir(parents=True)
         selected = "None" if task_dir is None else repr({"id": "fixture-task", "dir": task_dir, "status": "in_progress"})
-        (root / ".trellis/scripts/task.py").write_text("import json\nprint(json.dumps({'current_task': " + selected + "}))\n", encoding="utf-8")
+        (root / ".trellis/scripts/task.py").write_text("import json, os\nprint(json.dumps({'current_task': " + selected + ", 'source': 'none', 'session_source': 'session:' + os.environ.get('FIXTURE_TARGET', 'source')}))\n", encoding="utf-8")
         return root
 
     def make_git_root(self, *, with_task: bool = False) -> Path:
@@ -155,7 +156,7 @@ class HandoffTests(unittest.TestCase):
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         (root / ".trellis/scripts/task.py").write_text(
-            "import json\nprint(json.dumps({'current_task': None, 'source': 'session:target'}))\n",
+            "import json, os\nprint(json.dumps({'current_task': None, 'source': 'none', 'session_source': 'session:' + os.environ.get('FIXTURE_TARGET', 'source')}))\n",
             encoding="utf-8",
         )
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
@@ -183,7 +184,8 @@ class HandoffTests(unittest.TestCase):
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
-        blocked = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
+        with mock.patch.dict(os.environ, {"FIXTURE_TARGET": "target"}):
+            blocked = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
         self.assertEqual(blocked[1]["status"], "recorded")
         self.assertEqual(blocked[1]["state"]["target"], "reconciled")
         self.assertEqual(blocked[1]["state"]["retention"], "archive_eligible")
@@ -203,10 +205,6 @@ class HandoffTests(unittest.TestCase):
     def test_semantic_capsule_and_post_compaction_reentry_are_preserved(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
-        task_script = root / ".trellis/scripts/task.py"
-        task_script.write_text("import json, os\nprint(json.dumps({'current_task': None, 'source': 'session:' + os.environ.get('FIXTURE_TARGET', 'target')}))\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture source"], check=True)
         capsule = "目标与已否决方案：" + ("语义现场 " * 5000)
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule=capsule)), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stderr)
@@ -236,6 +234,8 @@ class HandoffTests(unittest.TestCase):
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
+        os.environ["FIXTURE_TARGET"] = "target"
+        self.addCleanup(os.environ.pop, "FIXTURE_TARGET", None)
         admitted = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
         self.assertEqual(admitted[1]["status"], "recorded")
 
@@ -315,7 +315,7 @@ class HandoffTests(unittest.TestCase):
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         (root / ".trellis/scripts/task.py").write_text(
-            "import json\nprint(json.dumps({'current_task': None, 'source': 'session:target'}))\n",
+            "import json, os\nprint(json.dumps({'current_task': None, 'source': 'none', 'session_source': 'session:' + os.environ.get('FIXTURE_TARGET', 'source')}))\n",
             encoding="utf-8",
         )
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
@@ -346,6 +346,8 @@ class HandoffTests(unittest.TestCase):
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
         self.assertEqual(self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root))).returncode, 0)
+        os.environ["FIXTURE_TARGET"] = "target"
+        self.addCleanup(os.environ.pop, "FIXTURE_TARGET", None)
         incomplete = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
         self.assertEqual(incomplete[1]["status"], "incomplete")
         self.assertEqual(incomplete[1]["state"]["target"], "not_admitted")
@@ -423,7 +425,7 @@ class HandoffTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root)
         (root / "evidence.md").write_text("verified fixture\n", encoding="utf-8")
         (root / ".trellis/scripts/task.py").write_text(
-            "import json\nprint(json.dumps({'current_task': None, 'source': 'session:target-session'}))\n",
+            "import json, os\nprint(json.dumps({'current_task': None, 'source': 'none', 'session_source': 'session:' + os.environ.get('FIXTURE_TARGET', 'source')}))\n",
             encoding="utf-8",
         )
         subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
@@ -467,6 +469,8 @@ class HandoffTests(unittest.TestCase):
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
         (package / "session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
+        os.environ["FIXTURE_TARGET"] = "target-session"
+        self.addCleanup(os.environ.pop, "FIXTURE_TARGET", None)
         admitted = self.run_cli(root, "admit", "--handoff", relative, "--attestation", str(attestation.relative_to(root)))
         self.assertEqual(admitted.returncode, 0, admitted.stderr)
         self.assertEqual(json.loads(admitted.stdout)["status"], "recorded")
@@ -572,30 +576,65 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "agentmemory_required").returncode, 0)
         (root / relative).with_name("session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
         handoff_id = Path(relative).parts[-2]
-        handoff._append_event(root, handoff_id, "boundary_sealed", {"source": "boundary_sealed", "target": "not_admitted", "retention": "none"}, ["fixture_boundary=sealed"])
-        original = handoff.agentmemory.complete_handoff
-        handoff.agentmemory.complete_handoff = lambda *_args: {
-            "memory_id": "memory-1",
-            "content": "Pennix formal handoff " + handoff_id + ".",
-            "retrieval_count": 1,
-            "content_sha256": "a" * 64,
-            "project": "fixture-project",
-        }
-        try:
+        self.assertEqual(self.run_cli(root, "seal", "--handoff", relative, "--explicit-user-request").returncode, 0)
+        client = mock.Mock(project="fixture-project")
+        client.retain_handoff.return_value = {"memory_id": "memory-1"}
+        client.verify_retrieval.return_value = 1
+        with mock.patch.object(handoff.agentmemory.AgentMemoryClient, "for_project", return_value=client):
             first = handoff.lifecycle_agentmemory(root, relative, "verified fixture fact")
             repeated = handoff.lifecycle_agentmemory(root, relative, "verified fixture fact")
-        finally:
-            handoff.agentmemory.complete_handoff = original
+        self.assertEqual(client.retain_handoff.call_count, 1)
         self.assertEqual(first[1]["status"], "recorded")
         self.assertEqual(first[1]["state"]["source"], "agentmemory_verified")
         events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
         proof = events[-1]["evidence_refs"]
-        self.assertIn("local_capsule_digest=" + "a" * 64, proof)
+        self.assertTrue(any(ref.startswith("local_capsule_digest=") for ref in proof))
         self.assertIn("agentmemory_memory_id=memory-1", proof)
         self.assertIn("agentmemory_project=fixture-project", proof)
         self.assertIn("agentmemory_retrieval_verified=1", proof)
         self.assertNotIn("canonical_persisted", " ".join(proof))
         self.assertEqual(repeated[1]["status"], "idempotent")
+
+    def test_taskless_proof_recovers_read_failure_and_rejects_same_source(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="capsule")), "--explicit-user-request")
+        relative = self.handoff_path_from(written.stdout)
+        handoff.lifecycle_prepare(root, relative, "agentmemory_required")
+        (root / relative).with_name("session-handoff-prompt.md").write_text("prompt\n")
+        with self.assertRaisesRegex(handoff.ContractError, "explicit-user-request"):
+            handoff.lifecycle_seal(root, relative, explicit=False)
+        handoff.lifecycle_seal(root, relative, explicit=True)
+        client = mock.Mock(project="fixture-project")
+        client.retain_handoff.return_value = {"memory_id": "memory-1"}
+        client.verify_retrieval.side_effect = [handoff.agentmemory.AgentMemoryError("read interrupted"), 1]
+        with mock.patch.object(handoff.agentmemory.AgentMemoryClient, "for_project", return_value=client):
+            with self.assertRaises(handoff.agentmemory.AgentMemoryError):
+                handoff.lifecycle_agentmemory(root, relative, "fact")
+            with self.assertRaisesRegex(handoff.ContractError, "write identity"):
+                handoff.lifecycle_agentmemory(root, relative, "different fact")
+            self.assertEqual(handoff.lifecycle_agentmemory(root, relative, "fact")[1]["state"]["source"], "agentmemory_verified")
+        self.assertEqual(client.retain_handoff.call_count, 1)
+        self.assertEqual(client.verify_retrieval.call_count, 2)
+        self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
+        attestation = root / "attestation.json"
+        payload = {"target_source": "session:source", "core_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent"}
+        attestation.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(handoff.ContractError, "prepared source session"):
+            handoff.lifecycle_admit(root, relative, "attestation.json")
+        with mock.patch.dict(os.environ, {"FIXTURE_TARGET": "target"}):
+            payload["target_source"] = "session:target"
+            attestation.write_text(json.dumps(payload))
+            self.assertEqual(handoff.lifecycle_admit(root, relative, "attestation.json")[1]["status"], "recorded")
+
+    def test_invalid_current_is_not_a_taskless_snapshot(self) -> None:
+        root = self.make_root()
+        self.addCleanup(shutil.rmtree, root)
+        for extra in ({"error": {"reason": "invalid"}}, {"stale": True}, {"source": "unbound_ambiguous"}, {"candidates": ["one"]}):
+            value = {"current_task": None, "source": "none", "session_source": "session:source", **extra}
+            (root / ".trellis/scripts/task.py").write_text("import json\nprint(" + repr(json.dumps(value)) + ")\n")
+            with self.assertRaises(handoff.ContractError):
+                handoff._task_snapshot(root)
 
     def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:
         root = self.make_git_root(with_task=True)
@@ -607,7 +646,7 @@ class HandoffTests(unittest.TestCase):
             "target = os.environ.get('TRELLIS_CONTEXT_ID') == 'target'\n"
             "task = None if target else {'id': 'fixture-task', 'dir': '.trellis/tasks/demo', 'status': 'in_progress'}\n"
             "if args == ['current', '--json']:\n"
-            "    print(json.dumps({'current_task': task, 'source': 'session:' + ('target' if target else 'source')}))\n"
+            "    print(json.dumps({'current_task': task, 'source': 'session:' + ('target' if target else 'source'), 'session_source': 'session:' + ('target' if target else 'source')}))\n"
             "elif args and args[0] == 'ownership':\n"
             "    op = args[1]\n"
             "    with open('.trellis/.runtime/ownership-args.jsonl', 'a', encoding='utf-8') as handle:\n"
