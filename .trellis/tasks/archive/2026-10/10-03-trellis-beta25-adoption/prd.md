@@ -21,12 +21,12 @@ Update the canonical trellis-cli catalog entry to 0.7.0-beta.25 and record the o
 
 ## Acceptance Criteria
 
-- [ ] The catalog has exactly the intended Trellis version change and no
+- [x] The catalog has exactly the intended Trellis version change and no
   unrelated diff.
-- [ ] Owner checks pass and the catalog commit is pushed.
-- [ ] The selected Pennix Skills collection is staged from the pushed commit,
+- [x] Owner checks pass and the catalog commit is pushed.
+- [x] The selected Pennix Skills collection is staged from the pushed commit,
   atomically installed at `~/.codex/skills/pennix-skills`, and discoverable.
-- [ ] Installed `trellis-cli` and collection receipts report the new source
+- [x] Installed `trellis-cli` and collection receipts report the new source
   and version; private runtime content is preserved.
 
 ## Notes
