@@ -12,9 +12,9 @@ Pin the released CLI/core beta.26 in the single catalog, reinstall the exact Ski
 
 ## Acceptance Criteria
 
-- [ ] Catalog and existing lifecycle tests agree on beta.26; source is committed and pushed.
-- [ ] Exact collection replacement and scoped verification pass; global CLI/core beta.26 are public and installed.
-- [ ] Native project update preserves workflow choices and receipts; owner task and journal are closed and pushed.
+- [x] Catalog and existing lifecycle tests agree on beta.26; source is committed and pushed.
+- [x] Exact collection replacement and scoped verification pass; global CLI/core beta.26 are public and installed.
+- [x] Native project update preserves workflow choices and receipts; owner task and journal are closed and pushed.
 
 ## Notes
 
