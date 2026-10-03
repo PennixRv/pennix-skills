@@ -189,3 +189,26 @@ Published unique Trellis pin, deployed all 11 Skills via fixed-commit git stagin
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: Adopt Trellis beta.25 catalog and project assets
+<!-- trellis-session: v=2 fp=42a9ec2106ef9a72 -->
+
+**Date**: 2026-10-03
+**Task**: Adopt Trellis beta.25 catalog and project assets
+**Branch**: `fix/trellis-beta25-adoption`
+
+### Summary
+
+Unique lifecycle catalog updated to beta.25; 132 tests passed; immutable eleven-skill installation and scoped verification succeeded; native project workflow and generated scripts consumed without changing workflow selection.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1d9039ff` | chore: adopt Trellis beta.25 catalog |
+| `2e91522` | chore: consume beta.25 recovery assets |
+
+### Status
+
+[OK] **Completed**
