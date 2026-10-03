@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
-- **Last Active**: 2026-10-02
+- **Total Sessions**: 8
+- **Last Active**: 2026-10-03
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~168 | Active |
+| `journal-1.md` | ~191 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-10-03 | Publish beta.24 pin and installed Skills delivery | `5adc967cbc0264f6bcb67d63f8245c63af795226`, `977bd4b9cdcf50442d74e2a64b2121d6c4ad70f7` | `chore/subnode-defaults-release-adoption` |
 | 7 | 2026-10-02 | AgentMemory 集成与无任务交接收敛 | `4223cb9`, `9f02e38` | `main` |
 | 6 | 2026-09-20 | 完成两会话 Pennix Skills 部署入口 | `a4bcdc9` | `task/reentrant-seed-runtime-ready` |
 | 5 | 2026-09-20 | 修复远程 Seed 首会话入口 | `553995f` | `task/remote-seed-entry-uninstall` |

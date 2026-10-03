@@ -166,3 +166,26 @@ Implemented source-ready pair and ownership gates, recoverable one-target intake
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: Publish beta.24 pin and installed Skills delivery
+<!-- trellis-session: v=2 fp=b0cb2397a39fa02b -->
+
+**Date**: 2026-10-03
+**Task**: Publish beta.24 pin and installed Skills delivery
+**Branch**: `chore/subnode-defaults-release-adoption`
+
+### Summary
+
+Published unique Trellis pin, deployed all 11 Skills via fixed-commit git staging and native replacement, upgraded global CLI, and adopted native project assets. Lifecycle 60 tests and four scoped installed verifications passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5adc967cbc0264f6bcb67d63f8245c63af795226` | chore(lifecycle): advance Trellis pin to beta.24 |
+| `977bd4b9cdcf50442d74e2a64b2121d6c4ad70f7` | chore(workflow): adopt beta.24 project assets and record installed delivery |
+
+### Status
+
+[OK] **Completed**
