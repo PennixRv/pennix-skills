@@ -1,0 +1,29 @@
+{
+  "id": "trellis-beta25-adoption",
+  "name": "trellis-beta25-adoption",
+  "title": "Adopt Trellis beta.25 in Pennix Skills catalog",
+  "description": "Update the canonical trellis-cli catalog entry to 0.7.0-beta.25 and record the owner-side verification needed for global Skills installation.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-03",
+  "completedAt": null,
+  "branch": "fix/trellis-beta25-adoption",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "owner_change_coordination",
+    "release": "0.7.0-beta.25"
+  }
+}
