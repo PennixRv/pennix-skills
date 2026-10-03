@@ -11,6 +11,8 @@ Update the canonical trellis-cli catalog entry to 0.7.0-beta.25 and record the o
   `0.7.0-beta.24` to `0.7.0-beta.25`.
 - Preserve the catalog's owner, delivery, source, action, and collection
   contract fields; do not change unrelated component versions.
+- Refresh this project's already selected bundled native workflow to beta.25
+  and run native update while preserving every project-modified file.
 - Validate the catalog and lifecycle tests, then commit and push this owner
   change before invoking the system Skill installer.
 - Install the catalog's immutable collection from the resulting source commit
