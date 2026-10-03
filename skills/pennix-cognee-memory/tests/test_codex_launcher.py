@@ -1,5 +1,7 @@
 import importlib.util
+import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -31,7 +33,7 @@ class CodexLauncherTest(unittest.TestCase):
             ):
                 launcher.main(['--version'])
             _, args, env = execute.call_args.args
-            self.assertEqual(args[1:4], ['--no-daemon', '-c', 'plugins."cognee@cognee".enabled=true'])
+            self.assertEqual(args[1:4], ['--no-daemon', '-c', 'plugins.cognee@cognee.enabled=true'])
             self.assertEqual(env['COGNEE_PLUGIN_DATASET'], 'project-memory')
             self.assertEqual(env['COGNEE_PLUGIN_IDENTITY'], 'false')
             self.assertNotIn('COGNEE_API_KEY', env)
@@ -45,7 +47,7 @@ class CodexLauncherTest(unittest.TestCase):
             ):
                 launcher.main(['resume'])
                 registered.assert_not_called()
-                self.assertIn('plugins."cognee@cognee".enabled=false', execute.call_args.args[1])
+                self.assertIn('plugins.cognee@cognee.enabled=false', execute.call_args.args[1])
             self.assertEqual(launcher._launch_root(['--cd', temporary]), Path(temporary))
 
     def test_worktree_and_subdirectory_share_identity_but_nested_repo_does_not(self):
@@ -64,6 +66,20 @@ class CodexLauncherTest(unittest.TestCase):
             self.assertEqual(canonical_project_root(sub), root)
             subprocess.run(['git', '-C', str(sub), 'init'], check=True, capture_output=True)
             self.assertEqual(canonical_project_root(sub), sub)
+
+    @unittest.skipUnless(shutil.which('codex'), 'native Codex is not installed')
+    def test_native_cli_applies_plugin_override(self):
+        for enabled in (True, False):
+            result = subprocess.run(
+                ['codex', '-c', f'{launcher.PLUGIN}={str(enabled).lower()}',
+                 'plugin', 'list', '--json'],
+                check=True, capture_output=True, text=True, timeout=30,
+            )
+            rows = json.loads(result.stdout)['installed']
+            matches = [row for row in rows if row['pluginId'] == 'cognee@cognee']
+            if not matches:
+                self.skipTest('official Cognee plugin is not installed')
+            self.assertEqual(matches[0]['enabled'], enabled)
 
 
 if __name__ == '__main__':

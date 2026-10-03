@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cognee_client import CogneeClient, CogneeError
 
 
-PLUGIN = 'plugins."cognee@cognee".enabled'
+# Native -c splits on dots; quoting a segment creates a different literal key.
+PLUGIN = 'plugins.cognee@cognee.enabled'
 DATASET_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 

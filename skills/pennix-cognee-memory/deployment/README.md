@@ -20,3 +20,8 @@ permissions. If the context was extracted under a private NAS umask, build the
 `Dockerfile.ui-permissions` layer over the pinned official UI image to grant
 read/traverse access to public assets. It changes no UI source and still runs
 as `nextjs`; pin the resulting image ID in the private compose owner.
+
+The public reverse proxy must route both `/api/v1/` and the exact `/health`
+path to the backend. The official plugin gates registration and session sync
+on `/health`; routing that path to the UI leaves capture buffered even when
+authenticated API calls work. Keep UI `/api/runtime-config` on the UI service.

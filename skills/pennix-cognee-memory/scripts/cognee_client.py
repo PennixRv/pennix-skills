@@ -128,11 +128,11 @@ class CogneeClient:
             raise CogneeError("Cognee dataset no longer matches the project registration")
         return client
 
-    def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    def _request(self, method: str, path: str, body: dict[str, Any] | None = None, *, timeout: float | None = None) -> Any:
         encoded = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
         request = urllib.request.Request(self.base + path, data=encoded, method=method, headers={"Accept": "application/json", "X-Api-Key": self.token, **({"Content-Type": "application/json"} if encoded is not None else {})})
         try:
-            with urllib.request.build_opener(NoCredentialRedirect()).open(request, timeout=self.timeout) as response:
+            with urllib.request.build_opener(NoCredentialRedirect()).open(request, timeout=self.timeout if timeout is None else timeout) as response:
                 raw = response.read()
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             raise CogneeError(f"Cognee API request failed: {method} {path}") from error
@@ -237,7 +237,7 @@ class CogneeClient:
         return 1
 
     def improve(self, *, session_ids: list[str] | None = None) -> dict[str, Any]:
-        return self._request("POST", "/api/v1/improve", {"dataset_id": self._dataset_id(), "session_ids": session_ids or [], "build_truth_subspace": True, "build_global_context_index": True, "run_in_background": False})
+        return self._request("POST", "/api/v1/improve", {"dataset_id": self._dataset_id(), "session_ids": session_ids or [], "build_truth_subspace": True, "build_global_context_index": True, "run_in_background": False}, timeout=420.0)
 
     def remember(self, text: str, *, task: str, host_session: str, source: str,
                  kind: str = "decision", approval_ref: str | None = None,
