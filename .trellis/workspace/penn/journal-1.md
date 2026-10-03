@@ -212,3 +212,37 @@ Unique lifecycle catalog updated to beta.25; 132 tests passed; immutable eleven-
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: Adopt Trellis beta.26 consumer assets
+<!-- trellis-session: v=2 fp=bfd832d7fc574cac -->
+
+**Date**: 2026-10-03
+**Task**: Adopt Trellis beta.26 consumer assets
+**Branch**: `main`
+
+### Summary
+
+Installed and verified the native beta.26 project assets while preserving the selected native workflow and local project state.
+
+### Main Changes
+
+- Updated the bundled worker lifecycle guidance and native receipts on main.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f092a68` | chore(trellis): adopt beta.26 worker wait guidance |
+
+### Testing
+
+- [OK] Lifecycle verification and native Trellis dry-run passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Root coordinator records the seven-consumer integration and proceeds to the final finding-first AgentMemory task.
