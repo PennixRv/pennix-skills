@@ -1,0 +1,6 @@
+ARG BASE_IMAGE=pennix-cognee-ui:1.6.2-ba3631f
+FROM ${BASE_IMAGE}
+USER root
+# Normalize permissions copied from a private NAS build context; source is unchanged.
+RUN chmod -R a+rX /app/public
+USER nextjs

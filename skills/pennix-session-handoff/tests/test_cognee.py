@@ -65,14 +65,14 @@ class CogneeTests(unittest.TestCase):
             def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
                 length = int(self.headers.get("Content-Length", "0"))
                 body = self.rfile.read(length)
-                requests.append((self.path, body, self.headers.get("Authorization")))
+                requests.append((self.path, body, self.headers.get("X-Api-Key")))
                 if self.path == "/api/v1/cognify":
                     self._respond_json({"status": "completed"})
                 else:
                     self._respond_json({"pipeline_run_id": "run-1", "status": "completed"})
 
             def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
-                requests.append((self.path, None, self.headers.get("Authorization")))
+                requests.append((self.path, None, self.headers.get("X-Api-Key")))
                 if self.path == "/api/v1/datasets":
                     self._respond_json([{"id": "dataset-1", "name": "project"}])
                 elif self.path.startswith("/api/v1/datasets/dataset-1/data?"):
@@ -105,7 +105,7 @@ class CogneeTests(unittest.TestCase):
             thread.join(timeout=2)
 
         self.assertEqual(len(requests), 6)
-        self.assertTrue(all(request[2] == "Bearer test-token" for request in requests))
+        self.assertTrue(all(request[2] == "test-token" for request in requests))
         self.assertEqual(requests[0][0], "/api/v1/add")
         self.assertIn(b"name=\"datasetName\"", requests[0][1])
         self.assertIn(b"name=\"external_metadata\"", requests[0][1])

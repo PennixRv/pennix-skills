@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from adapters import codex_plugins, codex_static, configuration, skills_install, tmux_static, upstream
+from adapters import cognee_plugin, codex_plugins, codex_static, configuration, skills_install, tmux_static, upstream
 import host
 
 
@@ -857,6 +857,12 @@ def probe_component(
         except skills_install.InstallError:
             return "unknown", None
         return state, str(destination_path) if state in {"match", "bootstrap", "partial"} else None
+    if adapter == "cognee-plugin":
+        try:
+            state, observed = cognee_plugin.inspect(codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
+        except (codex_static.StaticError, codex_plugins.PluginError):
+            return "blocked", None
+        return {"configured": "match", "not-configured": "missing"}.get(state, "drifted"), observed
     plugin = component.get("plugin")
     if isinstance(plugin, dict):
         target_home = codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -1232,8 +1238,11 @@ def component_operation(
             return "no-op"
         if isinstance(plugin, dict):
             try:
-                codex_plugins.remove_plugin(args.codex_home, plugin["id"])
-            except codex_plugins.PluginError as error:
+                if component.get("adapter") == "cognee-plugin":
+                    cognee_plugin.remove(args.codex_home)
+                else:
+                    codex_plugins.remove_plugin(args.codex_home, plugin["id"])
+            except (codex_plugins.PluginError, codex_static.StaticError) as error:
                 raise BootstrapError(str(error)) from error
             if probe_component(component, args.codex_home, getattr(args, "destination", None))[0] != "missing":
                 raise BootstrapError("plugin uninstall postcondition failed")
@@ -1279,8 +1288,11 @@ def component_operation(
                 args.codex_home, marketplace["name"], marketplace["source"], marketplace["ref"]
             ) not in {"absent", "matching-ref"}:
                 raise BootstrapError("existing marketplace cannot be ref-verified")
-            codex_plugins.install_plugin(args.codex_home, plugin)
-        except codex_plugins.PluginError as error:
+            if component.get("adapter") == "cognee-plugin":
+                cognee_plugin.install(args.codex_home)
+            else:
+                codex_plugins.install_plugin(args.codex_home, plugin)
+        except (codex_plugins.PluginError, codex_static.StaticError) as error:
             raise BootstrapError(str(error)) from error
     else:
         metadata = component.get("package")

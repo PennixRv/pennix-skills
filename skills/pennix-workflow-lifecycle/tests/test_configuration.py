@@ -89,7 +89,7 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 os.environ,
                 {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")},
                 clear=False,
-            ), mock.patch.object(MODULE.cognee_plugin, "configure"), mock.patch.object(MODULE.cognee_plugin, "state", return_value="configured"):
+            ), mock.patch.object(MODULE.cognee_plugin, "configure"), mock.patch.object(MODULE.cognee_plugin, "state", return_value="configured"), mock.patch.object(MODULE.cognee_plugin, "launcher_state", return_value="configured"):
                 url = "https://cognee.example.test:9999"
                 self.assertEqual(MODULE.configure_cognee_static(codex, url), "configured")
                 config = home / ".cognee" / ".env"
@@ -108,21 +108,30 @@ class ConfigurationAdapterTest(unittest.TestCase):
             home = root / "home"
             codex = home / ".codex"
             project = root / "project"
-            with mock.patch.dict(
-                os.environ,
-                {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")},
-                clear=False,
+            project.mkdir()
+            principal_id = "11111111-1111-4111-8111-111111111111"
+            dataset_id = "22222222-2222-4222-8222-222222222222"
+            def request(client, method, path, body=None):
+                if path == "/api/v1/users/me":
+                    return {"id": principal_id}
+                return {"id": dataset_id, "name": body["name"], "owner_id": principal_id}
+            with (
+                mock.patch.dict(os.environ, {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")}),
+                mock.patch.object(MODULE, "_read_env", return_value=("configured", {
+                    "COGNEE_BASE_URL": "https://memory.test", "COGNEE_API_KEY": "test-key"})),
+                mock.patch.object(MODULE.CogneeClient, "_request", new=request),
             ):
-                project.mkdir()
                 name = MODULE.register_cognee_project(codex, project)
-                self.assertEqual(name, "project")
+                self.assertTrue(name.startswith("project-"))
                 registry = home / ".config" / "cognee" / "projects.json"
-                self.assertEqual(json.loads(registry.read_text(encoding="utf-8"))[str(project.resolve())], "project")
+                entry = json.loads(registry.read_text())[str(project.resolve())]
+                self.assertEqual(entry["dataset_id"], dataset_id)
+                self.assertEqual(entry["principal_id"], principal_id)
                 other = root / "other/project"
                 other.mkdir(parents=True)
-                with self.assertRaisesRegex(MODULE.ConfigurationError, "already registered"):
-                    MODULE.register_cognee_project(codex, other)
+                self.assertNotEqual(MODULE.register_cognee_project(codex, other), name)
                 self.assertEqual(MODULE.unregister_cognee_project(project), "changed")
+                self.assertEqual(MODULE.unregister_cognee_project(other), "changed")
                 self.assertFalse(registry.exists())
 
 

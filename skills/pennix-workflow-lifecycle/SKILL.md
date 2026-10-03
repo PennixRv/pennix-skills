@@ -215,9 +215,12 @@ its hooks or Skill and does not add an MCP server. The static target writes the
 official private `~/.cognee/.env` policy: `COGNEE_BASE_URL`,
 `COGNEE_MANAGED_ENDPOINT=true`, and `COGNEE_SHARED_AGENT_MEMORY=false`. Its
 API key is configured as a separate target, read only from hidden `/dev/tty`,
-and never passed as an argument. The official plugin loads this env file at
-hook startup, so a new Codex host must be reopened after configuration. CCH and
-Windsurf delegate to their owner `configure` command. Hikari and Grok accept
+and never passed as an argument. Cognee also stays disabled in global Codex
+configuration; the installed Pennix Cognee launcher enables it only for an
+explicitly registered Git root and supplies that root's dataset name. The
+official plugin loads the private env file at hook startup, so a new Codex host
+must be reopened after configuration. CCH and Windsurf delegate to their owner
+`configure` command. Hikari and Grok accept
 values only through `/dev/tty`, conceal secret input, and write a private owner
 record. Grok refuses to overwrite a non-lifecycle-marked record. Cognee project
 registration is explicit and requires a project root; it writes only the

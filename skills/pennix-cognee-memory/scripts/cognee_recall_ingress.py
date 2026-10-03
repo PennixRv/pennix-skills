@@ -36,7 +36,8 @@ RETRIEVER_SPECIFIC_CONFIG = {
 }
 
 
-if COGNEE_VERSION != EXPECTED_COGNEE_VERSION:
+# The official Dockerfile retains pyproject.toml, so upstream reports -local.
+if COGNEE_VERSION.removesuffix("-local") != EXPECTED_COGNEE_VERSION:
     raise RuntimeError(
         f"Pennix Cognee ingress requires Cognee {EXPECTED_COGNEE_VERSION}, found {COGNEE_VERSION}"
     )

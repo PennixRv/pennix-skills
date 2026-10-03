@@ -18,8 +18,7 @@ for Trellis tasks, Git, current files, credentials, or runtime state.
   user explicitly confirms the target scope. Include source project, source
   session or task, timestamp, and applicability.
 - **User memory:** write a stable preference or durable fact only after the
-  user explicitly asks for it or confirms the exact text and scope. Use the
-  reserved `pennix-user-penn` project and `type=preference`.
+  user explicitly asks for it or confirms the exact text and scope. Use a separate principal-bound approved user dataset with `kind=preference`.
 
 Project memory never automatically becomes cross-project or user memory.
 Current files, Trellis state, Git, and newer user instructions win whenever a
@@ -36,25 +35,49 @@ uses the private `~/.cognee/.env` file and `COGNEE_BASE_URL` plus
 The lifecycle configures the pinned official plugin and sets
 `COGNEE_MANAGED_ENDPOINT=true` so a managed endpoint cannot silently fall back
 to a local server. Project isolation sets `COGNEE_SHARED_AGENT_MEMORY=false`.
-Only explicitly registered projects may enable the plugin through the Pennix
-launcher. A subnode inherits the parent environment but is disabled by the
-Trellis subnode policy unless its task grants it ownership.
+The lifecycle keeps the native plugin disabled in the global Codex config.
+Start a project through
+`~/.local/bin/pennix-codex` (managed by lifecycle, pointing to the installed
+Cognee memory skill launcher) to enable
+it only when the canonical Git root is registered and the private service
+configuration is ready; that launch also supplies the project's registered
+`COGNEE_PLUGIN_DATASET`. Unregistered roots launch with the plugin disabled.
+A subnode inherits the parent environment but is disabled by the Trellis
+subnode policy unless its task grants it ownership.
 
 ## Capture and retrieval discipline
 
-Record semantic deltas: objective, constraint, decision, reversal,
-verification, failure lesson, blocker, or next safe action that changes future
-work. Keep content concise and human-readable. Never store raw transcripts,
-tool output, credentials, private keys, tokens, session handles, databases,
-logs, or temporary paths. The official capture redaction and sensitive-path
-filters remain enabled.
+The official plugin captures filtered Q&A and allowed tool traces, then runs
+native session feedback, persistence, distillation, graph construction and
+recall. These filtered sources may persist long term under the approved full
+official chain. Capture redaction and private-path/tool exclusions stay on;
+credentials, keys, tokens, database contents, unrelated logs and rollout files
+remain excluded. Shell/wrapper tools whose text cannot prove private-path
+exclusion are denied by the native capture policy.
+
+Explicit records supplement the automatic chain with an objective, constraint,
+decision, correction, verification, failure lesson or next safe action. Keep
+these records concise and readable, with task/session/source/time/scope. Do
+not duplicate a fact in multiple languages. Use `scripts/memory.py` with the
+explicit `--project-root` for remember, recall, raw, revise, revoke/delete,
+approved promotion and improve. Cross-project/user `promote` requires the
+source data UUID, target scope and an explicit `--approval-ref`; never invent
+approval. `revise` verifies the new record before deleting the old source.
+Deletion is complete only after raw, graph, session-derived content and recall
+absence are checked; a source-delete response alone is insufficient.
+
+At a Trellis stage close or formal handoff, call `improve --session-id <id>` for
+the verified Cognee session IDs. It enables native truth-subspace and global
+context index for that project's dataset. Inspect every stage status/reason;
+a successful HTTP response does not mean each stage succeeded. Personalization
+and automatic user-preference extraction remain off.
 
 Treat ordinary Cognee recall as candidate evidence. Verify project and session
 scope against Trellis and current files before using it. For a strict project
 fact, use the registered dataset and exact raw read. Important writes require a
 read-back from the authenticated central service; a client success response
-alone is not persistence proof. Correct stale facts through the official
-update or forget path; do not add rewritten duplicates.
+alone is not persistence proof. Correct stale facts through the explicit revision or official forget path;
+retain the supersedes/source reference and verify derived absence.
 
 ## Formal handoff
 

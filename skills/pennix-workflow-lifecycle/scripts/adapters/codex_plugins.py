@@ -59,7 +59,7 @@ def marketplace_status(codex_home: Path, name: str, source: str, ref: str | None
         if not isinstance(marketplace, dict) or marketplace.get("name") != name:
             continue
         current = marketplace.get("marketplaceSource")
-        if not isinstance(current, dict) or current.get("source") != source:
+        if not isinstance(current, dict) or str(current.get("source", "")).removesuffix(".git") != source.removesuffix(".git"):
             return "different-source"
         if ref is None:
             return "matching-source"
@@ -108,10 +108,10 @@ def install_plugin(codex_home: Path, plugin: dict[str, Any]) -> None:
             state = marketplace_status(codex_home, marketplace["name"], marketplace["source"], marketplace["ref"])
             if installed is None and created_marketplace and state == "matching-ref":
                 run_json(codex_home, "marketplace", "remove", marketplace["name"], "--json")
-            elif installed is None:
+            elif installed is None and state != "absent":
                 raise PluginError(f"marketplace recovery is unsafe: {state}")
         except PluginError as rollback_error:
-            raise PluginError(f"plugin install failed and marketplace rollback failed: {rollback_error}") from error
+            raise PluginError(f"{error}; marketplace rollback failed: {rollback_error}") from error
         raise
 
 

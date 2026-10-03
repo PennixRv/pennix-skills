@@ -1118,7 +1118,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["codex-cli"]["version_policy"], "repository-latest")
         self.assertNotIn("approved_version", catalog["components"]["codex-cli"])
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
-        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.26")
+        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.27")
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["tag"], "beta")
 
     def test_npm_replacement_is_removed_before_install(self) -> None:
@@ -1261,7 +1261,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(component["plugin"]["id"], "cognee@cognee")
         self.assertEqual(component["plugin"]["marketplace"]["source"], "https://github.com/topoteretes/cognee-integrations")
         self.assertEqual(component["plugin"]["marketplace"]["ref"], "201ba4c8e824060b40b65ea5129a1d8c964ae798")
-        self.assertEqual(component["plugin"]["marketplace"]["sparse"], ["integrations/codex/plugins/cognee"])
+        self.assertEqual(component["plugin"]["marketplace"]["sparse"], [".agents/plugins", "integrations/codex/plugins/cognee"])
         self.assertNotIn("hindsight-coding-agents", catalog["components"])
         self.assertNotIn("openviking-plugin", catalog["components"])
 
@@ -1271,7 +1271,7 @@ class BootstrapTests(unittest.TestCase):
         installed = {
             "pluginId": "cognee@cognee",
             "version": "1.7.4",
-            "enabled": True,
+            "enabled": False,
         }
         with (
             patch.object(bootstrap.codex_plugins, "installed_plugin", return_value=installed),
@@ -1281,6 +1281,8 @@ class BootstrapTests(unittest.TestCase):
         with (
             patch.object(bootstrap.codex_plugins, "installed_plugin", return_value=installed),
             patch.object(bootstrap.codex_plugins, "marketplace_status", return_value="matching-ref"),
+            patch.object(bootstrap.cognee_plugin, "_policy_state", return_value="configured"),
+            patch.object(bootstrap.cognee_plugin, "_content_matches", return_value=True),
         ):
             self.assertEqual(bootstrap.probe_component(component, Path("/tmp/codex")), ("match", "1.7.4"))
 

@@ -12,10 +12,14 @@ import stat
 import subprocess
 import tempfile
 import termios
+import sys
 from pathlib import Path
 from typing import Any
 
 from . import cognee_plugin, codex_static
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "pennix-cognee-memory" / "scripts"))
+from cognee_client import CogneeClient, CogneeError, canonical_project_root
 
 
 MAX_CONFIG_BYTES = 64 * 1024
@@ -240,6 +244,16 @@ def cognee_policy(api_url: str) -> dict[str, str]:
         "COGNEE_BASE_URL": api_url.rstrip("/"),
         "COGNEE_MANAGED_ENDPOINT": "true",
         "COGNEE_SHARED_AGENT_MEMORY": "false",
+        "COGNEE_PLUGIN_IDENTITY": "false",
+        "COGNEE_CAPTURE": "true",
+        "COGNEE_CAPTURE_REDACT": "true",
+        "COGNEE_CAPTURE_DENY_PATHS": json.dumps([
+            "*/.codex/config.toml", "*/.codex/auth.json", "*/.codex/sessions/*",
+            "*/.codex/session-handoffs/*", "*/.cognee/*", "*/.config/*", "*.db", "*.sqlite*",
+            "*.log", "*/credentials*", "*/secrets*", "*/rollout-*.jsonl"]),
+        "COGNEE_CAPTURE_DENY_TOOLS": json.dumps([
+            "*exec*", "*write_stdin*", "*fastctx*run*", "*fastctx*job_output*",
+            "Bash(ssh:*)", "Bash(cat:*)", "Bash(curl:*)", "Bash(docker:*)"]),
     }
 
 
@@ -255,7 +269,7 @@ def cognee_static_state(codex_home: Path, api_url: str) -> str:
     if not policy_matches:
         return "drifted"
     try:
-        return cognee_plugin.state(codex_home, cognee_config_path(), api_url)
+        return cognee_plugin.state(codex_home) if cognee_plugin.launcher_state(codex_home) == "configured" else "drifted"
     except codex_static.StaticError:
         return "blocked"
 
@@ -273,11 +287,11 @@ def configure_cognee_static(codex_home: Path, api_url: str) -> str:
     if receipt_state == "configured" and receipt and any(data.get(k) != v for k, v in receipt["fields"].items()):
         raise ConfigurationError("Cognee client configuration was modified outside lifecycle")
     data.update(policy)
-    _write_env(path, data)
     try:
         cognee_plugin.configure(codex_home, path, api_url)
     except (codex_static.StaticError, cognee_plugin.codex_plugins.PluginError) as error:
         raise ConfigurationError(str(error)) from error
+    _write_env(path, data)
     _write_private_json(static_receipt_path(codex_home, "cognee-config"), {"schema": 1, "path": str(path), "fields": policy})
     return "configured"
 
@@ -343,23 +357,36 @@ def disable_targets(codex_home: Path, catalog_digest: str, target_ids: set[str])
 def register_cognee_project(codex_home: Path, project_root: Path) -> str:
     if project_root.is_symlink() or not project_root.is_dir():
         raise ConfigurationError("project root is ambiguous")
-    name = project_root.name
-    if not PROJECT_NAME.fullmatch(name):
-        raise ConfigurationError("project name is invalid")
-    path = _home().joinpath(*COGNEE_PROJECTS_RELATIVE)
-    state, data = _private_json(path)
-    if state not in {"missing", "configured"}:
-        raise ConfigurationError("Cognee project registry is blocked")
-    mappings = data or {}
-    canonical = str(project_root.resolve())
-    if any(root != canonical and registered == name for root, registered in mappings.items()):
-        raise ConfigurationError("Cognee project name is already registered to another root")
-    existing = mappings.get(canonical)
-    if existing is not None and existing != name:
-        raise ConfigurationError("Cognee project mapping conflicts")
-    mappings[canonical] = name
-    _write_private_json(path, mappings)
-    return name
+    try:
+        root = canonical_project_root(project_root)
+        canonical = str(root)
+        slug = re.sub(r"[^A-Za-z0-9_-]+", "-", root.name).strip("-")[:40] or "project"
+        name = slug + "-" + hashlib.sha256(canonical.encode()).hexdigest()[:12]
+        path = _home().joinpath(*COGNEE_PROJECTS_RELATIVE)
+        state, data = _private_json(path)
+        if state not in {"missing", "configured"}:
+            raise ConfigurationError("Cognee project registry is blocked")
+        config_state, config = _read_env(_home().joinpath(*COGNEE_CONFIG_RELATIVE))
+        if config_state != "configured" or not config.get("COGNEE_API_KEY"):
+            raise ConfigurationError("Cognee private client is not configured")
+        client = CogneeClient(config["COGNEE_BASE_URL"], config["COGNEE_API_KEY"], name, timeout=15)
+        principal = client._request("GET", "/api/v1/users/me")
+        if not isinstance(principal, dict) or not isinstance(principal.get("id"), str):
+            raise ConfigurationError("Cognee principal could not be verified")
+        dataset = client._request("POST", "/api/v1/datasets", {"name": name})
+        if (not isinstance(dataset, dict) or dataset.get("name") != name
+                or dataset.get("owner_id") != principal["id"] or not isinstance(dataset.get("id"), str)):
+            raise ConfigurationError("Cognee dataset could not be verified")
+        entry = {"dataset_name": name, "dataset_id": dataset["id"],
+                 "principal_id": principal["id"], "base_url": client.base}
+        mappings = data or {}
+        if canonical in mappings and mappings[canonical] != entry:
+            raise ConfigurationError("Cognee project registration conflicts; unregister explicitly first")
+        mappings[canonical] = entry
+        _write_private_json(path, mappings)
+        return name
+    except CogneeError as error:
+        raise ConfigurationError(str(error)) from error
 
 
 def unregister_cognee_project(project_root: Path) -> str:
@@ -367,7 +394,7 @@ def unregister_cognee_project(project_root: Path) -> str:
     state, data = _private_json(path)
     if state != "configured" or data is None:
         return "no-op"
-    canonical = str(project_root.resolve())
+    canonical = str(canonical_project_root(project_root))
     if canonical not in data:
         return "no-op"
     del data[canonical]

@@ -121,7 +121,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.26",
+      "approved_version": "0.7.0-beta.27",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -203,6 +203,7 @@
     "cognee-coding-agents": {
       "delivery": "plugin",
       "approved_version": "1.7.4",
+      "adapter": "cognee-plugin",
       "source": "Cognee official Codex plugin (native hooks and HTTP client)",
       "owner": "cognee",
       "scope": "global/project",
@@ -226,6 +227,7 @@
           "source": "https://github.com/topoteretes/cognee-integrations",
           "ref": "201ba4c8e824060b40b65ea5129a1d8c964ae798",
           "sparse": [
+            ".agents/plugins",
             "integrations/codex/plugins/cognee"
           ]
         }
@@ -382,12 +384,12 @@
           {
             "id": "aoe-delivery-source",
             "selected": "aur-package",
-            "reason": "Arch 工作流优先使用维护中的 AUR 包。"
+            "reason": "Arch \u5de5\u4f5c\u6d41\u4f18\u5148\u4f7f\u7528\u7ef4\u62a4\u4e2d\u7684 AUR \u5305\u3002"
           },
           {
             "id": "aoe-install-dir",
             "selected": "not-applicable",
-            "reason": "上游 INSTALL_DIR 不能映射为所选 AUR package action。"
+            "reason": "\u4e0a\u6e38 INSTALL_DIR \u4e0d\u80fd\u6620\u5c04\u4e3a\u6240\u9009 AUR package action\u3002"
           }
         ],
         "questions": []
