@@ -63,6 +63,9 @@ explicit `--project-root` for remember, recall, raw, revise, revoke/delete,
 approved promotion and improve. Cross-project/user `promote` requires the
 source data UUID, target scope and an explicit `--approval-ref`; never invent
 approval. `revise` verifies the new record before deleting the old source.
+Use explicit `--scope cross_project` or `--scope user` on recall, raw, revoke
+or delete to manage the already-approved principal dataset. Reads never create
+a dataset or merge other project data. The default remains `project`.
 Deletion is complete only after raw, graph, session-derived content and recall
 absence are checked; a source-delete response alone is insufficient.
 

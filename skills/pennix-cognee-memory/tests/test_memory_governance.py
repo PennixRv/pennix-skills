@@ -24,6 +24,20 @@ class MemoryGovernanceTest(unittest.TestCase):
                 client.promote_record(old_id, scope='user', approval_ref='', task='task', host_session='host')
             request.assert_not_called()
 
+    def test_approved_scope_refuses_missing_duplicate_and_foreign_owner_without_writes(self):
+        client = CogneeClient('https://memory.test', 'test-key', 'project', 'dataset')
+        principal = '11111111-1111-4111-8111-111111111111'
+        row = {'name': 'pennix-approved-user-' + principal[:12],
+               'id': '22222222-2222-4222-8222-222222222222', 'ownerId': principal}
+        with mock.patch.object(client, '_request', return_value={'id': principal}) as request:
+            for rows in ([], [row, row], [{**row, 'ownerId': 'foreign'}]):
+                with mock.patch.object(client, '_datasets', return_value=rows):
+                    with self.assertRaises(CogneeError):
+                        client.for_scope('user')
+            with mock.patch.object(client, '_datasets', return_value=[row]):
+                self.assertEqual(client.for_scope('user').dataset_id, row['id'])
+            self.assertTrue(all(call.args[0] == 'GET' for call in request.call_args_list))
+
 
 if __name__ == '__main__':
     unittest.main()

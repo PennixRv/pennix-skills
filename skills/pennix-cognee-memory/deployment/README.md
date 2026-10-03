@@ -25,3 +25,19 @@ The public reverse proxy must route both `/api/v1/` and the exact `/health`
 path to the backend. The official plugin gates registration and session sync
 on `/health`; routing that path to the UI leaves capture buffered even when
 authenticated API calls work. Keep UI `/api/runtime-config` on the UI service.
+
+For the current CCH OpenAI-compatible route, configure the supported upstream
+`STRUCTURED_OUTPUT_FRAMEWORK=instructor` and `LLM_INSTRUCTOR_MODE=json_mode`.
+The native schema path's `SessionTurnAnalysis` uses `oneOf`; the upstream rejects
+it and CCH wraps that 400 as 503, preventing Cognee's native schema fallback.
+JSON mode keeps upstream Pydantic validation and the full improve pipeline
+without modifying Cognee source. Preserve `LLM_ARGS` reasoning effort and use
+CCH usage accounting when a structured response does not expose token counts.
+
+The fixed upstream 30-second connection test can time out on a reasoning model.
+After separate real LLM and embedding probes pass, set the supported
+`COGNEE_SKIP_CONNECTION_TEST=true` and retain real pipeline verification.
+The Pennix synchronous phase-close improve waits up to 1200 seconds: the live
+full nine-stage run took 474 seconds, beyond the plugin's 420-second submission
+budget. Ordinary client calls and the immutable official plugin budgets stay
+separate; a timeout or incomplete stage remains a visible failure.

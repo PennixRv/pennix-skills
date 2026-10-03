@@ -237,7 +237,7 @@ class CogneeClient:
         return 1
 
     def improve(self, *, session_ids: list[str] | None = None) -> dict[str, Any]:
-        return self._request("POST", "/api/v1/improve", {"dataset_id": self._dataset_id(), "session_ids": session_ids or [], "build_truth_subspace": True, "build_global_context_index": True, "run_in_background": False}, timeout=420.0)
+        return self._request("POST", "/api/v1/improve", {"dataset_id": self._dataset_id(), "session_ids": session_ids or [], "build_truth_subspace": True, "build_global_context_index": True, "run_in_background": False}, timeout=1200.0)
 
     def remember(self, text: str, *, task: str, host_session: str, source: str,
                  kind: str = "decision", approval_ref: str | None = None,
@@ -276,6 +276,22 @@ class CogneeClient:
         return self._request("POST", "/api/v1/recall", {
             "query": query, "dataset_ids": [self._dataset_id()],
             "search_type": "GRAPH_COMPLETION", "include_references": True})
+
+    def for_scope(self, scope: str) -> "CogneeClient":
+        """Select an existing approved dataset explicitly; never create on read."""
+        if scope == "project":
+            return self
+        if scope not in {"cross_project", "user"}:
+            raise CogneeError("Memory scope is invalid")
+        principal = self._request("GET", "/api/v1/users/me")
+        principal_id = str(uuid.UUID(principal["id"]))
+        name = "pennix-approved-" + scope + "-" + principal_id[:12]
+        matches = [row for row in self._datasets() if row.get("name") == name]
+        if (len(matches) != 1 or
+                str(matches[0].get("owner_id") or matches[0].get("ownerId")) != principal_id):
+            raise CogneeError("Approved memory scope is not uniquely owned by this principal")
+        return CogneeClient(self.base, self.token, name,
+                            str(uuid.UUID(matches[0]["id"])), self.timeout)
 
     def promote_record(self, data_id: str, *, scope: str, approval_ref: str,
                        task: str, host_session: str) -> dict[str, Any]:
