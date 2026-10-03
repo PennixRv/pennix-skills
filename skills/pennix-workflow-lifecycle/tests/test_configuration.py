@@ -114,7 +114,7 @@ class ConfigurationAdapterTest(unittest.TestCase):
             def request(client, method, path, body=None):
                 if path == "/api/v1/users/me":
                     return {"id": principal_id}
-                return {"id": dataset_id, "name": body["name"], "owner_id": principal_id}
+                return {"id": dataset_id, "name": body["name"], "ownerId": principal_id}
             with (
                 mock.patch.dict(os.environ, {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")}),
                 mock.patch.object(MODULE, "_read_env", return_value=("configured", {

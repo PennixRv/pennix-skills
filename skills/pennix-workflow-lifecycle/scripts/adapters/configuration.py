@@ -375,7 +375,7 @@ def register_cognee_project(codex_home: Path, project_root: Path) -> str:
             raise ConfigurationError("Cognee principal could not be verified")
         dataset = client._request("POST", "/api/v1/datasets", {"name": name})
         if (not isinstance(dataset, dict) or dataset.get("name") != name
-                or dataset.get("owner_id") != principal["id"] or not isinstance(dataset.get("id"), str)):
+                or (dataset.get("owner_id") or dataset.get("ownerId")) != principal["id"] or not isinstance(dataset.get("id"), str)):
             raise ConfigurationError("Cognee dataset could not be verified")
         entry = {"dataset_name": name, "dataset_id": dataset["id"],
                  "principal_id": principal["id"], "base_url": client.base}

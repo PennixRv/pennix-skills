@@ -124,7 +124,7 @@ class CogneeClient:
             raise CogneeError("Cognee principal no longer matches the project registration")
         matches = [row for row in client._datasets() if str(row.get("id")) == entry["dataset_id"]]
         if (len(matches) != 1 or matches[0].get("name") != entry["dataset_name"]
-                or str(matches[0].get("owner_id")) != entry["principal_id"]):
+                or str((matches[0].get("owner_id") or matches[0].get("ownerId"))) != entry["principal_id"]):
             raise CogneeError("Cognee dataset no longer matches the project registration")
         return client
 
@@ -289,7 +289,7 @@ class CogneeClient:
         principal_id = str(uuid.UUID(principal["id"]))
         name = "pennix-approved-" + scope + "-" + principal_id[:12]
         dataset = self._request("POST", "/api/v1/datasets", {"name": name})
-        if dataset.get("owner_id") != principal_id or dataset.get("name") != name:
+        if (dataset.get("owner_id") or dataset.get("ownerId")) != principal_id or dataset.get("name") != name:
             raise CogneeError("Promotion target is not owned by the verified principal")
         target = CogneeClient(self.base, self.token, name, dataset["id"], self.timeout)
         return target.remember(text, task=task, host_session=host_session,
