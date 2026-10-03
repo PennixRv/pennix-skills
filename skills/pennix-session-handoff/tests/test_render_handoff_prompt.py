@@ -38,7 +38,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
 
     def write(self) -> str:
         request = Path(self.temp.name) / "request.json"
-        request.write_text(json.dumps({"session_label": "renderer fixture", "facts": ["verified"], "evidence_paths": ["evidence.md"], "next_action": "continue", "blockers": [], "risks": [], "validation": [], "memory_projection": {"semantic_capsule": "preserved semantic scene", "local": ["research/worktime-memory.md"], "archive_refs": [], "agentmemory": ["project:fixture"]}, "rollout": {"path": str(self.rollout)}}), encoding="utf-8")
+        request.write_text(json.dumps({"session_label": "renderer fixture", "facts": ["verified"], "evidence_paths": ["evidence.md"], "next_action": "continue", "blockers": [], "risks": [], "validation": [], "memory_projection": {"semantic_capsule": "preserved semantic scene", "local": ["research/worktime-memory.md"], "archive_refs": [], "cognee": ["project:fixture"]}, "rollout": {"path": str(self.rollout)}}), encoding="utf-8")
         result = self.run_cli(HANDOFF, "write", "--request", str(request), "--explicit-user-request")
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)["handoff_path"]
@@ -111,7 +111,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": None},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "agentmemory": {"status": "verified", "proof_ref": "agentmemory-proof"},
+            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -123,7 +123,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
 
     def test_pending_lifecycle_never_emits_prompt(self) -> None:
         relative = self.write()
-        prepared = self.run_cli(HANDOFF, "prepare", "--handoff", relative, "--mode", "agentmemory_required")
+        prepared = self.run_cli(HANDOFF, "prepare", "--handoff", relative, "--mode", "cognee_required")
         self.assertEqual(prepared.returncode, 0, prepared.stderr)
         rendered = self.run_cli(RENDER, "--handoff", relative)
         self.assertNotEqual(rendered.returncode, 0)

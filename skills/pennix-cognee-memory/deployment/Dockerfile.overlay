@@ -1,0 +1,8 @@
+ARG BASE_IMAGE=pennix-cognee-backend:1.6.2-ba3631f
+FROM ${BASE_IMAGE}
+
+COPY scripts/cognee_recall_ingress.py /app/pennix_cognee_server.py
+
+# Keep the official migration, health, signal, and single-worker entrypoint;
+# only point Gunicorn at the Pennix same-process ASGI extension.
+RUN sed -i 's/cognee\.api\.client:app/pennix_cognee_server:app/g' /app/entrypoint.sh

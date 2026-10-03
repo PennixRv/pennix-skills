@@ -206,48 +206,37 @@ as the default browser sign-in path. Each optional target becomes enabled only
 after an explicit configure attempt, so a later `verify` checks the selected
 integration without requiring unrelated services on every host.
 
-The catalog currently defines AgentMemory's `agentmemory-static`,
-`agentmemory-secret`, and `agentmemory-project` targets, plus `cch-connection`,
+The catalog currently defines Cognee's `cognee-static`,
+`cognee-secret`, and `cognee-project` targets, plus `cch-connection`,
 `hikari-connection`, `grok-search-provider`, `grok-tavily-extra`,
-`grok-firecrawl-extra`, and `windsurf-credential`. AgentMemory uses the
-catalog-pinned official `agentmemory@agentmemory` Codex plugin; lifecycle does
-not copy its hooks or Skill. The static target also installs the fixed official
-npm MCP pair (0.9.29), configures native stdio with Node --env-file pointing to
-private client.env, and disables the plugin's floating MCP entry. URL, injection
-and FORCE_PROXY policy are
-static configuration while its service secret is configured as a separate
-target; the secret is read only from hidden `/dev/tty` input and is never
-passed as an argument. CCH and Windsurf delegate
-to their owner `configure` command. Hikari and Grok accept values only through
-`/dev/tty`, conceal secret input, and write a private owner record. Grok refuses
-to overwrite a non-lifecycle-marked record. AgentMemory project registration
-is explicit and requires a project root; it writes only the private user-level
-project registry and never modifies `.trellis/config.yaml` or other project
-assets. Same-name roots are rejected rather than silently sharing memory.
+`grok-firecrawl-extra`, and `windsurf-credential`. Cognee uses the
+catalog-pinned official `cognee@cognee` Codex plugin; lifecycle does not copy
+its hooks or Skill and does not add an MCP server. The static target writes the
+official private `~/.cognee/.env` policy: `COGNEE_BASE_URL`,
+`COGNEE_MANAGED_ENDPOINT=true`, and `COGNEE_SHARED_AGENT_MEMORY=false`. Its
+API key is configured as a separate target, read only from hidden `/dev/tty`,
+and never passed as an argument. The official plugin loads this env file at
+hook startup, so a new Codex host must be reopened after configuration. CCH and
+Windsurf delegate to their owner `configure` command. Hikari and Grok accept
+values only through `/dev/tty`, conceal secret input, and write a private owner
+record. Grok refuses to overwrite a non-lifecycle-marked record. Cognee project
+registration is explicit and requires a project root; it writes only the
+private user-level project registry and never modifies `.trellis/config.yaml`
+or other project assets. Same-name roots are rejected rather than silently
+sharing memory.
 
-Automatic hooks inherit the Codex host environment; they do not read client.env.
-Before launching a new host, source that private file in its actual parent:
-
-```bash
-set -a
-source ~/.config/agentmemory/client.env
-set +a
-codex
-```
-
-A manager that launches Codex directly must pass that environment itself;
-changing a child shell cannot update an already running host. Keep native hook
-trust via /hooks. Reopen the host after configuration, then verify actual session
-registration and capture. MCP has independent env-file loading, but upstream
-runtime fallback still means a success result alone is not central persistence.
+Keep native hook trust via `/hooks`. Reopen the host after configuration, then
+verify actual session registration and capture. A plugin success result alone
+still does not prove central persistence; read important writes back from the
+authenticated service and verify the project dataset.
 For example:
 
 ```bash
 python3 <installed-lifecycle>/scripts/lifecycle.py configure \
-  --component agentmemory-project --project-root /path/to/project --yes
+  --component cognee-project --project-root /path/to/project --yes
 ```
 
-Use `uninstall --component agentmemory-project --project-root ... --yes` to remove
+Use `uninstall --component cognee-project --project-root ... --yes` to remove
 only that path mapping. A target's delivery must match first, and collection
 targets additionally require a matching collection receipt.
 

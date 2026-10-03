@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pennix Cognee Memory"
+  short_description: "Maintain scoped project, cross-project, and user-confirmed Cognee"
+  default_prompt: "使用 $pennix-cognee-memory 按作用域读取和记录 Cognee 记忆，不把项目记忆自动提升为跨项目或用户记忆。"

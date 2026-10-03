@@ -48,9 +48,9 @@ CONFIGURATION_ADAPTERS = {
     "grok-tavily",
     "grok-firecrawl",
     "hikari-json",
-    "agentmemory-static",
-    "agentmemory-secret",
-    "agentmemory-project",
+    "cognee-static",
+    "cognee-secret",
+    "cognee-project",
     "windsurf-owner",
 }
 POST_INSTALL_ACTIONS = {"grok-search-runtime"}
@@ -196,7 +196,7 @@ def configuration_target_map(catalog: dict[str, Any]) -> dict[str, dict[str, Any
 STATE_RECORDS = {
     "profile": Path("profile.json"),
     "tmux-config": Path("static-assets") / "tmux-config.json",
-    "agentmemory-config": Path("static-assets") / "agentmemory-config.json",
+    "cognee-config": Path("static-assets") / "cognee-config.json",
 }
 
 
@@ -283,11 +283,11 @@ def _inspect_state_tree(root: Path, legacy: bool, expected_digest: str | None) -
         except OSError:
             return {"status": "blocked", "records": {}, "reason": "static state directory cannot be read"}
         if any(
-            name not in {"tmux-config.json", "agentmemory-config.json", *OBSOLETE_STATIC_RECEIPTS}
+            name not in {"tmux-config.json", "cognee-config.json", *OBSOLETE_STATIC_RECEIPTS}
             for name in static_entries
         ):
             return {"status": "blocked", "records": {}, "reason": "static state contains unknown entries"}
-        for record_name in ("tmux-config", "agentmemory-config"):
+        for record_name in ("tmux-config", "cognee-config"):
             receipt = static_directory / STATE_RECORDS[record_name].name
             if receipt.name not in static_entries:
                 continue
@@ -870,10 +870,21 @@ def probe_component(
         if not isinstance(observed, str) or not isinstance(installed.get("enabled"), bool):
             return "unknown", observed if isinstance(observed, str) else None
         expected = component_target_version(component)
-        return (
-            "match" if expected is not None and installed["enabled"] and normalize_version(observed) == expected else "drifted",
-            observed,
-        )
+        if expected is None or not installed["enabled"] or normalize_version(observed) != expected:
+            return "drifted", observed
+        marketplace = plugin.get("marketplace")
+        if not isinstance(marketplace, dict):
+            return "unknown", observed
+        try:
+            marketplace_state = codex_plugins.marketplace_status(
+                target_home,
+                marketplace["name"],
+                marketplace["source"],
+                marketplace["ref"],
+            )
+        except (KeyError, codex_plugins.PluginError):
+            return "unknown", observed
+        return ("match" if marketplace_state == "matching-ref" else "drifted"), observed
     probe = component.get("probe")
     if not probe:
         package = component.get("package")
@@ -1361,7 +1372,7 @@ def configure_configuration_target(
 ) -> None:
     configuration_parent_status(args, catalog, target)
     digest = configuration_digest(catalog)
-    if target["adapter"] == "agentmemory-project" and unregister:
+    if target["adapter"] == "cognee-project" and unregister:
         state = configuration.configure_target(
             target["adapter"],
             args.codex_home,
@@ -1381,7 +1392,7 @@ def configure_configuration_target(
             raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
         configuration.enable_target(args.codex_home, digest, target["id"])
     if state not in {"ready", "configured"}:
-        if not (target["adapter"] == "agentmemory-project" and unregister and state == "no-op"):
+        if not (target["adapter"] == "cognee-project" and unregister and state == "no-op"):
             raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
     print(
         json.dumps(
@@ -1405,7 +1416,7 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | No
     if args.command == "configure" and component in targets:
         configure_configuration_target(args, catalog, targets[component])
         return None
-    if args.command == "uninstall" and component in targets and targets[component]["adapter"] == "agentmemory-project":
+    if args.command == "uninstall" and component in targets and targets[component]["adapter"] == "cognee-project":
         configure_configuration_target(args, catalog, targets[component], unregister=args.command == "uninstall")
         return None
     if component not in catalog["components"]:

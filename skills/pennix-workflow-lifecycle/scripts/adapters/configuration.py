@@ -15,16 +15,16 @@ import termios
 from pathlib import Path
 from typing import Any
 
-from . import agentmemory_mcp, codex_static
+from . import cognee_plugin, codex_static
 
 
 MAX_CONFIG_BYTES = 64 * 1024
 PROFILE_SCHEMA = 1
 MARKER_KEY = "pennixLifecycle"
 STATE_DIRECTORY = "pennix-workflow-lifecycle"
-AGENTMEMORY_RECEIPT = "agentmemory-config.json"
-AGENTMEMORY_CONFIG_RELATIVE = (".config", "agentmemory", "client.env")
-AGENTMEMORY_PROJECTS_RELATIVE = (".config", "agentmemory", "projects.json")
+COGNEE_RECEIPT = "cognee-config.json"
+COGNEE_CONFIG_RELATIVE = (".cognee", ".env")
+COGNEE_PROJECTS_RELATIVE = (".config", "cognee", "projects.json")
 PROJECT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
@@ -176,11 +176,11 @@ def static_receipt_path(codex_home: Path, asset: str) -> Path:
     return state_namespace(codex_home) / "static-assets" / f"{asset}.json"
 
 
-def agentmemory_config_path() -> Path:
-    raw = os.environ.get("AGENTMEMORY_CLIENT_CONFIG")
-    path = Path(raw).expanduser() if raw else _home().joinpath(*AGENTMEMORY_CONFIG_RELATIVE)
+def cognee_config_path() -> Path:
+    raw = os.environ.get("COGNEE_CLIENT_CONFIG")
+    path = Path(raw).expanduser() if raw else _home().joinpath(*COGNEE_CONFIG_RELATIVE)
     if not path.is_absolute():
-        raise ConfigurationError("AgentMemory config path must be absolute")
+        raise ConfigurationError("Cognee config path must be absolute")
     return path
 
 
@@ -203,8 +203,8 @@ def _write_text_atomic(path: Path, content: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _agentmemory_receipt(codex_home: Path) -> tuple[str, dict[str, Any] | None]:
-    return _private_json(static_receipt_path(codex_home, "agentmemory-config"))
+def _cognee_receipt(codex_home: Path) -> tuple[str, dict[str, Any] | None]:
+    return _private_json(static_receipt_path(codex_home, "cognee-config"))
 
 
 def _read_env(path: Path) -> tuple[str, dict[str, str] | None]:
@@ -233,94 +233,94 @@ def _write_env(path: Path, values: dict[str, str]) -> None:
     os.chmod(path, 0o600)
 
 
-def agentmemory_policy(api_url: str) -> dict[str, str]:
+def cognee_policy(api_url: str) -> dict[str, str]:
     if not isinstance(api_url, str) or not api_url.strip() or not api_url.startswith(("http://", "https://")):
-        raise ConfigurationError("AgentMemory API URL is invalid")
-    return {"AGENTMEMORY_URL": api_url.rstrip("/"), "AGENTMEMORY_INJECT_CONTEXT": "true", "AGENTMEMORY_FORCE_PROXY": "true"}
+        raise ConfigurationError("Cognee API URL is invalid")
+    return {
+        "COGNEE_BASE_URL": api_url.rstrip("/"),
+        "COGNEE_MANAGED_ENDPOINT": "true",
+        "COGNEE_SHARED_AGENT_MEMORY": "false",
+    }
 
 
-def agentmemory_static_state(codex_home: Path, api_url: str) -> str:
-    state, data = _read_env(agentmemory_config_path())
+def cognee_static_state(codex_home: Path, api_url: str) -> str:
+    state, data = _read_env(cognee_config_path())
     if state == "missing":
         return "not-configured"
     if state != "configured" or data is None:
         return state
-    receipt_state, receipt = _agentmemory_receipt(codex_home)
-    expected = agentmemory_policy(api_url)
+    receipt_state, receipt = _cognee_receipt(codex_home)
+    expected = cognee_policy(api_url)
     policy_matches = receipt_state == "configured" and receipt and receipt.get("fields") == expected and all(data.get(k) == v for k, v in expected.items())
     if not policy_matches:
         return "drifted"
     try:
-        return agentmemory_mcp.state(codex_home, agentmemory_config_path(), api_url)
+        return cognee_plugin.state(codex_home, cognee_config_path(), api_url)
     except codex_static.StaticError:
         return "blocked"
 
 
-def configure_agentmemory_static(codex_home: Path, api_url: str) -> str:
-    path = agentmemory_config_path()
+def configure_cognee_static(codex_home: Path, api_url: str) -> str:
+    path = cognee_config_path()
     state, current = _read_env(path)
     if state not in {"missing", "configured"}:
-        raise ConfigurationError("AgentMemory client configuration is blocked")
-    policy = agentmemory_policy(api_url)
+        raise ConfigurationError("Cognee client configuration is blocked")
+    policy = cognee_policy(api_url)
     data = current or {}
-    receipt_state, receipt = _agentmemory_receipt(codex_home)
+    receipt_state, receipt = _cognee_receipt(codex_home)
     if receipt_state == "invalid":
-        raise ConfigurationError("AgentMemory lifecycle ownership receipt is invalid")
+        raise ConfigurationError("Cognee lifecycle ownership receipt is invalid")
     if receipt_state == "configured" and receipt and any(data.get(k) != v for k, v in receipt["fields"].items()):
-        raise ConfigurationError("AgentMemory client configuration was modified outside lifecycle")
+        raise ConfigurationError("Cognee client configuration was modified outside lifecycle")
     data.update(policy)
     _write_env(path, data)
     try:
-        agentmemory_mcp.configure(codex_home, path, api_url)
-    except codex_static.StaticError as error:
+        cognee_plugin.configure(codex_home, path, api_url)
+    except (codex_static.StaticError, cognee_plugin.codex_plugins.PluginError) as error:
         raise ConfigurationError(str(error)) from error
-    _write_private_json(static_receipt_path(codex_home, "agentmemory-config"), {"schema": 1, "path": str(path), "fields": policy})
+    _write_private_json(static_receipt_path(codex_home, "cognee-config"), {"schema": 1, "path": str(path), "fields": policy})
     return "configured"
 
 
-def configure_agentmemory_secret(codex_home: Path) -> str:
-    receipt_state, receipt = _agentmemory_receipt(codex_home)
+def configure_cognee_secret(codex_home: Path) -> str:
+    receipt_state, receipt = _cognee_receipt(codex_home)
     if receipt_state != "configured" or not receipt:
-        raise ConfigurationError("AgentMemory static policy is not ready")
-    path = agentmemory_config_path()
+        raise ConfigurationError("Cognee static policy is not ready")
+    path = cognee_config_path()
     state, data = _read_env(path)
     if state != "configured" or data is None:
-        raise ConfigurationError("AgentMemory client configuration is not ready")
-    data["AGENTMEMORY_SECRET"] = _read_tty("AgentMemory service secret: ", secret=True)
+        raise ConfigurationError("Cognee client configuration is not ready")
+    data["COGNEE_API_KEY"] = _read_tty("Cognee API key: ", secret=True)
     _write_env(path, data)
     return "configured"
 
 
-def agentmemory_secret_state(codex_home: Path) -> str:
-    state, data = _read_env(agentmemory_config_path())
+def cognee_secret_state(codex_home: Path) -> str:
+    state, data = _read_env(cognee_config_path())
     if state == "missing":
         return "not-configured"
     if state != "configured" or data is None:
         return state
-    return "configured" if data.get("AGENTMEMORY_SECRET", "").strip() else "not-configured"
+    return "configured" if data.get("COGNEE_API_KEY", "").strip() else "not-configured"
 
 
-def remove_agentmemory_configuration(codex_home: Path) -> str:
-    receipt_state, receipt = _agentmemory_receipt(codex_home)
+def remove_cognee_configuration(codex_home: Path) -> str:
+    receipt_state, receipt = _cognee_receipt(codex_home)
     if receipt_state == "missing":
         return "no-op"
     if receipt_state != "configured" or receipt is None:
-        raise ConfigurationError("AgentMemory lifecycle ownership receipt is blocked")
-    path = agentmemory_config_path()
+        raise ConfigurationError("Cognee lifecycle ownership receipt is blocked")
+    path = cognee_config_path()
     state, data = _read_env(path)
     if state != "configured" or data is None or any(data.get(k) != v for k, v in receipt["fields"].items()):
-        raise ConfigurationError("AgentMemory client configuration is blocked")
-    try:
-        agentmemory_mcp.remove(codex_home, path, data["AGENTMEMORY_URL"])
-    except codex_static.StaticError as error:
-        raise ConfigurationError(str(error)) from error
-    for key in (*receipt["fields"].keys(), "AGENTMEMORY_SECRET"):
+        raise ConfigurationError("Cognee client configuration is blocked")
+    for key in (*receipt["fields"].keys(), "COGNEE_API_KEY"):
         data.pop(key, None)
     if data:
         _write_env(path, data)
     else:
         path.unlink(missing_ok=True)
-    static_receipt_path(codex_home, "agentmemory-config").unlink(missing_ok=True)
+    static_receipt_path(codex_home, "cognee-config").unlink(missing_ok=True)
     return "changed"
 
 
@@ -340,30 +340,30 @@ def disable_targets(codex_home: Path, catalog_digest: str, target_ids: set[str])
     )
 
 
-def register_agentmemory_project(codex_home: Path, project_root: Path) -> str:
+def register_cognee_project(codex_home: Path, project_root: Path) -> str:
     if project_root.is_symlink() or not project_root.is_dir():
         raise ConfigurationError("project root is ambiguous")
     name = project_root.name
     if not PROJECT_NAME.fullmatch(name):
         raise ConfigurationError("project name is invalid")
-    path = _home().joinpath(*AGENTMEMORY_PROJECTS_RELATIVE)
+    path = _home().joinpath(*COGNEE_PROJECTS_RELATIVE)
     state, data = _private_json(path)
     if state not in {"missing", "configured"}:
-        raise ConfigurationError("AgentMemory project registry is blocked")
+        raise ConfigurationError("Cognee project registry is blocked")
     mappings = data or {}
     canonical = str(project_root.resolve())
     if any(root != canonical and registered == name for root, registered in mappings.items()):
-        raise ConfigurationError("AgentMemory project name is already registered to another root")
+        raise ConfigurationError("Cognee project name is already registered to another root")
     existing = mappings.get(canonical)
     if existing is not None and existing != name:
-        raise ConfigurationError("AgentMemory project mapping conflicts")
+        raise ConfigurationError("Cognee project mapping conflicts")
     mappings[canonical] = name
     _write_private_json(path, mappings)
     return name
 
 
-def unregister_agentmemory_project(project_root: Path) -> str:
-    path = _home().joinpath(*AGENTMEMORY_PROJECTS_RELATIVE)
+def unregister_cognee_project(project_root: Path) -> str:
+    path = _home().joinpath(*COGNEE_PROJECTS_RELATIVE)
     state, data = _private_json(path)
     if state != "configured" or data is None:
         return "no-op"
@@ -490,21 +490,21 @@ def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None
             return "drifted"
         required = {"grok-provider": {"apiUrl", "apiKey"}, "grok-tavily": {"tavilyApiKey"}, "grok-firecrawl": {"firecrawlApiKey"}}[adapter]
         return "configured" if all(isinstance(value.get(key), str) and value[key].strip() for key in required) else "not-configured"
-    if adapter == "agentmemory-static":
-        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_AGENTMEMORY_API_URL")
+    if adapter == "cognee-static":
+        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_COGNEE_API_URL")
         if not isinstance(api_url, str) or not api_url.strip():
             return "blocked"
         try:
-            return agentmemory_static_state(codex_home, api_url)
+            return cognee_static_state(codex_home, api_url)
         except ConfigurationError:
             return "blocked"
-    if adapter == "agentmemory-secret":
+    if adapter == "cognee-secret":
         try:
-            return agentmemory_secret_state(codex_home)
+            return cognee_secret_state(codex_home)
         except ConfigurationError:
             return "blocked"
-    if adapter == "agentmemory-project":
-        state, data = _private_json(_home().joinpath(*AGENTMEMORY_PROJECTS_RELATIVE))
+    if adapter == "cognee-project":
+        state, data = _private_json(_home().joinpath(*COGNEE_PROJECTS_RELATIVE))
         return "configured" if state == "configured" and data else "not-configured" if state == "missing" else state
     return "unknown"
 
@@ -525,17 +525,17 @@ def configure_target(
     if adapter == "windsurf-owner":
         _run_owner(["windsurf-code-search", "configure"])
         return target_state(adapter, codex_home)
-    if adapter == "agentmemory-static":
-        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_AGENTMEMORY_API_URL")
+    if adapter == "cognee-static":
+        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_COGNEE_API_URL")
         if not isinstance(api_url, str):
-            raise ConfigurationError("AgentMemory API URL is required")
-        return configure_agentmemory_static(codex_home, api_url)
-    if adapter == "agentmemory-secret":
-        return configure_agentmemory_secret(codex_home)
-    if adapter == "agentmemory-project":
+            raise ConfigurationError("Cognee API URL is required")
+        return configure_cognee_static(codex_home, api_url)
+    if adapter == "cognee-secret":
+        return configure_cognee_secret(codex_home)
+    if adapter == "cognee-project":
         if project_root is None:
             raise ConfigurationError("project root is required")
-        return unregister_agentmemory_project(project_root) if unregister else "configured" if register_agentmemory_project(codex_home, project_root) else "blocked"
+        return unregister_cognee_project(project_root) if unregister else "configured" if register_cognee_project(codex_home, project_root) else "blocked"
     if adapter == "hikari-json":
         base_url = _read_tty("Hikari endpoint: ")
         token = _read_tty("Hikari access token: ", secret=True)

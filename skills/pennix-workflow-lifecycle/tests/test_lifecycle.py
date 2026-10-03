@@ -184,7 +184,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(result["removed"], ["hindsight-config.json"])
             self.assertFalse(receipt.exists())
 
-    def test_state_probe_accepts_the_current_agentmemory_receipt_schema(self) -> None:
+    def test_state_probe_accepts_the_current_cognee_receipt_schema(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             home = root / "codex"
@@ -201,9 +201,9 @@ class BootstrapTests(unittest.TestCase):
                     json.dumps({"schema": 1, "catalog_digest": digest, "targets": []}) + "\n",
                     encoding="utf-8",
                 )
-                receipt = static / "agentmemory-config.json"
+                receipt = static / "cognee-config.json"
                 receipt.write_text(
-                    json.dumps({"schema": 1, "path": "/private/agentmemory.env", "fields": {}}) + "\n",
+                    json.dumps({"schema": 1, "path": "/private/cognee.env", "fields": {}}) + "\n",
                     encoding="utf-8",
                 )
                 os.chmod(profile, 0o600)
@@ -1253,15 +1253,36 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["pennix-skills"]["delivery"], "collection")
         self.assertEqual(catalog["components"][bootstrap.STATE_COMPONENT]["actions"]["reconcile"], "managed")
 
-    def test_agentmemory_catalog_uses_the_official_plugin_without_hindsight(self) -> None:
+    def test_cognee_catalog_uses_the_official_plugin_without_hindsight(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
-        component = catalog["components"]["agentmemory-coding-agents"]
-        self.assertEqual(component["approved_version"], "0.9.29")
+        component = catalog["components"]["cognee-coding-agents"]
+        self.assertEqual(component["approved_version"], "1.7.4")
         self.assertEqual(component["delivery"], "plugin")
-        self.assertEqual(component["plugin"]["id"], "agentmemory@agentmemory")
-        self.assertEqual(component["plugin"]["marketplace"]["source"], "https://github.com/rohitg00/agentmemory.git")
+        self.assertEqual(component["plugin"]["id"], "cognee@cognee")
+        self.assertEqual(component["plugin"]["marketplace"]["source"], "https://github.com/topoteretes/cognee-integrations")
+        self.assertEqual(component["plugin"]["marketplace"]["ref"], "201ba4c8e824060b40b65ea5129a1d8c964ae798")
+        self.assertEqual(component["plugin"]["marketplace"]["sparse"], ["integrations/codex/plugins/cognee"])
         self.assertNotIn("hindsight-coding-agents", catalog["components"])
         self.assertNotIn("openviking-plugin", catalog["components"])
+
+    def test_plugin_probe_requires_a_ref_verified_marketplace(self) -> None:
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        component = catalog["components"]["cognee-coding-agents"]
+        installed = {
+            "pluginId": "cognee@cognee",
+            "version": "1.7.4",
+            "enabled": True,
+        }
+        with (
+            patch.object(bootstrap.codex_plugins, "installed_plugin", return_value=installed),
+            patch.object(bootstrap.codex_plugins, "marketplace_status", return_value="unverified-ref"),
+        ):
+            self.assertEqual(bootstrap.probe_component(component, Path("/tmp/codex")), ("drifted", "1.7.4"))
+        with (
+            patch.object(bootstrap.codex_plugins, "installed_plugin", return_value=installed),
+            patch.object(bootstrap.codex_plugins, "marketplace_status", return_value="matching-ref"),
+        ):
+            self.assertEqual(bootstrap.probe_component(component, Path("/tmp/codex")), ("match", "1.7.4"))
 
     def test_non_managed_action_is_rejected_before_adapter(self) -> None:
         args = SimpleNamespace(command="install", component="cch-status", yes=True)

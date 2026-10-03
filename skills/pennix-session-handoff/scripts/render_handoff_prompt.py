@@ -142,7 +142,7 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "### Memory References", "",
         _markdown_list(memory.get("local", [])),
         _markdown_list(memory.get("archive_refs", [])),
-        _markdown_list(memory.get("agentmemory", [])),
+        _markdown_list(memory.get("cognee", [])),
         "### Decision Timeline", "",
     ])
     timeline = conversation.get("timeline", [])

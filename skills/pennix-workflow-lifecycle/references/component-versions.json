@@ -1,16 +1,93 @@
 {
   "schema": 2,
   "configuration_targets": [
-    {"id": "codex-provider", "tier": "core", "default_enabled": true, "adapter": "codex-provider", "component": "codex-cli", "readiness": "Codex native authentication is present in a private local record."},
-    {"id": "agentmemory-static", "tier": "optional", "default_enabled": false, "adapter": "agentmemory-static", "component": "agentmemory-coding-agents", "settings": {"apiUrl": "https://agentmemory.141242.xyz:9999"}, "readiness": "AgentMemory self-hosted URL, client policy and pinned native MCP match the workflow contract."},
-    {"id": "agentmemory-secret", "tier": "optional", "default_enabled": false, "adapter": "agentmemory-secret", "component": "agentmemory-coding-agents", "readiness": "AgentMemory service secret is present in the native private client configuration."},
-    {"id": "agentmemory-project", "tier": "optional", "default_enabled": false, "adapter": "agentmemory-project", "component": "agentmemory-coding-agents", "readiness": "At least one explicitly registered Trellis project has a stable AgentMemory project mapping."},
-    {"id": "cch-connection", "tier": "optional", "default_enabled": false, "adapter": "cch-owner", "component": "cch-status", "readiness": "CCH owner configuration and token record are private and complete."},
-    {"id": "hikari-connection", "tier": "optional", "default_enabled": false, "adapter": "hikari-json", "component": "tavily-hikari", "readiness": "Hikari endpoint and access token are in a private owner record."},
-    {"id": "grok-search-provider", "tier": "optional", "default_enabled": false, "adapter": "grok-provider", "collection": "pennix-skills", "member": "grok-search", "readiness": "Grok provider settings are in a private lifecycle-marked owner record."},
-    {"id": "grok-tavily-extra", "tier": "optional", "default_enabled": false, "adapter": "grok-tavily", "collection": "pennix-skills", "member": "grok-search", "readiness": "Tavily extra settings are in a private lifecycle-marked owner record."},
-    {"id": "grok-firecrawl-extra", "tier": "optional", "default_enabled": false, "adapter": "grok-firecrawl", "collection": "pennix-skills", "member": "grok-search", "readiness": "Firecrawl extra settings are in a private lifecycle-marked owner record."},
-    {"id": "windsurf-credential", "tier": "optional", "default_enabled": false, "adapter": "windsurf-owner", "collection": "pennix-skills", "member": "windsurf-code-search", "readiness": "Windsurf owner credential state is configured without exposing its value."}
+    {
+      "id": "codex-provider",
+      "tier": "core",
+      "default_enabled": true,
+      "adapter": "codex-provider",
+      "component": "codex-cli",
+      "readiness": "Codex native authentication is present in a private local record."
+    },
+    {
+      "id": "cognee-static",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "cognee-static",
+      "component": "cognee-coding-agents",
+      "settings": {
+        "apiUrl": "https://cognee.141242.xyz:9999"
+      },
+      "readiness": "Cognee self-hosted URL, private API key, pinned official plugin, and managed endpoint policy are ready."
+    },
+    {
+      "id": "cognee-secret",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "cognee-secret",
+      "component": "cognee-coding-agents",
+      "readiness": "Cognee API key is present in the private ~/.cognee/.env file."
+    },
+    {
+      "id": "cognee-project",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "cognee-project",
+      "component": "cognee-coding-agents",
+      "readiness": "At least one explicitly registered Trellis project has a stable Cognee project mapping."
+    },
+    {
+      "id": "cch-connection",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "cch-owner",
+      "component": "cch-status",
+      "readiness": "CCH owner configuration and token record are private and complete."
+    },
+    {
+      "id": "hikari-connection",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "hikari-json",
+      "component": "tavily-hikari",
+      "readiness": "Hikari endpoint and access token are in a private owner record."
+    },
+    {
+      "id": "grok-search-provider",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "grok-provider",
+      "collection": "pennix-skills",
+      "member": "grok-search",
+      "readiness": "Grok provider settings are in a private lifecycle-marked owner record."
+    },
+    {
+      "id": "grok-tavily-extra",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "grok-tavily",
+      "collection": "pennix-skills",
+      "member": "grok-search",
+      "readiness": "Tavily extra settings are in a private lifecycle-marked owner record."
+    },
+    {
+      "id": "grok-firecrawl-extra",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "grok-firecrawl",
+      "collection": "pennix-skills",
+      "member": "grok-search",
+      "readiness": "Firecrawl extra settings are in a private lifecycle-marked owner record."
+    },
+    {
+      "id": "windsurf-credential",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "windsurf-owner",
+      "collection": "pennix-skills",
+      "member": "windsurf-code-search",
+      "readiness": "Windsurf owner credential state is configured without exposing its value."
+    }
   ],
   "components": {
     "codex-cli": {
@@ -20,13 +97,27 @@
       "owner": "codex",
       "scope": "global",
       "verify_key": "codex --version",
-      "actions": {"install": "managed", "configure": "not-applicable", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "not-applicable",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "conflicts": [],
-      "replaces": ["openai-codex"],
+      "replaces": [
+        "openai-codex"
+      ],
       "probe": "codex",
-      "version_args": ["--version"],
-      "package": {"source": "aur", "name": "openai-codex-bin"}
+      "version_args": [
+        "--version"
+      ],
+      "package": {
+        "source": "aur",
+        "name": "openai-codex-bin"
+      }
     },
     "trellis-cli": {
       "delivery": "package",
@@ -35,11 +126,25 @@
       "owner": "trellis",
       "scope": "global/project",
       "verify_key": "trellis --version",
-      "actions": {"install": "managed", "configure": "native-owner", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "native-owner",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "native-owner",
       "probe": "trellis",
-      "version_args": ["--version"],
-      "package": {"source": "npm", "name": "@pennixrv/trellis", "registry": "https://registry.npmjs.org/", "tag": "beta"}
+      "version_args": [
+        "--version"
+      ],
+      "package": {
+        "source": "npm",
+        "name": "@pennixrv/trellis",
+        "registry": "https://registry.npmjs.org/",
+        "tag": "beta"
+      }
     },
     "fastctx": {
       "delivery": "package",
@@ -48,12 +153,27 @@
       "owner": "fastctx",
       "scope": "global",
       "verify_key": "fastctx --version",
-      "actions": {"install": "managed", "configure": "native-owner", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "native-owner",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "probe": "fastctx",
-      "version_args": ["--version"],
-      "replaces": ["fastctx"],
-      "package": {"source": "npm", "name": "@pennixrv/fastctx", "registry": "https://registry.npmjs.org/"}
+      "version_args": [
+        "--version"
+      ],
+      "replaces": [
+        "fastctx"
+      ],
+      "package": {
+        "source": "npm",
+        "name": "@pennixrv/fastctx",
+        "registry": "https://registry.npmjs.org/"
+      }
     },
     "codegraph-cli": {
       "delivery": "package",
@@ -62,25 +182,54 @@
       "owner": "codegraph",
       "scope": "global/project",
       "verify_key": "codegraph --version",
-      "actions": {"install": "managed", "configure": "native-owner", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "native-owner",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "project-only",
       "probe": "codegraph",
-      "version_args": ["--version"],
-      "package": {"source": "aur", "name": "codegraph-bin"}
+      "version_args": [
+        "--version"
+      ],
+      "package": {
+        "source": "aur",
+        "name": "codegraph-bin"
+      }
     },
-    "agentmemory-coding-agents": {
+    "cognee-coding-agents": {
       "delivery": "plugin",
-      "approved_version": "0.9.29",
-      "source": "AgentMemory official Codex plugin",
-      "owner": "agentmemory",
+      "approved_version": "1.7.4",
+      "source": "Cognee official Codex plugin (native hooks and HTTP client)",
+      "owner": "cognee",
       "scope": "global/project",
-      "verify_key": "codex plugin list --json",
-      "actions": {"install": "managed", "configure": "native-owner", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "verify_key": "codex plugin list --json and official hook smoke test",
+      "actions": {
+        "install": "managed",
+        "configure": "native-owner",
+        "upgrade": "native-owner",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "project-only",
       "conflicts": [],
       "probe": null,
       "version_args": [],
-      "plugin": {"id": "agentmemory@agentmemory", "marketplace": {"name": "agentmemory", "source": "https://github.com/rohitg00/agentmemory.git", "ref": "main", "sparse": []}}
+      "plugin": {
+        "id": "cognee@cognee",
+        "marketplace": {
+          "name": "cognee",
+          "source": "https://github.com/topoteretes/cognee-integrations",
+          "ref": "201ba4c8e824060b40b65ea5129a1d8c964ae798",
+          "sparse": [
+            "integrations/codex/plugins/cognee"
+          ]
+        }
+      }
     },
     "ponytail-plugin": {
       "delivery": "plugin",
@@ -89,11 +238,26 @@
       "owner": "codex",
       "scope": "global",
       "verify_key": "codex plugin list --json",
-      "actions": {"install": "managed", "configure": "native-owner", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "native-owner",
+        "upgrade": "native-owner",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "probe": null,
       "version_args": [],
-      "plugin": {"id": "ponytail@ponytail", "marketplace": {"name": "ponytail", "source": "https://github.com/DietrichGebert/ponytail.git", "ref": "v4.10.0", "sparse": []}}
+      "plugin": {
+        "id": "ponytail@ponytail",
+        "marketplace": {
+          "name": "ponytail",
+          "source": "https://github.com/DietrichGebert/ponytail.git",
+          "ref": "v4.10.0",
+          "sparse": []
+        }
+      }
     },
     "cch-status": {
       "delivery": "native",
@@ -102,11 +266,20 @@
       "owner": "cch",
       "scope": "global",
       "verify_key": "cch-codex-tmux-status version",
-      "actions": {"install": "native-owner", "configure": "native-owner", "upgrade": "native-owner", "uninstall": "native-owner", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "native-owner",
+        "configure": "native-owner",
+        "upgrade": "native-owner",
+        "uninstall": "native-owner",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "native_owner_reason": "CCH installation needs an explicit endpoint and token-file selection; this optional observability component remains under its native owner.",
       "probe": "cch-codex-tmux-status",
-      "version_args": ["version"]
+      "version_args": [
+        "version"
+      ]
     },
     "tmux": {
       "delivery": "package",
@@ -115,11 +288,23 @@
       "owner": "system",
       "scope": "global",
       "verify_key": "tmux -V",
-      "actions": {"install": "managed", "configure": "not-applicable", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "not-applicable",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "probe": "tmux",
-      "version_args": ["-V"],
-      "package": {"source": "official", "name": "tmux"}
+      "version_args": [
+        "-V"
+      ],
+      "package": {
+        "source": "official",
+        "name": "tmux"
+      }
     },
     "tmux-config": {
       "delivery": "static",
@@ -127,10 +312,20 @@
       "owner": "pennix",
       "scope": "global",
       "verify_key": "HOME/.tmux.conf Pennix managed block",
-      "actions": {"install": "managed", "configure": "managed", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "managed",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "adapter": "tmux-config",
-      "template": {"name": "tmux.conf.install", "revision": "sha256:41715d030309cdb256a592ffebbae456a478c89ab101bc7c69db27ac4a137cd8"}
+      "template": {
+        "name": "tmux.conf.install",
+        "revision": "sha256:41715d030309cdb256a592ffebbae456a478c89ab101bc7c69db27ac4a137cd8"
+      }
     },
     "pennix-workflow-state": {
       "delivery": "state",
@@ -138,7 +333,14 @@
       "owner": "pennix",
       "scope": "global",
       "verify_key": "XDG lifecycle state namespace",
-      "actions": {"install": "not-applicable", "configure": "not-applicable", "upgrade": "not-applicable", "uninstall": "not-applicable", "verify": "not-applicable", "reconcile": "managed"},
+      "actions": {
+        "install": "not-applicable",
+        "configure": "not-applicable",
+        "upgrade": "not-applicable",
+        "uninstall": "not-applicable",
+        "verify": "not-applicable",
+        "reconcile": "managed"
+      },
       "project_init": "not-applicable",
       "adapter": "pennix-workflow-state"
     },
@@ -149,13 +351,47 @@
       "owner": "aoe",
       "scope": "global/project",
       "verify_key": "aoe --version",
-      "actions": {"install": "managed", "configure": "native-owner", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "native-owner",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "project-only",
       "probe": "aoe",
-      "version_args": ["--version"],
-      "package": {"source": "aur", "name": "agent-of-empires-bin"},
-      "upstream_inspection": {"url": "https://raw.githubusercontent.com/agent-of-empires/agent-of-empires/main/scripts/install.sh", "parser": "aoe-install-sh-v1", "allowed_configurable_environment": ["INSTALL_DIR"], "expected_sha256": "83d372e0749069bc4d4994571bbe7f146b213b38571a034f15bbecb1bb72a6c0", "on_contract_change": "block"},
-      "decision_profile": {"automatic": [{"id": "aoe-delivery-source", "selected": "aur-package", "reason": "Arch 工作流优先使用维护中的 AUR 包。"}, {"id": "aoe-install-dir", "selected": "not-applicable", "reason": "上游 INSTALL_DIR 不能映射为所选 AUR package action。"}], "questions": []}
+      "version_args": [
+        "--version"
+      ],
+      "package": {
+        "source": "aur",
+        "name": "agent-of-empires-bin"
+      },
+      "upstream_inspection": {
+        "url": "https://raw.githubusercontent.com/agent-of-empires/agent-of-empires/main/scripts/install.sh",
+        "parser": "aoe-install-sh-v1",
+        "allowed_configurable_environment": [
+          "INSTALL_DIR"
+        ],
+        "expected_sha256": "83d372e0749069bc4d4994571bbe7f146b213b38571a034f15bbecb1bb72a6c0",
+        "on_contract_change": "block"
+      },
+      "decision_profile": {
+        "automatic": [
+          {
+            "id": "aoe-delivery-source",
+            "selected": "aur-package",
+            "reason": "Arch 工作流优先使用维护中的 AUR 包。"
+          },
+          {
+            "id": "aoe-install-dir",
+            "selected": "not-applicable",
+            "reason": "上游 INSTALL_DIR 不能映射为所选 AUR package action。"
+          }
+        ],
+        "questions": []
+      }
     },
     "tavily-hikari": {
       "delivery": "native",
@@ -164,11 +400,20 @@
       "owner": "hikari",
       "scope": "global",
       "verify_key": "tvly-hikari --version",
-      "actions": {"install": "native-owner", "configure": "native-owner", "upgrade": "native-owner", "uninstall": "native-owner", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "native-owner",
+        "configure": "native-owner",
+        "upgrade": "native-owner",
+        "uninstall": "native-owner",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "native_owner_reason": "Hikari endpoint and access token are externally managed; lifecycle only verifies CLI presence.",
       "probe": "tvly-hikari",
-      "version_args": ["--version"]
+      "version_args": [
+        "--version"
+      ]
     },
     "codex-config": {
       "delivery": "static",
@@ -176,10 +421,20 @@
       "owner": "pennix",
       "scope": "global",
       "verify_key": "CODEX_HOME/config.toml managed sections",
-      "actions": {"install": "managed", "configure": "managed", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "managed",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "adapter": "codex-config",
-      "template": {"name": "config.toml.install", "revision": "sha256:6bca34c27f77487787fe18b3987b26a215c23d2f00ad9ad8ebac1d9caae76b05"}
+      "template": {
+        "name": "config.toml.install",
+        "revision": "sha256:6bca34c27f77487787fe18b3987b26a215c23d2f00ad9ad8ebac1d9caae76b05"
+      }
     },
     "codex-agents": {
       "delivery": "static",
@@ -187,10 +442,20 @@
       "owner": "pennix",
       "scope": "global",
       "verify_key": "CODEX_HOME/AGENTS.md",
-      "actions": {"install": "managed", "configure": "managed", "upgrade": "managed", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "managed",
+        "configure": "managed",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "adapter": "codex-agents",
-      "template": {"name": "AGENTS.md.install", "revision": "sha256:f58e5963ff4071c5282672073ee76b3dccabdf5d42dd0bb97dcd960c1f3f339b"}
+      "template": {
+        "name": "AGENTS.md.install",
+        "revision": "sha256:f58e5963ff4071c5282672073ee76b3dccabdf5d42dd0bb97dcd960c1f3f339b"
+      }
     },
     "pennix-skills": {
       "delivery": "collection",
@@ -198,13 +463,35 @@
       "owner": "pennix",
       "scope": "global",
       "verify_key": "skills/pennix-skills direct entry set",
-      "actions": {"install": "native-owner", "configure": "not-applicable", "upgrade": "native-owner", "uninstall": "managed", "verify": "managed", "reconcile": "not-applicable"},
+      "actions": {
+        "install": "native-owner",
+        "configure": "not-applicable",
+        "upgrade": "native-owner",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
       "project_init": "not-applicable",
       "adapter": "pennix-skills",
-      "obsolete_skills": ["pennix-hindsight-memory"],
+      "obsolete_skills": [
+        "pennix-hindsight-memory",
+        "pennix-agentmemory-memory"
+      ],
       "native_owner_reason": "Pennix Skills installation and upgrade use Codex's system $skill-installer in an agent turn; target hosts do not keep a local repository checkout.",
       "collection_contract": {
-        "skills": ["grok-search", "pennix-decision-gates", "pennix-fastctx-routing", "pennix-agentmemory-memory", "pennix-session-handoff", "pennix-trellis-project-update", "pennix-workflow-lifecycle", "pennix-workflow-routing", "tavily-hikari", "windsurf-code-search", "workflow-doctor"],
+        "skills": [
+          "grok-search",
+          "pennix-decision-gates",
+          "pennix-fastctx-routing",
+          "pennix-cognee-memory",
+          "pennix-session-handoff",
+          "pennix-trellis-project-update",
+          "pennix-workflow-lifecycle",
+          "pennix-workflow-routing",
+          "tavily-hikari",
+          "windsurf-code-search",
+          "workflow-doctor"
+        ],
         "bootstrap_skill": "pennix-workflow-lifecycle",
         "source": {
           "repo": "PennixRv/pennix-skills",
@@ -216,7 +503,7 @@
             "skills/pennix-trellis-project-update",
             "skills/pennix-workflow-lifecycle",
             "skills/pennix-workflow-routing",
-            "skills/pennix-agentmemory-memory",
+            "skills/pennix-cognee-memory",
             "skills/tavily-hikari",
             "skills/workflow-doctor",
             "skills/grok-search",
@@ -231,7 +518,9 @@
             "path": ".",
             "name": "grok-search",
             "snapshot": "archive",
-            "post_install": ["grok-search-runtime"]
+            "post_install": [
+              "grok-search-runtime"
+            ]
           },
           "windsurf-code-search": {
             "repo": "PennixRv/windsurf-code-search",

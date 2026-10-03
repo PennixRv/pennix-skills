@@ -1,0 +1,32 @@
+{
+  "id": "cognee-workflow-adaptation",
+  "name": "cognee-workflow-adaptation",
+  "title": "Cognee workflow adaptation and deployment",
+  "description": "Implement the authorized Cognee replacement in owned Pennix skills, lifecycle, exact memory/handoff proofs and managed launcher; deploy official service and retire legacy only after acceptance. Root contract: ../.trellis/tasks/10-03-cognee-memory-base-replacement.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-03",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "execution_class": "complex",
+    "work_domain": "workflow_governance",
+    "decision_frontier": "multiple",
+    "approval_mode": "implementation_authorized"
+  }
+}

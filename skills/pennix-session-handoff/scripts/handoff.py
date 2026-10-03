@@ -22,7 +22,7 @@ from workflow_contracts import (  # noqa: E402
     load_json_file, safe_id, validate_attestation,
     validate_observation,
 )
-import agentmemory  # noqa: E402
+import cognee  # noqa: E402
 
 
 SCHEMA_VERSION = 8
@@ -41,7 +41,7 @@ ARCHIVE_RUNTIME = ".trellis/.runtime/handoff-archive"
 LIFECYCLE_SCHEMA_VERSION = 2
 LIFECYCLE_EVENT_KIND = "pennix-handoff-lifecycle-event"
 CONSUMPTION_STEPS = ("core_read", "prompt_read", "trellis_started", "facts_reconciled")
-SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "agentmemory_verified", "pending", "unavailable", "unsupported", "failed", "expired"}
+SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "cognee_verified", "pending", "unavailable", "unsupported", "failed", "expired"}
 TARGET_STATES = {"not_admitted", "admitted", "reconciled", "blocked", "disposed"}
 RETENTION_STATES = {"none", "archive_eligible", "archived", "retained", "restored", "reopened", "purged"}
 LIFECYCLE_ACTOR = "pennix-session-handoff"
@@ -405,7 +405,7 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
             raise ContractError("validation[%d] fields are invalid" % index)
         normalized_validation.append({"command": _text(item["command"], "validation[%d].command" % index), "result": _text(item["result"], "validation[%d].result" % index)})
     memory_projection = value.get("memory_projection", {})
-    if not isinstance(memory_projection, dict) or set(memory_projection) - {"semantic_capsule", "local", "archive_refs", "agentmemory"}:
+    if not isinstance(memory_projection, dict) or set(memory_projection) - {"semantic_capsule", "local", "archive_refs", "cognee"}:
         raise ContractError("memory_projection fields are invalid")
     normalized = {
         "session_label": _text(value["session_label"], "session_label"), "facts": _text_list(value["facts"], "facts"),
@@ -416,7 +416,7 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
             "semantic_capsule": free_text(memory_projection.get("semantic_capsule", ""), "memory_projection.semantic_capsule"),
             "local": _text_list(memory_projection.get("local", []), "memory_projection.local"),
             "archive_refs": _text_list(memory_projection.get("archive_refs", []), "memory_projection.archive_refs"),
-            "agentmemory": _text_list(memory_projection.get("agentmemory", []), "memory_projection.agentmemory"),
+            "cognee": _text_list(memory_projection.get("cognee", []), "memory_projection.cognee"),
         },
     }
     _evidence_snapshot(root, evidence_paths)
@@ -526,10 +526,10 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
     memory = payload["memory_projection"]
     if not isinstance(memory, dict):
         raise ContractError("handoff memory projection is invalid")
-    if set(memory) != {"semantic_capsule", "local", "archive_refs", "agentmemory"}:
+    if set(memory) != {"semantic_capsule", "local", "archive_refs", "cognee"}:
         raise ContractError("handoff memory projection is invalid")
     free_text(memory["semantic_capsule"], "memory_projection.semantic_capsule")
-    for field in ("local", "archive_refs", "agentmemory"):
+    for field in ("local", "archive_refs", "cognee"):
         _text_list(memory[field], "memory_projection.%s" % field)
     if payload["authorization"] != AUTHORIZATION:
         raise ContractError("handoff authorization is invalid")
@@ -642,11 +642,11 @@ def _transition(axis: str, old: str, new: str) -> bool:
         "source": {
             "unprepared": {"prepared", "failed"},
             "prepared": {"boundary_sealed", "pending", "unsupported", "unavailable", "failed"},
-            "boundary_sealed": {"agentmemory_verified", "failed"},
-            "agentmemory_verified": {"expired"},
-            "pending": {"boundary_sealed", "agentmemory_verified", "unsupported", "unavailable", "failed"},
-            "unsupported": {"boundary_sealed", "pending", "agentmemory_verified", "failed"},
-            "unavailable": {"boundary_sealed", "pending", "agentmemory_verified", "failed"},
+            "boundary_sealed": {"cognee_verified", "failed"},
+            "cognee_verified": {"expired"},
+            "pending": {"boundary_sealed", "cognee_verified", "unsupported", "unavailable", "failed"},
+            "unsupported": {"boundary_sealed", "pending", "cognee_verified", "failed"},
+            "unavailable": {"boundary_sealed", "pending", "cognee_verified", "failed"},
             "failed": {"failed"}, "expired": set(),
         },
         "target": {"not_admitted": {"admitted", "reconciled", "blocked"}, "admitted": {"reconciled", "blocked", "disposed"}, "reconciled": {"disposed"}, "blocked": {"admitted", "reconciled", "disposed"}, "disposed": set()},
@@ -765,9 +765,9 @@ def _attestation_steps(attestation: Dict[str, Any]) -> tuple[str, ...]:
 
 
 def _source_ready(mode: str, state: dict[str, str]) -> bool:
-    required = {"core_only": "boundary_sealed", "agentmemory_required": "agentmemory_verified"}[mode]
+    required = {"core_only": "boundary_sealed", "cognee_required": "cognee_verified"}[mode]
     if mode == "core_only":
-        return state["source"] in {"boundary_sealed", "agentmemory_verified"}
+        return state["source"] in {"boundary_sealed", "cognee_verified"}
     return state["source"] == required
 
 
@@ -807,11 +807,11 @@ def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[st
                 if existing["evidence_refs"] != evidence_refs:
                     raise ContractError("handoff prepared source identity is immutable")
                 return {"status": "idempotent", "state": current}
-        if event_type == "agentmemory_write_started":
+        if event_type == "cognee_write_started":
             existing = next((event for event in events if event["event_type"] == event_type), None)
             if existing is not None:
                 if existing["evidence_refs"] != evidence_refs:
-                    raise ContractError("handoff AgentMemory write identity is immutable")
+                    raise ContractError("handoff Cognee write identity is immutable")
                 return {"status": "idempotent", "state": current}
         if event_type == "admit":
             admission = {"evidence_refs": evidence_refs, "target_status": desired["target"]}
@@ -927,8 +927,8 @@ def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[s
 
 
 def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: Optional[str]) -> None:
-    if mode == "agentmemory_required" and state["source"] != "agentmemory_verified":
-        raise ContractError("handoff AgentMemory write and retrieval verification are not complete")
+    if mode == "cognee_required" and state["source"] != "cognee_verified":
+        raise ContractError("handoff Cognee write and retrieval verification are not complete")
 
 
 def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
@@ -1071,7 +1071,7 @@ def lifecycle_seal(root: Path, handoff_path: str, *, explicit: bool) -> tuple[st
     if prepare is None or source not in prepare["evidence_refs"]:
         raise ContractError("taskless seal must run in the prepared source session")
     state = _state(events)
-    if state["source"] == "agentmemory_verified":
+    if state["source"] == "cognee_verified":
         return handoff_id, {"status": "idempotent", "state": state}
     return handoff_id, _append_event(root, handoff_id, "boundary_sealed", {**state, "source": "boundary_sealed"}, ["taskless_seal=" + handoff_id, source])
 
@@ -1089,8 +1089,8 @@ def lifecycle_finalize_observation(root: Path, handoff_path: str, observation: d
         raise ContractError("handoff lifecycle is not prepared")
     mode = _prepared_mode(events)
     observation = validate_observation(observation)
-    if mode == "agentmemory_required":
-        raise ContractError("agentmemory_required must use the native AgentMemory operation")
+    if mode == "cognee_required":
+        raise ContractError("cognee_required must use the native Cognee operation")
     status = "pending"
     if observation["availability"] == "unsupported":
         status = "unsupported"
@@ -1098,13 +1098,13 @@ def lifecycle_finalize_observation(root: Path, handoff_path: str, observation: d
         status = "unavailable"
     elif observation["boundary"]["status"] == "sealed":
         status = "boundary_sealed"
-    if status == "pending" and _state(events)["source"] in {"boundary_sealed", "agentmemory_verified"}:
+    if status == "pending" and _state(events)["source"] in {"boundary_sealed", "cognee_verified"}:
         status = _state(events)["source"]
     result = _append_event(root, handoff_id, "finalize", {"source": status, "target": _state(events)["target"], "retention": _state(events)["retention"]}, [evidence_ref])
     return handoff_id, result
 
 
-def lifecycle_agentmemory(root: Path, handoff_path: str, key_fact: str) -> tuple[str, dict[str, Any]]:
+def lifecycle_cognee(root: Path, handoff_path: str, key_fact: str) -> tuple[str, dict[str, Any]]:
     handoff_id, _, payload = _core(root, handoff_path)
     _read_paired_prompt(root, handoff_path)
     key_fact = _text(key_fact, "key_fact")
@@ -1113,43 +1113,43 @@ def lifecycle_agentmemory(root: Path, handoff_path: str, key_fact: str) -> tuple
     events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
-    if _prepared_mode(events) != "agentmemory_required":
-        raise ContractError("native AgentMemory operation requires agentmemory_required mode")
+    if _prepared_mode(events) != "cognee_required":
+        raise ContractError("native Cognee operation requires cognee_required mode")
     state = _state(events)
-    if state["source"] == "agentmemory_verified":
+    if state["source"] == "cognee_verified":
         return handoff_id, {"status": "idempotent", "state": state}
     if state["source"] != "boundary_sealed":
-        raise ContractError("handoff boundary must be sealed before AgentMemory write")
+        raise ContractError("handoff boundary must be sealed before Cognee write")
     if not _source_task_ready(payload, events):
         raise ContractError("handoff task ownership is not sealed")
     capsule = payload["memory_projection"]["semantic_capsule"]
     if not capsule.strip():
-        raise ContractError("semantic capsule is required for AgentMemory handoff")
-    client = agentmemory.AgentMemoryClient.for_project(root)
-    content = agentmemory.handoff_content(handoff_id, capsule, key_fact)
+        raise ContractError("semantic capsule is required for Cognee handoff")
+    client = cognee.CogneeClient.for_project(root)
+    content = cognee.handoff_content(handoff_id, capsule, key_fact)
     write_identity = hashlib.sha256(content.encode("utf-8")).hexdigest()
-    intent = _append_event(root, handoff_id, "agentmemory_write_started", state, ["write_identity=" + write_identity, "agentmemory_project=" + client.project])
+    intent = _append_event(root, handoff_id, "cognee_write_started", state, ["write_identity=" + write_identity, "cognee_project=" + client.project])
     events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
-    retained = next((event for event in events if event["event_type"] == "agentmemory_retained"), None)
+    retained = next((event for event in events if event["event_type"] == "cognee_retained"), None)
     if retained is not None:
-        memory_id = next(ref.removeprefix("agentmemory_memory_id=") for ref in retained["evidence_refs"] if ref.startswith("agentmemory_memory_id="))
+        data_id = next(ref.removeprefix("cognee_data_id=") for ref in retained["evidence_refs"] if ref.startswith("cognee_data_id="))
     else:
         result = client.retain_handoff(handoff_id, capsule, key_fact, reconcile_only=intent["status"] == "idempotent")
-        memory_id = result["memory_id"]
-        _append_event(root, handoff_id, "agentmemory_retained", state, ["agentmemory_memory_id=" + memory_id, "agentmemory_project=" + client.project])
-    result = {"memory_id": memory_id, "project": client.project, "content_sha256": hashlib.sha256(capsule.encode("utf-8")).hexdigest(), "retrieval_count": client.verify_retrieval(memory_id, content, handoff_id)}
+        data_id = result["data_id"]
+        _append_event(root, handoff_id, "cognee_retained", state, ["cognee_data_id=" + data_id, "cognee_project=" + client.project])
+    result = {"data_id": data_id, "project": client.project, "content_sha256": hashlib.sha256(capsule.encode("utf-8")).hexdigest(), "retrieval_count": client.verify_retrieval(data_id, content, handoff_id)}
     references = [
         "local_capsule_digest=" + result["content_sha256"],
-        "agentmemory_memory_id=" + result["memory_id"],
-        "agentmemory_project=" + result["project"],
-        "agentmemory_retrieval_verified=" + str(result["retrieval_count"]),
+        "cognee_data_id=" + result["data_id"],
+        "cognee_project=" + result["project"],
+        "cognee_retrieval_verified=" + str(result["retrieval_count"]),
     ]
     lifecycle = _append_event(
-        root, handoff_id, "agentmemory_verified",
-        {"source": "agentmemory_verified", "target": state["target"], "retention": state["retention"]},
+        root, handoff_id, "cognee_verified",
+        {"source": "cognee_verified", "target": state["target"], "retention": state["retention"]},
         references,
     )
-    return handoff_id, {"status": lifecycle["status"], "state": lifecycle["state"], "agentmemory": result}
+    return handoff_id, {"status": lifecycle["status"], "state": lifecycle["state"], "cognee": result}
 
 
 def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tuple[str, dict[str, Any]]:
@@ -1286,14 +1286,14 @@ def main() -> int:
     check.add_argument("--handoff", required=True)
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--handoff", required=True)
-    prepare.add_argument("--mode", default="agentmemory_required", choices=sorted(LIFECYCLE_MODES))
+    prepare.add_argument("--mode", default="cognee_required", choices=sorted(LIFECYCLE_MODES))
     seal = sub.add_parser("seal")
     seal.add_argument("--handoff", required=True)
     seal.add_argument("--explicit-user-request", action="store_true")
     finalize = sub.add_parser("finalize")
     finalize.add_argument("--handoff", required=True)
     finalize.add_argument("--observation", required=True)
-    remote = sub.add_parser("agentmemory")
+    remote = sub.add_parser("cognee")
     remote.add_argument("--handoff", required=True)
     remote.add_argument("--key-fact", required=True)
     admit = sub.add_parser("admit")
@@ -1343,9 +1343,9 @@ def main() -> int:
             handoff_id, result = lifecycle_seal(root, args.handoff, explicit=args.explicit_user_request)
             _lifecycle_result("seal", handoff_id, result)
             return 0
-        if args.command == "agentmemory":
-            handoff_id, result = lifecycle_agentmemory(root, args.handoff, args.key_fact)
-            _lifecycle_result("agentmemory", handoff_id, result)
+        if args.command == "cognee":
+            handoff_id, result = lifecycle_cognee(root, args.handoff, args.key_fact)
+            _lifecycle_result("cognee", handoff_id, result)
             return 0
         if args.command == "admit":
             handoff_id, result = lifecycle_admit(root, args.handoff, args.attestation)
@@ -1383,7 +1383,7 @@ def main() -> int:
         _atomic_json(destination, payload)
         emit("write", "ready", handoff_id=handoff_id, handoff_path=destination.relative_to(root).as_posix())
         return 0
-    except (ContractError, agentmemory.AgentMemoryError, OSError, subprocess.SubprocessError) as exc:
+    except (ContractError, cognee.CogneeError, OSError, subprocess.SubprocessError) as exc:
         emit(getattr(args, "command", "handoff"), "recovery_required", str(exc))
         return 2
 

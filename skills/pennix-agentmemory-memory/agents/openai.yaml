@@ -1,4 +1,0 @@
-interface:
-  display_name: "Pennix AgentMemory Memory"
-  short_description: "Maintain scoped project, cross-project, and user-confirmed AgentMemory"
-  default_prompt: "使用 $pennix-agentmemory-memory 按作用域读取和记录 AgentMemory 记忆，不把项目记忆自动提升为跨项目或用户记忆。"

@@ -80,7 +80,7 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 )
                 self.assertEqual(MODULE.target_state("grok-provider", Path(temporary)), "configured")
 
-    def test_agentmemory_static_and_secret_configuration_are_separate(self) -> None:
+    def test_cognee_static_and_secret_configuration_are_separate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             home = root / "home"
@@ -89,20 +89,20 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 os.environ,
                 {"HOME": str(home), "XDG_STATE_HOME": str(root / "state")},
                 clear=False,
-            ), mock.patch.object(MODULE.agentmemory_mcp, "configure"), mock.patch.object(MODULE.agentmemory_mcp, "state", return_value="configured"):
-                url = "https://agentmemory.example.test:9999"
-                self.assertEqual(MODULE.configure_agentmemory_static(codex, url), "configured")
-                config = home / ".config" / "agentmemory" / "client.env"
+            ), mock.patch.object(MODULE.cognee_plugin, "configure"), mock.patch.object(MODULE.cognee_plugin, "state", return_value="configured"):
+                url = "https://cognee.example.test:9999"
+                self.assertEqual(MODULE.configure_cognee_static(codex, url), "configured")
+                config = home / ".cognee" / ".env"
                 data = config.read_text(encoding="utf-8")
-                self.assertIn("AGENTMEMORY_URL=" + url, data)
-                self.assertNotIn("AGENTMEMORY_SECRET", data)
+                self.assertIn("COGNEE_BASE_URL=" + url, data)
+                self.assertNotIn("COGNEE_API_KEY", data)
                 self.assertEqual(stat.S_IMODE(config.stat().st_mode), 0o600)
-                self.assertEqual(MODULE.target_state("agentmemory-static", codex, {"apiUrl": url}), "configured")
+                self.assertEqual(MODULE.target_state("cognee-static", codex, {"apiUrl": url}), "configured")
                 with mock.patch.object(MODULE, "_read_tty", return_value="secret-token"):
-                    self.assertEqual(MODULE.configure_agentmemory_secret(codex), "configured")
-                self.assertEqual(MODULE.target_state("agentmemory-secret", codex), "configured")
+                    self.assertEqual(MODULE.configure_cognee_secret(codex), "configured")
+                self.assertEqual(MODULE.target_state("cognee-secret", codex), "configured")
 
-    def test_agentmemory_project_registration_is_user_level_and_reversible(self) -> None:
+    def test_cognee_project_registration_is_user_level_and_reversible(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             home = root / "home"
@@ -114,15 +114,15 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 clear=False,
             ):
                 project.mkdir()
-                name = MODULE.register_agentmemory_project(codex, project)
+                name = MODULE.register_cognee_project(codex, project)
                 self.assertEqual(name, "project")
-                registry = home / ".config" / "agentmemory" / "projects.json"
+                registry = home / ".config" / "cognee" / "projects.json"
                 self.assertEqual(json.loads(registry.read_text(encoding="utf-8"))[str(project.resolve())], "project")
                 other = root / "other/project"
                 other.mkdir(parents=True)
                 with self.assertRaisesRegex(MODULE.ConfigurationError, "already registered"):
-                    MODULE.register_agentmemory_project(codex, other)
-                self.assertEqual(MODULE.unregister_agentmemory_project(project), "changed")
+                    MODULE.register_cognee_project(codex, other)
+                self.assertEqual(MODULE.unregister_cognee_project(project), "changed")
                 self.assertFalse(registry.exists())
 
 
