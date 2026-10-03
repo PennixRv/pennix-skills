@@ -23,6 +23,9 @@
   "relatedFiles": [],
   "notes": "",
   "meta": {
-    "coordination_task": "subnode-provider-config-diagnosis"
+    "coordination_task": "subnode-provider-config-diagnosis",
+    "consumer_adoption": "verified_beta24",
+    "publication_mode": "authorized_direct_push_no_pr",
+    "release_version": "0.7.0-beta.24"
   }
 }

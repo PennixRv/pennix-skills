@@ -41,18 +41,24 @@ $TASK/subnodes/$WORK_ID/$SUBNODE_ID/
   brief.json     # coordinator-owned and immutable after dispatch
   worklog.md     # subnode appends material progress and corrections
   report.json    # subnode-owned final pending-review result
+  disposition.json # coordinator-owned, create-once result decision
 ```
 
-Do not use a terminal Channel message as the report transport. The short final
-message names the already-written `report.json` and its status; the durable
-JSON file carries the reviewable result.
+Do not use a Channel command or message body as the report transport. The
+subnode's short final assistant reply names the already-written `report.json`
+and its status; the Codex supervisor projects that reply into the durable
+Channel message and `done` events. The durable JSON file carries the
+reviewable result.
 
-The subnode copies identity, scope, and lens from `brief.json`. The minimal
+The subnode copies identity, scope, and lens from `brief.json`. Schema version 2
+requires one `scope_assessment` entry for every brief scope item, structured
+findings with evidence references, and typed uncertainties or corrections when
+present. Schema version 1 is retired and the validator rejects it. The minimal
 complete report is:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "task-id-from-brief",
   "work_id": "work-id-from-brief",
   "subnode_id": "subnode-id-from-brief",
@@ -60,6 +66,14 @@ complete report is:
   "status": "complete",
   "scope": ["exact scope copied from brief"],
   "lens": "exact lens copied from brief",
+  "scope_assessment": [
+    {
+      "scope": "exact scope item from brief",
+      "status": "covered",
+      "conclusion": "What this scope establishes.",
+      "evidence_ids": ["stable-evidence-id"]
+    }
+  ],
   "evidence": [
     {
       "id": "stable-evidence-id",
@@ -67,11 +81,29 @@ complete report is:
       "summary": "What this independently reviewable evidence establishes."
     }
   ],
-  "findings": ["Bounded conclusion."],
+  "findings": [
+    {
+      "id": "finding-id",
+      "conclusion": "Bounded conclusion.",
+      "evidence_ids": ["stable-evidence-id"]
+    }
+  ],
   "uncertainties": [],
   "corrections": []
 }
 ```
+
+Append a checkpoint marker to `worklog.md` when a material unit is complete or
+blocked. It is a bounded recovery projection, not coordinator acceptance:
+
+```text
+<!-- trellis-checkpoint: {"id":"checkpoint-1","covered_scope":["exact scope item"],"evidence_ids":["stable-evidence-id"],"conclusion_or_blocker":"Current conclusion or blocker.","unknowns":[],"safe_resume_point":"Next safe action."} -->
+```
+
+The validator returns `review_concern` for missing or incomplete checkpoint
+coverage and for inconclusive scope assessments so the coordinator can inspect
+them. Identity, schema, path, and malformed-structure failures remain hard
+errors. A concern is never automatic acceptance or rejection.
 
 For `blocked`, `incomplete`, or `error`, include the same base fields plus a
 `completed_scope` list (empty when no assigned scope started) and a non-empty
@@ -88,15 +120,22 @@ events committed after that barrier:
 trellis channel create subnode-example --by main --cwd "$PWD"
 BARRIER="$(trellis channel barrier subnode-example)"
 trellis channel spawn subnode-example --agent subnode --provider codex \
-  --as "$SUBNODE_ID" --cwd "$PWD" --timeout 30m
+  --as "$SUBNODE_ID" --cwd "$PWD"
 
 printf '%s\n' "Read $TASK/subnodes/$WORK_ID/$SUBNODE_ID/brief.json and perform only that bounded work." \
   | trellis channel send subnode-example --as main --to "$SUBNODE_ID" \
       --stdin --delivery-mode requireRunningWorker
 
 trellis channel wait subnode-example --as main --from "$SUBNODE_ID" \
-  --kind done,error --after-seq "$BARRIER" --timeout 30m
+  --kind done,error,killed --after-seq "$BARRIER" --timeout 30m
 ```
+
+`channel.subnode` in `.trellis/config.yaml` supplies the role defaults for
+`max_live_workers` (generated default `8`), `idle_timeout`, `timeout`, and
+`warn_before`. Change that section before a dispatch group when its resource
+or lifetime needs differ; pass the corresponding `spawn` flag only for a
+one-off override. The generic `channel.worker_guard` remains the fallback for
+ordinary workers and for a subnode key omitted from the project config.
 
 Where the host exposes a live wait continuation, capture the same barrier,
 establish one event waiter before triggering the worker, and continue that same
@@ -109,20 +148,40 @@ not as a high-frequency supervision loop.
 
 ## Coordinator Review
 
-After a terminal message, independently validate and then record a task-level
-disposition. `complete` means only that the subnode claims it completed its
-assigned work; it is not acceptance.
+After the subnode's final reply, independently validate and then record a
+task-level disposition. `complete` means only that the subnode claims it
+completed its assigned work; it is not acceptance. Confirm the terminal state
+from the durable worker projection; a report without a terminal worker is
+still pending, and a terminal worker without a valid report is recovery.
 
 ```bash
 REPORT="$TASK/subnodes/$WORK_ID/$SUBNODE_ID/report.json"
 python3 .trellis/scripts/subnode_artifact.py validate --report "$REPORT"
+trellis channel workers subnode-example --include-terminal --json
 ```
 
 The coordinator must re-check enough source evidence and protected-target state
-to decide `accepted`, `rejected`, or `deferred`, preserving the reason and named
-checks such as `report_validation`, `source_recheck`, and
-`protected_target_check` in task research or a decision record. The validator
-does not make that decision and does not modify `task.json`.
+to decide `accepted`, `rejected`, or `deferred`. Record the terminal lifecycle
+and sequence returned by `channel workers`, then let the helper create the
+disposition exactly once:
+
+```bash
+python3 .trellis/scripts/subnode_artifact.py disposition \
+  --report "$REPORT" \
+  --outcome accepted \
+  --terminal-lifecycle done \
+  --terminal-seq 17 \
+  --terminal-at 2026-09-14T03:00:00Z \
+  --check report_validation \
+  --check source_recheck \
+  --check protected_target_check \
+  --reason "Evidence and protected targets were independently rechecked."
+```
+
+`disposition.json` is coordinator-owned and cannot be replaced. The helper
+does not inspect the Channel store or make the acceptance judgment; the
+terminal values must come from the worker projection and the reason records
+the coordinator's decision.
 
 Use the separate coordinator work-record helper only for a durable cross-task
 observation, decision, open question, or blocker. It does not substitute for a
@@ -159,4 +218,5 @@ record why it is retrying and check the new report independently; neither the
 helper nor Channel decides when to retry.
 
 No scheduler, high-frequency polling loop, automatic retry, worktree, global
-ledger, or provider-specific transport is introduced by this workflow.
+ledger, or provider-specific transport is introduced by this workflow. A
+manual retry always uses a new subnode id and worker handle.

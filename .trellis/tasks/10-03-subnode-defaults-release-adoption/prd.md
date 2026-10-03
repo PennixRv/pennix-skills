@@ -7,4 +7,4 @@ The user authorized publication and all corresponding consumer updates, includin
 - Refresh this repository's existing Trellis assets with native project update; preserve specs/tasks/private configuration and unrelated user edits. Keep the existing native workflow semantics.
 - Verify lifecycle tests, collection integrity, installed Trellis pin and native update/profile results. No unrelated component upgrades or changes to model/runtime mechanisms.
 
-Acceptance: [ ] catalog and existing tests agree; [ ] source pushed and installed collection verified; [ ] native project assets include the eight approved profiles and reach the published CLI version; [ ] checks and exact delivery commits recorded.
+Acceptance: [x] catalog and existing tests agree; [x] source pushed and installed collection verified; [x] native project assets include the eight approved profiles and reach the published CLI version; [x] checks and exact delivery commits recorded.

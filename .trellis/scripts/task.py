@@ -9,8 +9,11 @@ Usage:
     python3 task.py validate <dir>              # Validate jsonl files
     python3 task.py list-context <dir>          # List jsonl entries
     python3 task.py start <dir>                 # Set active task, record current branch
+    python3 task.py replan <dir> "<reason>"     # Return an in-progress task to planning
     python3 task.py current [--source] [--json] # Show active task
+    python3 task.py ownership <operation> ...   # Manage formal handoff task ownership
     python3 task.py finish                      # Clear active task
+    python3 task.py workflow <id>|--clear       # Set/clear per-task workflow selection
     python3 task.py set-branch <dir> <branch>   # Set git branch
     python3 task.py set-base-branch <dir> <branch>  # Set PR target branch
     python3 task.py set-scope <dir> <scope>     # Set scope for PR title
@@ -27,7 +30,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from common.log import Colors, colored
@@ -50,11 +55,13 @@ from common.active_task import (
 from common.git import current_branch_name
 from common.io import (
     describe_json_read_failure,
+    read_json,
     read_json_checked,
     write_json,
 )
 from common.task_utils import resolve_task_dir, run_task_hooks
 from common.tasks import iter_active_tasks, children_progress
+from common.workflow_selection import WORKFLOW_ID_RE, workflow_md_for_task
 
 # Import command handlers from split modules (also re-exports for plan.py compatibility)
 from common.task_store import (
@@ -73,6 +80,25 @@ from common.task_context import (
     cmd_validate,
     cmd_list_context,
     curated_entry_count,
+)
+from common.continuation_record import (
+    STATUS_WITHHELD,
+    ContinuationError,
+    clear as clear_continuity,
+    seal as seal_continuity,
+    status as continuity_status,
+)
+from common.ownership_record import (
+    OwnershipError,
+    archive as archive_ownership,
+    assert_task_mutation_allowed,
+    claim as claim_ownership,
+    consume as consume_ownership,
+    quiesce as quiesce_ownership,
+    retire as retire_ownership,
+    retire_handoff as retire_handoff_ownership,
+    seal as seal_ownership,
+    status as ownership_status,
 )
 
 
@@ -191,6 +217,12 @@ def cmd_start(args: argparse.Namespace) -> int:
         print("Hint: Use task name (e.g., 'my-task') or full path (e.g., '.trellis/tasks/01-31-my-task')")
         return 1
 
+    try:
+        assert_task_mutation_allowed(repo_root, full_path)
+    except (OwnershipError, OSError) as exc:
+        print(colored(f"Error: {exc}", Colors.RED), file=sys.stderr)
+        return 2
+
     # Context-manifest gate (#573): a seeded-but-uncurated implement/check
     # manifest means every sub-agent dispatched for this task runs with zero
     # spec context, and nothing downstream surfaces that to the main session.
@@ -272,18 +304,103 @@ def cmd_start(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_replan(args: argparse.Namespace) -> int:
+    """Return an in-progress task to planning without losing its binding."""
+    repo_root = get_repo_root()
+    full_path = resolve_task_dir(args.dir, repo_root)
+    if full_path is None or not full_path.is_dir():
+        print(colored(f"Error: Task not found: {args.dir}", Colors.RED), file=sys.stderr)
+        return 1
+
+    try:
+        assert_task_mutation_allowed(repo_root, full_path)
+    except (OwnershipError, OSError) as exc:
+        print(colored(f"Error: {exc}", Colors.RED), file=sys.stderr)
+        return 2
+
+    reason = " ".join(args.reason).strip()
+    if not reason:
+        print(colored("Error: replan reason must not be empty", Colors.RED), file=sys.stderr)
+        return 1
+
+    task_json_path = full_path / FILE_TASK_JSON
+    data, read_reason = read_json_checked(task_json_path)
+    if data is None:
+        problem, hint = describe_json_read_failure(task_json_path, read_reason)
+        print(colored(f"Error: {problem}", Colors.RED), file=sys.stderr)
+        print(hint, file=sys.stderr)
+        return 1
+    if data.get("status") != "in_progress":
+        print(
+            colored(
+                f"Error: replan requires status=in_progress (found {data.get('status')!r})",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "task": full_path.relative_to(repo_root).as_posix(),
+        "from_status": "in_progress",
+        "reason": reason,
+        "branch": data.get("branch"),
+    }
+    context_key = resolve_context_key()
+    if context_key:
+        event["session"] = context_key
+
+    replans_path = full_path / "replans.jsonl"
+    try:
+        with replans_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError as exc:
+        print(colored(f"Error: could not record replan: {exc}", Colors.RED), file=sys.stderr)
+        return 1
+
+    data["status"] = "planning"
+    if not write_json(task_json_path, data):
+        print(colored("Error: replan event recorded but task status was not changed", Colors.RED), file=sys.stderr)
+        return 1
+
+    print(colored(f"✓ Task returned to planning: {full_path.relative_to(repo_root)}", Colors.GREEN))
+    print("Reason:", reason)
+    run_task_hooks("after_replan", task_json_path, repo_root)
+    return 0
+
+
 def cmd_finish(args: argparse.Namespace) -> int:
     """Clear active task."""
     repo_root = get_repo_root()
-    active = clear_active_task(repo_root)
+    active = resolve_active_task(repo_root)
     current = active.task_path
 
     if not current:
         print(colored("No current task set", Colors.YELLOW))
         return 0
 
+    if active.source_type == "unbound":
+        print(colored("Task exists but no direct session is bound; run task.py start first", Colors.YELLOW))
+        print(f"Task: {current}")
+        return 0
+    if active.source_type == "unbound_ambiguous":
+        print(colored("Multiple tasks exist but no direct session is bound; choose one before finishing", Colors.YELLOW))
+        for candidate in active.candidate_paths:
+            print(f"Candidate: {candidate}")
+        return 0
+
+    try:
+        assert_task_mutation_allowed(repo_root, repo_root / current)
+    except (OwnershipError, OSError) as exc:
+        print(colored(f"Error: {exc}", Colors.RED), file=sys.stderr)
+        return 2
+
     # Resolve task.json path before clearing
     task_json_path = repo_root / current / FILE_TASK_JSON
+    clear_active_task(repo_root)
 
     print(colored(f"✓ Cleared current task (was: {current})", Colors.GREEN))
     print(f"Source: {active.source}")
@@ -327,8 +444,11 @@ def cmd_current(args: argparse.Namespace) -> int:
         payload = {
             "current_task": task_obj,
             "source": active.source,
+            "session_source": f"session:{active.context_key}" if active.context_key else None,
             "stale": active.stale,
         }
+        if active.candidate_paths:
+            payload["candidates"] = list(active.candidate_paths)
         # Only present when the read failed, so the healthy shape is unchanged.
         if read_error:
             payload["error"] = read_error
@@ -336,6 +456,12 @@ def cmd_current(args: argparse.Namespace) -> int:
         return 0 if active.task_path else 1
 
     if args.source:
+        if active.source_type == "unbound_ambiguous":
+            print("Current task: (ambiguous)")
+            print("Source: unbound_ambiguous")
+            for candidate in active.candidate_paths:
+                print(f"Candidate: {candidate}")
+            return 1
         print(f"Current task: {active.task_path or '(none)'}")
         print(f"Source: {active.source}")
         if active.stale:
@@ -346,7 +472,156 @@ def cmd_current(args: argparse.Namespace) -> int:
         print(active.task_path)
         return 0
 
+    if active.source_type == "unbound_ambiguous":
+        print("Multiple active tasks require explicit binding:")
+        for candidate in active.candidate_paths:
+            print(candidate)
+
     return 1
+
+
+def cmd_continuity(args: argparse.Namespace) -> int:
+    """Read or explicitly mutate the current task's Continuation Record."""
+    repo_root = get_repo_root()
+    try:
+        if args.continuity_command == "status":
+            result = continuity_status(repo_root)
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+            return 0
+        if not getattr(args, "explicit_user_request", False):
+            print(colored("Error: continuity writes require --explicit-user-request", Colors.RED), file=sys.stderr)
+            return 2
+        if args.continuity_command == "seal":
+            request = Path(args.request)
+            if request.is_absolute() or ".." in request.parts:
+                print(colored("Error: continuity request must be project-relative", Colors.RED), file=sys.stderr)
+                return 2
+            result = seal_continuity(repo_root, repo_root / request, args.expected)
+        else:
+            result = clear_continuity(repo_root, args.expected)
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        return 0
+    except (ContinuationError, OSError) as exc:
+        print(json.dumps({"status": STATUS_WITHHELD, "reason": str(exc)}, ensure_ascii=False, sort_keys=True))
+        return 2
+
+
+def cmd_ownership(args: argparse.Namespace) -> int:
+    """Manage the task-bound formal handoff ownership record."""
+    repo_root = get_repo_root()
+    if args.ownership_command == "status":
+        try:
+            result = ownership_status(repo_root, args.task_id, args.handoff_id, args.core_digest)
+        except (OwnershipError, OSError) as exc:
+            print(json.dumps({"status": "withheld", "reason": str(exc)}, ensure_ascii=False, sort_keys=True))
+            return 2
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        return 0
+    if not getattr(args, "explicit_user_request", False):
+        print(colored("Error: ownership writes require --explicit-user-request", Colors.RED), file=sys.stderr)
+        return 2
+    try:
+        command = args.ownership_command
+        if command == "quiesce":
+            result = quiesce_ownership(
+                repo_root, args.task, args.handoff_id, args.core_digest, args.source_session_id
+            )
+        elif command == "seal":
+            result = seal_ownership(
+                repo_root, args.task_id, args.handoff_id, args.core_digest, args.expected_generation
+            )
+        elif command == "retire":
+            result = retire_ownership(
+                repo_root, args.task_id, args.handoff_id, args.core_digest,
+                args.expected_generation, args.archive_observation,
+            )
+        elif command == "retire-handoff":
+            result = retire_handoff_ownership(
+                repo_root, args.task_id, args.handoff_id, args.core_digest,
+            )
+        elif command == "claim":
+            result = claim_ownership(
+                repo_root, args.task_id, args.task, args.handoff_id, args.core_digest, args.expected_generation
+            )
+        elif command == "consume":
+            result = consume_ownership(
+                repo_root, args.task_id, args.handoff_id, args.core_digest, args.expected_generation
+            )
+        else:
+            result = archive_ownership(
+                repo_root, args.task_id, args.handoff_id, args.core_digest, args.expected_generation
+            )
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        return 0
+    except (OwnershipError, OSError) as exc:
+        print(json.dumps({"status": "withheld", "reason": str(exc)}, ensure_ascii=False, sort_keys=True))
+        return 2
+
+
+# =============================================================================
+# Command: workflow
+# =============================================================================
+
+def cmd_workflow(args: argparse.Namespace) -> int:
+    """Set or clear the workflow selection on the current session's active task."""
+    repo_root = get_repo_root()
+
+    if args.clear and args.id:
+        print(colored("Error: pass either <id> or --clear, not both", Colors.RED))
+        return 1
+    if not args.clear and not args.id:
+        print(colored("Error: workflow id required (or --clear)", Colors.RED))
+        print("Usage: python3 task.py workflow <id> | --clear")
+        return 1
+
+    active = resolve_active_task(repo_root)
+    if not active.task_path:
+        print(colored("Error: No current task set", Colors.RED))
+        print("Hint: run task.py start <dir> first")
+        return 1
+
+    task_dir = repo_root / active.task_path
+    task_json_path = task_dir / FILE_TASK_JSON
+    if not task_json_path.is_file():
+        print(colored(f"Error: task.json not found at {task_dir}", Colors.RED))
+        return 1
+
+    data = read_json(task_json_path)
+    if not data:
+        print(colored(f"Error: failed to read {task_json_path}", Colors.RED))
+        return 1
+
+    if args.clear:
+        if data.pop("workflow", None) is None:
+            print(colored("No workflow selection set on this task", Colors.YELLOW))
+        else:
+            if not write_json(task_json_path, data):
+                print(colored("Error: failed to update task.json", Colors.RED))
+                return 1
+            print(colored("✓ Workflow selection cleared", Colors.GREEN))
+    else:
+        workflow_id = args.id
+        if not WORKFLOW_ID_RE.match(workflow_id):
+            print(colored(
+                f"Error: invalid workflow id '{workflow_id}' (allowed: letters, digits, '-', '_')",
+                Colors.RED,
+            ))
+            return 1
+        data["workflow"] = workflow_id
+        if not write_json(task_json_path, data):
+            print(colored("Error: failed to update task.json", Colors.RED))
+            return 1
+        print(colored(f"✓ Workflow set to: {workflow_id}", Colors.GREEN))
+
+    # workflow_md_for_task warns on stderr itself when the selected variant
+    # file is missing (it can be saved later via `trellis workflow --save`).
+    effective = workflow_md_for_task(repo_root, task_dir)
+    try:
+        effective_display = effective.relative_to(repo_root).as_posix()
+    except ValueError:
+        effective_display = str(effective)
+    print(f"Effective workflow: {effective_display}")
+    return 0
 
 
 # =============================================================================
@@ -531,12 +806,16 @@ Usage:
   python3 task.py create <title> --description <desc> --package <pkg>   Create task for a specific package
   python3 task.py create <title> --description <desc> --parent <dir>    Create task as child of parent
   python3 task.py create <title> --description <desc> --no-start        Create without making it active in this session
+  python3 task.py create <title> --description <desc> --workflow <id>   Create task pinned to a workflow variant
   python3 task.py add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
   python3 task.py validate <dir>                     Validate jsonl files
   python3 task.py list-context <dir>                 List jsonl entries
   python3 task.py start <dir>                        Set active task; records the checked-out branch when unset
+  python3 task.py replan <dir> "<reason>"            Return an in-progress task to planning
   python3 task.py current [--source]                 Show active task
   python3 task.py finish                             Clear active task
+  python3 task.py workflow <id>                      Select workflow variant for active task
+  python3 task.py workflow --clear                   Clear selection (use default resolution)
   python3 task.py set-branch <dir> <branch>          Set git branch
   python3 task.py set-base-branch <dir> <branch>     Set PR target branch
   python3 task.py set-scope <dir> <scope>            Set scope for PR title
@@ -661,6 +940,10 @@ def main() -> int:
         help="Create the task without making it active in this session",
     )
     p_create.add_argument(
+        "--workflow",
+        help="Workflow variant id for this task (.trellis/workflows/<id>.md)",
+    )
+    p_create.add_argument(
         "--force",
         action="store_true",
         help="Overwrite task.json when the task directory already exists",
@@ -690,6 +973,11 @@ def main() -> int:
         help="Start even when implement.jsonl / check.jsonl have no curated entries",
     )
 
+    # replan
+    p_replan = subparsers.add_parser("replan", help="Return an in-progress task to planning")
+    p_replan.add_argument("dir", help="Task directory")
+    p_replan.add_argument("reason", nargs="+", help="Material reason for returning to planning")
+
     # current
     p_current = subparsers.add_parser("current", help="Show active task")
     p_current.add_argument("--source", action="store_true",
@@ -697,8 +985,69 @@ def main() -> int:
     p_current.add_argument("--json", action="store_true",
                            help="Output machine-readable JSON")
 
+    # continuity
+    p_continuity = subparsers.add_parser("continuity", help="Read or explicitly update the current task Continuation Record")
+    continuity_sub = p_continuity.add_subparsers(dest="continuity_command", required=True)
+    continuity_status_parser = continuity_sub.add_parser("status", help="Show read-only Continuation Record status")
+    continuity_status_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    continuity_seal = continuity_sub.add_parser("seal", help="Write a Continuation Record from an explicit request")
+    continuity_seal.add_argument("--request", required=True, type=Path, help="Project-relative bounded request JSON")
+    continuity_seal.add_argument("--expected", required=True, help="absent or the current record digest")
+    continuity_seal.add_argument("--explicit-user-request", action="store_true", help="Required write confirmation")
+    continuity_clear = continuity_sub.add_parser("clear", help="Clear the current Continuation Record")
+    continuity_clear.add_argument("--expected", required=True, help="The current record digest or absent")
+    continuity_clear.add_argument("--explicit-user-request", action="store_true", help="Required write confirmation")
+
+    # ownership
+    p_ownership = subparsers.add_parser("ownership", help="Manage formal handoff task ownership")
+    ownership_sub = p_ownership.add_subparsers(dest="ownership_command", required=True)
+
+    def add_ownership_common(parser, *, expected=False):
+        parser.add_argument("--task-id", required=True, help="Task id bound to the handoff")
+        parser.add_argument("--handoff-id", required=True, help="Immutable handoff id")
+        parser.add_argument("--core-digest", required=True, help="Immutable handoff core digest")
+        if expected:
+            parser.add_argument("--expected-generation", required=True, type=int)
+        parser.add_argument("--explicit-user-request", action="store_true", help="Required write confirmation")
+
+    ownership_quiesce = ownership_sub.add_parser("quiesce", help="Begin source handoff quiescence")
+    ownership_quiesce.add_argument("--task", required=True, help="Current task path")
+    ownership_quiesce.add_argument("--source-session-id", required=True)
+    add_ownership_common(ownership_quiesce)
+
+    ownership_seal = ownership_sub.add_parser("seal", help="Seal the source ownership boundary")
+    add_ownership_common(ownership_seal, expected=True)
+
+    ownership_retire = ownership_sub.add_parser("retire", help="Retire source and expose handoff")
+    ownership_retire.add_argument("--archive-observation", required=True, choices=("not_required", "observed"))
+    add_ownership_common(ownership_retire, expected=True)
+
+    ownership_retire_handoff = ownership_sub.add_parser("retire-handoff", help="Release one sealed handoff by exact id")
+    add_ownership_common(ownership_retire_handoff)
+
+    ownership_claim = ownership_sub.add_parser("claim", help="Claim a ready handoff as this session")
+    ownership_claim.add_argument("--task", required=True, help="Task path to bind to this session")
+    add_ownership_common(ownership_claim, expected=True)
+
+    ownership_consume = ownership_sub.add_parser("consume", help="Record target consumption")
+    add_ownership_common(ownership_consume, expected=True)
+
+    ownership_archive = ownership_sub.add_parser("archive", help="Record post-consume retention archive")
+    add_ownership_common(ownership_archive, expected=True)
+
+    ownership_status_parser = ownership_sub.add_parser("status", help="Show ownership status")
+    add_ownership_common(ownership_status_parser)
+    ownership_status_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    ownership_status_parser.set_defaults(explicit_user_request=True)
+
     # finish
     subparsers.add_parser("finish", help="Clear active task")
+
+    # workflow
+    p_workflow = subparsers.add_parser("workflow", help="Set/clear per-task workflow selection")
+    p_workflow.add_argument("id", nargs="?", help="Workflow id (.trellis/workflows/<id>.md)")
+    p_workflow.add_argument("--clear", action="store_true",
+                            help="Remove the workflow selection (use default resolution)")
 
     # set-branch
     p_branch = subparsers.add_parser("set-branch", help="Set git branch")
@@ -776,8 +1125,12 @@ def main() -> int:
         "validate": cmd_validate,
         "list-context": cmd_list_context,
         "start": cmd_start,
+        "replan": cmd_replan,
         "current": cmd_current,
+        "continuity": cmd_continuity,
+        "ownership": cmd_ownership,
         "finish": cmd_finish,
+        "workflow": cmd_workflow,
         "set-branch": cmd_set_branch,
         "set-base-branch": cmd_set_base_branch,
         "set-scope": cmd_set_scope,

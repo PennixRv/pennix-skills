@@ -229,6 +229,14 @@ def _resolve_task_dir(trellis_dir: Path, task_ref: str) -> Path:
 
 def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     active = _resolve_active_task(trellis_dir, hook_input)
+    if active.source_type == "unbound_ambiguous":
+        candidates = "\n".join(f"- {candidate}" for candidate in active.candidate_paths)
+        return (
+            "Status: TASK BINDING AMBIGUOUS\n"
+            f"Candidates:\n{candidates}\n"
+            "Next: Review the candidates and run `python3 ./.trellis/scripts/task.py start <task>` "
+            "with the intended task once a direct session identity is available."
+        )
     if not active.task_path:
         return (
             "Status: NO ACTIVE TASK\n"
@@ -383,7 +391,10 @@ def _build_compact_current_state(
     lines.append(_format_git_state(repo_root))
 
     active = _resolve_active_task(trellis_dir, hook_input)
-    if active.task_path:
+    if active.source_type == "unbound_ambiguous":
+        candidates = ", ".join(active.candidate_paths)
+        lines.append(f"Current task: ambiguous; candidates={candidates}; bind explicitly.")
+    elif active.task_path:
         task_dir = _resolve_task_dir(trellis_dir, active.task_path)
         status = "unknown"
         task_json = task_dir / "task.json"
@@ -453,6 +464,25 @@ def _strip_breadcrumb_tag_blocks(content: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", stripped).strip()
 
 
+def _resolve_workflow_md(root: Path, input_data: dict) -> Path:
+    """Resolve the active task's workflow file, falling back to the global one.
+
+    The per-task resolution rule lives in common.workflow_selection inside
+    .trellis/scripts. Older installed projects may not ship that module, and
+    hooks must never crash the session — ANY failure (import error, old
+    scripts tree, resolver bug) falls back to the global workflow.md.
+    """
+    try:
+        scripts_dir = root / ".trellis" / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        from common.workflow_selection import resolve_workflow_md  # type: ignore[import-not-found]
+
+        return resolve_workflow_md(root, input_data, platform="codex")
+    except Exception:
+        return root / ".trellis" / "workflow.md"
+
+
 def _build_workflow_toc(workflow_path: Path) -> str:
     """Inject only the compact Phase Index summary for SessionStart."""
     content = read_file(workflow_path)
@@ -506,7 +536,7 @@ Trellis compact SessionStart context. Use it to orient the session; load details
     output.write("\n</current-state>\n\n")
 
     output.write("<trellis-workflow>\n")
-    output.write(_build_workflow_toc(trellis_dir / "workflow.md"))
+    output.write(_build_workflow_toc(_resolve_workflow_md(project_dir, hook_input)))
     output.write("\n</trellis-workflow>\n\n")
 
     output.write("<guidelines>\n")

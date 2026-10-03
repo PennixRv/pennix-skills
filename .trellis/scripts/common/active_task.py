@@ -2,8 +2,8 @@
 """Session-scoped active task resolution.
 
 The user-facing concept is a single "active task". Trellis stores that pointer
-per AI session/window under `.trellis/.runtime/sessions/`; without a stable
-session key there is no active task.
+per AI session/window under `.trellis/.runtime/sessions/`; when the pointer is
+missing, a unique developer-owned resumable task may be exposed read-only.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ DIR_SHELL_TICKETS = "shell-tickets"
 # platform that works today.
 DIR_LEGACY_CURSOR_SHELL_TICKETS = "cursor-shell"
 SHELL_TICKET_TTL_SECONDS = 30
-TASK_SESSION_COMMANDS = {"start", "current", "finish"}
+TASK_SESSION_COMMANDS = {"start", "replan", "current", "finish"}
 
 _SESSION_KEYS = ("session_id", "sessionId", "sessionID")
 _CONVERSATION_KEYS = ("conversation_id", "conversationId", "conversationID")
@@ -60,8 +60,8 @@ _KNOWN_PLATFORMS = {
 }
 
 # Every name below records how it was checked. Do NOT add a name by analogy
-# with a neighbour: a 2026-08-05 audit of all 21 platforms found 12 of the 21
-# declared names had never existed anywhere — they were pattern-guessed from a
+# with a neighbour: a 2026-08-05 audit of the then-current 21 platforms found
+# 12 declared names had never existed anywhere — they were pattern-guessed from
 # `<PLATFORM>_SESSION_ID` shape no vendor agreed to, and the uniformity was the
 # only "evidence" behind them. A platform with no verified name belongs in no
 # table; it resolves through TRELLIS_CONTEXT_ID or its hook/plugin bridge.
@@ -168,6 +168,7 @@ class ActiveTask:
     source_type: str
     context_key: str | None = None
     stale: bool = False
+    candidate_paths: tuple[str, ...] = ()
 
     @property
     def source(self) -> str:
@@ -424,7 +425,7 @@ def _pending_ticket_matches_args(ticket: dict[str, Any], repo_root: Path) -> boo
             continue
         if _string_value(subcommand.get("name")) != command_name:
             continue
-        if command_name != "start":
+        if command_name not in {"start", "replan"}:
             return True
         task_ref = args[1] if len(args) > 1 else None
         if _task_refs_match(_string_value(subcommand.get("task_ref")), task_ref, repo_root):
@@ -523,6 +524,28 @@ def resolve_context_key(
     scripts and subprocesses. It does not store the task itself.
     """
     if allow_environment_context:
+        # The optional dsh-trellis plugin contributes this managed DSH_* value
+        # per shell execution from the current DSH session header. DSH scrubs
+        # ambient DSH_* values before rebuilding that namespace, so this value
+        # cannot be inherited from an outer Claude/Codex Trellis session. It
+        # must outrank the generic override below, which ordinary child
+        # processes inherit indiscriminately.
+        dsh_override = _string_value(os.environ.get("DSH_TRELLIS_CONTEXT_ID"))
+        if dsh_override:
+            return _sanitize_key(dsh_override) or _hash_value(dsh_override)
+
+        # A real DSH managed shell rebuilds the complete DSH_* namespace: the
+        # paired sentinel and session id cannot be inherited from an outer
+        # Trellis host. Prefer that canonical env-table identity over
+        # a generic override that ordinary process inheritance may carry in.
+        if (
+            _string_value(os.environ.get("DSH_SHELL")) == "1"
+            and _string_value(os.environ.get("DSH_SESSION_ID"))
+        ):
+            dsh_context_key = _lookup_env_context_key("dsh")
+            if dsh_context_key:
+                return dsh_context_key
+
         override = _string_value(os.environ.get("TRELLIS_CONTEXT_ID"))
         if override:
             return _sanitize_key(override) or _hash_value(override)
@@ -648,17 +671,17 @@ def resolve_active_task(
     platform_input: dict[str, Any] | None = None,
     platform: str | None = None,
     *,
-    allow_single_session_fallback: bool = True,
+    allow_single_session_fallback: bool = False,
     allow_environment_context: bool = True,
 ) -> ActiveTask:
     """Resolve the active task from session runtime state only.
 
-    A stale session task is returned as stale. A known context identity is
-    authoritative: a missing or empty context for that identity returns no
-    task. When context identity is unavailable, single-session inference may
-    cover pull-based platform sub-agents (copilot, gemini, qoder) that don't
-    inherit the parent's session id. ≥2 files or 0 files yield
-    ActiveTask(None) — refuses to guess across windows.
+    A stale session task is returned as stale. Missing or unmatched session
+    identity does not infer ownership from the number of session files.
+    A unique developer-owned task, or an explicit ambiguous projection, may
+    still be exposed without writing a binding. Only the legacy inference from
+    one unrelated session file is opt-in; pull-based child agents use that
+    compatibility opt-in when they cannot inherit a parent session identity.
     """
     context_key = resolve_context_key(
         platform_input,
@@ -671,12 +694,19 @@ def resolve_active_task(
         active = _active_from_ref(task_ref, repo_root, "session", context_key)
         if active:
             return active
+        unbound = _resolve_unbound_task(repo_root)
+        if unbound is not None:
+            return unbound
         return ActiveTask(None, "none", context_key)
 
     if allow_single_session_fallback:
         fallback = _resolve_single_session_fallback(repo_root)
         if fallback is not None:
             return fallback
+
+    unbound = _resolve_unbound_task(repo_root)
+    if unbound is not None:
+        return unbound
 
     return ActiveTask(None, "none", context_key)
 
@@ -704,6 +734,38 @@ def _resolve_single_session_fallback(repo_root: Path) -> ActiveTask | None:
 
     fallback_key = session_file.stem
     return _active_from_ref(task_ref, repo_root, "session-fallback", fallback_key)
+
+
+def _resolve_unbound_task(repo_root: Path) -> ActiveTask | None:
+    """Expose one developer-owned task when no session pointer exists."""
+    sessions_dir = _runtime_sessions_dir(repo_root)
+    if sessions_dir.is_dir():
+        session_files = sorted(sessions_dir.glob("*.json"))
+        if any(_string_value((_read_json(session) or {}).get("current_task")) for session in session_files):
+            return None
+
+    from .paths import get_developer, get_tasks_dir
+    from .tasks import iter_active_tasks
+
+    developer = get_developer(repo_root)
+    if not developer:
+        return None
+
+    candidates = [
+        task
+        for task in iter_active_tasks(get_tasks_dir(repo_root))
+        if task.assignee == developer and task.status in {"planning", "in_progress", "review"}
+    ]
+    if len(candidates) == 0:
+        return None
+
+    task_paths = tuple(sorted(
+        task.directory.relative_to(repo_root).as_posix()
+        for task in candidates
+    ))
+    if len(task_paths) == 1:
+        return ActiveTask(task_paths[0], "unbound", None)
+    return ActiveTask(None, "unbound_ambiguous", None, candidate_paths=task_paths)
 
 
 def _utc_now() -> str:
@@ -779,6 +841,22 @@ def clear_active_task(
     if context_path.is_file():
         _remove_file(context_path)
     return previous
+
+
+def clear_active_task_for_context(
+    context_key: str,
+    task_path: str,
+    repo_root: Path,
+) -> str:
+    """Clear one exact session pointer, refusing an unexpected replacement."""
+    context_path = _context_path(repo_root, context_key)
+    context = _read_json(context_path)
+    if context is None or not _string_value(context.get("current_task")):
+        return "absent"
+    current = _string_value(context.get("current_task"))
+    if not _task_refs_match(current, task_path, repo_root):
+        return "changed"
+    return "cleared" if context_path.is_file() and _remove_file(context_path) else "absent"
 
 
 def clear_task_from_sessions(task_path: str, repo_root: Path) -> int:

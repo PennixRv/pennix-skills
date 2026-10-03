@@ -36,6 +36,7 @@ trellis channel create <name>
   [--linked-context-raw  <text>]          # [deprecated alias]
   [--cwd <path>]                          # recorded in create event
   [--by <agent>]                          # default: main
+  [--owner-session <id>]                  # opaque main Codex session owner
   [--force]                               # overwrite existing channel
   [--ephemeral]                           # hide from default list, prunable
 ```
@@ -57,6 +58,7 @@ trellis channel list
   [--project <slug>]                      # substring match on task field
   [--all]                                 # include ephemeral (suffix '*')
   [--all-projects]                        # scan every project bucket
+  [--owner-session <id>]                  # exact immutable owner match
 ```
 
 Behavior:
@@ -161,6 +163,38 @@ Behavior:
 - **Timeout exits 124** and prints `timeout: still waiting on ...` to stderr
   when `--all` was in play.
 
+### `workers <name>`
+
+```bash
+trellis channel workers <name>
+  [--scope project|global]
+  [--project-key <key>]                   # project bucket when names collide
+  [--include-terminal]
+  [--json]
+```
+
+Reads the durable worker projection from Trellis core. Without
+`--include-terminal`, only non-terminal workers are shown. `--json` is the
+machine-readable form for coordinator recovery and disposition checks. This
+command includes the ordered, deduplicated `sessionIds` observed for each
+worker. It does not inspect PID sidecars and does not poll.
+
+### `task progress`
+
+```bash
+trellis task progress
+  [--json]
+```
+
+Counts task records under the direct active-task directories in
+`.trellis/tasks/`; archived tasks are historical and are excluded from the
+current plan. JSON output is
+`{planning, in_progress, completed, partial}` in the fixed lifecycle order.
+Malformed or unknown active task records set `partial: true` without inventing
+a lifecycle count. Human output uses `planning:in_progress:completed` and adds
+`?` when the projection is partial. With `--json`, update notices are written
+to stderr so stdout remains parseable.
+
 ---
 
 ## tag-vs-kind — how event shape is actually controlled
@@ -242,7 +276,7 @@ trellis channel spawn <name>
   [--resume <id>]                         # session/thread id resume
   [--timeout <Ns|Nm|Nh>]                  # auto-kill after duration
   [--warn-before <Ns|Nm|Nh>]              # supervisor_warning lead time
-                                          # default 5m, 0ms disables
+                                          # default 5m; subnode role reads config
   [--file <path>] ...                     # glob, repeatable; inject content
   [--jsonl <path>] ...                    # Trellis manifest, repeatable
   [--by <agent>]                          # spawn-event author
@@ -250,9 +284,9 @@ trellis channel spawn <name>
   [--inbox-policy explicitOnly|broadcastAndExplicit]
                                           # default explicitOnly
   [--idle-timeout <Ns|Nm|Nh>]             # OOM-guard idle TTL
-                                          # default 5m, 0 disables
+                                          # default 5m; subnode role reads config
   [--max-live-workers <n>]                # spawn-time live-worker budget
-                                          # default 6, 0 disables
+                                          # default 6; subnode role reads config
 ```
 
 Behavior:
@@ -267,6 +301,11 @@ Behavior:
   (`TRELLIS_CHANNEL_WORKER_IDLE_TIMEOUT`,
   `TRELLIS_CHANNEL_MAX_LIVE_WORKERS`) →
   `.trellis/config.yaml#channel.worker_guard` → built-in defaults.
+- `--agent subnode` additionally reads `.trellis/config.yaml#channel.subnode`:
+  its `idle_timeout` / `max_live_workers` sit below explicit flags and the
+  guard environment variables but above `worker_guard`; its `timeout` /
+  `warn_before` supply the role's supervisor defaults. Generated projects set
+  `max_live_workers: 8` without changing ordinary workers' default of `6`.
 
 ### `run [name]`
 
@@ -280,7 +319,7 @@ trellis channel run [name?]
   [--file <path>] ...                     # repeatable, glob
   [--jsonl <path>] ...                    # repeatable
   [--message <text> | --message-file <path> | --stdin]
-  [--timeout <Ns|Nm|Nh>]                  # default 5m
+  [--timeout <Ns|Nm|Nh>]                  # default 5m; subnode role reads config
 ```
 
 Behavior:
