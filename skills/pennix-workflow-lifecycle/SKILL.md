@@ -206,42 +206,13 @@ as the default browser sign-in path. Each optional target becomes enabled only
 after an explicit configure attempt, so a later `verify` checks the selected
 integration without requiring unrelated services on every host.
 
-The catalog currently defines Cognee's `cognee-static`,
-`cognee-secret`, and `cognee-project` targets, plus `cch-connection`,
-`hikari-connection`, `grok-search-provider`, `grok-tavily-extra`,
-`grok-firecrawl-extra`, and `windsurf-credential`. Cognee uses the
-catalog-pinned official `cognee@cognee` Codex plugin; lifecycle does not copy
-its hooks or Skill and does not add an MCP server. The static target writes the
-official private `~/.cognee/.env` policy: `COGNEE_BASE_URL`,
-`COGNEE_MANAGED_ENDPOINT=true`, and `COGNEE_SHARED_AGENT_MEMORY=false`. Its
-API key is configured as a separate target, read only from hidden `/dev/tty`,
-and never passed as an argument. Cognee also stays disabled in global Codex
-configuration; the installed Pennix Cognee launcher enables it only for an
-explicitly registered Git root and supplies that root's dataset name. The
-official plugin loads the private env file at hook startup, so a new Codex host
-must be reopened after configuration. CCH and Windsurf delegate to their owner
-`configure` command. Hikari and Grok accept
-values only through `/dev/tty`, conceal secret input, and write a private owner
-record. Grok refuses to overwrite a non-lifecycle-marked record. Cognee project
-registration is explicit and requires a project root; it writes only the
-private user-level project registry and never modifies `.trellis/config.yaml`
-or other project assets. Same-name roots are rejected rather than silently
-sharing memory.
-
-Keep native hook trust via `/hooks`. Reopen the host after configuration, then
-verify actual session registration and capture. A plugin success result alone
-still does not prove central persistence; read important writes back from the
-authenticated service and verify the project dataset.
-For example:
-
-```bash
-python3 <installed-lifecycle>/scripts/lifecycle.py configure \
-  --component cognee-project --project-root /path/to/project --yes
-```
-
-Use `uninstall --component cognee-project --project-root ... --yes` to remove
-only that path mapping. A target's delivery must match first, and collection
-targets additionally require a matching collection receipt.
+The catalog defines `cch-connection`, `hikari-connection`,
+`grok-search-provider`, `grok-tavily-extra`, `grok-firecrawl-extra`, and
+`windsurf-credential`. CCH and Windsurf delegate to their owner's configure
+command. Hikari and Grok accept values only through `/dev/tty`, conceal secret
+input, and write a private owner record. Grok refuses to overwrite a record
+without its lifecycle marker. A target's delivery must match first; collection
+targets also require a matching integrity receipt.
 
 The profile is stored in the lifecycle XDG state namespace with mode `0600`,
 contains target IDs and a normalized configuration-contract digest only, and is

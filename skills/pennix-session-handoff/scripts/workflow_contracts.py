@@ -23,7 +23,7 @@ class ContractError(ValueError):
 
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 TARGET_SOURCE_RE = re.compile(r"^session:[A-Za-z0-9][A-Za-z0-9._-]{0,159}$")
-LIFECYCLE_MODES = {"core_only", "cognee_required"}
+LIFECYCLE_MODES = {"core_only"}
 OBSERVATION_AVAILABILITY = {"available", "unsupported", "unavailable"}
 BOUNDARY_STATUSES = {"sealed", "unsealed"}
 PROOF_STATUSES = {"verified", "unverified"}
@@ -83,7 +83,7 @@ def lifecycle_mode(value: Any) -> str:
 
 def validate_observation(value: Any) -> Dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {
-        "availability", "boundary", "source_session", "capsule", "cognee", "task", "memory"
+        "availability", "boundary", "source_session", "capsule", "task", "memory"
     }:
         raise ContractError("observation fields are invalid")
     availability = _text(value["availability"], "observation.availability")
@@ -110,7 +110,7 @@ def validate_observation(value: Any) -> Dict[str, Any]:
         _text(source_session["identity"], "observation.source_session.identity")
 
     proofs: Dict[str, Any] = {}
-    for name in ("capsule", "cognee"):
+    for name in ("capsule",):
         item = value[name]
         if not isinstance(item, dict) or set(item) not in ({"status", "proof_ref"}, {"status", "exact_read_digest"}):
             raise ContractError("observation.%s is invalid" % name)
@@ -145,7 +145,7 @@ def validate_observation(value: Any) -> Dict[str, Any]:
         "availability": availability,
         "boundary": {"status": boundary_status, "proof_ref": boundary_proof_ref},
         "source_session": {"status": source_status, "identity": source_session["identity"]},
-        "capsule": proofs["capsule"], "cognee": proofs["cognee"],
+        "capsule": proofs["capsule"],
         "task": {"status": task_status, "completion_artifact": task["completion_artifact"]},
         "memory": {"status": memory_status, "proof_ref": memory_proof_ref},
     }

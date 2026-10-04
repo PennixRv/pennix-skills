@@ -10,33 +10,6 @@
       "readiness": "Codex native authentication is present in a private local record."
     },
     {
-      "id": "cognee-static",
-      "tier": "optional",
-      "default_enabled": false,
-      "adapter": "cognee-static",
-      "component": "cognee-coding-agents",
-      "settings": {
-        "apiUrl": "https://cognee.141242.xyz:9999"
-      },
-      "readiness": "Cognee self-hosted URL, private API key, pinned official plugin, and managed endpoint policy are ready."
-    },
-    {
-      "id": "cognee-secret",
-      "tier": "optional",
-      "default_enabled": false,
-      "adapter": "cognee-secret",
-      "component": "cognee-coding-agents",
-      "readiness": "Cognee API key is present in the private ~/.cognee/.env file."
-    },
-    {
-      "id": "cognee-project",
-      "tier": "optional",
-      "default_enabled": false,
-      "adapter": "cognee-project",
-      "component": "cognee-coding-agents",
-      "readiness": "At least one explicitly registered Trellis project has a stable Cognee project mapping."
-    },
-    {
       "id": "cch-connection",
       "tier": "optional",
       "default_enabled": false,
@@ -121,7 +94,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.28",
+      "approved_version": "0.7.0-beta.29",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -198,39 +171,6 @@
       "package": {
         "source": "aur",
         "name": "codegraph-bin"
-      }
-    },
-    "cognee-coding-agents": {
-      "delivery": "plugin",
-      "approved_version": "1.7.4",
-      "adapter": "cognee-plugin",
-      "source": "Cognee official Codex plugin (native hooks and HTTP client)",
-      "owner": "cognee",
-      "scope": "global/project",
-      "verify_key": "codex plugin list --json and official hook smoke test",
-      "actions": {
-        "install": "managed",
-        "configure": "native-owner",
-        "upgrade": "native-owner",
-        "uninstall": "managed",
-        "verify": "managed",
-        "reconcile": "not-applicable"
-      },
-      "project_init": "project-only",
-      "conflicts": [],
-      "probe": null,
-      "version_args": [],
-      "plugin": {
-        "id": "cognee@cognee",
-        "marketplace": {
-          "name": "cognee",
-          "source": "https://github.com/topoteretes/cognee-integrations",
-          "ref": "201ba4c8e824060b40b65ea5129a1d8c964ae798",
-          "sparse": [
-            ".agents/plugins",
-            "integrations/codex/plugins/cognee"
-          ]
-        }
       }
     },
     "ponytail-plugin": {
@@ -475,17 +415,12 @@
       },
       "project_init": "not-applicable",
       "adapter": "pennix-skills",
-      "obsolete_skills": [
-        "pennix-hindsight-memory",
-        "pennix-agentmemory-memory"
-      ],
       "native_owner_reason": "Pennix Skills installation and upgrade use Codex's system $skill-installer in an agent turn; target hosts do not keep a local repository checkout.",
       "collection_contract": {
         "skills": [
           "grok-search",
           "pennix-decision-gates",
           "pennix-fastctx-routing",
-          "pennix-cognee-memory",
           "pennix-session-handoff",
           "pennix-trellis-project-update",
           "pennix-workflow-lifecycle",
@@ -505,7 +440,6 @@
             "skills/pennix-trellis-project-update",
             "skills/pennix-workflow-lifecycle",
             "skills/pennix-workflow-routing",
-            "skills/pennix-cognee-memory",
             "skills/tavily-hikari",
             "skills/workflow-doctor",
             "skills/grok-search",
@@ -526,8 +460,8 @@
           },
           "windsurf-code-search": {
             "repo": "PennixRv/windsurf-code-search",
-            "ref": "v0.1.16",
-            "commit": "bc27fbf2dd04f9b8583193cc8b43a1e89ee37da1",
+            "ref": "9409047e167873ab7de49cb45884cc5dd4907321",
+            "commit": "9409047e167873ab7de49cb45884cc5dd4907321",
             "path": ".",
             "name": "windsurf-code-search",
             "snapshot": "npm-pack"

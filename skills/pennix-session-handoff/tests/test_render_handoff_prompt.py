@@ -38,7 +38,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
 
     def write(self) -> str:
         request = Path(self.temp.name) / "request.json"
-        request.write_text(json.dumps({"session_label": "renderer fixture", "facts": ["verified"], "evidence_paths": ["evidence.md"], "next_action": "continue", "blockers": [], "risks": [], "validation": [], "memory_projection": {"semantic_capsule": "preserved semantic scene", "local": ["research/worktime-memory.md"], "archive_refs": [], "cognee": ["project:fixture"]}, "rollout": {"path": str(self.rollout)}}), encoding="utf-8")
+        request.write_text(json.dumps({"session_label": "renderer fixture", "facts": ["verified"], "evidence_paths": ["evidence.md"], "next_action": "continue", "blockers": [], "risks": [], "validation": [], "memory_projection": {"semantic_capsule": "preserved semantic scene", "local": ["research/worktime-memory.md"], "archive_refs": []}, "rollout": {"path": str(self.rollout)}}), encoding="utf-8")
         result = self.run_cli(HANDOFF, "write", "--request", str(request), "--explicit-user-request")
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)["handoff_path"]
@@ -63,7 +63,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertIn("do not close it from this snapshot", prompt_text)
         self.assertIn("read the paired package JSON and this entire handoff prompt", prompt_text)
         self.assertIn("preserved semantic scene", prompt_text)
-        self.assertIn("project:fixture", prompt_text)
+        self.assertIn("research/worktime-memory.md", prompt_text)
         self.assertIn("Do not execute the pending next action", prompt_text)
         self.assertLess(prompt_text.index("$trellis-start"), prompt_text.index("$trellis-continue"))
         self.assertIn(relative, rendered.stdout)
@@ -111,7 +111,6 @@ class RenderHandoffPromptTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": None},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -121,9 +120,26 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertEqual(delivered_prompt.returncode, 0, delivered_prompt.stderr)
         self.assertEqual(delivered_prompt.stdout, prepared_prompt.stdout)
 
+    def test_historical_renderer_never_creates_or_rewrites_the_pair(self) -> None:
+        relative = self.write()
+        core = self.root / relative
+        payload = json.loads(core.read_text())
+        payload["schema_version"] = 8
+        payload["memory_projection"]["cognee"] = []
+        core.write_text(json.dumps(payload))
+        prompt = core.with_name("session-handoff-prompt.md")
+        self.assertNotEqual(self.run_cli(RENDER, "--handoff", relative).returncode, 0)
+        self.assertFalse(prompt.exists())
+        prompt.write_text("original historical navigation\n")
+        before = (core.read_bytes(), prompt.read_bytes())
+        result = self.run_cli(RENDER, "--handoff", relative)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("只读审计", result.stdout)
+        self.assertEqual((core.read_bytes(), prompt.read_bytes()), before)
+
     def test_pending_lifecycle_never_emits_prompt(self) -> None:
         relative = self.write()
-        prepared = self.run_cli(HANDOFF, "prepare", "--handoff", relative, "--mode", "cognee_required")
+        prepared = self.run_cli(HANDOFF, "prepare", "--handoff", relative, "--mode", "core_only")
         self.assertEqual(prepared.returncode, 0, prepared.stderr)
         rendered = self.run_cli(RENDER, "--handoff", relative)
         self.assertNotEqual(rendered.returncode, 0)

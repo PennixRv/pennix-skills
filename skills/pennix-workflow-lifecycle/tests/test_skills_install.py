@@ -132,6 +132,26 @@ class SkillsCollectionTest(unittest.TestCase):
             self.assertEqual(MODULE.collection_state({"alpha"}, destination), "match")
             self.assertFalse((destination / "obsolete").exists())
 
+    def test_catalog_removal_requires_the_prior_tree_integrity_receipt(self) -> None:
+        for drift in (False, True):
+            with self.subTest(drift=drift), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "skills"
+                destination = root / "pennix-skills"
+                staging = root / ".pennix-stage"
+                self.make_skill(destination, "alpha")
+                self.make_skill(destination, "retired")
+                self.trust_collection(destination)
+                self.make_skill(staging, "alpha")
+                if drift:
+                    (destination / "retired" / "unexpected.txt").write_text("unmanaged")
+                    with self.assertRaises(MODULE.InstallError):
+                        MODULE.replace_collection({"alpha"}, staging, destination)
+                    self.assertTrue((destination / "retired").exists())
+                else:
+                    MODULE.replace_collection({"alpha"}, staging, destination)
+                    self.assertFalse((destination / "retired").exists())
+                    self.assertEqual(MODULE.collection_receipt_state(destination), "match")
+
     def test_collection_digest_ignores_python_bytecode_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "pennix-skills"

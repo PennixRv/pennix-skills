@@ -193,6 +193,19 @@ def replace_collection(
     if staging.parent != destination.parent:
         raise InstallError("staging and destination must share a parent for transactional replacement")
     current_state = collection_state(expected_names, destination, bootstrap_name)
+    # A catalog may remove entries. The existing private integrity receipt,
+    # not a hard-coded retired-product list, proves the managed prior tree.
+    if current_state == "drifted" and collection_receipt_state(destination) == "match":
+        entries = {entry.name for entry in destination.iterdir()}
+        try:
+            valid_prior = bool(entries) and all(
+                SKILL_NAME.fullmatch(name) and read_skill_name(destination / name) == name
+                for name in entries
+            )
+        except (InstallError, OSError):
+            valid_prior = False
+        if valid_prior:
+            current_state = "obsolete"
     obsolete_names = obsolete_names or set()
     if current_state == "drifted" and obsolete_names and destination.exists():
         entries = {entry.name for entry in destination.iterdir()}

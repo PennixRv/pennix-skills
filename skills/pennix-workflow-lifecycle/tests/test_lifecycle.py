@@ -59,35 +59,6 @@ class BootstrapTests(unittest.TestCase):
         )
         return catalog
 
-    def test_cognee_retirement_clears_owned_fields_and_preserves_other_configuration(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            home = root / "home"
-            codex = home / ".codex"
-            catalog = bootstrap.load_catalog(SKILL_ROOT / "references" / "component-versions.json")
-            config = bootstrap.configuration
-            with patch.dict(os.environ, {"HOME": str(home)}), patch.object(
-                config.cognee_plugin, "configure"
-            ):
-                config.ensure_state_directory(codex)
-                config.configure_cognee_static(codex, "https://fixture.test")
-                path = config.cognee_config_path()
-                _, fields = config._read_env(path)
-                config._write_env(path, {**fields, "COGNEE_API_KEY": "fixture-key", "UNRELATED": "keep"})
-                digest = bootstrap.configuration_digest(catalog)
-                for target in ("cognee-static", "cognee-secret", "cognee-project", "agentmemory-static", "hindsight-token", "hikari-connection"):
-                    config.enable_target(codex, digest, target)
-                with patch.object(bootstrap.host, "detect_host", return_value={"supported": True}), patch.object(
-                    bootstrap, "probe_component", side_effect=[("match", "1.7.4"), ("missing", None)]
-                ), patch.object(bootstrap.cognee_plugin, "remove") as remove:
-                    self.assertEqual(bootstrap.component_operation(
-                        SimpleNamespace(codex_home=codex), catalog, "cognee-coding-agents",
-                        catalog["components"]["cognee-coding-agents"], "uninstall"
-                    ), "changed")
-                remove.assert_called_once_with(codex)
-                self.assertEqual(config._read_env(path), ("configured", {"UNRELATED": "keep"}))
-                self.assertFalse(config.static_receipt_path(codex, "cognee-config").exists())
-                self.assertEqual(config.load_profile(codex, digest), ("match", {"hikari-connection"}))
 
     def run_cli(self, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -119,15 +90,6 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn("components", json.loads(verify.stdout))
             self.assertFalse((root / "codex").exists())
 
-    def test_project_unregistration_accepts_native_changed_postcondition(self) -> None:
-        args = SimpleNamespace(codex_home=Path("/fixture/codex"), project_root="/fixture/project")
-        catalog = bootstrap.load_catalog(SKILL_ROOT / "references" / "component-versions.json")
-        target = {"id": "cognee-project", "adapter": "cognee-project"}
-        with patch.object(bootstrap, "configuration_parent_status"), patch.object(
-            bootstrap.configuration, "configure_target", return_value="changed"
-        ), patch.object(bootstrap.configuration, "disable_targets") as disable:
-            bootstrap.configure_configuration_target(args, catalog, target, unregister=True)
-            disable.assert_called_once()
 
     def test_staging_is_an_unknown_advisory_and_does_not_block_verify(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -205,50 +167,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertTrue(profile.is_file())
             self.assertEqual(profile.read_text(encoding="utf-8"), original)
 
-    def test_reconcile_removes_retired_hindsight_receipt(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            home = root / "codex"
-            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
-            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root / "state")}):
-                namespace = bootstrap.configuration.ensure_state_namespace(bootstrap.configuration.state_namespace(home))
-                static = namespace / "static-assets"
-                static.mkdir(mode=0o700)
-                receipt = static / "hindsight-config.json"
-                receipt.write_text(json.dumps({"schema": 1, "fields": {}}) + "\n", encoding="utf-8")
-                os.chmod(receipt, 0o600)
-                result = bootstrap.reconcile_state(
-                    SimpleNamespace(component=bootstrap.STATE_COMPONENT, yes=True, codex_home=home), catalog
-                )
-            self.assertEqual(result["status"], "cleaned")
-            self.assertEqual(result["removed"], ["hindsight-config.json"])
-            self.assertFalse(receipt.exists())
 
-    def test_state_probe_accepts_the_current_cognee_receipt_schema(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            home = root / "codex"
-            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
-            digest = bootstrap.configuration_digest(catalog)
-            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root / "state")}):
-                namespace = bootstrap.configuration.ensure_state_namespace(
-                    bootstrap.configuration.state_namespace(home)
-                )
-                static = namespace / "static-assets"
-                static.mkdir(mode=0o700)
-                profile = namespace / "profile.json"
-                profile.write_text(
-                    json.dumps({"schema": 1, "catalog_digest": digest, "targets": []}) + "\n",
-                    encoding="utf-8",
-                )
-                receipt = static / "cognee-config.json"
-                receipt.write_text(
-                    json.dumps({"schema": 1, "path": "/private/cognee.env", "fields": {}}) + "\n",
-                    encoding="utf-8",
-                )
-                os.chmod(profile, 0o600)
-                os.chmod(receipt, 0o600)
-                self.assertEqual(bootstrap.state_component_probe(home, digest), ("match", None))
 
     def test_discover_reports_catalog_candidate_and_actual_owner(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1158,7 +1077,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["codex-cli"]["version_policy"], "repository-latest")
         self.assertNotIn("approved_version", catalog["components"]["codex-cli"])
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
-        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.28")
+        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.29")
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["tag"], "beta")
 
     def test_npm_replacement_is_removed_before_install(self) -> None:
@@ -1293,38 +1212,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["pennix-skills"]["delivery"], "collection")
         self.assertEqual(catalog["components"][bootstrap.STATE_COMPONENT]["actions"]["reconcile"], "managed")
 
-    def test_cognee_catalog_uses_the_official_plugin_without_hindsight(self) -> None:
-        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
-        component = catalog["components"]["cognee-coding-agents"]
-        self.assertEqual(component["approved_version"], "1.7.4")
-        self.assertEqual(component["delivery"], "plugin")
-        self.assertEqual(component["plugin"]["id"], "cognee@cognee")
-        self.assertEqual(component["plugin"]["marketplace"]["source"], "https://github.com/topoteretes/cognee-integrations")
-        self.assertEqual(component["plugin"]["marketplace"]["ref"], "201ba4c8e824060b40b65ea5129a1d8c964ae798")
-        self.assertEqual(component["plugin"]["marketplace"]["sparse"], [".agents/plugins", "integrations/codex/plugins/cognee"])
-        self.assertNotIn("hindsight-coding-agents", catalog["components"])
-        self.assertNotIn("openviking-plugin", catalog["components"])
 
-    def test_plugin_probe_requires_a_ref_verified_marketplace(self) -> None:
-        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
-        component = catalog["components"]["cognee-coding-agents"]
-        installed = {
-            "pluginId": "cognee@cognee",
-            "version": "1.7.4",
-            "enabled": False,
-        }
-        with (
-            patch.object(bootstrap.codex_plugins, "installed_plugin", return_value=installed),
-            patch.object(bootstrap.codex_plugins, "marketplace_status", return_value="unverified-ref"),
-        ):
-            self.assertEqual(bootstrap.probe_component(component, Path("/tmp/codex")), ("drifted", "1.7.4"))
-        with (
-            patch.object(bootstrap.codex_plugins, "installed_plugin", return_value=installed),
-            patch.object(bootstrap.codex_plugins, "marketplace_status", return_value="matching-ref"),
-            patch.object(bootstrap.cognee_plugin, "_policy_state", return_value="configured"),
-            patch.object(bootstrap.cognee_plugin, "_content_matches", return_value=True),
-        ):
-            self.assertEqual(bootstrap.probe_component(component, Path("/tmp/codex")), ("match", "1.7.4"))
 
     def test_non_managed_action_is_rejected_before_adapter(self) -> None:
         args = SimpleNamespace(command="install", component="cch-status", yes=True)

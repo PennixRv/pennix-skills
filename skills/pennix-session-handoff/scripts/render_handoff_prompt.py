@@ -64,7 +64,7 @@ def _run_lifecycle_status(root: Path, handoff: str) -> Mapping[str, Any]:
         receipt = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise PromptError("handoff lifecycle status returned invalid JSON") from exc
-    if not isinstance(receipt, Mapping) or receipt.get("status") not in {"absent", "ready"}:
+    if result.returncode != 0 or not isinstance(receipt, Mapping) or receipt.get("status") not in {"absent", "ready", "historical"}:
         status = receipt.get("status") if isinstance(receipt, Mapping) else None
         raise PromptError("handoff lifecycle is not ready%s" % (": " + str(status) if status else ""))
     return receipt
@@ -79,7 +79,7 @@ def _payload(root: Path, relative: str) -> Mapping[str, Any]:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PromptError("handoff file is invalid") from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != 8 or payload.get("kind") != "pennix-session-handoff":
+    if not isinstance(payload, Mapping) or payload.get("schema_version") not in {8, 9} or payload.get("kind") != "pennix-session-handoff":
         raise PromptError("handoff file has an unsupported schema")
     return payload
 
@@ -139,10 +139,9 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "- These are local conversation candidates only. They cannot override the verified snapshot above.", "",
         "## Semantic Handoff Capsule", "",
         memory.get("semantic_capsule") or "No additional semantic capsule was supplied; use the task and current facts as the source of truth.", "",
-        "### Memory References", "",
+        "### Local References", "",
         _markdown_list(memory.get("local", [])),
         _markdown_list(memory.get("archive_refs", [])),
-        _markdown_list(memory.get("cognee", [])),
         "### Decision Timeline", "",
     ])
     timeline = conversation.get("timeline", [])
@@ -198,6 +197,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         _run_lifecycle_status(root, args.handoff)
         payload = _payload(root, args.handoff)
         prompt_relative = str(Path(args.handoff).with_name(PROMPT_NAME))
+        if payload["schema_version"] == 8:
+            prompt = root / prompt_relative
+            if prompt.is_symlink() or not prompt.is_file():
+                raise PromptError("historical paired prompt is unavailable; read-only audit cannot create one")
+            prompt.read_text(encoding="utf-8")
+            print("历史交接包仅供只读审计，不能准入或继续；原始 JSON 和配对 prompt 保持不变。")
+            print(args.handoff + "\n" + prompt_relative)
+            return 0
         _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload))
         entry = (
             "当前会话位于 %s。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "

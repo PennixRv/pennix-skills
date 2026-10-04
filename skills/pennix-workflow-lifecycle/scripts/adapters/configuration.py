@@ -6,30 +6,20 @@ import json
 import hashlib
 import os
 import errno
-import re
 import shutil
 import stat
 import subprocess
 import tempfile
 import termios
-import sys
 from pathlib import Path
 from typing import Any
 
-from . import cognee_plugin, codex_static
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "pennix-cognee-memory" / "scripts"))
-from cognee_client import CogneeClient, CogneeError, canonical_project_root
 
 
 MAX_CONFIG_BYTES = 64 * 1024
 PROFILE_SCHEMA = 1
 MARKER_KEY = "pennixLifecycle"
 STATE_DIRECTORY = "pennix-workflow-lifecycle"
-COGNEE_RECEIPT = "cognee-config.json"
-COGNEE_CONFIG_RELATIVE = (".cognee", ".env")
-COGNEE_PROJECTS_RELATIVE = (".config", "cognee", "projects.json")
-PROJECT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
 class ConfigurationError(RuntimeError):
@@ -40,10 +30,6 @@ def _xdg_config_home() -> Path:
     raw = os.environ.get("XDG_CONFIG_HOME")
     return Path(raw).expanduser() if raw else Path.home() / ".config"
 
-
-def _home() -> Path:
-    raw = os.environ.get("HOME")
-    return Path(raw).expanduser() if raw else Path.home()
 
 
 def _assert_no_symlink_ancestor(path: Path) -> None:
@@ -180,229 +166,18 @@ def static_receipt_path(codex_home: Path, asset: str) -> Path:
     return state_namespace(codex_home) / "static-assets" / f"{asset}.json"
 
 
-def cognee_config_path() -> Path:
-    raw = os.environ.get("COGNEE_CLIENT_CONFIG")
-    path = Path(raw).expanduser() if raw else _home().joinpath(*COGNEE_CONFIG_RELATIVE)
-    if not path.is_absolute():
-        raise ConfigurationError("Cognee config path must be absolute")
-    return path
 
 
-def _write_text_atomic(path: Path, content: str) -> None:
-    _assert_no_symlink_ancestor(path)
-    path.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
-    if path.parent.is_symlink() or not path.parent.is_dir():
-        raise ConfigurationError("configuration path is blocked")
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if path.exists():
-            os.chmod(temporary, stat.S_IMODE(path.stat().st_mode))
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
-def _cognee_receipt(codex_home: Path) -> tuple[str, dict[str, Any] | None]:
-    return _private_json(static_receipt_path(codex_home, "cognee-config"))
 
 
-def _read_env(path: Path) -> tuple[str, dict[str, str] | None]:
-    state, content = _private_file(path)
-    if state != "configured" or content is None:
-        return state, None
-    values: dict[str, str] = {}
-    try:
-        for line in content.decode("utf-8").splitlines():
-            if not line.strip() or line.lstrip().startswith("#"):
-                continue
-            key, separator, value = line.partition("=")
-            if not separator or not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
-                return "invalid", None
-            values[key] = value
-    except UnicodeDecodeError:
-        return "invalid", None
-    return "configured", values
 
 
-def _write_env(path: Path, values: dict[str, str]) -> None:
-    _assert_no_symlink_ancestor(path)
-    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-    os.chmod(path.parent, 0o700)
-    _write_text_atomic(path, "".join(f"{key}={values[key]}\n" for key in sorted(values)))
-    os.chmod(path, 0o600)
 
 
-def cognee_policy(api_url: str) -> dict[str, str]:
-    if not isinstance(api_url, str) or not api_url.strip() or not api_url.startswith(("http://", "https://")):
-        raise ConfigurationError("Cognee API URL is invalid")
-    return {
-        "COGNEE_BASE_URL": api_url.rstrip("/"),
-        "COGNEE_MANAGED_ENDPOINT": "true",
-        "COGNEE_SHARED_AGENT_MEMORY": "false",
-        "COGNEE_PLUGIN_IDENTITY": "false",
-        "COGNEE_CAPTURE": "true",
-        "COGNEE_CAPTURE_REDACT": "true",
-        "COGNEE_CAPTURE_DENY_PATHS": json.dumps([
-            "*/.codex/config.toml", "*/.codex/auth.json", "*/.codex/sessions/*",
-            "*/.codex/session-handoffs/*", "*/.cognee/*", "*/.config/*", "*.db", "*.sqlite*",
-            "*.log", "*/credentials*", "*/secrets*", "*/rollout-*.jsonl"]),
-        "COGNEE_CAPTURE_DENY_TOOLS": json.dumps([
-            "*exec*", "*write_stdin*", "*fastctx*run*", "*fastctx*job_output*",
-            "Bash(ssh:*)", "Bash(cat:*)", "Bash(curl:*)", "Bash(docker:*)"]),
-    }
 
 
-def cognee_static_state(codex_home: Path, api_url: str) -> str:
-    state, data = _read_env(cognee_config_path())
-    if state == "missing":
-        return "not-configured"
-    if state != "configured" or data is None:
-        return state
-    receipt_state, receipt = _cognee_receipt(codex_home)
-    expected = cognee_policy(api_url)
-    policy_matches = receipt_state == "configured" and receipt and receipt.get("fields") == expected and all(data.get(k) == v for k, v in expected.items())
-    if not policy_matches:
-        return "drifted"
-    try:
-        return cognee_plugin.state(codex_home) if cognee_plugin.launcher_state(codex_home) == "configured" else "drifted"
-    except codex_static.StaticError:
-        return "blocked"
-
-
-def configure_cognee_static(codex_home: Path, api_url: str) -> str:
-    path = cognee_config_path()
-    state, current = _read_env(path)
-    if state not in {"missing", "configured"}:
-        raise ConfigurationError("Cognee client configuration is blocked")
-    policy = cognee_policy(api_url)
-    data = current or {}
-    receipt_state, receipt = _cognee_receipt(codex_home)
-    if receipt_state == "invalid":
-        raise ConfigurationError("Cognee lifecycle ownership receipt is invalid")
-    if receipt_state == "configured" and receipt and any(data.get(k) != v for k, v in receipt["fields"].items()):
-        raise ConfigurationError("Cognee client configuration was modified outside lifecycle")
-    data.update(policy)
-    try:
-        cognee_plugin.configure(codex_home, path, api_url)
-    except (codex_static.StaticError, cognee_plugin.codex_plugins.PluginError) as error:
-        raise ConfigurationError(str(error)) from error
-    _write_env(path, data)
-    _write_private_json(static_receipt_path(codex_home, "cognee-config"), {"schema": 1, "path": str(path), "fields": policy})
-    return "configured"
-
-
-def configure_cognee_secret(codex_home: Path) -> str:
-    receipt_state, receipt = _cognee_receipt(codex_home)
-    if receipt_state != "configured" or not receipt:
-        raise ConfigurationError("Cognee static policy is not ready")
-    path = cognee_config_path()
-    state, data = _read_env(path)
-    if state != "configured" or data is None:
-        raise ConfigurationError("Cognee client configuration is not ready")
-    data["COGNEE_API_KEY"] = _read_tty("Cognee API key: ", secret=True)
-    _write_env(path, data)
-    return "configured"
-
-
-def cognee_secret_state(codex_home: Path) -> str:
-    state, data = _read_env(cognee_config_path())
-    if state == "missing":
-        return "not-configured"
-    if state != "configured" or data is None:
-        return state
-    return "configured" if data.get("COGNEE_API_KEY", "").strip() else "not-configured"
-
-
-def remove_cognee_configuration(codex_home: Path) -> str:
-    receipt_state, receipt = _cognee_receipt(codex_home)
-    if receipt_state == "missing":
-        return "no-op"
-    if receipt_state != "configured" or receipt is None:
-        raise ConfigurationError("Cognee lifecycle ownership receipt is blocked")
-    path = cognee_config_path()
-    state, data = _read_env(path)
-    if state != "configured" or data is None or any(data.get(k) != v for k, v in receipt["fields"].items()):
-        raise ConfigurationError("Cognee client configuration is blocked")
-    for key in (*receipt["fields"].keys(), "COGNEE_API_KEY"):
-        data.pop(key, None)
-    if data:
-        _write_env(path, data)
-    else:
-        path.unlink(missing_ok=True)
-    static_receipt_path(codex_home, "cognee-config").unlink(missing_ok=True)
-    return "changed"
-
-
-def disable_targets(codex_home: Path, catalog_digest: str, target_ids: set[str]) -> None:
-    state, targets = load_profile(codex_home, catalog_digest)
-    if state not in {"missing", "match", "stale"}:
-        raise ConfigurationError("profile record is blocked")
-    remaining = targets - target_ids
-    if not remaining:
-        profile = profile_path(codex_home)
-        profile.unlink(missing_ok=True)
-        return
-    ensure_state_directory(codex_home)
-    _write_private_json(
-        profile_path(codex_home),
-        {"schema": PROFILE_SCHEMA, "catalog_digest": catalog_digest, "targets": sorted(remaining)},
-    )
-
-
-def register_cognee_project(codex_home: Path, project_root: Path) -> str:
-    if project_root.is_symlink() or not project_root.is_dir():
-        raise ConfigurationError("project root is ambiguous")
-    try:
-        root = canonical_project_root(project_root)
-        canonical = str(root)
-        slug = re.sub(r"[^A-Za-z0-9_-]+", "-", root.name).strip("-")[:40] or "project"
-        name = slug + "-" + hashlib.sha256(canonical.encode()).hexdigest()[:12]
-        path = _home().joinpath(*COGNEE_PROJECTS_RELATIVE)
-        state, data = _private_json(path)
-        if state not in {"missing", "configured"}:
-            raise ConfigurationError("Cognee project registry is blocked")
-        config_state, config = _read_env(_home().joinpath(*COGNEE_CONFIG_RELATIVE))
-        if config_state != "configured" or not config.get("COGNEE_API_KEY"):
-            raise ConfigurationError("Cognee private client is not configured")
-        client = CogneeClient(config["COGNEE_BASE_URL"], config["COGNEE_API_KEY"], name, timeout=15)
-        principal = client._request("GET", "/api/v1/users/me")
-        if not isinstance(principal, dict) or not isinstance(principal.get("id"), str):
-            raise ConfigurationError("Cognee principal could not be verified")
-        dataset = client._request("POST", "/api/v1/datasets", {"name": name})
-        if (not isinstance(dataset, dict) or dataset.get("name") != name
-                or (dataset.get("owner_id") or dataset.get("ownerId")) != principal["id"] or not isinstance(dataset.get("id"), str)):
-            raise ConfigurationError("Cognee dataset could not be verified")
-        entry = {"dataset_name": name, "dataset_id": dataset["id"],
-                 "principal_id": principal["id"], "base_url": client.base}
-        mappings = data or {}
-        if canonical in mappings and mappings[canonical] != entry:
-            raise ConfigurationError("Cognee project registration conflicts; unregister explicitly first")
-        mappings[canonical] = entry
-        _write_private_json(path, mappings)
-        return name
-    except CogneeError as error:
-        raise ConfigurationError(str(error)) from error
-
-
-def unregister_cognee_project(project_root: Path) -> str:
-    path = _home().joinpath(*COGNEE_PROJECTS_RELATIVE)
-    state, data = _private_json(path)
-    if state != "configured" or data is None:
-        return "no-op"
-    canonical = str(canonical_project_root(project_root))
-    if canonical not in data:
-        return "no-op"
-    del data[canonical]
-    if data:
-        _write_private_json(path, data)
-    else:
-        path.unlink(missing_ok=True)
-    return "changed"
 
 
 def load_profile(codex_home: Path, catalog_digest: str) -> tuple[str, set[str]]:
@@ -517,22 +292,6 @@ def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None
             return "drifted"
         required = {"grok-provider": {"apiUrl", "apiKey"}, "grok-tavily": {"tavilyApiKey"}, "grok-firecrawl": {"firecrawlApiKey"}}[adapter]
         return "configured" if all(isinstance(value.get(key), str) and value[key].strip() for key in required) else "not-configured"
-    if adapter == "cognee-static":
-        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_COGNEE_API_URL")
-        if not isinstance(api_url, str) or not api_url.strip():
-            return "blocked"
-        try:
-            return cognee_static_state(codex_home, api_url)
-        except ConfigurationError:
-            return "blocked"
-    if adapter == "cognee-secret":
-        try:
-            return cognee_secret_state(codex_home)
-        except ConfigurationError:
-            return "blocked"
-    if adapter == "cognee-project":
-        state, data = _private_json(_home().joinpath(*COGNEE_PROJECTS_RELATIVE))
-        return "configured" if state == "configured" and data else "not-configured" if state == "missing" else state
     return "unknown"
 
 
@@ -540,8 +299,6 @@ def configure_target(
     adapter: str,
     codex_home: Path,
     settings: dict[str, Any] | None = None,
-    project_root: Path | None = None,
-    unregister: bool = False,
 ) -> str:
     if adapter == "codex-provider":
         _run_owner(["codex", "login"])
@@ -552,17 +309,6 @@ def configure_target(
     if adapter == "windsurf-owner":
         _run_owner(["windsurf-code-search", "configure"])
         return target_state(adapter, codex_home)
-    if adapter == "cognee-static":
-        api_url = (settings or {}).get("apiUrl") or os.environ.get("PENNIX_COGNEE_API_URL")
-        if not isinstance(api_url, str):
-            raise ConfigurationError("Cognee API URL is required")
-        return configure_cognee_static(codex_home, api_url)
-    if adapter == "cognee-secret":
-        return configure_cognee_secret(codex_home)
-    if adapter == "cognee-project":
-        if project_root is None:
-            raise ConfigurationError("project root is required")
-        return unregister_cognee_project(project_root) if unregister else "configured" if register_cognee_project(codex_home, project_root) else "blocked"
     if adapter == "hikari-json":
         base_url = _read_tty("Hikari endpoint: ")
         token = _read_tty("Hikari access token: ", secret=True)

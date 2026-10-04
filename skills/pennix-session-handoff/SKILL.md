@@ -31,7 +31,7 @@ are:
   "validation": [{"command": "check name", "result": "result"}],
   "memory_projection": {
     "semantic_capsule": "task contract, scene, decisions, reversals, validation, experience, blockers, and open work",
-    "local": [], "archive_refs": [], "cognee": []
+    "local": [], "archive_refs": []
   },
   "rollout": {
     "path": "/absolute/path/to/the-current-codex-rollout.jsonl",
@@ -86,16 +86,16 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
   --project-root . validate --handoff .trellis/session-handoffs/<handoff-id>/session-handoff.json
 ```
 
-`ready` validates the package itself, not continued sameness of the source
-worktree. `core_only` does not require remote proof, but still waits for the
-final observed source boundary and canonical JSON/prompt pair. When a handoff
-contains a task, its existing Trellis quiesce/seal receipt is also required.
-Current task, Git, evidence, rollout, and Cognee handoff proof are
-reconciled by the target session. `cognee_required` additionally requires
-the native authenticated Cognee write and exact project/content retrieval verification before admission;
-a target attestation cannot bypass that source gate. Neither path silently
-rewrites the capsule. This Skill never changes task status, controls Trellis
-workers, or copies a conversation, credential, cache, or runtime ledger.
+`validate` returning `ready` validates the package structure. Lifecycle
+readiness separately requires the observed source boundary and canonical
+JSON/prompt pair. A captured task also requires native Trellis quiesce/seal
+receipts. The target reconciles current task, Git, evidence, and rollout;
+its attestation cannot bypass the source gate. This Skill never changes task
+status, controls workers, or copies credentials, caches, or runtime ledgers.
+New packages use schema 9. Schema 8 packages and their existing paired prompts
+are available for read-only audit; `status` returns `historical`, and all
+lifecycle, ownership, and retention writes reject them. Create a new package
+from current facts for continuation; never rewrite a historical package.
 
 ## Lifecycle Receipt And Retention
 
@@ -117,34 +117,24 @@ PENNIX_HANDOFF="${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-
 Use these commands only as part of the user's explicit formal-handoff request:
 
 ```bash
-python3 "$PENNIX_HANDOFF" --project-root . prepare --handoff <core.json> --mode cognee_required
+python3 "$PENNIX_HANDOFF" --project-root . prepare --handoff <core.json> --mode core_only
 python3 "$PENNIX_HANDOFF" --project-root . seal --handoff <core.json> --explicit-user-request
-python3 "$PENNIX_HANDOFF" --project-root . cognee --handoff <core.json> --key-fact "one verified fact that must survive the handoff"
 python3 "$PENNIX_HANDOFF" --project-root . finalize --handoff <core.json> --observation <project-relative-proof.json>
 python3 "$PENNIX_HANDOFF" --project-root . admit --handoff <core.json> --attestation <project-relative-attestation.json>
 python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.json> --confirm-handoff-id <handoff-id>
 ```
 
-`PENNIX_HANDOFF` above abbreviates the existing `handoff.py` path used in the
-earlier commands. `prepare` fixes one mode. The default is
-`cognee_required`: after the final boundary is sealed, `cognee` performs
-one authenticated Cognee remember with an explicit project and handoff
-identity, then reads the returned memory id and proves exact project/type/content
-equality. A timed-out POST is not blindly repeated; the adapter reconciles a
-unique matching package without repeating POST. The receipt records write
-intent before the request and the returned memory id before verification;
-an interrupted verification retries only the read. Recovery scans at most
-five 100-record pages; an unresolved or ambiguous outcome remains pending.
-The local receipt stores only
-non-secret proof references.
+`PENNIX_HANDOFF` abbreviates the existing helper path. `prepare` fixes the
+local `core_only` mode and direct source session. The append-only receipt
+stores non-secret local evidence references.
 
 The source-side sequence is one explicit boundary:
 
 ```text
-write -> validate -> render -> prepare(cognee_required)
+write -> validate -> render -> prepare(core_only)
       -> task present: ownership quiesce -> ownership seal
       -> no task: seal --explicit-user-request
-      -> cognee -> status=ready -> render final prompt
+      -> finalize local observation as needed -> status=ready -> render final prompt
 ```
 
 The standalone `seal` is only for a captured taskless boundary and requires
@@ -153,11 +143,9 @@ and a native current result with no task, stale pointer, error or ambiguity.
 It never creates a task or bypasses task ownership. Session identity comes
 from Trellis's independent `session_source`, not its task-pointer `source`.
 
-`core_only` is the explicit offline exception. It uses `finalize` with a local
-sealed-boundary observation and never claims that Cognee was written. When
-a captured task exists, run native ownership `quiesce` and `seal` before either
-source path. Missing Cognee capability remains `pending`, `unsupported`, or
-`unavailable`; it never silently downgrades to `core_only`.
+`core_only` is the normal local path. `finalize` records a local boundary
+observation. For a captured task, native ownership `quiesce` and `seal` are
+required before admission. Missing local evidence remains pending.
 
 `admit` also checks the prepared mode's current source state. A valid target
 attestation cannot turn a `pending` source into a reconciled admission; it is
@@ -236,15 +224,10 @@ implementation; this Skill never edits task pointers itself:
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.json> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> --expected-generation <n> --explicit-user-request
-python3 "$PENNIX_HANDOFF" --project-root . cognee --handoff <core.json> --key-fact "one verified fact that must survive the handoff"
 ```
 
-The `cognee` command performs the authenticated remember and exact
-project/content retrieval verification. It does not retire the Trellis source
-pointer; ownership remains a separate native barrier. An interrupted Cognee
-request is reconciled by its explicit handoff identity. `core_only`
-uses the local `finalize` path. Missing capability remains
-`pending`/`unsupported` and never silently downgrades.
+Ownership is the native task barrier. The local `finalize` path records
+additional boundary evidence when needed; absent evidence remains pending.
 
 After a new session has completed the read-only intake above and the user
 explicitly authorizes continuation, it may claim and close ownership:

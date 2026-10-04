@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from adapters import cognee_plugin, codex_plugins, codex_static, configuration, skills_install, tmux_static, upstream
+from adapters import codex_plugins, codex_static, configuration, skills_install, tmux_static, upstream
 import host
 
 
@@ -48,14 +48,11 @@ CONFIGURATION_ADAPTERS = {
     "grok-tavily",
     "grok-firecrawl",
     "hikari-json",
-    "cognee-static",
-    "cognee-secret",
-    "cognee-project",
     "windsurf-owner",
 }
 POST_INSTALL_ACTIONS = {"grok-search-runtime"}
 STATE_COMPONENT = "pennix-workflow-state"
-OBSOLETE_STATIC_RECEIPTS = {"hindsight-config.json", "agentmemory-config.json"}
+OBSOLETE_STATIC_RECEIPTS: set[str] = set()
 STAGING_PREFIX = ".pennix-skills-stage"
 
 
@@ -196,7 +193,6 @@ def configuration_target_map(catalog: dict[str, Any]) -> dict[str, dict[str, Any
 STATE_RECORDS = {
     "profile": Path("profile.json"),
     "tmux-config": Path("static-assets") / "tmux-config.json",
-    "cognee-config": Path("static-assets") / "cognee-config.json",
 }
 
 
@@ -283,11 +279,11 @@ def _inspect_state_tree(root: Path, legacy: bool, expected_digest: str | None) -
         except OSError:
             return {"status": "blocked", "records": {}, "reason": "static state directory cannot be read"}
         if any(
-            name not in {"tmux-config.json", "cognee-config.json", *OBSOLETE_STATIC_RECEIPTS}
+            name not in {"tmux-config.json", *OBSOLETE_STATIC_RECEIPTS}
             for name in static_entries
         ):
             return {"status": "blocked", "records": {}, "reason": "static state contains unknown entries"}
-        for record_name in ("tmux-config", "cognee-config"):
+        for record_name in ("tmux-config",):
             receipt = static_directory / STATE_RECORDS[record_name].name
             if receipt.name not in static_entries:
                 continue
@@ -857,12 +853,6 @@ def probe_component(
         except skills_install.InstallError:
             return "unknown", None
         return state, str(destination_path) if state in {"match", "bootstrap", "partial"} else None
-    if adapter == "cognee-plugin":
-        try:
-            state, observed = cognee_plugin.inspect(codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
-        except (codex_static.StaticError, codex_plugins.PluginError):
-            return "blocked", None
-        return {"configured": "match", "not-configured": "missing"}.get(state, "drifted"), observed
     plugin = component.get("plugin")
     if isinstance(plugin, dict):
         target_home = codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -1234,21 +1224,11 @@ def component_operation(
         raise BootstrapError(f"cannot safely identify {key}; refusing {operation}")
     plugin = component.get("plugin")
     if operation == "uninstall":
-        if status == "missing" and component.get("adapter") != "cognee-plugin":
+        if status == "missing":
             return "no-op"
         if isinstance(plugin, dict):
             try:
-                if component.get("adapter") == "cognee-plugin":
-                    configuration.remove_cognee_configuration(args.codex_home)
-                    configuration.disable_targets(
-                        args.codex_home, configuration_digest(catalog),
-                        {"cognee-static", "cognee-secret", "cognee-project",
-                         "agentmemory-static", "agentmemory-secret", "agentmemory-project",
-                         "hindsight-static", "hindsight-token", "hindsight-project"},
-                    )
-                    cognee_plugin.remove(args.codex_home)
-                else:
-                    codex_plugins.remove_plugin(args.codex_home, plugin["id"])
+                codex_plugins.remove_plugin(args.codex_home, plugin["id"])
             except (codex_plugins.PluginError, codex_static.StaticError, configuration.ConfigurationError) as error:
                 raise BootstrapError(str(error)) from error
             if probe_component(component, args.codex_home, getattr(args, "destination", None))[0] != "missing":
@@ -1295,10 +1275,7 @@ def component_operation(
                 args.codex_home, marketplace["name"], marketplace["source"], marketplace["ref"]
             ) not in {"absent", "matching-ref"}:
                 raise BootstrapError("existing marketplace cannot be ref-verified")
-            if component.get("adapter") == "cognee-plugin":
-                cognee_plugin.install(args.codex_home)
-            else:
-                codex_plugins.install_plugin(args.codex_home, plugin)
+            codex_plugins.install_plugin(args.codex_home, plugin)
         except (codex_plugins.PluginError, codex_static.StaticError) as error:
             raise BootstrapError(str(error)) from error
     else:
@@ -1387,32 +1364,14 @@ def configuration_parent_status(
 
 
 def configure_configuration_target(
-    args: argparse.Namespace, catalog: dict[str, Any], target: dict[str, Any], unregister: bool = False
+    args: argparse.Namespace, catalog: dict[str, Any], target: dict[str, Any]
 ) -> None:
     configuration_parent_status(args, catalog, target)
     digest = configuration_digest(catalog)
-    if target["adapter"] == "cognee-project" and unregister:
-        state = configuration.configure_target(
-            target["adapter"],
-            args.codex_home,
-            target.get("settings"),
-            Path(args.project_root).expanduser().absolute() if getattr(args, "project_root", None) else None,
-            unregister=True,
-        )
-        configuration.disable_targets(args.codex_home, digest, {target["id"]})
-    else:
-        state = configuration.configure_target(
-            target["adapter"],
-            args.codex_home,
-            target.get("settings"),
-            Path(args.project_root).expanduser().absolute() if getattr(args, "project_root", None) else None,
-        )
-        if state not in {"ready", "configured"}:
-            raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
-        configuration.enable_target(args.codex_home, digest, target["id"])
+    state = configuration.configure_target(target["adapter"], args.codex_home, target.get("settings"))
     if state not in {"ready", "configured"}:
-        if not (target["adapter"] == "cognee-project" and unregister and state in {"changed", "no-op"}):
-            raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
+        raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
+    configuration.enable_target(args.codex_home, digest, target["id"])
     print(
         json.dumps(
             {"operation": "configure", "target": target["id"], "status": state},
@@ -1434,9 +1393,6 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | No
     targets = configuration_target_map(catalog)
     if args.command == "configure" and component in targets:
         configure_configuration_target(args, catalog, targets[component])
-        return None
-    if args.command == "uninstall" and component in targets and targets[component]["adapter"] == "cognee-project":
-        configure_configuration_target(args, catalog, targets[component], unregister=args.command == "uninstall")
         return None
     if component not in catalog["components"]:
         raise BootstrapError(f"unknown lifecycle component: {component}")

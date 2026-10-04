@@ -78,7 +78,7 @@ class HandoffTests(unittest.TestCase):
             "evidence_paths": ["evidence.md"], "next_action": "continue the fixture task", "blockers": [], "risks": [],
             "validation": [{"command": "fixture check", "result": "passed"}],
             "rollout": {"path": str(rollout or self.make_rollout()), "session_id": "fixture-session"},
-            "memory_projection": {"semantic_capsule": capsule, "local": [], "archive_refs": [], "cognee": []},
+            "memory_projection": {"semantic_capsule": capsule, "local": [], "archive_refs": []},
         }, handle, ensure_ascii=False)
         handle.write("\n")
         handle.close()
@@ -122,7 +122,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(destination.parent.stat().st_mode), 0o700)
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        self.assertEqual(payload["schema_version"], 8)
+        self.assertEqual(payload["schema_version"], 9)
         self.assertNotIn("integrity", payload)
         self.assertEqual(payload["handoff_id"], Path(relative).parts[-2])
         self.assertTrue(any(item["kind"] == "user" for item in payload["conversation"]["candidates"]))
@@ -143,13 +143,11 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "source-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "completed", "completion_artifact": "task-proof"},
             "memory": {"status": "verified", "proof_ref": "memory-proof"},
         })
         self.assertEqual(normalized["boundary"]["proof_ref"], "boundary-proof")
         self.assertEqual(normalized["capsule"]["proof_ref"], "capsule-proof")
-        self.assertEqual(normalized["cognee"]["proof_ref"], "cognee-proof")
         self.assertEqual(normalized["memory"]["proof_ref"], "memory-proof")
 
     def test_core_only_mode_admits_after_boundary_is_sealed(self) -> None:
@@ -172,7 +170,6 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "completed", "completion_artifact": "task-proof"},
             "memory": {"status": "verified", "proof_ref": "memory-proof"},
         }
@@ -221,7 +218,6 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -341,7 +337,6 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -385,7 +380,6 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
@@ -454,7 +448,6 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "local-boundary"},
             "source_session": {"status": "verified", "identity": "source-session"},
             "capsule": {"status": "verified", "proof_ref": "local-capsule"},
-            "cognee": {"status": "verified", "proof_ref": "local-cognee"},
             "task": {"status": "completed", "completion_artifact": "task-complete"},
             "memory": {"status": "verified", "proof_ref": "local-memory"},
         }), encoding="utf-8")
@@ -567,55 +560,16 @@ class HandoffTests(unittest.TestCase):
         events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
         self.assertEqual(sum(event["event_type"] == "admit" and event["target_status"] == "reconciled" for event in events), 1)
 
-    def test_cognee_handoff_records_layered_proof_and_is_idempotent(self) -> None:
-        root = self.make_git_root()
-        self.addCleanup(shutil.rmtree, root)
-        written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="verified semantic capsule")), "--explicit-user-request")
-        self.assertEqual(written.returncode, 0, written.stderr)
-        relative = self.handoff_path_from(written.stdout)
-        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "cognee_required").returncode, 0)
-        (root / relative).with_name("session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
-        handoff_id = Path(relative).parts[-2]
-        self.assertEqual(self.run_cli(root, "seal", "--handoff", relative, "--explicit-user-request").returncode, 0)
-        client = mock.Mock(project="fixture-project")
-        client.retain_handoff.return_value = {"data_id": "memory-1"}
-        client.verify_retrieval.return_value = 1
-        with mock.patch.object(handoff.cognee.CogneeClient, "for_project", return_value=client):
-            first = handoff.lifecycle_cognee(root, relative, "verified fixture fact")
-            repeated = handoff.lifecycle_cognee(root, relative, "verified fixture fact")
-        self.assertEqual(client.retain_handoff.call_count, 1)
-        self.assertEqual(first[1]["status"], "recorded")
-        self.assertEqual(first[1]["state"]["source"], "cognee_verified")
-        events = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
-        proof = events[-1]["evidence_refs"]
-        self.assertTrue(any(ref.startswith("local_capsule_digest=") for ref in proof))
-        self.assertIn("cognee_data_id=memory-1", proof)
-        self.assertIn("cognee_project=fixture-project", proof)
-        self.assertIn("cognee_retrieval_verified=1", proof)
-        self.assertNotIn("canonical_persisted", " ".join(proof))
-        self.assertEqual(repeated[1]["status"], "idempotent")
-
-    def test_taskless_proof_recovers_read_failure_and_rejects_same_source(self) -> None:
+    def test_taskless_local_seal_rejects_same_source(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule="capsule")), "--explicit-user-request")
         relative = self.handoff_path_from(written.stdout)
-        handoff.lifecycle_prepare(root, relative, "cognee_required")
+        handoff.lifecycle_prepare(root, relative, "core_only")
         (root / relative).with_name("session-handoff-prompt.md").write_text("prompt\n")
         with self.assertRaisesRegex(handoff.ContractError, "explicit-user-request"):
             handoff.lifecycle_seal(root, relative, explicit=False)
         handoff.lifecycle_seal(root, relative, explicit=True)
-        client = mock.Mock(project="fixture-project")
-        client.retain_handoff.return_value = {"data_id": "memory-1"}
-        client.verify_retrieval.side_effect = [handoff.cognee.CogneeError("read interrupted"), 1]
-        with mock.patch.object(handoff.cognee.CogneeClient, "for_project", return_value=client):
-            with self.assertRaises(handoff.cognee.CogneeError):
-                handoff.lifecycle_cognee(root, relative, "fact")
-            with self.assertRaisesRegex(handoff.ContractError, "write identity"):
-                handoff.lifecycle_cognee(root, relative, "different fact")
-            self.assertEqual(handoff.lifecycle_cognee(root, relative, "fact")[1]["state"]["source"], "cognee_verified")
-        self.assertEqual(client.retain_handoff.call_count, 1)
-        self.assertEqual(client.verify_retrieval.call_count, 2)
         self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
         attestation = root / "attestation.json"
         payload = {"target_source": "session:source", "core_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent"}
@@ -626,6 +580,34 @@ class HandoffTests(unittest.TestCase):
             payload["target_source"] = "session:target"
             attestation.write_text(json.dumps(payload))
             self.assertEqual(handoff.lifecycle_admit(root, relative, "attestation.json")[1]["status"], "recorded")
+
+    def test_historical_core_and_receipt_are_read_only(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        relative = self.handoff_path_from(written.stdout)
+        handoff.lifecycle_prepare(root, relative, "core_only")
+        core = root / relative
+        payload = json.loads(core.read_text())
+        payload["schema_version"] = 8
+        payload["memory_projection"]["cognee"] = []
+        core.write_text(json.dumps(payload))
+        receipt = handoff._lifecycle_path(root, payload["handoff_id"])
+        receipt.write_text(receipt.read_text().replace("mode=core_only", "mode=cognee_required"))
+        before = (core.read_bytes(), receipt.read_bytes())
+        self.assertEqual(handoff.validate(root, payload, payload["handoff_id"]), "ready")
+        self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "historical")
+        for operation in ("prepare", "seal", "admit", "retention", "ownership"):
+            args = {
+                "prepare": [], "seal": ["--explicit-user-request"],
+                "admit": ["--attestation", "missing.json"],
+                "retention": ["archive", "--confirm-handoff-id", payload["handoff_id"]],
+                "ownership": ["claim", "--expected-generation", "0", "--explicit-user-request"],
+            }[operation]
+            result = self.run_cli(root, operation, *args, "--handoff", relative)
+            self.assertNotEqual(result.returncode, 0, operation)
+            self.assertIn("read-only", result.stdout)
+        self.assertEqual((core.read_bytes(), receipt.read_bytes()), before)
 
     def test_invalid_current_is_not_a_taskless_snapshot(self) -> None:
         root = self.make_root()
@@ -679,7 +661,6 @@ class HandoffTests(unittest.TestCase):
             "boundary": {"status": "sealed", "proof_ref": "boundary-proof"},
             "source_session": {"status": "verified", "identity": "fixture-session"},
             "capsule": {"status": "verified", "proof_ref": "capsule-proof"},
-            "cognee": {"status": "verified", "proof_ref": "cognee-proof"},
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }), encoding="utf-8")
