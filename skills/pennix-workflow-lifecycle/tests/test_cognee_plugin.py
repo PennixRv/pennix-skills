@@ -60,6 +60,20 @@ class NativeCogneeConfigurationTest(unittest.TestCase):
                 adapter._ensure_global_disabled(home)
             self.assertEqual(config.read_text(encoding="utf-8"), original)
 
+    def test_removal_clears_owned_policy_before_native_config_mutation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            config = home / "config.toml"
+            config.write_text("model = 'test'\n", encoding="utf-8")
+            adapter._ensure_global_disabled(home)
+            def native_remove(*args):
+                self.assertNotIn(adapter.POLICY_BEGIN, config.read_text())
+                self.assertEqual(config.read_text(), "model = 'test'\n\n")
+            with mock.patch.object(adapter, "_plugin", return_value=self.plugin()), mock.patch.object(
+                adapter.codex_plugins, "remove_plugin", side_effect=native_remove
+            ), mock.patch.object(adapter, "launcher_state", return_value="not-configured"):
+                adapter.remove(home)
+
 
 if __name__ == "__main__":
     unittest.main()

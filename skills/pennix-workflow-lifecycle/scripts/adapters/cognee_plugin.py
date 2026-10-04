@@ -205,8 +205,8 @@ def remove(codex_home: Path, config: Path | None = None, api_url: str | None = N
     del config, api_url
     _, contract = _contract()
     plugin_id = contract["id"]
+    _remove_global_policy(codex_home)
     if _plugin(codex_home, plugin_id) is not None:
         codex_plugins.remove_plugin(codex_home, plugin_id)
-    _remove_global_policy(codex_home)
     if launcher_state(codex_home) == "configured":
         launcher_path().unlink()

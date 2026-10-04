@@ -59,6 +59,36 @@ class BootstrapTests(unittest.TestCase):
         )
         return catalog
 
+    def test_cognee_retirement_clears_owned_fields_and_preserves_other_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = root / "home"
+            codex = home / ".codex"
+            catalog = bootstrap.load_catalog(SKILL_ROOT / "references" / "component-versions.json")
+            config = bootstrap.configuration
+            with patch.dict(os.environ, {"HOME": str(home)}), patch.object(
+                config.cognee_plugin, "configure"
+            ):
+                config.ensure_state_directory(codex)
+                config.configure_cognee_static(codex, "https://fixture.test")
+                path = config.cognee_config_path()
+                _, fields = config._read_env(path)
+                config._write_env(path, {**fields, "COGNEE_API_KEY": "fixture-key", "UNRELATED": "keep"})
+                digest = bootstrap.configuration_digest(catalog)
+                for target in ("cognee-static", "cognee-secret", "cognee-project", "hikari-connection"):
+                    config.enable_target(codex, digest, target)
+                with patch.object(bootstrap.host, "detect_host", return_value={"supported": True}), patch.object(
+                    bootstrap, "probe_component", side_effect=[("match", "1.7.4"), ("missing", None)]
+                ), patch.object(bootstrap.cognee_plugin, "remove") as remove:
+                    self.assertEqual(bootstrap.component_operation(
+                        SimpleNamespace(codex_home=codex), catalog, "cognee-coding-agents",
+                        catalog["components"]["cognee-coding-agents"], "uninstall"
+                    ), "changed")
+                remove.assert_called_once_with(codex)
+                self.assertEqual(config._read_env(path), ("configured", {"UNRELATED": "keep"}))
+                self.assertFalse(config.static_receipt_path(codex, "cognee-config").exists())
+                self.assertEqual(config.load_profile(codex, digest), ("match", {"hikari-connection"}))
+
     def run_cli(self, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [

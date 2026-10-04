@@ -55,7 +55,7 @@ CONFIGURATION_ADAPTERS = {
 }
 POST_INSTALL_ACTIONS = {"grok-search-runtime"}
 STATE_COMPONENT = "pennix-workflow-state"
-OBSOLETE_STATIC_RECEIPTS = {"hindsight-config.json"}
+OBSOLETE_STATIC_RECEIPTS = {"hindsight-config.json", "agentmemory-config.json"}
 STAGING_PREFIX = ".pennix-skills-stage"
 
 
@@ -1239,10 +1239,15 @@ def component_operation(
         if isinstance(plugin, dict):
             try:
                 if component.get("adapter") == "cognee-plugin":
+                    configuration.remove_cognee_configuration(args.codex_home)
+                    configuration.disable_targets(
+                        args.codex_home, configuration_digest(catalog),
+                        {"cognee-static", "cognee-secret", "cognee-project"},
+                    )
                     cognee_plugin.remove(args.codex_home)
                 else:
                     codex_plugins.remove_plugin(args.codex_home, plugin["id"])
-            except (codex_plugins.PluginError, codex_static.StaticError) as error:
+            except (codex_plugins.PluginError, codex_static.StaticError, configuration.ConfigurationError) as error:
                 raise BootstrapError(str(error)) from error
             if probe_component(component, args.codex_home, getattr(args, "destination", None))[0] != "missing":
                 raise BootstrapError("plugin uninstall postcondition failed")
