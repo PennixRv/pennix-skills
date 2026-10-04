@@ -75,7 +75,7 @@ class BootstrapTests(unittest.TestCase):
                 _, fields = config._read_env(path)
                 config._write_env(path, {**fields, "COGNEE_API_KEY": "fixture-key", "UNRELATED": "keep"})
                 digest = bootstrap.configuration_digest(catalog)
-                for target in ("cognee-static", "cognee-secret", "cognee-project", "hikari-connection"):
+                for target in ("cognee-static", "cognee-secret", "cognee-project", "agentmemory-static", "hindsight-token", "hikari-connection"):
                     config.enable_target(codex, digest, target)
                 with patch.object(bootstrap.host, "detect_host", return_value={"supported": True}), patch.object(
                     bootstrap, "probe_component", side_effect=[("match", "1.7.4"), ("missing", None)]
@@ -118,6 +118,16 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn("observed status is missing", verify.stderr)
             self.assertIn("components", json.loads(verify.stdout))
             self.assertFalse((root / "codex").exists())
+
+    def test_project_unregistration_accepts_native_changed_postcondition(self) -> None:
+        args = SimpleNamespace(codex_home=Path("/fixture/codex"), project_root="/fixture/project")
+        catalog = bootstrap.load_catalog(SKILL_ROOT / "references" / "component-versions.json")
+        target = {"id": "cognee-project", "adapter": "cognee-project"}
+        with patch.object(bootstrap, "configuration_parent_status"), patch.object(
+            bootstrap.configuration, "configure_target", return_value="changed"
+        ), patch.object(bootstrap.configuration, "disable_targets") as disable:
+            bootstrap.configure_configuration_target(args, catalog, target, unregister=True)
+            disable.assert_called_once()
 
     def test_staging_is_an_unknown_advisory_and_does_not_block_verify(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

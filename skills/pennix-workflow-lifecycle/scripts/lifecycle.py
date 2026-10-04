@@ -1242,7 +1242,9 @@ def component_operation(
                     configuration.remove_cognee_configuration(args.codex_home)
                     configuration.disable_targets(
                         args.codex_home, configuration_digest(catalog),
-                        {"cognee-static", "cognee-secret", "cognee-project"},
+                        {"cognee-static", "cognee-secret", "cognee-project",
+                         "agentmemory-static", "agentmemory-secret", "agentmemory-project",
+                         "hindsight-static", "hindsight-token", "hindsight-project"},
                     )
                     cognee_plugin.remove(args.codex_home)
                 else:
@@ -1409,7 +1411,7 @@ def configure_configuration_target(
             raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
         configuration.enable_target(args.codex_home, digest, target["id"])
     if state not in {"ready", "configured"}:
-        if not (target["adapter"] == "cognee-project" and unregister and state == "no-op"):
+        if not (target["adapter"] == "cognee-project" and unregister and state in {"changed", "no-op"}):
             raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
     print(
         json.dumps(
