@@ -246,3 +246,25 @@ Installed and verified the native beta.26 project assets while preserving the se
 ### Next Steps
 
 - Root coordinator records the seven-consumer integration and proceeds to the final finding-first AgentMemory task.
+
+
+## Session 11: Trellis beta30 catalog and installed collection
+<!-- trellis-session: v=2 fp=543ab9aa4306b66e -->
+
+**Date**: 2026-10-04
+**Task**: Trellis beta30 catalog and installed collection
+**Branch**: `main`
+
+### Summary
+
+Pinned verified beta30, installed exact ten-Skill collection transactionally, and verified the CLI/core pair. Native consumer provenance updated; scoped retirement cache cleanup verified.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ce3676ef50eb67bafd55be259fb67d412e2a9e32` | chore: pin Trellis beta30 metadata cleanup release |
+
+### Status
+
+[OK] **Completed**

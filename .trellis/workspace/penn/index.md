@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
-- **Last Active**: 2026-10-03
+- **Total Sessions**: 11
+- **Last Active**: 2026-10-04
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~248 | Active |
+| `journal-1.md` | ~270 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-10-04 | Trellis beta30 catalog and installed collection | `ce3676ef50eb67bafd55be259fb67d412e2a9e32` | `main` |
 | 10 | 2026-10-03 | Adopt Trellis beta.26 consumer assets | `f092a68` | `main` |
 | 9 | 2026-10-03 | Adopt Trellis beta.25 catalog and project assets | `1d9039ff`, `2e91522` | `fix/trellis-beta25-adoption` |
 | 8 | 2026-10-03 | Publish beta.24 pin and installed Skills delivery | `5adc967cbc0264f6bcb67d63f8245c63af795226`, `977bd4b9cdcf50442d74e2a64b2121d6c4ad70f7` | `chore/subnode-defaults-release-adoption` |
