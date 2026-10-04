@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import copy
 import io
 import re
 import subprocess
@@ -96,6 +97,33 @@ def _plugin(codex_home: Path, plugin_id: str) -> dict | None:
         return codex_plugins.installed_plugin(codex_home, plugin_id)
     except codex_plugins.PluginError as error:
         raise codex_static.StaticError("Cognee native plugin state is unavailable") from error
+
+
+def _remove_hook_state(codex_home: Path) -> None:
+    path = codex_home / "config.toml"
+    contents = codex_static.read(path)
+    value = tomllib.loads(contents)
+    expected = copy.deepcopy(value)
+    state = expected.get("hooks", {}).get("state", {})
+    owned = [key for key in state if key.startswith("cognee@cognee:hooks.json:")]
+    changed = contents
+    for key in owned:
+        header = "[hooks.state." + json.dumps(key) + "]"
+        changed, count = re.subn(r"(?ms)^" + re.escape(header) + r"\r?\n.*?(?=^\[|\Z)", "", changed)
+        if count != 1:
+            raise codex_static.StaticError("Retired plugin hook state cannot be removed exactly")
+        del state[key]
+    if owned:
+        observed = tomllib.loads(changed)
+        for item in (expected, observed):
+            hooks = item.get("hooks", {})
+            if hooks.get("state") == {}:
+                hooks.pop("state")
+            if not hooks:
+                item.pop("hooks", None)
+        if observed != expected:
+            raise codex_static.StaticError("Retired plugin cleanup would alter unrelated configuration")
+        codex_static.write(path, changed)
 
 
 def _content_matches(codex_home: Path, version: str, contract: dict) -> bool:
@@ -208,5 +236,12 @@ def remove(codex_home: Path, config: Path | None = None, api_url: str | None = N
     _remove_global_policy(codex_home)
     if _plugin(codex_home, plugin_id) is not None:
         codex_plugins.remove_plugin(codex_home, plugin_id)
+    _remove_hook_state(codex_home)
     if launcher_state(codex_home) == "configured":
         launcher_path().unlink()
+    # Native remove owns all cache contents; only its empty scaffolding is removed here.
+    for path in (codex_home / "plugins/cache/cognee/cognee", codex_home / "plugins/cache/cognee"):
+        if path.is_symlink():
+            raise codex_static.StaticError("Retired plugin cache scaffolding is linked")
+        if path.exists():
+            path.rmdir()

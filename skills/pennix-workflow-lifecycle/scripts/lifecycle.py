@@ -1234,7 +1234,7 @@ def component_operation(
         raise BootstrapError(f"cannot safely identify {key}; refusing {operation}")
     plugin = component.get("plugin")
     if operation == "uninstall":
-        if status == "missing":
+        if status == "missing" and component.get("adapter") != "cognee-plugin":
             return "no-op"
         if isinstance(plugin, dict):
             try:

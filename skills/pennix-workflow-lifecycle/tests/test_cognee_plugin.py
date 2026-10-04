@@ -74,6 +74,15 @@ class NativeCogneeConfigurationTest(unittest.TestCase):
             ), mock.patch.object(adapter, "launcher_state", return_value="not-configured"):
                 adapter.remove(home)
 
+    def test_retired_hook_state_removal_preserves_other_plugin_state(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            config = home / "config.toml"
+            kept = '[hooks.state."other@other:hooks.json:stop:0:0"]\ntrusted = false\n'
+            config.write_text('model = "test"\n[hooks.state."cognee@cognee:hooks.json:stop:0:0"]\ntrusted = true\n' + kept)
+            adapter._remove_hook_state(home)
+            self.assertEqual(config.read_text(), 'model = "test"\n' + kept)
+
 
 if __name__ == "__main__":
     unittest.main()
