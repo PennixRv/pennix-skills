@@ -29,7 +29,13 @@ opaque and receives generic read-only status; active source no longer names or
 interprets a retired product. Trellis beta.29 is published by successful Actions
 run `37180148626`.
 
-The collection still needs its final immutable Pennix source commit, native
-staging/replacement, and installed verification. All seven project roots have
-been updated; root acceptance and this owner task's archive remain pending.
-Historical task records and Git history remain unchanged.
+The immutable Pennix source commit `3148e18b0d7b1dc5437594abb0091b544319efda`
+was pushed and used as the exact input to the official installer staging flow.
+Native `replace-staged` completed with `status=changed`; fresh component verify
+reports `match`, no missing Skills, no staging candidates, and no failures or
+advisories. The installed handoff suite passes 26/26 tests, and an active-content
+scan of the installed collection finds no retired base/provider entities.
+
+All seven project roots have been natively updated and verified. The root task
+records overall acceptance; this owner task is ready to archive after its
+acceptance checklist. Historical task records and Git history remain unchanged.
