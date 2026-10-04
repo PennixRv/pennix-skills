@@ -13,8 +13,8 @@ Execute approved root cognee-memory-base-removal plan: native retirement, local 
 
 ## Acceptance Criteria
 
-- [ ] Native retirement removes owned private configuration and optional profile targets without touching unrelated state.
-- [ ] No active integration or base description remains; local handoff and lifecycle regressions pass.
+- [x] Native retirement removes owned private configuration and optional profile targets without touching unrelated state.
+- [x] No active integration or base description remains; local handoff and lifecycle regressions pass.
 - [ ] Source commits pushed, collection installed and verified; closure evidence recorded.
 
 ## Notes

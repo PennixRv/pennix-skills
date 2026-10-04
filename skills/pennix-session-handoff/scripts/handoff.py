@@ -40,7 +40,7 @@ ARCHIVE_RUNTIME = ".trellis/.runtime/handoff-archive"
 LIFECYCLE_SCHEMA_VERSION = 2
 LIFECYCLE_EVENT_KIND = "pennix-handoff-lifecycle-event"
 CONSUMPTION_STEPS = ("core_read", "prompt_read", "trellis_started", "facts_reconciled")
-SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "cognee_verified", "pending", "unavailable", "unsupported", "failed", "expired"}
+SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "pending", "unavailable", "unsupported", "failed", "expired"}
 TARGET_STATES = {"not_admitted", "admitted", "reconciled", "blocked", "disposed"}
 RETENTION_STATES = {"none", "archive_eligible", "archived", "retained", "restored", "reopened", "purged"}
 LIFECYCLE_ACTOR = "pennix-session-handoff"
@@ -525,14 +525,22 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
     if not isinstance(memory, dict):
         raise ContractError("handoff memory projection is invalid")
     fields = {"semantic_capsule", "local", "archive_refs"}
-    # Frozen schema 8 decoding only; historical packages are never rewritten.
     if payload["schema_version"] == 8:
-        fields.add("cognee")
-    if set(memory) != fields:
+        # Older packages may contain an opaque extension. Validate its shape
+        # without retaining the historical component name or interpreting it.
+        if not fields.issubset(memory) or any(
+            not isinstance(value, list) for key, value in memory.items() if key not in fields
+        ):
+            raise ContractError("handoff memory projection is invalid")
+    elif set(memory) != fields:
         raise ContractError("handoff memory projection is invalid")
     free_text(memory["semantic_capsule"], "memory_projection.semantic_capsule")
     for field in fields - {"semantic_capsule"}:
         _text_list(memory[field], "memory_projection.%s" % field)
+    if payload["schema_version"] == 8:
+        for key, value in memory.items():
+            if key not in fields:
+                _text_list(value, "memory_projection.extension")
     if payload["authorization"] != AUTHORIZATION:
         raise ContractError("handoff authorization is invalid")
 def validate(root: Path, payload: Dict[str, Any], handoff_id: str) -> str:
@@ -651,11 +659,10 @@ def _transition(axis: str, old: str, new: str) -> bool:
         "source": {
             "unprepared": {"prepared", "failed"},
             "prepared": {"boundary_sealed", "pending", "unsupported", "unavailable", "failed"},
-            "boundary_sealed": {"cognee_verified", "failed"},
-            "cognee_verified": {"expired"},
-            "pending": {"boundary_sealed", "cognee_verified", "unsupported", "unavailable", "failed"},
-            "unsupported": {"boundary_sealed", "pending", "cognee_verified", "failed"},
-            "unavailable": {"boundary_sealed", "pending", "cognee_verified", "failed"},
+            "boundary_sealed": {"failed"},
+            "pending": {"boundary_sealed", "unsupported", "unavailable", "failed"},
+            "unsupported": {"boundary_sealed", "pending", "failed"},
+            "unavailable": {"boundary_sealed", "pending", "failed"},
             "failed": {"failed"}, "expired": set(),
         },
         "target": {"not_admitted": {"admitted", "reconciled", "blocked"}, "admitted": {"reconciled", "blocked", "disposed"}, "reconciled": {"disposed"}, "blocked": {"admitted", "reconciled", "disposed"}, "disposed": set()},
@@ -792,8 +799,6 @@ def _source_task_ready(payload: Dict[str, Any], events: list[Dict[str, Any]]) ->
 
 
 def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str]) -> dict[str, Any]:
-    if desired["source"] == "cognee_verified":
-        raise ContractError("historical source state is read-only")
     path = _lifecycle_path(root, handoff_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)
@@ -1210,8 +1215,13 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
         payload = load_json_file(_archive_path(root, handoff_id) / HANDOFF_NAME)
     path = _lifecycle_path(root, handoff_id)
     if payload["schema_version"] != SCHEMA_VERSION:
-        events = _read_events(path, handoff_id)
-        return {"status": "historical", "handoff_id": handoff_id, "schema_version": payload["schema_version"], "state": _state(events), "mode": _prepared_mode(events) if events else None}
+        return {
+            "status": "historical",
+            "handoff_id": handoff_id,
+            "schema_version": payload["schema_version"],
+            "state": {"source": "historical", "target": "historical", "retention": "historical"},
+            "mode": None,
+        }
     if not path.exists():
         return {"status": "absent", "handoff_id": handoff_id}
     events = _read_events(path, handoff_id)

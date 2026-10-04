@@ -23,8 +23,13 @@ ca41841e856d5880f154df8623be37b75bebefd67f7b1220dff3048d40b333bd.
 The collection provenance pins this source, without claiming a new npm CLI
 release. Source offline tests 114/114, 18-file provenance and pack checks passed.
 
-Final source checks passed: lifecycle 127 tests, local handoff 26 tests, five
-changed Skill frontmatter checks, and git diff --check. Trellis beta.29 is
-published by successful Actions run 37180148626. Final collection publication,
-staging/replace, installed verification and owner task closure remain pending.
+Final source checks passed again: lifecycle 127 tests, local handoff 26 tests,
+Skill validation, and `git diff --check`. The historical schema-8 extension is
+opaque and receives generic read-only status; active source no longer names or
+interprets a retired product. Trellis beta.29 is published by successful Actions
+run `37180148626`.
+
+The collection still needs its final immutable Pennix source commit, native
+staging/replacement, and installed verification. All seven project roots have
+been updated; root acceptance and this owner task's archive remain pending.
 Historical task records and Git history remain unchanged.

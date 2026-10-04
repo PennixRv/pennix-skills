@@ -590,13 +590,15 @@ class HandoffTests(unittest.TestCase):
         core = root / relative
         payload = json.loads(core.read_text())
         payload["schema_version"] = 8
-        payload["memory_projection"]["cognee"] = []
+        payload["memory_projection"]["legacy_extension"] = []
         core.write_text(json.dumps(payload))
         receipt = handoff._lifecycle_path(root, payload["handoff_id"])
-        receipt.write_text(receipt.read_text().replace("mode=core_only", "mode=cognee_required"))
+        receipt.write_text("opaque historical lifecycle receipt\n")
         before = (core.read_bytes(), receipt.read_bytes())
         self.assertEqual(handoff.validate(root, payload, payload["handoff_id"]), "ready")
-        self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "historical")
+        historical_status = handoff.lifecycle_status(root, relative)
+        self.assertEqual(historical_status["status"], "historical")
+        self.assertEqual(historical_status["mode"], None)
         for operation in ("prepare", "seal", "admit", "retention", "ownership"):
             args = {
                 "prepare": [], "seal": ["--explicit-user-request"],

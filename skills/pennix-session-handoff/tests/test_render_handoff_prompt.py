@@ -125,7 +125,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         core = self.root / relative
         payload = json.loads(core.read_text())
         payload["schema_version"] = 8
-        payload["memory_projection"]["cognee"] = []
+        payload["memory_projection"]["legacy_extension"] = []
         core.write_text(json.dumps(payload))
         prompt = core.with_name("session-handoff-prompt.md")
         self.assertNotEqual(self.run_cli(RENDER, "--handoff", relative).returncode, 0)
