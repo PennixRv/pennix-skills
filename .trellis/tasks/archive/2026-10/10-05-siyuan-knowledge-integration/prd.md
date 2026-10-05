@@ -12,8 +12,10 @@
 
 ## Acceptance Criteria
 
-- [ ] helper/adapter 安全行为与现有 lifecycle/collection 回归通过。
-- [ ] source main 提交推送；系统原生 installer 全集合安装并验收。
+- [x] helper/adapter 安全行为与现有 lifecycle/collection 回归通过（82 项）。
+- [x] source main 797cb95 提交推送；系统原生 installer 全集合安装、replace-staged 和全量 local integrity 验收通过。
+
+服务握手、Penn 索引与原生读写验收属于根协调任务，本源码任务不把安装完整性等同于服务验收。
 
 ## Notes
 
