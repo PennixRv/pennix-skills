@@ -1,0 +1,5 @@
+# Validation
+
+2026-10-05: fake-secret helper/connection checks and configuration/lifecycle/collection regressions passed (1+3+4+57+17=82 tests), including actual codex mcp list config parsing and failed config-write compensation. Collection source --check, Skill Creator quick_validate and diff --check passed. Official Codex config-reference confirms http_headers_helper is a string command; shlex.join plus TOML JSON string escaping preserves paths safely. Native kernel source confirms Authorization Token scheme. Secrets are never printed by diagnostics; config verify checks ownership/drift locally and does not claim handshake.
+
+Full source publish/install and native MCP data verification remain pending under the root task. Native Ponytail reinstalled at fixed upstream tag v4.12.0; only4.12.0 remains in its native installed version directory. AoE1.18.0 observed native version/help; pin catches up with existing system package instead of downgrading it. Scoped lifecycle verification passed for both. Trellis beta31 catalog pin follows successful paired CI publication, run37292470449; no unreleased version is installed.

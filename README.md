@@ -71,3 +71,14 @@ history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook ha
 Trellis、CodeGraph 和 AOE 的 CLI 可以由系统生命周期动作部署或升级，但它们的初始化必须在目标项目中
 单独执行。lifecycle 不创建 `.trellis/`、`codegraph.json`、索引或项目工作流资产；项目初始化继续使用
 各组件的原生命令。卸载全局组件也不会删除项目资产。
+
+## 人工知识与经验
+
+`pennix-siyuan-memory` 按用户意图通过思源原生 MCP 检索、引用、整理、导入和显式保存知识。
+它不捕获会话，不替代 Trellis task、正式交接或本地 `trellis mem` 历史；当前源码/任务/spec
+仍是工程事实权威。完整晋升方向在 workflow-routing 的 `references/knowledge-promotion.md`，
+包括人工经验、项目合同、源码 Skill 和有明确适用范围的全局规则，不要求逐级经过所有库。
+
+连接是可选的 `siyuan-connection` target：先 lifecycle discover，再从操作者自己的终端 configure
+该单一目标。API Token 只隐藏录入私有文件；原生 header helper 无数据代理逻辑。索引作用域、
+模型配置和其他客户端同步由思源内核 owner 管理，配置成功不能代替原生工具和语义质量验收。

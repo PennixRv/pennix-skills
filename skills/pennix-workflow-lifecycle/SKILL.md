@@ -208,7 +208,11 @@ integration without requiring unrelated services on every host.
 
 The catalog defines `cch-connection`, `hikari-connection`,
 `grok-search-provider`, `grok-tavily-extra`, `grok-firecrawl-extra`, and
-`windsurf-credential`. CCH and Windsurf delegate to their owner's configure
+`windsurf-credential`, and `siyuan-connection`. The optional SiYuan target uses
+hidden terminal API Token input, a private owner record, and Codex's native
+header helper; its local readiness does not prove a server handshake or index
+scope. Read `pennix-siyuan-memory/references/connection-and-index.md` for native
+runtime verification. CCH and Windsurf delegate to their owner's configure
 command. Hikari and Grok accept values only through `/dev/tty`, conceal secret
 input, and write a private owner record. Grok refuses to overwrite a record
 without its lifecycle marker. A target's delivery must match first; collection

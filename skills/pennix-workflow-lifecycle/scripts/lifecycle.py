@@ -42,6 +42,7 @@ ACTION_STATES = {"managed", "native-owner", "verify-only", "project-only", "not-
 VERSION_POLICIES = {"pinned", "repository-latest"}
 CONFIGURATION_TIERS = {"core", "optional"}
 CONFIGURATION_ADAPTERS = {
+    "siyuan-native",
     "codex-provider",
     "cch-owner",
     "grok-provider",

@@ -262,6 +262,9 @@ def _cch_paths() -> tuple[Path, Path]:
 
 
 def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None = None) -> str:
+    if adapter == "siyuan-native":
+        from . import siyuan
+        return siyuan.target_state(codex_home)
     if adapter == "codex-provider":
         auth = codex_home / "auth.json"
         state, content = _private_file(auth)
@@ -300,6 +303,9 @@ def configure_target(
     codex_home: Path,
     settings: dict[str, Any] | None = None,
 ) -> str:
+    if adapter == "siyuan-native":
+        from . import siyuan
+        return siyuan.configure(codex_home)
     if adapter == "codex-provider":
         _run_owner(["codex", "login"])
         return target_state(adapter, codex_home)

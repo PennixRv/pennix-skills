@@ -2,6 +2,15 @@
   "schema": 2,
   "configuration_targets": [
     {
+      "id": "siyuan-connection",
+      "tier": "optional",
+      "default_enabled": false,
+      "adapter": "siyuan-native",
+      "collection": "pennix-skills",
+      "member": "pennix-siyuan-memory",
+      "readiness": "Private SiYuan API Token record and owned native MCP entry are locally consistent; runtime handshake is verified separately."
+    },
+    {
       "id": "codex-provider",
       "tier": "core",
       "default_enabled": true,
@@ -94,7 +103,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.30",
+      "approved_version": "0.7.0-beta.31",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -175,7 +184,7 @@
     },
     "ponytail-plugin": {
       "delivery": "plugin",
-      "approved_version": "4.10.0",
+      "approved_version": "4.12.0",
       "source": "Codex native plugin from pinned Ponytail marketplace",
       "owner": "codex",
       "scope": "global",
@@ -196,7 +205,7 @@
         "marketplace": {
           "name": "ponytail",
           "source": "https://github.com/DietrichGebert/ponytail.git",
-          "ref": "v4.10.0",
+          "ref": "v4.12.0",
           "sparse": []
         }
       }
@@ -288,7 +297,7 @@
     },
     "aoe": {
       "delivery": "package",
-      "approved_version": "1.17.2",
+      "approved_version": "1.18.0",
       "source": "AUR agent-of-empires-bin package; upstream installer inspected as evidence",
       "owner": "aoe",
       "scope": "global/project",
@@ -422,6 +431,7 @@
           "pennix-decision-gates",
           "pennix-fastctx-routing",
           "pennix-session-handoff",
+          "pennix-siyuan-memory",
           "pennix-trellis-project-update",
           "pennix-workflow-lifecycle",
           "pennix-workflow-routing",
@@ -437,6 +447,7 @@
             "skills/pennix-decision-gates",
             "skills/pennix-fastctx-routing",
             "skills/pennix-session-handoff",
+            "skills/pennix-siyuan-memory",
             "skills/pennix-trellis-project-update",
             "skills/pennix-workflow-lifecycle",
             "skills/pennix-workflow-routing",

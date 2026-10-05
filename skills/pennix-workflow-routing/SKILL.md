@@ -89,6 +89,11 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 
 ## 组件职责
 
+知识、历史回溯和规则晋升按用户意图选择唯一主要来源，见
+[`references/knowledge-promotion.md`](references/knowledge-promotion.md)。已配置思源的人工知识操作由
+`pennix-siyuan-memory` 使用原生 MCP；当前 task/源码/spec、`trellis mem` 历史和 formal handoff
+各保留自身 owner。知识失败不阻断任务或交接，禁止无条件预加载、自动捕获与双向同步。
+
 - `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；FastCtx 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。
 - CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置由 `$pennix-workflow-lifecycle` 的 CodeGraph deployment adapter 计划并执行，不因普通检索自动初始化，
