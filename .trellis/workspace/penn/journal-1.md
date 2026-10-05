@@ -268,3 +268,26 @@ Pinned verified beta30, installed exact ten-Skill collection transactionally, an
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: SiYuan native capability boundaries verified
+<!-- trellis-session: v=2 fp=f8639919cb4d1002 -->
+
+**Date**: 2026-10-05
+**Task**: SiYuan native capability boundaries verified
+**Branch**: `main`
+
+### Summary
+
+Clarified kernel-side Skill loading versus local Codex installation and version-bounded native export/assets limitations. Immutable source installed through system installer and lifecycle replacement; full verify14 match with empty failures/advisories. Root task owns runtime findings and remaining cleanup; exact retired empty directories removed without cache edits.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `46c3cd6` | docs: clarify verified SiYuan native capability boundaries |
+| `440f9cd` | docs: record SiYuan native capability installation acceptance |
+
+### Status
+
+[OK] **Completed**
