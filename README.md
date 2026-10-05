@@ -80,5 +80,7 @@ Trellis、CodeGraph 和 AOE 的 CLI 可以由系统生命周期动作部署或�
 包括人工经验、项目合同、源码 Skill 和有明确适用范围的全局规则，不要求逐级经过所有库。
 
 连接是可选的 `siyuan-connection` target：先 lifecycle discover，再从操作者自己的终端 configure
-该单一目标。API Token 只隐藏录入私有文件；原生 header helper 无数据代理逻辑。索引作用域、
+该单一目标。从目标思源内核的“设置 → 鉴权 → API token”取得已有值；连接NAS时在NAS网页中
+查看，不使用另一独立客户端的Token。它区别于网页登录密码、模型API Key和S3密钥，仅在
+lifecycle终端隐藏录入私有文件；原生 header helper 无数据代理逻辑。索引作用域、
 模型配置和其他客户端同步由思源内核 owner 管理，配置成功不能代替原生工具和语义质量验收。

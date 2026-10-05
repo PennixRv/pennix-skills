@@ -208,9 +208,14 @@ integration without requiring unrelated services on every host.
 
 The catalog defines `cch-connection`, `hikari-connection`,
 `grok-search-provider`, `grok-tavily-extra`, `grok-firecrawl-extra`, and
-`windsurf-credential`, and `siyuan-connection`. The optional SiYuan target uses
-hidden terminal API Token input, a private owner record, and Codex's native
-header helper; its local readiness does not prove a server handshake or index
+`windsurf-credential`, and `siyuan-connection`. For SiYuan, open the target
+kernel's settings → authentication → API token (`设置 → 鉴权 → API token`).
+For a NAS connection, obtain it from the NAS web client; an independent desktop
+kernel has its own token. SiYuan generates a token by default, so reuse the
+existing value unless intentionally rotating it. This is distinct from the web
+login password, model provider API key, and object storage credentials.
+The optional target uses hidden terminal API Token input, a private owner
+record, and Codex's native header helper; its local readiness does not prove a server handshake or index
 scope. Read `pennix-siyuan-memory/references/connection-and-index.md` for native
 runtime verification. CCH and Windsurf delegate to their owner's configure
 command. Hikari and Grok accept values only through `/dev/tty`, conceal secret

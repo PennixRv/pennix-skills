@@ -90,7 +90,7 @@ def configure(codex_home: Path) -> str:
             "schema": 1,
             "url": configuration._read_tty("SiYuan HTTPS MCP URL: "),
             "default_notebook": configuration._read_tty("Default notebook ID: "),
-            "api_token": configuration._read_tty("SiYuan API Token: ", secret=True),
+            "api_token": configuration._read_tty("SiYuan API Token (目标内核：设置 → 鉴权 → API token；不是登录密码): ", secret=True),
         })
         updated = merged_config(contents, codex_home, value, previous)
         # Recheck concurrent config changes before a write.

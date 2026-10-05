@@ -1,0 +1,31 @@
+{
+  "id": "siyuan-token-guidance",
+  "name": "siyuan-token-guidance",
+  "title": "补充思源API Token原生获取指引",
+  "description": "承接根思源集成任务及用户当前明确授权：修正设置→鉴权→API token位置，补充lifecycle终端提示与源说明，原生发布安装并验证连接；不改变凭据或数据协议。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-05",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "implementation_authorized": "true",
+    "execution_class": "lightweight",
+    "planning_scope": "delivery"
+  }
+}
