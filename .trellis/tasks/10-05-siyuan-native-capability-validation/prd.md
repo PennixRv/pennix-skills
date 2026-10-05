@@ -15,9 +15,9 @@ Owner follow-up to root SiYuan workflow integration: correct kernel-host versus 
 ## Acceptance Criteria
 
 - [x] Reference agrees with the verified upstream storage/load paths and the root native capability results.
-- [x] Source Skill `quick_validate`, collection `--check`, and `git diff --check` pass.
-- [ ] Source commit is pushed on `main`; immutable source revision is installed by the native installer and lifecycle replacement.
-- [ ] Full lifecycle verification reports matching collection and enabled/configured SiYuan target without failures.
+- [x] Source Skill `quick_validate`, native collection validator, and `git diff --check` pass. Source and staging each match the catalog's exact 11 entries and valid names; staged seed is executable and reference matches source. Two retired directory trees contained only empty directories and were removed precisely; no cache file was removed.
+- [x] Source commit `46c3cd6710878039c6467ed9a89692746de0ce79` is pushed on `main`; that immutable revision was staged by the system installer in git mode and installed by native lifecycle replacement.
+- [x] Full lifecycle verification reports 14 matching components, matching collection, enabled/configured SiYuan target, and empty failures/advisories. A local owned end-marker placement issue initially blocked verification; root owner repaired only the comment location with unchanged TOML semantics and unrelated hook bytes before the successful verification.
 - [ ] Root task records the source/installation evidence; source-owner task is archived with both old and new paths staged correctly.
 
 ## Planning Seal
