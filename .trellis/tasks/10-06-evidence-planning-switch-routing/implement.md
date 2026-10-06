@@ -1,0 +1,4 @@
+# Execution
+Apply scoped prose and existing contract checks. After public paired Trellis release, update approved version and managed template digest, commit/push, install the immutable collection with system skill-installer/lifecycle. Preserve outside owned blocks and private settings. Archive after root consumer acceptance.
+
+Deployment blocker: malformed/reversed SiYuan ownership markers raised an uncaught ValueError during inventory, including unrelated component verification. Add only the missing marker-order validation in the common merger; existing ConfigurationError handling reports blocked without rewriting user configuration. Extend the existing connection regression with reversed markers, refusal before secret input, and byte preservation. Lifecycle suite: 130 passed. Native release beta.35 includes the CLI simplification; GitHub Actions 37500878041 succeeded and npm exact version is public.
