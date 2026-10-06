@@ -16,9 +16,11 @@
 ## Acceptance Criteria
 
 - [x] A1：两个版本和标签来源已核验，最小catalog修改及既有检查通过。
-- [ ] A2：源码main提交推送；原生marketplace匹配v4.13.0及已安装4.13.0，其他登记不变。
-- [ ] A3：不可变源的完整11项集合安装，全量verify14项match、无failures；根组合门禁通过。
-- [ ] A4：receipt与源码/安装固定点记录，任务原生归档、journal和Git clean/同步。
+- [x] A2：源码main提交推送；原生marketplace匹配v4.13.0及已安装4.13.0，其他登记不变。
+- [x] A3：不可变源的完整11项集合安装，全量verify14项match、无failures；根组合门禁通过。
+- [x] A4：receipt与源码/安装固定点已记录，无未归属源码/配置改动；工作差异可完整提交。
+
+验收后必须按native archive（明确非PR main例外）→归档提交→native journal→push顺序收尾，并核验Git clean/同步；不以勾选验收代替实际收尾。
 
 ## Planning Seal
 
