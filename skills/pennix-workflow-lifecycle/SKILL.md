@@ -80,10 +80,15 @@ it to `0644`. The catalog collection source paths are the only input to those
 installer calls; materialized entries provide provenance and closed post-install
 metadata. Before replacement, verify that the staged tree contains exactly the
 catalog Skill names, valid frontmatter, and an executable `seed-arch.sh`, then
-run:
+run the native entry from that validated staging tree, so catalog and adjacent
+templates belong to the same version (do not inject a new catalog into an older
+installed entry). If the owned AGENTS template changes, first use the still-installed
+old entry to uninstall its exact `codex-agents` blocks, preserving outside text;
+after collection replacement, install the new blocks with the new entry. A drifted
+old block stops this path rather than authorizing an overwrite:
 
 ```bash
-python3 <installed-lifecycle>/scripts/lifecycle.py replace-staged \
+python3 <staged-lifecycle>/scripts/lifecycle.py replace-staged \
   --component pennix-skills --staging "$CODEX_HOME/skills/.pennix-skills-stage" \
   --destination "$CODEX_HOME/skills/pennix-skills" --yes
 ```
