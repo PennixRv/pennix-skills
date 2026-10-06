@@ -291,3 +291,26 @@ Clarified kernel-side Skill loading versus local Codex installation and version-
 ### Status
 
 [OK] **Completed**
+
+
+## Session 13: 完成已安装版本固定与原生集合更新
+<!-- trellis-session: v=2 fp=73960bf98b315753 -->
+
+**Date**: 2026-10-06
+**Task**: 完成已安装版本固定与原生集合更新
+**Branch**: `main`
+
+### Summary
+
+同步CodeGraph1.6.2与Ponytail4.13.0/v4.13.0；既有130项回归通过，原生不可变源11项集合安装，全量verify14项match；无新功能、依赖或Trellis运行发布。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f6d6afa` | fix(lifecycle): align installed CodeGraph and Ponytail pins |
+| `398b00a` | docs: record installed workflow version verification |
+
+### Status
+
+[OK] **Completed**
