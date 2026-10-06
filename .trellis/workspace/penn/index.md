@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-10-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~316 | Active |
+| `journal-1.md` | ~340 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-10-06 | Verified blocking interaction and checkpoint rollout | `db34856`, `3e7e132`, `3c19808` | `main` |
 | 13 | 2026-10-06 | 完成已安装版本固定与原生集合更新 | `f6d6afa`, `398b00a` | `main` |
 | 12 | 2026-10-05 | SiYuan native capability boundaries verified | `46c3cd6`, `440f9cd` | `main` |
 | 11 | 2026-10-04 | Trellis beta30 catalog and installed collection | `ce3676ef50eb67bafd55be259fb67d412e2a9e32` | `main` |

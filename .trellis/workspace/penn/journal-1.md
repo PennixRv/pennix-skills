@@ -314,3 +314,27 @@ Clarified kernel-side Skill loading versus local Codex installation and version-
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: Verified blocking interaction and checkpoint rollout
+<!-- trellis-session: v=2 fp=b0afa72a912d1705 -->
+
+**Date**: 2026-10-06
+**Task**: Verified blocking interaction and checkpoint rollout
+**Branch**: `main`
+
+### Summary
+
+Consumed Trellis beta.32 and preserved native ownership, project configuration and history; verified selected workflow, current continuation/grill assets and clean landing. This session task archived; unrelated prior tasks preserved.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `db34856` | fix: block native questions and keep knowledge tools on their owner route |
+| `3e7e132` | docs: use the matching staged owner for collection upgrades |
+| `3c19808` | chore: consume verified Trellis beta.32 interaction assets |
+
+### Status
+
+[OK] **Completed**
