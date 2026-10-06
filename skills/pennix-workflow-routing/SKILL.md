@@ -21,7 +21,7 @@ admission；单一工具已有明确 native protocol 时直接遵循，不额外
 - `delivery_mode`：受保护目标不变的精确证据交付，或 change-bearing；
 - `execution_class`：单 owner、范围和验证都立即可收敛的 direct/lightweight，或 planned；
 - `decision_frontier`：是否有多个独立的 material decision；
-- `approval_mode`：是否已有当前 sealed plan 的实施授权。
+- `approval_mode`：是否已有同一 task、当前封口实质版本、展示最终方案之后的明确实施批准；初始交付请求、父任务批准和设计选项回答不算。
 
 `analysis_only` 只表示精确定义的只读交付，`subnode` 只表示明确要求的独立证据角色；
 两者都不能代替复杂度、decision-gates 或实施批准判断。跨 owner、发布、配置/凭据、
@@ -62,11 +62,12 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 
 1. 普通实现、审查或研究默认由主会话 inline 完成；“并行”措辞本身不构成派发授权。只有用户明确要求独立证据工作，或计划确认了可独立验证的 evidence units，才考虑 subnode。
 2. 复杂任务、多 owner/依赖/发布影响或存在 material decisions 时，先进入正常 Trellis planning；按决策复杂度调用 `$pennix-decision-grill`，并在 `task.py start` 之前封好任务资产。简单且边界明确的工作不因涉及并行概念自动升级。
-3. 显式 subnode 工作先读项目当前 workflow 和 `trellis-channel` 的 `subnode-work` procedure；按其 brief、持久报告及 coordinator disposition 合同执行，不在本 Skill 复制报告 schema 或 validator。
+3. 显式 subnode 工作先读项目当前 workflow 和 `trellis-channel` 的 `subnode-work` procedure 及多目标派发 reference；分包映射及工作量/合包依据必须落到目标 task 的计划/矩阵中，按原生门禁执行。inline 不禁止 Channel 独立证据；缺少独立报告不能静默降级成主代理通过结论。本 Skill 不复制 schema、FIFO 或 validator。
 4. 多个独立 evidence units 只有在项目可靠性门满足后才进入 FIFO queue。读取项目 `.trellis/agents/subnode-profiles.json`，由 Trellis profile 动态解析模型与 reasoning effort；Skill 不写死映射。仅在证据难度或风险足以说明时选择 `xhigh`。
 5. 创建/派发、发送、barrier/wait、队列推进均走 `$trellis-channel` 与当前 fork 的原生 Channel 命令。使用一个原生终态 wait；不得用持续轮询、多个 waiter、自动重试或常驻调度器代替通知/等待合同。
 6. Worker 终态只表示执行结束，不等于结果验收。协调者核验报告完整性、引用来源和受保护目标，再写入一次 disposition 后才能推进下一项。
 7. Trellis task、Channel、profile、queue、spawn/send、barrier/wait 和状态转换调用必须直达 Trellis owner；不得由 FastCtx 包装、代理、后台 job 化或代为轮询。
+8. 临时任务切换用原生 `task.py select` 绑定规划上下文，不能以 start 代替选择或批准。有在途节点时按 Channel procedure 暂停补位、排空所有已派节点与 reservation、保存未派队列和原阶段后再 select；不自动重启用户已停止的任务。普通继续/压缩恢复保持断点快路径。
 
 ## 本地证据优先
 

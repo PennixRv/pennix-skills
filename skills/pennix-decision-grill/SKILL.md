@@ -91,8 +91,14 @@ choice: no `TBD`, `TODO`, `decision-needed`, unowned option, unspecified
 target branch, open implementation path, validation gap, or conditional
 acceptance point may remain. Each implementation step must have its target
 owner, intended change, verification, rollout/rollback boundary, and completion
-condition determined. Honor existing implementation authorization; ask for
-approval only when it is actually missing from the current task/session.
+condition determined. Present the final plan and stop before implementation.
+Existing authorization qualifies only when it is a later explicit implementation
+approval for this task's current sealed material revision. Initial delivery
+requests, parent-task approvals, and design answers do not qualify. Follow
+Trellis's native plan seal/approve/start contract; this Skill does not maintain
+another approval schema. Material scope, owner, risk, public behavior, or
+acceptance changes invalidate approval; wording, formatting, and progress notes
+do not. Ask only when the current revision's approval is missing.
 
 Call the current session's native blocking `request_user_input` directly when
 available. Never substitute `request_user_input_async` or an agent-managed
@@ -122,7 +128,8 @@ local reversible choice, continue and record the decision. For a material
 unresolved ambiguity, do not open a popup during implementation or apply:
 record `decision-needed`, run `task.py replan <task> "<reason>"`, and return to
 the Trellis planning/design step. Continue implementation only after the new
-frontier is answered, conflict-audited, and sealed. If evidence disproves the
+frontier is answered, conflict-audited, sealed, presented, and subsequently
+approved for the new material revision. If evidence disproves the
 approach, preserve the retracted conclusion and the reason in task history.
 
 Never edit `task.json.status` by hand. If the installed Trellis runtime lacks

@@ -103,7 +103,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.32",
+      "approved_version": "0.7.0-beta.35",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -405,7 +405,7 @@
       "adapter": "codex-agents",
       "template": {
         "name": "AGENTS.md.install",
-        "revision": "sha256:bf6114dfe644f16b2017ca1d2eb1d362c1602123a26a957163af5f96f6d6df89"
+        "revision": "sha256:20a5fbd3e526c8f2f4246b8619a5efc3fb87bd4900556bdd53aa88b8e9c88fdd"
       }
     },
     "pennix-skills": {
