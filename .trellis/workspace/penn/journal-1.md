@@ -338,3 +338,27 @@ Consumed Trellis beta.32 and preserved native ownership, project configuration a
 ### Status
 
 [OK] **Completed**
+
+
+## Session 15: Workflow planning and evidence routing delivery
+<!-- trellis-session: v=2 fp=ea2f35a72d5155ca -->
+
+**Date**: 2026-10-07
+**Task**: Workflow planning and evidence routing delivery
+**Branch**: `main`
+
+### Summary
+
+Updated decision and routing contracts, managed user guidance and beta.35 catalog. Installed immutable Skills collection and verified related components; preserved unrelated SiYuan configuration.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `194498a` | fix: clarify planning and channel routing contracts |
+| `3dcd02b` | fix: report reversed SiYuan config markers as blocked |
+| `5b797d3` | chore: update Trellis project assets to beta.35 |
+
+### Status
+
+[OK] **Completed**
