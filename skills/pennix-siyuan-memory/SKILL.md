@@ -1,6 +1,6 @@
 ---
 name: pennix-siyuan-memory
-description: "Search, cite, organize, import, or explicitly save user-maintained knowledge and experience through native SiYuan MCP. Use when a request needs curated knowledge or a specific knowledge write; task state, formal handoff, and raw conversation recall retain their own owners."
+description: "Search, cite, organize, import, or explicitly save user-maintained knowledge and experience through native SiYuan MCP. Use for curated knowledge or a specific knowledge write; do not use for general web research, Codex docs, current task state, formal handoff, or raw conversation recall."
 ---
 
 # Pennix SiYuan Knowledge and Experience
@@ -18,6 +18,13 @@ facts. `trellis-session-insight` retrieves raw past dialogue when it is needed.
 SiYuan supplies curated knowledge and reusable experience. Choose by the user's
 question; a targeted second lookup is useful only for a specific missing fact.
 See the workflow router's `references/knowledge-promotion.md` for promotion.
+
+SiYuan's `web_search`, `web_fetch`, and `http_request` serve an actual knowledge
+operation, such as importing a requested source. Their availability or generic
+tool descriptions do not make SiYuan a general web retrieval owner. Independent
+web research, Codex official docs, and local project lookup retain their own
+routes; never use these tools as another owner's fallback. Preserve native
+capabilities rather than disabling tool groups to enforce this intent boundary.
 
 Query when explicitly requested or when the current problem needs existing
 knowledge. Do not preload notes at session start, every turn, task archive, or

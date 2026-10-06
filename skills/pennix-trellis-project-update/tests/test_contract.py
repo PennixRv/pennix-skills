@@ -28,7 +28,7 @@ class TrellisProjectUpdateContractTest(unittest.TestCase):
         for marker in (
             "$pennix-workflow-lifecycle",
             "workflow-doctor",
-            "$pennix-decision-gates",
+            "$pennix-decision-grill",
             "inline main-session delivery",
             "explicitly requested independent evidence",
             "immutable ref",

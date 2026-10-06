@@ -39,7 +39,7 @@ From the explicit project root:
 4. Record the project workflow currently selected, its task/repository owner,
    and the exact update scope in the active Trellis task. If the request
    changes a workflow source, template, migration, or overwrite policy, use
-   `$pennix-decision-gates` before implementation and persist the decision.
+   `$pennix-decision-grill` before implementation and persist the decision.
 
 ## Trellis asset update
 

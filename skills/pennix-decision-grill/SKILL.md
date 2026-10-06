@@ -1,11 +1,11 @@
 ---
-name: pennix-decision-gates
+name: pennix-decision-grill
 description: Decide when a complex task needs user input, batch independent planning questions, and return material implementation ambiguity to the Trellis planning gate.
 metadata:
   short-description: Govern interactive planning decisions
 ---
 
-# Pennix Decision Gates
+# Pennix Decision Grill
 
 Use this Skill for every Trellis planning gate (`clarify`, `research`, `plan`,
 `plan-check`, or `grill-me`) when a choice may change scope, owner, safety
@@ -91,15 +91,23 @@ choice: no `TBD`, `TODO`, `decision-needed`, unowned option, unspecified
 target branch, open implementation path, validation gap, or conditional
 acceptance point may remain. Each implementation step must have its target
 owner, intended change, verification, rollout/rollback boundary, and completion
-condition determined. Stop at the Trellis planning approval boundary;
-implementation starts only after the normal task approval.
+condition determined. Honor existing implementation authorization; ask for
+approval only when it is actually missing from the current task/session.
 
-Call the current session's native `request_user_input` directly when it is
-available. Do not detect or replace it through `functions.exec`, nested
-`tools.*`, `ALL_TOOLS`, shell, or MCP. Correct a schema error at most once;
-host refusal, cancellation, timeout, or genuine unavailability may use a
-plain-text fallback, but the unanswered decision still stops the turn. Never
-silently choose the recommendation.
+Call the current session's native blocking `request_user_input` directly when
+available. Never substitute `request_user_input_async` or an agent-managed
+waiter. Do not set an agent waiting deadline, treat elapsed time as an answer,
+or auto-select the recommendation. Remain in the native blocking call until it
+returns; only the host controls its lifetime. Do not detect or replace it through
+`functions.exec`, nested `tools.*`, `ALL_TOOLS`, shell, or MCP. Correct a schema
+error at most once. Host refusal, cancellation, timeout, or genuine unavailability
+does not answer a required decision: keep it open and stop dependent work, using
+a plain-text fallback when permitted. Respect higher-priority host rules for
+optional questions that return no answer.
+
+Do not invent a TOML timeout key or claim that a Skill changes host behavior.
+Only use a host waiting control when its current supported interface exposes it;
+otherwise report the capability limit without adding retries or a custom waiter.
 
 If native interaction yields without answers because of host refusal,
 cancellation, timeout, or genuine unavailability, stop the turn with the

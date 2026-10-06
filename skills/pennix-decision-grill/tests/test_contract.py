@@ -5,7 +5,7 @@ import unittest
 SKILL = Path(__file__).parents[1] / "SKILL.md"
 
 
-class DecisionGatesContractTests(unittest.TestCase):
+class DecisionGrillContractTests(unittest.TestCase):
     def test_frontier_round_contract_is_present(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         for marker in ("## Decision Chain State", "## Frontier And Rounds", "calculate the frontier", "conflict audit", "final seal"):

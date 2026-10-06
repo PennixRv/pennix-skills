@@ -269,8 +269,12 @@ native Trellis asset updates or an explicitly selected workflow refresh;
 lifecycle does not replace that project-owner flow.
 
 Before a direct lifecycle command, show the component key, source/ref from the
-catalog, target, risk, and expected owner operation. Use Codex's native `request_user_input` directly when it is
-present in the current session. Do not
+catalog, target, risk, and expected owner operation. Use Codex's native blocking `request_user_input` directly when it is
+present in the current session. Never substitute `request_user_input_async`, add
+an agent waiting deadline, or infer an answer from elapsed time. Waiting lifetime
+belongs to the host; do not claim unsupported timeout configuration. Required
+unanswered decisions stop dependent work; higher-priority host rules govern
+optional questions. Use `$pennix-decision-grill` for material planning choices. Do not
 probe for it through `functions.exec`, nested `tools.*`, `ALL_TOOLS`, shell, or
 MCP. A schema error may be corrected and retried once; host refusal,
 cancellation, timeout, or unavailable native interaction falls back to text and

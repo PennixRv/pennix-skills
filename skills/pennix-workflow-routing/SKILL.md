@@ -26,7 +26,7 @@ admission；单一工具已有明确 native protocol 时直接遵循，不额外
 `analysis_only` 只表示精确定义的只读交付，`subnode` 只表示明确要求的独立证据角色；
 两者都不能代替复杂度、decision-gates 或实施批准判断。跨 owner、发布、配置/凭据、
 安全、数据完整性、依赖步骤或 material decision 会把请求升级到 planned；只有升级后的
-decision frontier 需要 `$pennix-decision-gates`。连续推进授权只适用于已经封口的计划，
+decision frontier 需要 `$pennix-decision-grill`。连续推进授权只适用于已经封口的计划，
 不能关闭新的 material decision 或 owner safety gate。
 
 Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`、`state_writer`、
@@ -35,7 +35,7 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 
 ## 判定顺序
 
-先做 work-domain 和 native-owner preflight，再看组件名称：
+先做 work-domain 和 native-owner preflight，再看组件名称。工具可用性、名称或工具描述中的通用能力不转移语义 owner：
 
 | 调用语义 | 首选路径 | 事实与持久化边界 |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 此段只负责入口分流；Trellis Channel、subnode profile、queue 和 report/disposition 仍是当前 Pennix Trellis beta fork 的唯一执行合同。先确认项目选择的 workflow 和 Trellis 版本，再按以下顺序路由：
 
 1. 普通实现、审查或研究默认由主会话 inline 完成；“并行”措辞本身不构成派发授权。只有用户明确要求独立证据工作，或计划确认了可独立验证的 evidence units，才考虑 subnode。
-2. 复杂任务、多 owner/依赖/发布影响或存在 material decisions 时，先进入正常 Trellis planning；按决策复杂度调用 `$pennix-decision-gates`，并在 `task.py start` 之前封好任务资产。简单且边界明确的工作不因涉及并行概念自动升级。
+2. 复杂任务、多 owner/依赖/发布影响或存在 material decisions 时，先进入正常 Trellis planning；按决策复杂度调用 `$pennix-decision-grill`，并在 `task.py start` 之前封好任务资产。简单且边界明确的工作不因涉及并行概念自动升级。
 3. 显式 subnode 工作先读项目当前 workflow 和 `trellis-channel` 的 `subnode-work` procedure；按其 brief、持久报告及 coordinator disposition 合同执行，不在本 Skill 复制报告 schema 或 validator。
 4. 多个独立 evidence units 只有在项目可靠性门满足后才进入 FIFO queue。读取项目 `.trellis/agents/subnode-profiles.json`，由 Trellis profile 动态解析模型与 reasoning effort；Skill 不写死映射。仅在证据难度或风险足以说明时选择 `xhigh`。
 5. 创建/派发、发送、barrier/wait、队列推进均走 `$trellis-channel` 与当前 fork 的原生 Channel 命令。使用一个原生终态 wait；不得用持续轮询、多个 waiter、自动重试或常驻调度器代替通知/等待合同。
@@ -88,6 +88,8 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 - 若自托管 Tavily 路径也不可用，报告检索缺口并停止；显式要求特定工具或来源的更高优先级指令始终覆盖本默认规则。
 
 ## 组件职责
+
+SiYuan 的 `web_search`、`web_fetch`、`http_request` 只服务实际的知识操作，例如用户要求的来源导入或知识整理。独立外部调研、Codex 官方资料检索和本地项目定位仍走各自 owner；不得借用思源网页工具作为通用检索或其他 owner 的 fallback。保留思源全部原生能力，按调用意图限定路由。
 
 知识、历史回溯和规则晋升按用户意图选择唯一主要来源，见
 [`references/knowledge-promotion.md`](references/knowledge-promotion.md)。已配置思源的人工知识操作由

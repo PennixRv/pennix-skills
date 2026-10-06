@@ -17,7 +17,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
             "`approval_mode`",
             "`analysis_only` 只表示",
             "`subnode` 只表示",
-            "只有升级后的\ndecision frontier 需要 `$pennix-decision-gates`",
+            "只有升级后的\ndecision frontier 需要 `$pennix-decision-grill`",
             "Admission 不是第二套状态机",
         ):
             self.assertIn(marker, content)
@@ -52,7 +52,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         route = content.split("## 当前 Trellis fork 并行工作流", 1)[1].split("## 本地证据优先", 1)[0]
         for invariant in (
             "主会话 inline 完成",
-            "按决策复杂度调用 `$pennix-decision-gates`",
+            "按决策复杂度调用 `$pennix-decision-grill`",
             "`subnode-work` procedure",
             "`.trellis/agents/subnode-profiles.json`",
             "动态解析模型与 reasoning effort",

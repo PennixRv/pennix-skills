@@ -103,7 +103,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.31",
+      "approved_version": "0.7.0-beta.32",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -405,7 +405,7 @@
       "adapter": "codex-agents",
       "template": {
         "name": "AGENTS.md.install",
-        "revision": "sha256:f58e5963ff4071c5282672073ee76b3dccabdf5d42dd0bb97dcd960c1f3f339b"
+        "revision": "sha256:bf6114dfe644f16b2017ca1d2eb1d362c1602123a26a957163af5f96f6d6df89"
       }
     },
     "pennix-skills": {
@@ -428,7 +428,7 @@
       "collection_contract": {
         "skills": [
           "grok-search",
-          "pennix-decision-gates",
+          "pennix-decision-grill",
           "pennix-fastctx-routing",
           "pennix-session-handoff",
           "pennix-siyuan-memory",
@@ -444,7 +444,7 @@
           "repo": "PennixRv/pennix-skills",
           "ref": "main",
           "paths": [
-            "skills/pennix-decision-gates",
+            "skills/pennix-decision-grill",
             "skills/pennix-fastctx-routing",
             "skills/pennix-session-handoff",
             "skills/pennix-siyuan-memory",
