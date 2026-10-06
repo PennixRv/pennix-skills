@@ -34,6 +34,11 @@ class ConnectionTests(unittest.TestCase):
                 config.write_text(observed.replace("required = false", "required = true"))
                 self.assertEqual(siyuan.target_state(home), "blocked")
                 with self.assertRaises(configuration.ConfigurationError): siyuan.configure(home)
+                reordered = observed.replace(siyuan.BEGIN, "fixture-begin").replace(siyuan.END, siyuan.BEGIN).replace("fixture-begin", siyuan.END)
+                config.write_text(reordered)
+                self.assertEqual(siyuan.target_state(home), "blocked")
+                with self.assertRaises(configuration.ConfigurationError): siyuan.configure(home)
+                self.assertEqual(config.read_text(), reordered)
                 self.assertEqual(configuration._read_tty.call_count, 3)
             record = base / "config/pennix-siyuan/connection.json"
             self.assertEqual(record.stat().st_mode & 0o777, 0o600)

@@ -46,7 +46,7 @@ def merged_config(contents: str, codex_home: Path, value: dict, previous: dict |
     except (tomllib.TOMLDecodeError, AttributeError):
         raise configuration.ConfigurationError("Codex config invalid") from None
     if BEGIN in contents or END in contents:
-        if contents.count(BEGIN) != 1 or contents.count(END) != 1 or previous is None:
+        if contents.count(BEGIN) != 1 or contents.count(END) != 1 or previous is None or contents.index(END) < contents.index(BEGIN):
             raise configuration.ConfigurationError("SiYuan config ownership is unclear")
         start = contents.index(BEGIN)
         finish = contents.index(END, start) + len(END)
