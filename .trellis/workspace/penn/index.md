@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
-- **Last Active**: 2026-10-07
+- **Total Sessions**: 17
+- **Last Active**: 2026-10-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~389 | Active |
+| `journal-1.md` | ~411 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-10-08 | CCH0.1.44 catalog 与用户集合同步 | `dc77084` | `main` |
 | 16 | 2026-10-07 | 工作流审查修复交付收尾 | `3630f53`, `d37ab45`, `5722e4f`, `ef659cd` | `main` |
 | 15 | 2026-10-07 | Workflow planning and evidence routing delivery | `194498a`, `3dcd02b`, `5b797d3` | `main` |
 | 14 | 2026-10-06 | Verified blocking interaction and checkpoint rollout | `db34856`, `3e7e132`, `3c19808` | `main` |

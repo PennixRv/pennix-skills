@@ -387,3 +387,25 @@ lifecycle安全回滚/host/readiness修复；Grok源物化及audit0；beta39 cat
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: CCH0.1.44 catalog 与用户集合同步
+<!-- trellis-session: v=2 fp=094d21ecc12b01b9 -->
+
+**Date**: 2026-10-08
+**Task**: CCH0.1.44 catalog 与用户集合同步
+**Branch**: `main`
+
+### Summary
+
+唯一catalog批准CCH0.1.44；136生命周期测试通过，system skill-installer不可变提交staging/native replace落地，集合与CCH scoped verify均match。static模板未变，凭据和用户配置保持，临时staging成功消费。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dc77084` | chore(lifecycle): approve CCH child-cost display release 0.1.44 |
+
+### Status
+
+[OK] **Completed**
