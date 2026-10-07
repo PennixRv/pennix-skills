@@ -362,3 +362,28 @@ Updated decision and routing contracts, managed user guidance and beta.35 catalo
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: 工作流审查修复交付收尾
+<!-- trellis-session: v=2 fp=f23ef68063bae694 -->
+
+**Date**: 2026-10-07
+**Task**: 工作流审查修复交付收尾
+**Branch**: `main`
+
+### Summary
+
+lifecycle安全回滚/host/readiness修复；Grok源物化及audit0；beta39 catalog与完整collection安装验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3630f53` | fix: harden Pennix lifecycle write contracts |
+| `d37ab45` | fix: materialize verified Grok source and safe dependency |
+| `5722e4f` | chore: pin verified Trellis beta39 release |
+| `ef659cd` | chore: complete audit owner verification and beta39 assets |
+
+### Status
+
+[OK] **Completed**

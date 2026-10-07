@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 15
+- **Total Sessions**: 16
 - **Last Active**: 2026-10-07
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~364 | Active |
+| `journal-1.md` | ~389 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-10-07 | 工作流审查修复交付收尾 | `3630f53`, `d37ab45`, `5722e4f`, `ef659cd` | `main` |
 | 15 | 2026-10-07 | Workflow planning and evidence routing delivery | `194498a`, `3dcd02b`, `5b797d3` | `main` |
 | 14 | 2026-10-06 | Verified blocking interaction and checkpoint rollout | `db34856`, `3e7e132`, `3c19808` | `main` |
 | 13 | 2026-10-06 | 完成已安装版本固定与原生集合更新 | `f6d6afa`, `398b00a` | `main` |
