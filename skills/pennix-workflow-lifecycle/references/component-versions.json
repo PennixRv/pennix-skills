@@ -472,7 +472,7 @@
           "windsurf-code-search": {
             "repo": "PennixRv/windsurf-code-search",
             "ref": "9409047e167873ab7de49cb45884cc5dd4907321",
-            "commit": "9409047e167873ab7de49cb45884cc5dd4907321",
+            "commit": "9f595f545ed7e2e8a6890c7f85489d8df0964a2b",
             "path": ".",
             "name": "windsurf-code-search",
             "snapshot": "npm-pack"
