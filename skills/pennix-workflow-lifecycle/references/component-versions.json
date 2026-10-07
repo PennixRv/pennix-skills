@@ -461,7 +461,7 @@
           "grok-search": {
             "repo": "PennixRv/grok-search",
             "ref": "main",
-            "commit": "29edb8f6f76bd048c436f921279a84db19c20bc0",
+            "commit": "5937a176a6bb6828407085053063105ac6706906",
             "path": ".",
             "name": "grok-search",
             "snapshot": "archive",
