@@ -1381,6 +1381,12 @@ def configure_configuration_target(
     )
 
 
+def assert_supported_host() -> None:
+    current_host = host.detect_host()
+    if not current_host["supported"]:
+        raise BootstrapError(str(current_host["reason"]))
+
+
 def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | None:
     if not args.component:
         raise BootstrapError(f"{args.command} requires --component")
@@ -1388,11 +1394,13 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | No
         raise BootstrapError(f"{args.command} requires --yes")
     component = args.component
     if args.command == "reconcile":
+        assert_supported_host()
         result = reconcile_state(args, catalog)
         print(json.dumps(result, ensure_ascii=False))
         return result["status"]
     targets = configuration_target_map(catalog)
     if args.command == "configure" and component in targets:
+        assert_supported_host()
         configure_configuration_target(args, catalog, targets[component])
         return None
     if component not in catalog["components"]:
@@ -1402,9 +1410,7 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | No
     if capability != "managed":
         reason = metadata.get("native_owner_reason", f"{component} action is {capability}")
         raise BootstrapError(f"{component} {args.command} is {capability}: {reason}")
-    current_host = host.detect_host()
-    if not current_host["supported"]:
-        raise BootstrapError(str(current_host["reason"]))
+    assert_supported_host()
     if metadata["delivery"] in {"static", "collection"}:
         status = static_operation(args, component, metadata, args.command)
     else:
@@ -1456,6 +1462,7 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
     component = catalog["components"][args.component]
     if component.get("delivery") != "collection":
         raise BootstrapError("replace-staged only supports collections")
+    assert_supported_host()
     destination = skills_install.resolve_destination(getattr(args, "destination", None))
     staging = Path(args.staging).expanduser().absolute()
     try:
@@ -1481,7 +1488,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--destination")
     parser.add_argument("--staging")
-    parser.add_argument("--project-root")
     parser.add_argument("--component")
     parser.add_argument("--yes", action="store_true")
     return parser.parse_args(argv)

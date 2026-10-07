@@ -75,7 +75,8 @@ def auth_state(codex_home: Path) -> str:
     try:
         if metadata.st_size == 0:
             return "not-configured"
-        auth.read_bytes()
+        with auth.open("rb"):
+            pass
     except OSError:
         return "unknown"
     return "ready"

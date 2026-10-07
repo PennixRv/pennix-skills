@@ -288,6 +288,22 @@ def operate(codex_home: Path, home_directory: Path | None, revision: str, operat
     receipt_file = receipt_path(codex_home)
     current = inspect(codex_home, home_directory, revision)
     state = current["state"]
+    target_existed = path.exists()
+
+    def commit(contents_now: bytes, receipt_value: dict[str, Any] | None) -> None:
+        _write_target(path, contents_now)
+        try:
+            if receipt_value is None:
+                _remove_receipt(receipt_file)
+            else:
+                _write_receipt(receipt_file, receipt_value)
+        except (OSError, TmuxStaticError, configuration.ConfigurationError):
+            # The receipt writer replaces atomically; restore the matching target.
+            if target_existed:
+                _write_target(path, contents)
+            else:
+                path.unlink()
+            raise
     if operation == "verify":
         if state == "current":
             return "no-op"
@@ -298,8 +314,7 @@ def operate(codex_home: Path, home_directory: Path | None, revision: str, operat
         if state == "absent":
             body = _template_body()
             block, digest = _block(revision, body)
-            _write_target(path, _append_block(contents, block))
-            _write_receipt(receipt_file, _receipt_value(revision, digest))
+            commit(_append_block(contents, block), _receipt_value(revision, digest))
             return "changed"
         if state == "upgrade-available":
             raise TmuxStaticError("tmux config upgrade is available; use upgrade")
@@ -312,8 +327,7 @@ def operate(codex_home: Path, home_directory: Path | None, revision: str, operat
             raise TmuxStaticError(f"refusing {state} tmux config upgrade" + (f": {reason}" if reason else ""))
         body = _template_body()
         block, digest = _block(revision, body)
-        _write_target(path, _replace_block(contents, block_info, block))
-        _write_receipt(receipt_file, _receipt_value(revision, digest))
+        commit(_replace_block(contents, block_info, block), _receipt_value(revision, digest))
         return "changed"
     if operation == "uninstall":
         if state == "absent":
@@ -324,7 +338,6 @@ def operate(codex_home: Path, home_directory: Path | None, revision: str, operat
         if state not in {"current", "upgrade-available"} or block_info is None:
             reason = current.get("reason")
             raise TmuxStaticError(f"refusing {state} tmux config uninstall" + (f": {reason}" if reason else ""))
-        _write_target(path, _remove_block(contents, block_info))
-        _remove_receipt(receipt_file)
+        commit(_remove_block(contents, block_info), None)
         return "changed"
     raise TmuxStaticError(f"unsupported tmux static operation: {operation}")

@@ -269,6 +269,12 @@ Trellis, CodeGraph, and AOE binaries may be installed or upgraded by their
 catalog component key, but project initialization remains a separate native
 operation. Lifecycle never creates `.trellis/`, `codegraph.json`, indexes, or
 project workflow assets as a side effect of a system lifecycle command.
+Before native project initialization, confirm the absolute project root and
+set the host command's working directory to that exact root. `trellis init`
+uses its process cwd; a lifecycle argument does not bind it. For example,
+invoke `trellis init` with the host's `workdir` set to the confirmed project,
+never from a different shell directory. Lifecycle has no `--project-root`
+option and does not run an initializer for the user.
 For an already initialized project, use `$pennix-trellis-project-update` for
 native Trellis asset updates or an explicitly selected workflow refresh;
 lifecycle does not replace that project-owner flow.

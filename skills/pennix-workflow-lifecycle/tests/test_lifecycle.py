@@ -654,6 +654,54 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), original.encode())
             self.assertFalse(receipt.exists())
 
+    def test_tmux_late_receipt_failure_restores_original_state(self) -> None:
+        for existing in (False, True):
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temporary:
+                args, component, codex_home, home = self.tmux_fixture(Path(temporary))
+                target = home / ".tmux.conf"
+                receipt = bootstrap.tmux_static.receipt_path(codex_home)
+                if existing:
+                    old_revision = "sha256:" + "0" * 64
+                    block, digest = bootstrap.tmux_static._block(old_revision, 'set -g status off')
+                    target.write_bytes(b"# user\r\n" + block.encode() + b"\r\n# tail\r\n")
+                    bootstrap.tmux_static._write_receipt(receipt, bootstrap.tmux_static._receipt_value(old_revision, digest))
+                before = target.read_bytes() if target.exists() else None
+                before_receipt = receipt.read_bytes() if receipt.exists() else None
+                with (patch.object(bootstrap.tmux_static.shutil, "which", return_value="/usr/bin/tmux"),
+                      patch.object(bootstrap.tmux_static, "_write_receipt", side_effect=OSError("late receipt failure"))):
+                    with self.assertRaisesRegex(OSError, "late receipt failure"):
+                        bootstrap.static_operation(args, "tmux-config", component, "upgrade" if existing else "install")
+                self.assertEqual(target.read_bytes() if target.exists() else None, before)
+                self.assertEqual(receipt.read_bytes() if receipt.exists() else None, before_receipt)
+
+    def test_auth_readiness_does_not_read_credential_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            auth = home / "auth.json"
+            auth.write_text("synthetic-credential")
+            auth.chmod(0o600)
+            with patch.object(Path, "read_bytes", side_effect=AssertionError("credential read")):
+                self.assertEqual(bootstrap.codex_static.auth_state(home), "ready")
+
+    def test_unsupported_host_blocks_early_write_entries(self) -> None:
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        with (patch.object(bootstrap.host, "detect_host", return_value={"supported": False, "reason": "unsupported fixture"}),
+              patch.object(bootstrap, "reconcile_state") as reconcile,
+              patch.object(bootstrap, "configure_configuration_target") as configure,
+              patch.object(bootstrap, "prepare_staged_collection") as prepare):
+            for command, component in (("reconcile", bootstrap.STATE_COMPONENT),
+                                       ("configure", "cch-connection"),
+                                       ("replace-staged", "pennix-skills")):
+                args = SimpleNamespace(command=command, component=component, yes=True, staging="/unused")
+                with self.subTest(command=command), self.assertRaisesRegex(bootstrap.BootstrapError, "unsupported fixture"):
+                    if command == "replace-staged":
+                        bootstrap.replace_staged_collection(args, catalog)
+                    else:
+                        bootstrap.run_lifecycle(args, catalog)
+            reconcile.assert_not_called()
+            configure.assert_not_called()
+            prepare.assert_not_called()
+
     def test_tmux_static_upgrades_only_an_owned_old_block(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1219,6 +1267,14 @@ class BootstrapTests(unittest.TestCase):
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
         with self.assertRaisesRegex(bootstrap.BootstrapError, "native-owner"):
             bootstrap.run_lifecycle(args, catalog)
+
+    def test_system_lifecycle_rejects_unsupported_project_root_option(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "discover", "--project-root", "/unused"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unrecognized arguments: --project-root", result.stderr)
 
 
 if __name__ == "__main__":

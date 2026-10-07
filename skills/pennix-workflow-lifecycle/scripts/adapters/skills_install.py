@@ -230,6 +230,7 @@ def replace_collection(
     backup: Path | None = None
     receipt_backup: Path | None = None
     receipt = receipt_path(destination)
+    installed = False
     try:
         if destination.exists():
             backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.previous-", dir=destination.parent))
@@ -242,8 +243,11 @@ def replace_collection(
             receipt_backup.unlink()
             os.replace(receipt, receipt_backup)
         os.replace(staging, destination)
+        installed = True
         os.replace(staged_receipt, receipt)
     except OSError:
+        if installed:
+            os.replace(destination, staging)
         if backup is not None and not destination.exists():
             os.replace(backup, destination)
         if receipt_backup is not None and not receipt.exists():

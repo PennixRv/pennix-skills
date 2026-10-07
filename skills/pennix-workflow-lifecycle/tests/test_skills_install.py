@@ -207,6 +207,39 @@ class SkillsCollectionTest(unittest.TestCase):
             self.assertTrue((destination / "alpha" / "old").is_file())
             self.assertTrue(staging.exists())
 
+    def test_late_receipt_failure_restores_tree_and_receipt(self) -> None:
+        for existing in (False, True):
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "skills"
+                destination, staging = root / "pennix-skills", root / ".pennix-stage"
+                if existing:
+                    self.make_skill(destination, "alpha")
+                    (destination / "alpha" / "old").write_text("old")
+                    self.trust_collection(destination)
+                receipt = MODULE.receipt_path(destination)
+                old_receipt = receipt.read_bytes() if existing else None
+                self.make_skill(staging, "alpha")
+                original_replace = os.replace
+                failed = False
+
+                def fail_receipt(source, target):
+                    nonlocal failed
+                    if Path(target) == receipt and not failed:
+                        failed = True
+                        raise OSError("late receipt failure")
+                    original_replace(source, target)
+
+                with mock.patch.object(MODULE.os, "replace", side_effect=fail_receipt):
+                    with self.assertRaisesRegex(OSError, "late receipt failure"):
+                        MODULE.replace_collection({"alpha"}, staging, destination)
+                self.assertTrue(staging.is_dir())
+                self.assertEqual(destination.exists(), existing)
+                self.assertEqual(receipt.exists(), existing)
+                if existing:
+                    self.assertEqual(receipt.read_bytes(), old_receipt)
+                    self.assertTrue((destination / "alpha" / "old").is_file())
+                    self.assertEqual(MODULE.collection_receipt_state(destination), "match")
+
     def test_destination_must_be_collection_root(self) -> None:
         with self.assertRaises(MODULE.InstallError):
             MODULE.resolve_destination("/tmp/not-a-pennix-install")

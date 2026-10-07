@@ -13,6 +13,7 @@ import tempfile
 import termios
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 
@@ -271,7 +272,16 @@ def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None
         return "ready" if state == "configured" and content else state.replace("missing", "not-configured")
     if adapter == "cch-owner":
         config, token = _cch_paths()
-        config_state, _ = _private_json(config)
+        config_state, value = _private_json(config)
+        if config_state == "configured":
+            cch = value.get("cch") if isinstance(value, dict) else None
+            base_url = cch.get("baseUrl") if isinstance(cch, dict) else None
+            try:
+                parsed = urlparse(base_url.strip()) if isinstance(base_url, str) else None
+                if parsed is None or parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                    config_state = "blocked"
+            except ValueError:
+                config_state = "blocked"
         token_state, token_content = _private_file(token)
         if config_state == "configured" and token_state == "configured" and token_content:
             return "configured"

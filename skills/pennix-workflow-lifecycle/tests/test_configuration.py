@@ -61,12 +61,24 @@ class ConfigurationAdapterTest(unittest.TestCase):
             root = Path(temporary)
             config = root / "config.json"
             token = root / "cch-token"
-            self.private_json(config, '{"endpoint":"https://example.test"}\n')
+            self.private_json(config, '{"cch":{"baseUrl":"https://example.test"}}\n')
             self.private_json(token, "not-json-token\n")
             with mock.patch.object(MODULE, "_cch_paths", return_value=(config, token)):
                 self.assertEqual(MODULE.target_state("cch-owner", root), "configured")
                 token.write_text("", encoding="utf-8")
                 self.assertEqual(MODULE.target_state("cch-owner", root), "blocked")
+
+    def test_cch_rejects_invalid_owner_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config, token = root / "config.json", root / "cch-token"
+            self.private_json(token, "synthetic-token\n")
+            with mock.patch.object(MODULE, "_cch_paths", return_value=(config, token)):
+                for value in ('{}', '{"endpoint":"https://example.test"}',
+                              '{"cch":[]}', '{"cch":{"baseUrl":""}}',
+                              '{"cch":{"baseUrl":"not-a-url"}}'):
+                    self.private_json(config, value)
+                    self.assertEqual(MODULE.target_state("cch-owner", root), "blocked", value)
 
     def test_grok_marks_unmanaged_owner_configuration_as_drifted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
