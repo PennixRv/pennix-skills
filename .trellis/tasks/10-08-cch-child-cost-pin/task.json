@@ -1,0 +1,29 @@
+{
+  "id": "cch-child-cost-pin",
+  "name": "cch-child-cost-pin",
+  "title": "同步 CCH 费用显示修正发布来源",
+  "description": "消费 CCH 0.1.44 发布提交，更新唯一 lifecycle catalog 和固定来源测试，原生重装集合后升级 CCH 并验收；不修改其他组件或用户私有配置。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-08",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "direct",
+    "delivery_mode": "change_bearing"
+  }
+}
