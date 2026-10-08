@@ -432,3 +432,33 @@ Pinned Trellis beta.40 and CCH 0.1.45; lifecycle 136 tests passed; immutable git
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: 语义编辑与原生身份路由收敛
+<!-- trellis-session: v=2 fp=0e8e79332fc76d00 -->
+
+**Date**: 2026-10-09
+**Task**: 语义编辑与原生身份路由收敛
+**Branch**: `main`
+
+### Summary
+
+核验SSH遗留观察；修复入口Skill和用户AGENTS，main发布后完整集合受管重装，关联Trellis资产更新beta.41，任务归档。
+
+### Main Changes
+
+- 明确apply_patch语义写入和task.py原生shell路径，保留机械replace与owner资产生成。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c959eec` | fix: clarify native editing and task identity routes |
+
+### Testing
+
+- [OK] 路由9项、lifecycle136项、Skill验证3份通过；两项定向安装verify匹配，保护项一致。
+
+### Status
+
+[OK] **Completed**
