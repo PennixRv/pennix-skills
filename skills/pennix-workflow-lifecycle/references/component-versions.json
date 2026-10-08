@@ -103,7 +103,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.39",
+      "approved_version": "0.7.0-beta.40",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -212,7 +212,7 @@
     },
     "cch-status": {
       "delivery": "native",
-      "approved_version": "0.1.44",
+      "approved_version": "0.1.45",
       "source": "native CCH installation",
       "owner": "cch",
       "scope": "global",

@@ -1,0 +1,53 @@
+{
+  "id": "session-billing-pins",
+  "name": "session-billing-pins",
+  "title": "固定主会话历史账单组件版本与部署指引",
+  "description": "根任务10-08-session-child-billing的Pennix消费owner：固定通过验收的Trellis和CCH版本，补生命周期部署验证指引并重装用户集合；当前只规划。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-08",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "session-billing-pins",
+        "task_name": "10-08-session-billing-pins",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "70a20527e992baee11607ea14ca8e07d50e9e0c98daa9bcfe76a5cb94a80a258",
+          "design.md": "b7ab6c70ab2393d11df4f2e0430979d35b9bed1c65ad5965578592b525508f8f",
+          "implement.md": "a1dc8c8b4de00a01d14d1700171b89ae4c0547f2e561fa3742b011747da7c7b2"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-08T01:53:41.525559+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户在四任务revision 1方案共同展示后明确回复：认可，现在立即开始实施并完成提交推送重装和资产更新",
+      "approved_at": "2026-10-08T02:14:12.596901+00:00"
+    }
+  }
+}

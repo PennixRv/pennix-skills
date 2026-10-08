@@ -195,6 +195,24 @@ FastCtx itself never materializes or refreshes user `AGENTS.md`; its normal Appl
 and TUI paths leave that file untouched. The static Pennix template is the only
 workflow-owned guidance source.
 
+### Trellis/CCH 会话计费升级验证
+
+先 discover，按 catalog 固定版本选择 `trellis-cli` upgrade/verify；开始前
+确认相关 Channel 已派节点及预留槽位排空，不为升级擅自 kill。项目资产逐个
+绑定明确 root 并由 `$pennix-trellis-project-update` 更新，保留原 workflow。
+CCH 的 install/upgrade 仍属于 native owner：从固定 GitHub Release 下载官方
+包并核 checksum，更新 discover 确认的包落点，再执行原生 install 刷新 managed
+runtime。核对 package/CLI/runtime 版本与渲染器字节一致，并核 endpoint、token、
+非受管 tmux 正文在升级前后不变；只报告比较结果，不输出秘密。
+
+Trellis 公共 `channel sessions --owner-session <id> --json` 才是历史 Codex
+后代的成员来源；关系元数据从启用后的新绑定开始保留，不导入旧历史。公开
+`trackingSince`/`coverage` 明确该边界。最小关系记录不属于可删的临时 Channel
+日志或 CCH 缓存；不得通过保留原始日志或读取内部关系文件来补造完整账单。
+安装验证须走真实 status render：无活动节点、Channel 清理、任务/cwd 切换后
+历史仍参与；部分已知金额含零值正常累计，全部有用量而无金额才显示问号。
+本地隔离 fixture 可以验证协议；真实现场只读验证，不为测试新派付费节点。
+
 ### 配置目标
 
 After the relevant delivery component is `match`, use the explicit target ID:
