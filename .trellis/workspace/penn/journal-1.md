@@ -409,3 +409,26 @@ lifecycle安全回滚/host/readiness修复；Grok源物化及audit0；beta39 cat
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: Verified historical billing workflow rollout
+<!-- trellis-session: v=2 fp=42ddd3c09dcbc953 -->
+
+**Date**: 2026-10-08
+**Task**: Verified historical billing workflow rollout
+**Branch**: `main`
+
+### Summary
+
+Pinned Trellis beta.40 and CCH 0.1.45; lifecycle 136 tests passed; immutable git installation of all 11 Skills and native replacement verified; seven consumers updated; user static assets preserved; temporary staging removed and native task archived.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `949bded` | chore(lifecycle): pin verified historical session billing releases |
+| `d34c00e` | docs: verify deployment of historical session billing releases |
+
+### Status
+
+[OK] **Completed**
