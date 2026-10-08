@@ -41,4 +41,6 @@
 ## FastCtx Routing
 
 - 涉及 FastCtx 的本地文件、命令或 job 路由，必须使用 `$pennix-fastctx-routing`；已有专用原生协议时优先使用该协议。
+- 源码、配置、任务文档等文本的语义创建/修改使用宿主原生 `apply_patch`，不通过 FastCtx 或 shell/Python 写入脚本代写；专用 owner 生成的资产仍由该 owner 写入。FastCtx `replace` 仅用于确定性的批量机械替换，先 dry-run 并限定次数。
+- Trellis `task.py` 等原生 CLI 通过当前宿主原生 shell（Codex 的 `exec_command`）调用，不通过 FastCtx `run`/job。原生 `current --json` 的非空 `session_source` 表示有身份，`unbound_ambiguous` 只表示任务未绑定；按用户明确意图 `select` 后继续原阶段，不复制身份或手写运行态。正确原生路径仍无身份才报告能力缺口。
 <!-- pennix-fastctx:end -->

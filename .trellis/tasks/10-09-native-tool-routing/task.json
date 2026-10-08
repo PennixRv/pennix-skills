@@ -1,0 +1,53 @@
+{
+  "id": "native-tool-routing",
+  "name": "native-tool-routing",
+  "title": "收敛语义编辑入口与原生任务身份诊断",
+  "description": "核验SSH拓扑遗留两项观察，修复Pennix入口路由与全局规则，提交推送并通过lifecycle更新安装集合和本地落点。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-09",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "execution_class": "planned",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "native-tool-routing",
+        "task_name": "10-09-native-tool-routing",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "755754ac71365f69b793fd7257dffeb947da734a85d677b58eddcc32a04e6de0",
+          "design.md": "3e132f5d7d1f0850a1f3918494bef6858dc8d1dc42889c066e57e23b67edc54e",
+          "implement.md": "587e6c5026991b7952b73a8e1d28053484f4c328e2041ddce4e6e883141ed51c"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-08T23:48:07.153836+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "2026-10-09用户针对这两个既存缺口明确委托核验、方案和全量实施发布安装，原文：不需要我额外审批，我直接批准你按照你认为的最佳时间全量推进。本轮按该显式例外授权，不声称用户在新封口后另行答复。",
+      "approved_at": "2026-10-08T23:48:07.255632+00:00"
+    }
+  }
+}

@@ -37,7 +37,8 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 | --- | --- | --- |
 | Trellis task/phase/Channel、formal handoff、Codex 原生交互/Hook、owner MCP/TUI、lifecycle action 或专用错误协议 | 直接调用唯一原生 owner | 采用原协议状态，不套 FastCtx；原生不可用即停止 |
 | Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 专用检索 | 直接调用对应 retrieval/MCP/API owner | FastCtx 不是 provider、启动器或 fallback |
-| 普通本地文件、非交互 CLI、构建/测试、递归检索或大输出分析 | FastCtx（按 `$pennix-fastctx-routing`） | 只保存当前操作结果，不额外持久化 |
+| 源码、配置、任务文档或其他文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过 FastCtx 或 shell/Python 写入脚本代写；专用 owner 生成的资产仍走原协议 |
+| 普通本地文件、非交互 CLI、构建/测试、递归检索或大输出分析（排除上述语义写入和专用 owner） | FastCtx（按 `$pennix-fastctx-routing`） | 只保存当前操作结果，不额外持久化；机械批量替换先 dry-run 并限定次数 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |
 | 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `windsurf-code-search` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
@@ -51,6 +52,13 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 `run_background`/job、`replace`、shell HTTP 或通用 wrapper 启动、转发、重试、轮询、等待
 或解释它。正确 native channel 不可用时保留原始能力缺口并停止。只有 owner 已经完成且
 产生了批准的普通结果文件时，FastCtx 才能做不推进 owner 状态的读取或分析。
+
+Trellis 的本地 CLI（包括 `task.py`）使用当前宿主原生 shell 工具；Codex 中是
+`exec_command`，不是 FastCtx `run`。`task.py current --json` 的 `session_source`
+表示身份，`source=unbound_task|unbound_ambiguous` 表示尚未绑定任务，两者分别判断。
+有身份时按用户明确意图原生 `select`，再遵守任务阶段；只有正确原生路径仍返回空身份
+时才报告宿主身份能力缺口。FastCtx 服务环境没有身份不能证明 Trellis 生命周期 bug，
+也不授权复制环境身份、借用其他会话 pointer 或制造 shell ticket。
 
 ## 当前 Trellis fork 并行工作流
 

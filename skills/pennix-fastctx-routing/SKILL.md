@@ -28,7 +28,7 @@ FastCtx job 模拟、接管或绕过。
 1. 只有普通本地读取、搜索、非交互 CLI、构建、测试或明确 FastCtx job 语义通过 owner-first 排除后，才进入 FastCtx 路由。
 2. 仅当工具 schema 支持批量且已知有多个文本文件时，使用 `inspect_local_file` 的 `files` 批量读取；单一目标或不同视图直接调用对应工具。
 3. `run` 只承载一条非交互式 CLI；长时操作改用 `run_background`、`job_output`、`job_kill`。已有直接 FastCtx schema 的操作不再包一层 shell，也绝不把 `apply_patch` 传给 `run`。
-4. 语义代码编辑使用 Codex `apply_patch`；只有确定性的批量机械替换才使用 FastCtx `replace`，并先 dry-run、设置替换上限。
+4. 源码、配置、任务文档等文本的语义创建/修改使用宿主原生 `apply_patch`，不通过 `run`、`run_background` 或 shell/Python 写入脚本代写；专用 owner 生成的资产仍由该 owner 写入。只有确定性的批量机械替换才使用 FastCtx `replace`，并先 dry-run、设置替换上限。
 5. `grok-search`、`tavily-hikari`、Windsurf semantic search 和 CodeGraph 保持各自的检索或 MCP/API owner；FastCtx 可在它们完成后分析一个已批准的本地结果文件，但不调用、代替或吸收其检索协议。
 6. 项目 `AGENTS.md`、项目 spec 和已有专用协议优先；无法判断组件所有权时停止 FastCtx 路由，改用 `$pennix-workflow-routing` 收敛。
 
@@ -38,3 +38,9 @@ shell HTTP 或通用 wrapper 启动、转发、重试、轮询、等待或解释
 文件，但不得用该读取推进、确认或模拟 owner 状态。
 
 FastCtx 不可用时，按项目规则降级到宿主原生工具；不把当前操作输出自动写入任务事实、记忆或 Git。
+
+若误将 `task.py` 交给 FastCtx 后发生身份缺失，先纠正调用为当前宿主原生 shell
+（Codex 的 `exec_command`），再用原生 `current --json` 区分身份与绑定：
+`session_source` 非空表示身份存在，`unbound_task` / `unbound_ambiguous` 只表示没有
+活动任务绑定。按用户明确意图原生 `select`，不把它当作实施批准。正确原生路径仍无身份
+才报告能力缺口；不向 FastCtx 注入复制/猜造的身份，不手写 pointer 或 shell ticket。
