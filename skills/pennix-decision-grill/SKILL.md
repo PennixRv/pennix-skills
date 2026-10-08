@@ -22,13 +22,17 @@ the independent decisions that are ready in the current round. A complex task wi
 user-owned choice remains planned but does not need a question. Do not use `analysis_only`,
 `subnode`, or an execution approval as a substitute for the classification.
 
-Before routing, distinguish mutation from complexity. `analysis_only` means the
-current activity does not modify an owner target; it does not make a task
-simple. A request with multiple owners, a workflow/governance contract, a
-release or rollout path, material security/configuration implications, or
-several dependent implementation steps is complex even when its first step is
-research. Create or continue its Trellis task and run the relevant planning
-gate before treating research conclusions as sealed.
+Before routing, distinguish evidence work from change-bearing work. A bounded
+`analysis_only` task may be complex, cross-owner, and produce recommendations
+or unresolved product choices; those facts do not require implementation
+approval or a Planning Seal to complete the requested research. Record the
+findings and keep protected targets unchanged. Ask only for user-owned choices
+that materially define the requested evidence scope or method. If independent
+subnode evidence is requested, use Trellis Channel's frozen dispatch-plan gate
+and obtain explicit approval before spawn/send; this authorizes only the named
+evidence. Implementation, deployment, release, credential changes, or other
+protected-target mutations use the normal change-bearing planning and approval
+path.
 
 ## Decide Whether To Ask
 
@@ -84,21 +88,8 @@ sealed decisions conflict, mark the affected nodes `blocked`, explain the
 conflict, and ask a new conflict-resolution question. Repeat the
 answer-record-frontier-audit cycle until no conflict remains.
 
-Only then write the final seal: all nodes are `sealed`, the conflict audit is
-clean, `prd.md`, `design.md`, and `implement.md` agree, and implementation has
-no user-owned ambiguity. The closure pass must resolve every static pending
-choice: no `TBD`, `TODO`, `decision-needed`, unowned option, unspecified
-target branch, open implementation path, validation gap, or conditional
-acceptance point may remain. Each implementation step must have its target
-owner, intended change, verification, rollout/rollback boundary, and completion
-condition determined. Present the final plan and stop before implementation.
-Existing authorization qualifies only when it is a later explicit implementation
-approval for this task's current sealed material revision. Initial delivery
-requests, parent-task approvals, and design answers do not qualify. Follow
-Trellis's native plan seal/approve/start contract; this Skill does not maintain
-another approval schema. Material scope, owner, risk, public behavior, or
-acceptance changes invalidate approval; wording, formatting, and progress notes
-do not. Ask only when the current revision's approval is missing.
+For change-bearing work only, write the final seal after all nodes are `sealed`, the conflict audit is clean, `prd.md`, `design.md`, and `implement.md` agree, and implementation has no user-owned ambiguity. Resolve every static pending choice: no `TBD`, `TODO`, `decision-needed`, unowned option, unspecified target branch, open implementation path, validation gap, or conditional acceptance point may remain. Each implementation step must name its owner, intended change, verification, rollout/rollback boundary, and completion
+condition determined. Present the plan and stop before implementation. `analysis_only` work does not need a final seal or implementation approval: complete its evidence and verify the protected-target boundary. Follow Trellis's native plan seal/approve/start contract for change-bearing tasks; this Skill does not maintain another approval schema. Material changes invalidate implementation approval; wording, formatting, and progress notes do not. Do not ask for implementation approval to finish requested research.
 
 Call the current session's native blocking `request_user_input` directly when
 available. Never substitute `request_user_input_async` or an agent-managed

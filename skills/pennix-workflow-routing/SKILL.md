@@ -23,11 +23,7 @@ admission；单一工具已有明确 native protocol 时直接遵循，不额外
 - `decision_frontier`：是否有多个独立的 material decision；
 - `approval_mode`：是否已有同一 task、当前封口实质版本、展示最终方案之后的明确实施批准；初始交付请求、父任务批准和设计选项回答不算。
 
-`analysis_only` 只表示精确定义的只读交付，`subnode` 只表示明确要求的独立证据角色；
-两者都不能代替复杂度、decision-gates 或实施批准判断。跨 owner、发布、配置/凭据、
-安全、数据完整性、依赖步骤或 material decision 会把请求升级到 planned；只有升级后的
-decision frontier 需要 `$pennix-decision-grill`。连续推进授权只适用于已经封口的计划，
-不能关闭新的 material decision 或 owner safety gate。
+`analysis_only` 只表示受保护目标不变的只读证据交付；复杂度、跨 owner、多证据单元、推荐或未决产品选项都不触发实施批准。明确的研究请求授权主会话完成其证据工作。只有当研究范围/方法依赖尚未回答的用户选择时，才就该选择调用 `$pennix-decision-grill`。用户要求并行 subnode 时，必须先冻结派发方案并获明确批准再 spawn/send；批准仅覆盖列明的证据工作。任何实际变更、部署、发布、凭据或外部运行态动作仍按 change-bearing owner 的原生授权路径处理。
 
 Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`、`state_writer`、
 `exit_conditions` 和 `replan_trigger`；Trellis、lifecycle、FastCtx 及其他 owner 仍各自
@@ -60,9 +56,9 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 
 此段只负责入口分流；Trellis Channel、subnode profile、queue 和 report/disposition 仍是当前 Pennix Trellis beta fork 的唯一执行合同。先确认项目选择的 workflow 和 Trellis 版本，再按以下顺序路由：
 
-1. 普通实现、审查或研究默认由主会话 inline 完成；“并行”措辞本身不构成派发授权。只有用户明确要求独立证据工作，或计划确认了可独立验证的 evidence units，才考虑 subnode。
-2. 复杂任务、多 owner/依赖/发布影响或存在 material decisions 时，先进入正常 Trellis planning；按决策复杂度调用 `$pennix-decision-grill`，并在 `task.py start` 之前封好任务资产。简单且边界明确的工作不因涉及并行概念自动升级。
-3. 显式 subnode 工作先读项目当前 workflow 和 `trellis-channel` 的 `subnode-work` procedure 及多目标派发 reference；分包映射及工作量/合包依据必须落到目标 task 的计划/矩阵中，按原生门禁执行。inline 不禁止 Channel 独立证据；缺少独立报告不能静默降级成主代理通过结论。本 Skill 不复制 schema、FIFO 或 validator。
+1. 普通实现、审查或研究默认由主会话 inline 完成；“并行”措辞本身不构成派发授权。用户明确要求独立证据后，才考虑 subnode；复杂或跨 owner 的只读研究仍可由主会话在 planning 中完成。
+2. 只有 change-bearing work 需要其原生 Planning Seal 与实施批准。研究任务的复杂度、跨 owner、依赖分析或建议本身不触发实施门；仅对会实质改变研究范围/方法的用户选择调用 `$pennix-decision-grill`。
+3. 显式 subnode 工作先读项目当前 workflow 和 `trellis-channel` 的 `subnode-work` procedure 及多目标派发 reference；首次 spawn/send 前，目标 task 必须包含冻结的研究问题、unit 映射/合并理由、brief 范围与停止条件/报告落点、并行和 FIFO 接受策略，并取得用户明确批准。该批准仅授权列明的 evidence work；实质改变派发方案需重批。inline 不禁止 Channel 独立证据；缺少独立报告不能静默降级成主代理通过结论。本 Skill 不复制 schema、FIFO 或 validator。
 4. 多个独立 evidence units 只有在项目可靠性门满足后才进入 FIFO queue。读取项目 `.trellis/agents/subnode-profiles.json`，由 Trellis profile 动态解析模型与 reasoning effort；Skill 不写死映射。仅在证据难度或风险足以说明时选择 `xhigh`。
 5. 创建/派发、发送、barrier/wait、队列推进均走 `$trellis-channel` 与当前 fork 的原生 Channel 命令。使用一个原生终态 wait；不得用持续轮询、多个 waiter、自动重试或常驻调度器代替通知/等待合同。
 6. Worker 终态只表示执行结束，不等于结果验收。协调者核验报告完整性、引用来源和受保护目标，再写入一次 disposition 后才能推进下一项。

@@ -592,6 +592,8 @@ class BootstrapTests(unittest.TestCase):
             updated = target.read_text(encoding="utf-8")
             self.assertIn("# user instructions", updated)
             self.assertIn("$pennix-fastctx", updated)
+            self.assertIn("只读 `analysis_only` 研究无论复杂度或跨 owner", updated)
+            self.assertIn("仅用户要求独立 subnode 研究时", updated)
             self.assertEqual(updated.count("<!-- pennix-workflow-lifecycle:begin -->"), 1)
 
     def test_agents_install_refuses_modified_owned_block(self) -> None:
@@ -1125,7 +1127,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["codex-cli"]["version_policy"], "repository-latest")
         self.assertNotIn("approved_version", catalog["components"]["codex-cli"])
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
-        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.40")
+        self.assertEqual(catalog["components"]["trellis-cli"]["approved_version"], "0.7.0-beta.41")
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["tag"], "beta")
 
     def test_npm_replacement_is_removed_before_install(self) -> None:

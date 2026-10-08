@@ -15,9 +15,9 @@ class WorkflowRoutingContractTest(unittest.TestCase):
             "`execution_class`",
             "`decision_frontier`",
             "`approval_mode`",
-            "`analysis_only` 只表示",
-            "`subnode` 只表示",
-            "只有升级后的\ndecision frontier 需要 `$pennix-decision-grill`",
+            "`analysis_only` 只表示受保护目标不变的只读证据交付",
+            "明确的研究请求授权主会话完成其证据工作",
+            "必须先冻结派发方案并获明确批准再 spawn/send",
             "Admission 不是第二套状态机",
         ):
             self.assertIn(marker, content)
@@ -52,7 +52,9 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         route = content.split("## 当前 Trellis fork 并行工作流", 1)[1].split("## 本地证据优先", 1)[0]
         for invariant in (
             "主会话 inline 完成",
-            "按决策复杂度调用 `$pennix-decision-grill`",
+            "change-bearing work 需要其原生 Planning Seal 与实施批准",
+            "仅对会实质改变研究范围/方法的用户选择调用 `$pennix-decision-grill`",
+            "首次 spawn/send 前",
             "`subnode-work` procedure",
             "`.trellis/agents/subnode-profiles.json`",
             "动态解析模型与 reasoning effort",

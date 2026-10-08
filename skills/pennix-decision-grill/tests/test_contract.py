@@ -20,10 +20,12 @@ class DecisionGrillContractTests(unittest.TestCase):
         self.assertIn("run `task.py replan <task>", content)
         self.assertIn("Never edit `task.json.status` by hand", content)
 
-    def test_analysis_only_does_not_bypass_complex_planning(self) -> None:
+    def test_research_does_not_require_implementation_approval(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("`analysis_only` means the", content)
-        self.assertIn("it does not make a task\nsimple", content)
+        self.assertIn("do not require implementation", content)
+        self.assertIn("does not need a final seal or implementation approval", content)
+        self.assertIn("frozen dispatch-plan gate", content)
+        self.assertIn("only the named\nevidence", content)
 
     def test_request_is_classified_before_gate_selection(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
