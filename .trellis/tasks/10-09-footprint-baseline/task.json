@@ -2,7 +2,7 @@
   "id": "footprint-baseline",
   "name": "footprint-baseline",
   "title": "Align published workflow component baseline",
-  "description": "Align catalog FastCtx 0.2.22 and Ponytail 5.1.0 immutable ref, deploy the complete validated collection and verify user baseline.",
+  "description": "Align catalog FastCtx 0.2.23 and Ponytail 5.1.0 immutable ref, deploy the complete validated collection and verify user baseline.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -24,6 +24,26 @@
   "notes": "",
   "meta": {
     "execution_class": "direct",
-    "delivery_mode": "change_bearing"
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 2,
+      "seal": {
+        "revision": 2,
+        "task_id": "footprint-baseline",
+        "task_name": "10-09-footprint-baseline",
+        "documents": [
+          "prd.md"
+        ],
+        "document_digests": {
+          "prd.md": "ca2c3298095e1059c95e4b22750d9be1bed2ec58bc61dd42eb08443c49d2e7f6"
+        },
+        "execution_class": "direct",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-09T01:38:29.530103+00:00"
+      },
+      "approved_revision": 2,
+      "approval_basis": "User authorized completing all findings; approved scope preserves FastCtx behavior and advances the blocked release/catalog target to 0.2.23.",
+      "approved_at": "2026-10-09T01:38:34.990071+00:00"
+    }
   }
 }
