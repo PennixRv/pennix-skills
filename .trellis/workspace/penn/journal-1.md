@@ -556,3 +556,26 @@ Completed approved SAG fixes, actual YAML admission, full-file user rules migrat
 ### Status
 
 [OK] **Completed**
+
+
+## Session 24: Refine user guidance and Chinese technical writing
+<!-- trellis-session: v=2 fp=0764e98fdf0886d9 -->
+
+**Date**: 2026-10-10
+**Task**: Refine user guidance and Chinese technical writing
+**Branch**: `main`
+
+### Summary
+
+Rechecked all historical rule intents, restored concise FastCtx and writing entries, clarified source and interface names, added licensed adapted Chinese technical writing Skill, passed 157 lifecycle and 22 helper tests, reinstalled 12-member collection and upgraded global AGENTS through native lifecycle; all scoped verification passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `91e867f` | feat: refine global guidance and add Chinese technical writing Skill |
+| `112009a` | docs: record verified guidance and Skill deployment |
+
+### Status
+
+[OK] **Completed**
