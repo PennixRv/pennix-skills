@@ -27,6 +27,11 @@ class BootstrapTests(unittest.TestCase):
             "GROK_STATE_DIR": str(Path(self._state_directory.name) / "grok-cache"),
         })
         self._state_environment.start()
+        original = bootstrap.shutil.which
+        patcher = patch.object(bootstrap.shutil, "which", side_effect=lambda name, *args, **kwargs:
+            None if name == "grok-search" else original(name, *args, **kwargs))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:
         self._state_environment.stop()
@@ -1121,7 +1126,8 @@ class BootstrapTests(unittest.TestCase):
             args = SimpleNamespace(codex_home=root / "codex", destination=str(destination))
 
             self.assertEqual(bootstrap.probe_component(component, args.codex_home, args.destination)[0], "bootstrap")
-            self.assertEqual(bootstrap.static_operation(args, "pennix-skills", component, "uninstall"), "changed")
+            with patch.object(Path, "home", return_value=root):
+                self.assertEqual(bootstrap.static_operation(args, "pennix-skills", component, "uninstall"), "changed")
             self.assertFalse(destination.exists())
 
     def test_collection_contract_names_every_current_skill(self) -> None:

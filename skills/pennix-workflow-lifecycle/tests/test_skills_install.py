@@ -14,6 +14,13 @@ SPEC.loader.exec_module(MODULE)
 
 
 class SkillsCollectionTest(unittest.TestCase):
+    def setUp(self) -> None:
+        original = MODULE.shutil.which
+        patcher = mock.patch.object(MODULE.shutil, "which", side_effect=lambda name, *args, **kwargs:
+            None if name == "grok-search" else original(name, *args, **kwargs))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def make_skill(self, root: Path, name: str) -> Path:
         skill = root / name
         skill.mkdir(parents=True)
