@@ -486,3 +486,26 @@ Pinned FastCtx 0.2.23 and Ponytail 5.1.0/v5.1.0; installed exact immutable 11-Sk
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: Retrieval consumers and native availability routing
+<!-- trellis-session: v=2 fp=b09ea057dbe4b0b5 -->
+
+**Date**: 2026-10-09
+**Task**: Retrieval consumers and native availability routing
+**Branch**: `main`
+
+### Summary
+
+升级 Grok 消费者至 0.3.1，退役 Firecrawl 活动入口，schema 2 receipt 管理 PATH 链接并保护回滚/卸载，Windsurf 使用集合原生入口，两份 Skill 明确宿主工具面与 ALL_TOOLS 区分；148+7+4 项测试通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ca6a544` | feat: align retrieval consumers and own Grok PATH export |
+| `581b21a` | test: isolate collection fixtures from installed PATH exports |
+
+### Status
+
+[OK] **Completed**
