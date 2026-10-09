@@ -462,3 +462,27 @@ Pinned Trellis beta.40 and CCH 0.1.45; lifecycle 136 tests passed; immutable git
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: Workflow footprint baseline installed
+<!-- trellis-session: v=2 fp=a16e7ac07e2403e7 -->
+
+**Date**: 2026-10-09
+**Task**: Workflow footprint baseline installed
+**Branch**: `main`
+
+### Summary
+
+Pinned FastCtx 0.2.23 and Ponytail 5.1.0/v5.1.0; installed exact immutable 11-Skill collection with mode/receipt validation. Native FastCtx upgrade/Apply and 14-component full verify match with no failures; optional choices and credentials preserved.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `17d406e` | chore: align FastCtx and Ponytail deployment baseline |
+| `b5f471b` | chore: pin FastCtx 0.2.23 release |
+| `4c3b576` | docs: verify workflow footprint baseline installation |
+
+### Status
+
+[OK] **Completed**
