@@ -64,6 +64,21 @@ Questions to answer:
 - Changes to this boundary require tests for the unchanged default, an
   explicit host-selected root, invalid destinations, and atomic replacement.
 
+### Collection commands and configuration owners
+
+- Schema 2 receipts bind the tree digest and the finite catalog command map.
+  Explicit `replace-staged` may migrate a verified schema 1 tree; it may not
+  overwrite an invalid or drifted receipt. Collection, receipt and newly
+  created command links roll back together on replacement failure.
+- A user command link must be absent or match the existing receipt and exact
+  collection target. Unowned paths and other `CODEX_HOME` targets are conflicts;
+  PATH shadowing is reported independently of the link's state.
+- Windsurf readiness and configuration resolve its native executable from the
+  receipted collection. They never select an arbitrary same-name PATH command.
+- Retired configuration migration uses explicit `reconcile`, validates private
+  files and known record shapes before writing, preserves other credentials
+  and target selections, verifies writes and reports partial failures closed.
+
 ---
 
 ## Testing Requirements

@@ -21,7 +21,11 @@ import lifecycle as bootstrap
 class BootstrapTests(unittest.TestCase):
     def setUp(self) -> None:
         self._state_directory = tempfile.TemporaryDirectory()
-        self._state_environment = patch.dict(os.environ, {"XDG_STATE_HOME": self._state_directory.name})
+        self._state_environment = patch.dict(os.environ, {
+            "XDG_STATE_HOME": self._state_directory.name,
+            "XDG_CONFIG_HOME": str(Path(self._state_directory.name) / "config"),
+            "GROK_STATE_DIR": str(Path(self._state_directory.name) / "grok-cache"),
+        })
         self._state_environment.start()
 
     def tearDown(self) -> None:
@@ -997,6 +1001,10 @@ class BootstrapTests(unittest.TestCase):
                     f"---\nname: {name}\ndescription: Fixture.\n---\n",
                     encoding="utf-8",
                 )
+            command = staging / "grok-search" / "bin" / "grok-search"
+            command.parent.mkdir()
+            command.write_text("#!/bin/sh\n", encoding="utf-8")
+            command.chmod(0o755)
             args = SimpleNamespace(
                 component="pennix-skills",
                 yes=True,
@@ -1004,7 +1012,7 @@ class BootstrapTests(unittest.TestCase):
                 destination=str(destination),
             )
 
-            with patch.object(bootstrap, "prepare_staged_collection"):
+            with patch.object(bootstrap, "prepare_staged_collection"), patch.object(Path, "home", return_value=root):
                 bootstrap.replace_staged_collection(args, catalog)
 
             self.assertEqual(bootstrap.probe_component(component, root / "codex", str(destination))[0], "match")
@@ -1028,6 +1036,10 @@ class BootstrapTests(unittest.TestCase):
                         f"---\nname: {name}\ndescription: Fixture.\n---\n",
                         encoding="utf-8",
                     )
+            command = staging / "grok-search" / "bin" / "grok-search"
+            command.parent.mkdir()
+            command.write_text("#!/bin/sh\n", encoding="utf-8")
+            command.chmod(0o755)
             args = SimpleNamespace(
                 component="pennix-skills",
                 yes=True,
@@ -1035,7 +1047,7 @@ class BootstrapTests(unittest.TestCase):
                 destination=str(destination),
             )
 
-            with patch.object(bootstrap, "prepare_staged_collection"):
+            with patch.object(bootstrap, "prepare_staged_collection"), patch.object(Path, "home", return_value=root):
                 bootstrap.replace_staged_collection(args, catalog)
 
             self.assertEqual(bootstrap.skills_install.collection_receipt_state(destination), "match")
@@ -1072,11 +1084,26 @@ class BootstrapTests(unittest.TestCase):
                     f"---\nname: {name}\ndescription: Fixture.\n---\n",
                     encoding="utf-8",
                 )
+            commands = bootstrap.collection_commands(component["collection_contract"].get("commands"))
+            grok_command = destination / commands["grok-search"]["target"]
+            grok_command.parent.mkdir()
+            grok_command.write_text("#!/bin/sh\n", encoding="utf-8")
+            grok_command.chmod(0o755)
             self.trust_collection(destination)
+            receipt = bootstrap.skills_install.receipt_path(destination)
+            value = json.loads(receipt.read_text(encoding="utf-8"))
+            value["commands"] = commands
+            receipt.write_text(json.dumps(value), encoding="utf-8")
+            receipt.chmod(0o600)
+            link = root / ".local/bin/grok-search"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(grok_command)
             args = SimpleNamespace(codex_home=root / "codex", destination=str(destination))
 
-            self.assertEqual(bootstrap.static_operation(args, "pennix-skills", component, "uninstall"), "changed")
+            with patch.object(Path, "home", return_value=root):
+                self.assertEqual(bootstrap.static_operation(args, "pennix-skills", component, "uninstall"), "changed")
             self.assertFalse(destination.exists())
+            self.assertFalse(link.exists())
 
     def test_collection_bootstrap_state_is_known_and_removable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1109,6 +1136,92 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(expected, observed)
         contract = component["collection_contract"]
         self.assertEqual(bootstrap.collection_source_names(contract["source"]) | bootstrap.collection_materialized_names(contract["materialized"]), expected)
+        self.assertEqual(
+            bootstrap.collection_commands(contract["commands"]),
+            {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}},
+        )
+
+    def test_collection_command_catalog_is_closed(self) -> None:
+        self.assertIsNone(bootstrap.collection_commands({"arbitrary": {"target": "../../x", "link": ".local/bin/x"}}))
+        self.assertIsNone(bootstrap.collection_commands({"grok-search": {"target": "/tmp/evil", "link": ".local/bin/grok-search"}}))
+
+    def test_firecrawl_reconcile_plan_only_changes_lifecycle_owned_legacy_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            codex_home = root / ".codex"
+            config = root / ".config/grok-search/config.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({
+                "pennixLifecycle": 1, "apiUrl": "https://grok.invalid", "apiKey": "secret",
+                "tavilyApiKey": "tavily", "firecrawlApiKey": "retired",
+                "responsesOpenRouterEngine": "firecrawl", "stateDir": str(root / "cache"),
+            }))
+            config.chmod(0o600)
+            cache = root / "cache"
+            cache.mkdir()
+            cooldown = cache / "firecrawl-cooldown.json"
+            cooldown.write_text(json.dumps({
+                "until": "2026-10-10T00:00:00Z", "auth_mode": "keyless", "reason": "credits", "hit_at": "2026-10-09T00:00:00Z"
+            }))
+            cooldown.chmod(0o600)
+            with patch.object(bootstrap.configuration, "_grok_path", return_value=config), patch.dict(
+                os.environ, {"GROK_STATE_DIR": str(cache)}
+            ), patch.object(bootstrap.Path, "home", return_value=root):
+                plan = bootstrap._firecrawl_reconcile_plan(codex_home, "a" * 64, {"grok-search-provider", "grok-tavily-extra"})
+                removed = bootstrap._apply_firecrawl_reconcile_plan(plan)
+            observed = json.loads(config.read_text())
+            self.assertEqual(removed, ["grok-config", "firecrawl-cooldown"])
+            self.assertEqual(observed["apiKey"], "secret")
+            self.assertEqual(observed["tavilyApiKey"], "tavily")
+            self.assertEqual(observed["responsesOpenRouterEngine"], "auto")
+            self.assertNotIn("firecrawlApiKey", observed)
+            self.assertNotIn("stateDir", observed)
+            self.assertFalse(cooldown.exists())
+
+    def test_firecrawl_reconcile_refuses_unmarked_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = root / "config.json"
+            config.write_text(json.dumps({"firecrawlApiKey": "secret"}))
+            config.chmod(0o600)
+            with patch.object(bootstrap.configuration, "_grok_path", return_value=config):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "not lifecycle-owned"):
+                    bootstrap._firecrawl_reconcile_plan(root / ".codex", "b" * 64, set())
+
+    def test_retired_profile_migration_is_exact_and_reentrant(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / ".codex"
+            catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+            bootstrap.configuration.ensure_state_directory(home)
+            profile = bootstrap.configuration.profile_path(home)
+            bootstrap.configuration._write_private_json(profile, {
+                "schema": 1, "catalog_digest": bootstrap.RETIRED_FIRECRAWL_PROFILE_DIGEST,
+                "targets": ["grok-firecrawl-extra", "grok-search-provider"],
+            })
+            args = SimpleNamespace(component=bootstrap.STATE_COMPONENT, yes=True, codex_home=home)
+            result = bootstrap.reconcile_state(args, catalog)
+            self.assertEqual(result["status"], "cleaned")
+            self.assertEqual(bootstrap.configuration.load_profile(home, bootstrap.configuration_digest(catalog)), ("match", {"grok-search-provider"}))
+            self.assertEqual(bootstrap.reconcile_state(args, catalog)["status"], "already-match")
+            value = json.loads(profile.read_text())
+            value["catalog_digest"] = "c" * 64
+            bootstrap.configuration._write_private_json(profile, value)
+            self.assertEqual(bootstrap.reconcile_state(args, catalog)["status"], "blocked")
+
+    def test_path_shadow_is_reported_separately_from_matching_link(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            destination = home / ".codex/skills/pennix-skills"
+            command = destination / "grok-search/bin/grok-search"
+            command.parent.mkdir(parents=True)
+            command.write_text("#!/bin/sh\n")
+            command.chmod(0o755)
+            link = home / ".local/bin/grok-search"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(command)
+            commands = {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}}
+            with patch.object(Path, "home", return_value=home), patch.object(bootstrap.shutil, "which", return_value="/tmp/other/grok-search"):
+                self.assertEqual(bootstrap.inspect_collection_commands(destination, commands)["grok-search"], {"status": "match", "path_status": "shadowed"})
 
     def test_materialized_snapshots_exclude_repository_runtime_metadata(self) -> None:
         forbidden = {".agents", ".codex", ".github", ".trellis", "dist", "node_modules", "__pycache__"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Lifecycle receipt, scoped verification, and collection deployment contracts."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Catalog to staging to receipt/link transaction data flow."}
+{"file": ".trellis/tasks/10-09-pennix-collection-upgrade/prd.md", "reason": "Current task requirements and acceptance criteria."}
+{"file": ".trellis/tasks/10-09-pennix-collection-upgrade/design.md", "reason": "Frozen implementation design and ownership boundaries."}

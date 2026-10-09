@@ -101,7 +101,12 @@ bootstrap and is still transactional. Automatic refresh and `uninstall` refuse
 legacy or drifted full collections. The command leaves live content in place
 when staging validation, preparation, or replacement fails. A missing or
 partial catalog-only collection is reentrant. A user-created entry is never
-deleted. Rerun `discover` and `verify` after replacement. Do not retype a
+deleted. The finite catalog command map is installed in `~/.local/bin` only
+when the destination is absent or already proved by the matching receipt; an
+unowned file, link, alternate collection target, or PATH shadow blocks the
+operation. If `~/.local/bin` is not on PATH, `discover` reports the prerequisite
+and does not edit shell startup files. Rerun `discover` and `verify` after
+replacement. Do not retype a
 parallel Skill list in prompts or documentation.
 
 The lifecycle does not treat an unreceipted `.pennix-skills-stage*` entry as a
@@ -230,7 +235,7 @@ after an explicit configure attempt, so a later `verify` checks the selected
 integration without requiring unrelated services on every host.
 
 The catalog defines `cch-connection`, `hikari-connection`,
-`grok-search-provider`, `grok-tavily-extra`, `grok-firecrawl-extra`, and
+`grok-search-provider`, `grok-tavily-extra`, and
 `windsurf-credential`, and `siyuan-connection`. For SiYuan, open the target
 kernel's settings → authentication → API token (`设置 → 鉴权 → API token`).
 For a NAS connection, obtain it from the NAS web client; an independent desktop
@@ -245,6 +250,13 @@ command. Hikari and Grok accept values only through `/dev/tty`, conceal secret
 input, and write a private owner record. Grok refuses to overwrite a record
 without its lifecycle marker. A target's delivery must match first; collection
 targets also require a matching integrity receipt.
+
+The lifecycle no longer exposes or configures the retired Firecrawl target.
+An explicit `reconcile` may remove only retired fields, target selection, and
+the exact legacy cooldown file from a private lifecycle-marked Grok record
+after validation. Provider credentials, Tavily settings, run records, and
+unrelated cache remain untouched; unsafe or ambiguous records stop the
+reconciliation.
 
 The profile is stored in the lifecycle XDG state namespace with mode `0600`,
 contains target IDs and a normalized configuration-contract digest only, and is

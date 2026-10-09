@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+MANAGED_COMMANDS = {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}}
 
 
 class InstallError(RuntimeError):
@@ -103,6 +104,8 @@ def receipt_path(destination: Path) -> Path:
 def _assert_private_regular(path: Path) -> None:
     if path.is_symlink() or not path.is_file() or (path.stat().st_mode & 0o077) != 0:
         raise InstallError("collection integrity receipt is unsafe")
+    if hasattr(os, "getuid") and path.stat().st_uid != os.getuid():
+        raise InstallError("collection integrity receipt owner is unsafe")
 
 
 def collection_digest(destination: Path) -> str:
@@ -134,27 +137,51 @@ def collection_digest(destination: Path) -> str:
     return digest.hexdigest()
 
 
-def collection_receipt_state(destination: Path) -> str:
+def collection_receipt(destination: Path) -> dict | None:
     receipt = receipt_path(destination)
-    if not receipt.exists():
-        return "legacy"
+    if not receipt.exists() and not receipt.is_symlink():
+        return None
     try:
         _assert_private_regular(receipt)
         value = json.loads(receipt.read_text(encoding="utf-8"))
-        if (
-            not isinstance(value, dict)
-            or value.get("schema") != 1
-            or value.get("destination") != destination.name
-            or not isinstance(value.get("digest"), str)
-            or not re.fullmatch(r"[0-9a-f]{64}", value["digest"])
-        ):
-            return "drifted"
-        return "match" if value["digest"] == collection_digest(destination) else "drifted"
+        if not isinstance(value, dict) or value.get("destination") != destination.name:
+            return None
+        if not isinstance(value.get("digest"), str) or not re.fullmatch(r"[0-9a-f]{64}", value["digest"]):
+            return None
+        if value.get("schema") == 1 and set(value) == {"schema", "destination", "digest"}:
+            return value if value["digest"] == collection_digest(destination) else None
+        if value.get("schema") == 2 and set(value) == {"schema", "destination", "digest", "commands"}:
+            return value
+        return None
     except (InstallError, OSError, json.JSONDecodeError):
+        return None
+
+
+def collection_receipt_state(destination: Path, expected_commands: dict | None = None) -> str:
+    value = collection_receipt(destination)
+    if value is None:
+        receipt = receipt_path(destination)
+        return "drifted" if receipt.exists() or receipt.is_symlink() else "legacy"
+    if value.get("schema") == 1:
+        return "legacy" if not value.get("commands") else "drifted"
+    commands = value.get("commands")
+    if (
+        value.get("schema") != 2
+        or value.get("destination") != destination.name
+        or not isinstance(value.get("digest"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", value["digest"])
+        or not isinstance(commands, dict)
+        or commands not in ({}, MANAGED_COMMANDS)
+        or (expected_commands is not None and commands != expected_commands)
+    ):
+        return "drifted"
+    try:
+        return "match" if value["digest"] == collection_digest(destination) else "drifted"
+    except (InstallError, OSError):
         return "drifted"
 
 
-def _write_receipt(destination: Path, digest: str) -> Path:
+def _write_receipt(destination: Path, digest: str, commands: dict | None = None) -> Path:
     receipt = receipt_path(destination)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{receipt.name}.", dir=receipt.parent)
     os.close(descriptor)
@@ -162,7 +189,7 @@ def _write_receipt(destination: Path, digest: str) -> Path:
     try:
         os.chmod(temporary, 0o600)
         temporary.write_text(
-            json.dumps({"schema": 1, "destination": destination.name, "digest": digest}, sort_keys=True) + "\n",
+            json.dumps({"schema": 2, "destination": destination.name, "digest": digest, "commands": commands or {}}, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         return temporary
@@ -186,6 +213,8 @@ def replace_collection(
     bootstrap_name: str | None = None,
     allow_legacy: bool = False,
     obsolete_names: set[str] | None = None,
+    commands: dict | None = None,
+    command_home: Path | None = None,
 ) -> None:
     """Replace a known collection only after the complete staged tree validates."""
     staging = validate_staged_collection(expected_names, staging)
@@ -220,18 +249,70 @@ def replace_collection(
                 current_state = "obsolete"
     if current_state not in {"missing", "bootstrap", "partial", "match", "obsolete"}:
         raise InstallError("refusing to replace a drifted or unknown Pennix Skills collection")
-    if current_state == "match" and collection_receipt_state(destination) != "match" and not allow_legacy:
+    integrity = collection_receipt_state(destination)
+    if current_state == "match" and (integrity == "drifted" or (integrity == "legacy" and not allow_legacy)):
         raise InstallError("refusing to replace a legacy or drifted Pennix Skills collection")
     if staging == destination:
         return
 
-    staged_receipt = _write_receipt(destination, collection_digest(staging))
+    commands = commands or {}
+    if commands not in ({}, MANAGED_COMMANDS):
+        raise InstallError("managed command map is invalid")
+    command_links: list[tuple[Path, Path]] = []
+    if commands:
+        home = command_home or Path.home()
+        bin_directory = home / ".local" / "bin"
+        for name, mapping in commands.items():
+            staged_target = staging / mapping["target"]
+            target = destination / mapping["target"]
+            link = home / mapping["link"]
+            if not staged_target.is_file() or staged_target.is_symlink() or not (staged_target.stat().st_mode & 0o111):
+                raise InstallError(f"managed command target is not a regular executable: {name}")
+            _assert_no_symlink_path(bin_directory)
+            if link.parent.exists() and (not link.parent.is_dir() or link.parent.stat().st_mode & 0o022):
+                raise InstallError("managed command directory is unsafe")
+            resolved_command = shutil.which(name)
+            if resolved_command and Path(resolved_command).absolute() != link.absolute():
+                raise InstallError(f"managed command is shadowed on PATH: {name}")
+            if link.exists() or link.is_symlink():
+                if not link.is_symlink():
+                    raise InstallError(f"refusing to adopt an unmanaged command path: {mapping['link']}")
+                receipt = collection_receipt(destination)
+                try:
+                    actual = link.resolve(strict=True)
+                    expected = target.resolve(strict=True)
+                except OSError as error:
+                    raise InstallError("managed command link is unsafe") from error
+                if (
+                    actual != expected
+                    or not isinstance(receipt, dict)
+                    or receipt.get("schema") != 2
+                    or receipt.get("commands") != commands
+                    or collection_receipt_state(destination, commands) != "match"
+                ):
+                    raise InstallError(f"refusing to adopt an unmanaged command path: {mapping['link']}")
+            else:
+                command_links.append((link, target))
+
+    staged_receipt = _write_receipt(destination, collection_digest(staging), commands)
 
     backup: Path | None = None
     receipt_backup: Path | None = None
+    installed_links: list[Path] = []
     receipt = receipt_path(destination)
     installed = False
+    receipt_installed = False
+    created_directories: list[Path] = []
     try:
+        for link, _ in command_links:
+            missing = []
+            parent = link.parent
+            while not parent.exists():
+                missing.append(parent)
+                parent = parent.parent
+            for directory in reversed(missing):
+                directory.mkdir(mode=0o755)
+                created_directories.append(directory)
         if destination.exists():
             backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.previous-", dir=destination.parent))
             shutil.rmtree(backup)
@@ -245,13 +326,23 @@ def replace_collection(
         os.replace(staging, destination)
         installed = True
         os.replace(staged_receipt, receipt)
+        receipt_installed = True
+        for link, target in command_links:
+            link.symlink_to(target)
+            installed_links.append(link)
     except OSError:
+        for link in installed_links:
+            link.unlink(missing_ok=True)
+        if receipt_installed:
+            receipt.unlink(missing_ok=True)
         if installed:
             os.replace(destination, staging)
         if backup is not None and not destination.exists():
             os.replace(backup, destination)
         if receipt_backup is not None and not receipt.exists():
             os.replace(receipt_backup, receipt)
+        for directory in reversed(created_directories):
+            directory.rmdir()
         raise
     finally:
         staged_receipt.unlink(missing_ok=True)
@@ -261,14 +352,66 @@ def replace_collection(
         receipt_backup.unlink(missing_ok=True)
 
 
-def uninstall_collection(expected_names: set[str], destination: Path, bootstrap_name: str | None = None) -> bool:
+def _assert_no_symlink_path(path: Path) -> None:
+    current = path.absolute()
+    while current != current.parent:
+        if current.is_symlink():
+            raise InstallError("managed command directory traverses a symbolic link")
+        current = current.parent
+
+
+def uninstall_collection(
+    expected_names: set[str], destination: Path, bootstrap_name: str | None = None,
+    commands: dict | None = None, command_home: Path | None = None,
+) -> bool:
     state = collection_state(expected_names, destination, bootstrap_name)
     if state == "missing":
         return False
     if state not in {"match", "bootstrap"}:
         raise InstallError("refusing to remove a non-exact Pennix Skills collection")
-    if state == "match" and collection_receipt_state(destination) != "match":
+    commands = commands or {}
+    if state == "match" and collection_receipt_state(destination, commands) != "match":
         raise InstallError("refusing to remove a legacy or drifted Pennix Skills collection")
-    shutil.rmtree(destination)
-    receipt_path(destination).unlink(missing_ok=True)
+    for mapping in commands.values():
+        link = (command_home or Path.home()) / mapping["link"]
+        _assert_no_symlink_path(link.parent)
+        if state == "match" and not link.is_symlink():
+            raise InstallError("managed command link is missing or drifted")
+    removed_links: list[tuple[Path, str]] = []
+    collection_backup: Path | None = None
+    receipt_backup: Path | None = None
+    receipt = receipt_path(destination)
+    try:
+        for mapping in commands.values():
+            link = (command_home or Path.home()) / mapping["link"]
+            if link.exists() or link.is_symlink():
+                if state != "match":
+                    raise InstallError(f"refusing to remove an unowned command path: {mapping['link']}")
+                if not link.is_symlink() or link.resolve(strict=True) != (destination / mapping["target"]).resolve(strict=True):
+                    raise InstallError(f"refusing to remove an unowned command path: {mapping['link']}")
+                target_text = os.readlink(link)
+                link.unlink()
+                removed_links.append((link, target_text))
+        collection_backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.uninstall-", dir=destination.parent))
+        collection_backup.rmdir()
+        os.replace(destination, collection_backup)
+        if receipt.exists():
+            descriptor, backup_name = tempfile.mkstemp(prefix=f".{receipt.name}.uninstall-", dir=receipt.parent)
+            os.close(descriptor)
+            receipt_backup = Path(backup_name)
+            receipt_backup.unlink()
+            os.replace(receipt, receipt_backup)
+    except (OSError, InstallError):
+        if receipt_backup is not None and receipt_backup.exists() and not receipt.exists():
+            os.replace(receipt_backup, receipt)
+        if collection_backup is not None and collection_backup.exists() and not destination.exists():
+            os.replace(collection_backup, destination)
+        for link, target_text in removed_links:
+            if not link.exists() and not link.is_symlink():
+                link.symlink_to(target_text)
+        raise
+    if collection_backup is not None:
+        shutil.rmtree(collection_backup)
+    if receipt_backup is not None:
+        receipt_backup.unlink(missing_ok=True)
     return True

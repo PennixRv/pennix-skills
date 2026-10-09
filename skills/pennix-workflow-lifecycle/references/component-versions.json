@@ -53,15 +53,6 @@
       "readiness": "Tavily extra settings are in a private lifecycle-marked owner record."
     },
     {
-      "id": "grok-firecrawl-extra",
-      "tier": "optional",
-      "default_enabled": false,
-      "adapter": "grok-firecrawl",
-      "collection": "pennix-skills",
-      "member": "grok-search",
-      "readiness": "Firecrawl extra settings are in a private lifecycle-marked owner record."
-    },
-    {
       "id": "windsurf-credential",
       "tier": "optional",
       "default_enabled": false,
@@ -460,8 +451,8 @@
         "materialized": {
           "grok-search": {
             "repo": "PennixRv/grok-search",
-            "ref": "main",
-            "commit": "3bee9fcadd5b45fa7440eaa2a81c4a76ac752c65",
+            "ref": "v0.3.1",
+            "commit": "85abc396bd8b6900ca5e3b4c22ad6c5ad395140e",
             "path": ".",
             "name": "grok-search",
             "snapshot": "archive",
@@ -471,11 +462,17 @@
           },
           "windsurf-code-search": {
             "repo": "PennixRv/windsurf-code-search",
-            "ref": "9409047e167873ab7de49cb45884cc5dd4907321",
-            "commit": "9f595f545ed7e2e8a6890c7f85489d8df0964a2b",
+            "ref": "bc27fbf2dd04f9b8583193cc8b43a1e89ee37da1",
+            "commit": "bc27fbf2dd04f9b8583193cc8b43a1e89ee37da1",
             "path": ".",
             "name": "windsurf-code-search",
             "snapshot": "npm-pack"
+          }
+        },
+        "commands": {
+          "grok-search": {
+            "target": "grok-search/bin/grok-search",
+            "link": ".local/bin/grok-search"
           }
         }
       }

@@ -92,6 +92,43 @@ class ConfigurationAdapterTest(unittest.TestCase):
                 )
                 self.assertEqual(MODULE.target_state("grok-provider", Path(temporary)), "configured")
 
+    def test_windsurf_uses_the_validated_collection_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills" / "pennix-skills"
+            command = root / "windsurf-code-search" / "bin" / "windsurf-code-search"
+            command.parent.mkdir(parents=True)
+            command.write_text("#!/bin/sh\necho status=configured\n", encoding="utf-8")
+            command.chmod(0o755)
+            from adapters import skills_install
+            receipt = skills_install._write_receipt(root, skills_install.collection_digest(root))
+            os.replace(receipt, skills_install.receipt_path(root))
+            with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0, stdout="status=configured\n")) as run:
+                self.assertEqual(
+                    MODULE.target_state("windsurf-owner", Path(temporary), collection_root=root, collection_member="windsurf-code-search"),
+                    "configured",
+                )
+            self.assertEqual(str(run.call_args.args[0][0]), str(command))
+            with mock.patch("shutil.which", return_value="/tmp/attacker/windsurf-code-search"):
+                with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0, stdout="status=configured\n")) as run:
+                    MODULE.target_state("windsurf-owner", Path(temporary), collection_root=root, collection_member="windsurf-code-search")
+                self.assertEqual(str(run.call_args.args[0][0]), str(command))
+
+    def test_windsurf_refuses_missing_or_linked_collection_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills" / "pennix-skills"
+            self.assertEqual(
+                MODULE.target_state("windsurf-owner", Path(temporary), collection_root=root, collection_member="windsurf-code-search"),
+                "unknown",
+            )
+            command = root / "windsurf-code-search" / "bin" / "windsurf-code-search"
+            command.parent.mkdir(parents=True)
+            outside = Path(temporary) / "outside"
+            outside.write_text("#!/bin/sh\n", encoding="utf-8")
+            outside.chmod(0o755)
+            command.symlink_to(outside)
+            with self.assertRaisesRegex(MODULE.ConfigurationError, "unsafe"):
+                MODULE._windsurf_command(root, "windsurf-code-search")
+
 
 
 

@@ -262,7 +262,32 @@ def _cch_paths() -> tuple[Path, Path]:
     return directory / "config.json", directory / "cch-token"
 
 
-def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None = None) -> str:
+def _windsurf_command(collection_root: Path | None, member: str | None) -> Path:
+    if collection_root is None or member != "windsurf-code-search":
+        raise ConfigurationError("Windsurf collection entry is unavailable")
+    from . import skills_install
+    if skills_install.collection_receipt_state(collection_root) != "match":
+        raise ConfigurationError("Windsurf collection integrity is unsafe")
+    root = collection_root / member
+    command = root / "bin" / "windsurf-code-search"
+    try:
+        _assert_no_symlink_ancestor(command)
+        root.resolve(strict=True).relative_to(collection_root.resolve(strict=True))
+        command.resolve(strict=True).relative_to(root.resolve(strict=True))
+    except (OSError, ValueError, ConfigurationError) as error:
+        raise ConfigurationError("Windsurf collection entry is unsafe") from error
+    if command.is_symlink() or not command.is_file() or not command.stat().st_mode & 0o111:
+        raise ConfigurationError("Windsurf collection entry is unavailable")
+    return command
+
+
+def target_state(
+    adapter: str,
+    codex_home: Path,
+    settings: dict[str, Any] | None = None,
+    collection_root: Path | None = None,
+    collection_member: str | None = None,
+) -> str:
     if adapter == "siyuan-native":
         from . import siyuan
         return siyuan.target_state(codex_home)
@@ -287,8 +312,9 @@ def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None
             return "configured"
         return "not-configured" if "missing" in {config_state, token_state} else "blocked"
     if adapter == "windsurf-owner":
-        command = shutil.which("windsurf-code-search")
-        if not command:
+        try:
+            command = _windsurf_command(collection_root, collection_member)
+        except ConfigurationError:
             return "unknown"
         try:
             result = subprocess.run([command, "config-doctor"], capture_output=True, text=True, timeout=10, check=False)
@@ -303,7 +329,9 @@ def target_state(adapter: str, codex_home: Path, settings: dict[str, Any] | None
             return state.replace("missing", "not-configured")
         if value.get(MARKER_KEY) != 1:
             return "drifted"
-        required = {"grok-provider": {"apiUrl", "apiKey"}, "grok-tavily": {"tavilyApiKey"}, "grok-firecrawl": {"firecrawlApiKey"}}[adapter]
+        required = {"grok-provider": {"apiUrl", "apiKey"}, "grok-tavily": {"tavilyApiKey"}}.get(adapter)
+        if required is None:
+            return "unknown"
         return "configured" if all(isinstance(value.get(key), str) and value[key].strip() for key in required) else "not-configured"
     return "unknown"
 
@@ -312,6 +340,8 @@ def configure_target(
     adapter: str,
     codex_home: Path,
     settings: dict[str, Any] | None = None,
+    collection_root: Path | None = None,
+    collection_member: str | None = None,
 ) -> str:
     if adapter == "siyuan-native":
         from . import siyuan
@@ -323,8 +353,9 @@ def configure_target(
         _run_owner(["cch-codex-tmux-status", "configure"])
         return target_state(adapter, codex_home)
     if adapter == "windsurf-owner":
-        _run_owner(["windsurf-code-search", "configure"])
-        return target_state(adapter, codex_home)
+        command = _windsurf_command(collection_root, collection_member)
+        _run_owner([str(command), "configure"])
+        return target_state(adapter, codex_home, collection_root=collection_root, collection_member=collection_member)
     if adapter == "hikari-json":
         base_url = _read_tty("Hikari endpoint: ")
         token = _read_tty("Hikari access token: ", secret=True)
@@ -344,7 +375,7 @@ def configure_target(
         elif adapter == "grok-tavily":
             data["tavilyApiKey"] = _read_tty("Tavily API key: ", secret=True)
         else:
-            data["firecrawlApiKey"] = _read_tty("Firecrawl API key: ", secret=True)
+            raise ConfigurationError("unknown configuration adapter")
         _write_private_json(_grok_path(), data)
         return target_state(adapter, codex_home)
     raise ConfigurationError("unknown configuration adapter")

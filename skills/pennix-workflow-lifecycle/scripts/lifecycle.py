@@ -47,7 +47,6 @@ CONFIGURATION_ADAPTERS = {
     "cch-owner",
     "grok-provider",
     "grok-tavily",
-    "grok-firecrawl",
     "hikari-json",
     "windsurf-owner",
 }
@@ -55,6 +54,13 @@ POST_INSTALL_ACTIONS = {"grok-search-runtime"}
 STATE_COMPONENT = "pennix-workflow-state"
 OBSOLETE_STATIC_RECEIPTS: set[str] = set()
 STAGING_PREFIX = ".pennix-skills-stage"
+RETIRED_FIRECRAWL_PROFILE_DIGEST = "85678ecf5fc3255b5ed8b59dcc6afb30944592d8396209c030ba0471bacaa9b4"
+RETIRED_GROK_FIELDS = {
+    "FIRECRAWL_API_KEY", "firecrawlApiKey", "firecrawl_api_key",
+    "FIRECRAWL_API_URL", "firecrawlApiUrl", "firecrawl_api_url",
+    "GROK_STATE_DIR", "stateDir", "state_dir",
+}
+RETIRED_ENGINE_FIELDS = {"responsesOpenRouterEngine", "responses_openrouter_engine", "GROK_RESPONSES_OPENROUTER_ENGINE"}
 
 
 def now() -> str:
@@ -176,6 +182,18 @@ def collection_materialized_names(value: Any) -> set[str] | None:
             return None
         names.add(name)
     return names
+
+
+def collection_commands(value: Any) -> dict[str, dict[str, str]] | None:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        return None
+    if not value:
+        return {}
+    if value != skills_install.MANAGED_COMMANDS:
+        return None
+    return {"grok-search": dict(value["grok-search"])}
 
 
 def configuration_digest(catalog: dict[str, Any]) -> str:
@@ -356,6 +374,135 @@ def _write_state_record(path: Path, content: bytes) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _firecrawl_reconcile_plan(codex_home: Path, digest: str, current_targets: set[str]) -> dict[str, Any]:
+    plan: dict[str, Any] = {"config": None, "profile": None, "cooldown": None}
+    config_path = configuration._grok_path()
+    config_state, config_content = _state_file(config_path)
+    config_value: dict[str, Any] | None = None
+    if config_state != "missing":
+        if config_state != "configured" or config_content is None:
+            raise BootstrapError("legacy Grok owner record is unsafe")
+        try:
+            config_value = json.loads(config_content.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise BootstrapError("legacy Grok owner record is invalid") from error
+        if not isinstance(config_value, dict):
+            raise BootstrapError("legacy Grok owner record is invalid")
+        engine_keys = {key for key in RETIRED_ENGINE_FIELDS if config_value.get(key) == "firecrawl"}
+        if any(key in config_value for key in RETIRED_GROK_FIELDS) or engine_keys:
+            if config_value.get(configuration.MARKER_KEY) != 1:
+                raise BootstrapError("legacy Grok record is not lifecycle-owned")
+            metadata = config_path.lstat()
+            if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
+                raise BootstrapError("legacy Grok record owner is unsafe")
+            migrated = {key: value for key, value in config_value.items() if key not in RETIRED_GROK_FIELDS}
+            for key in engine_keys:
+                migrated[key] = "auto"
+            plan["config"] = (config_path, config_content, migrated)
+    raw_state_dir = os.environ.get("GROK_STATE_DIR")
+    if raw_state_dir is None and config_value is not None:
+        raw_state_dir = next((config_value[key] for key in ("GROK_STATE_DIR", "stateDir", "state_dir") if key in config_value), None)
+    if raw_state_dir is None:
+        state_dir = Path.home() / ".cache" / "grok-search"
+    elif isinstance(raw_state_dir, str) and not raw_state_dir:
+        state_dir = Path.home() / ".cache" / "grok-search"
+    elif isinstance(raw_state_dir, str):
+        state_dir = Path(raw_state_dir).expanduser()
+        if not state_dir.is_absolute():
+            raise BootstrapError("legacy Grok state directory is ambiguous")
+    else:
+        raise BootstrapError("legacy Grok state directory is invalid")
+    if state_dir is not None:
+        cooldown = state_dir / "firecrawl-cooldown.json"
+        cooldown_state, cooldown_content = _state_file(cooldown)
+        if cooldown_state not in {"missing", "configured"}:
+            raise BootstrapError("legacy Firecrawl cooldown is unsafe")
+        if cooldown_content is not None:
+            try:
+                record = json.loads(cooldown_content.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise BootstrapError("legacy Firecrawl cooldown is invalid") from error
+            if (
+                not isinstance(record, dict)
+                or set(record) != {"until", "auth_mode", "reason", "hit_at"}
+                or record.get("auth_mode") not in {"keyless", "api_key"}
+                or not isinstance(record.get("reason"), str)
+                or not isinstance(record.get("until"), str)
+                or not isinstance(record.get("hit_at"), str)
+            ):
+                raise BootstrapError("legacy Firecrawl cooldown is invalid")
+            for field in ("until", "hit_at"):
+                try:
+                    datetime.fromisoformat(record[field].replace("Z", "+00:00"))
+                except ValueError as error:
+                    raise BootstrapError("legacy Firecrawl cooldown is invalid") from error
+            plan["cooldown"] = (cooldown, cooldown_content)
+
+    profile_path = configuration.profile_path(codex_home)
+    profile_state, profile_content = _state_file(profile_path)
+    if profile_state == "missing":
+        profile_state, profile_content = _state_file(configuration.legacy_profile_path(codex_home))
+    if profile_state == "configured" and profile_content is not None:
+        profile_state_name = _valid_profile(profile_content, digest)
+        if profile_state_name == "invalid":
+            raise BootstrapError("lifecycle profile is invalid")
+        profile = json.loads(profile_content.decode("utf-8"))
+        if not set(profile["targets"]) <= current_targets | {"grok-firecrawl-extra"}:
+            raise BootstrapError("lifecycle profile contains unknown targets")
+        if profile_state_name == "stale":
+            try:
+                profile = json.loads(profile_content.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise BootstrapError("lifecycle profile is invalid") from error
+            if profile.get("catalog_digest") != RETIRED_FIRECRAWL_PROFILE_DIGEST:
+                raise BootstrapError("lifecycle profile has an unrelated catalog revision")
+            targets = set(profile["targets"])
+            if not targets <= current_targets | {"grok-firecrawl-extra"}:
+                raise BootstrapError("lifecycle profile contains unknown targets")
+            profile["targets"] = sorted(targets - {"grok-firecrawl-extra"})
+            profile["catalog_digest"] = digest
+            plan["profile"] = (profile_path, profile_content, profile)
+        elif profile_state_name != "match":
+            raise BootstrapError("lifecycle profile is unsafe")
+    elif profile_state not in {"missing"}:
+        raise BootstrapError("lifecycle profile is unsafe")
+    return plan
+
+
+def _apply_firecrawl_reconcile_plan(plan: dict[str, Any]) -> list[str]:
+    written: list[tuple[Path, bytes]] = []
+    try:
+        for name in ("config", "profile"):
+            if plan[name] is None:
+                continue
+            path, original, new_value = plan[name]
+            state, observed = configuration._private_file(path)
+            if state != "configured" or observed != original:
+                raise BootstrapError(f"retirement {name} record changed during reconcile")
+            written.append((path, original))
+            configuration._write_private_json(path, new_value)
+            state, observed_value = configuration._private_json(path)
+            if state != "configured" or observed_value != new_value:
+                raise BootstrapError(f"retirement {name} verification failed")
+        if plan["cooldown"] is not None:
+            path, original = plan["cooldown"]
+            state, observed = configuration._private_file(path)
+            if state != "configured" or observed != original:
+                raise BootstrapError("legacy Firecrawl cooldown changed during reconcile")
+            path.unlink()
+        return [name for name, value in (("grok-config", plan["config"]), ("profile", plan["profile"]), ("firecrawl-cooldown", plan["cooldown"])) if value is not None]
+    except (OSError, configuration.ConfigurationError, BootstrapError):
+        rollback_failed = False
+        for path, original in reversed(written):
+            try:
+                configuration._write_private_json(path, json.loads(original.decode("utf-8")))
+            except (OSError, configuration.ConfigurationError, UnicodeDecodeError, json.JSONDecodeError):
+                rollback_failed = True
+        if rollback_failed:
+            raise BootstrapError("retirement failed and rollback needs owner verification") from None
+        raise
+
+
 def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any]:
     if args.component != STATE_COMPONENT or not args.yes:
         raise BootstrapError("reconcile requires --component pennix-workflow-state --yes")
@@ -367,10 +514,22 @@ def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[s
     legacy_root = configuration.legacy_state_root(args.codex_home)
     legacy = _inspect_state_tree(legacy_root, True, None)
     current = _inspect_state_tree(configuration.state_namespace(args.codex_home), False, digest)
+    try:
+        retirement_plan = _firecrawl_reconcile_plan(
+            args.codex_home, digest, set(configuration_target_map(catalog))
+        )
+    except (BootstrapError, configuration.ConfigurationError) as error:
+        return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": str(error)}
     current_static = configuration.state_namespace(args.codex_home) / "static-assets"
     obsolete_paths = [current_static / name for name in OBSOLETE_STATIC_RECEIPTS if (current_static / name).exists()]
     if legacy["status"] == "missing":
-        if current["status"] in {"missing", "match"}:
+        if current["status"] in {"missing", "match"} or (
+            current["status"] == "stale" and retirement_plan["profile"] is not None
+        ):
+            try:
+                retired = _apply_firecrawl_reconcile_plan(retirement_plan)
+            except (OSError, BootstrapError, configuration.ConfigurationError) as error:
+                return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": str(error)}
             for path in obsolete_paths:
                 state, _ = _state_file(path)
                 if state != "configured":
@@ -386,13 +545,15 @@ def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[s
                 "operation": "reconcile",
                 "component": STATE_COMPONENT,
                 "namespace": namespace_id,
-                "status": "cleaned" if obsolete_paths else "already-match",
-                **({"removed": [path.name for path in obsolete_paths]} if obsolete_paths else {}),
+                "status": "cleaned" if obsolete_paths or retired else "already-match",
+                **({"removed": [path.name for path in obsolete_paths] + retired} if obsolete_paths or retired else {}),
             }
         return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": current.get("reason", current["status"])}
     if legacy["status"] != "legacy":
         return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": legacy.get("reason", "legacy state is unsafe")}
-    if current["status"] not in {"missing", "match"}:
+    if current["status"] not in {"missing", "match"} and not (
+        current["status"] == "stale" and retirement_plan["profile"] is not None
+    ):
         return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": current.get("reason", current["status"])}
     source_paths = _state_record_paths(args.codex_home, True)
     destination_paths = _state_record_paths(args.codex_home, False)
@@ -419,6 +580,7 @@ def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[s
             state, observed = _state_file(source_paths[name])
             if state != "configured" or observed != content:
                 raise BootstrapError(f"legacy record changed during reconcile: {name}")
+        retired = _apply_firecrawl_reconcile_plan(retirement_plan)
         for path in source_paths.values():
             if path.exists():
                 path.unlink()
@@ -441,6 +603,7 @@ def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[s
         "namespace": namespace_id,
         "status": "migrated",
         "records": sorted(legacy["records"]),
+        **({"removed": retired} if retired else {}),
     }
 
 
@@ -560,8 +723,10 @@ def load_catalog(path: Path) -> dict[str, Any]:
             bootstrap_skill = contract.get("bootstrap_skill") if isinstance(contract, dict) else None
             source = contract.get("source") if isinstance(contract, dict) else None
             materialized = contract.get("materialized") if isinstance(contract, dict) else None
+            commands = contract.get("commands") if isinstance(contract, dict) else None
             source_names = collection_source_names(source)
             materialized_names = collection_materialized_names(materialized)
+            command_map = collection_commands(commands)
             if (
                 not isinstance(names, list)
                 or not names
@@ -571,6 +736,7 @@ def load_catalog(path: Path) -> dict[str, Any]:
                 or len(names) != len(set(names))
                 or source_names is None
                 or materialized_names is None
+                or command_map is None
                 or source_names != set(names)
                 or not materialized_names <= source_names
             ):
@@ -1015,7 +1181,14 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                     collection_skill_names(component), destination_path, collection_bootstrap_skill(component)
                 )
                 components[key]["collection_integrity"] = (
-                    skills_install.collection_receipt_state(destination_path) if status == "match" else "not-applicable"
+                    skills_install.collection_receipt_state(
+                        destination_path,
+                        collection_commands(component["collection_contract"].get("commands")),
+                    ) if status == "match" else "not-applicable"
+                )
+                components[key]["commands"] = inspect_collection_commands(
+                    destination_path,
+                    collection_commands(component["collection_contract"].get("commands")) or {},
                 )
             except skills_install.InstallError:
                 components[key]["collection_integrity"] = "unknown"
@@ -1032,7 +1205,12 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                 "id": target["id"],
                 "tier": target["tier"],
                 "enabled": enabled,
-                "status": configuration.target_state(target["adapter"], args.codex_home, target.get("settings")),
+                "status": configuration.target_state(
+                    target["adapter"], args.codex_home, target.get("settings"),
+                    collection_root=skills_install.resolve_destination(getattr(args, "destination", None))
+                    if target.get("collection") else None,
+                    collection_member=target.get("member"),
+                ),
                 "readiness": target["readiness"],
             }
         )
@@ -1087,6 +1265,10 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
             failures.append(f"{key}: static state is {observed.get('static_state')}")
         if component.get("adapter") == "pennix-skills" and observed.get("collection_integrity") != "match":
             failures.append(f"{key}: collection integrity is {observed.get('collection_integrity')}")
+        if component.get("adapter") == "pennix-skills":
+            for name, state in observed.get("commands", {}).items():
+                if state.get("status") != "match" or state.get("path_status") != "match":
+                    failures.append(f"command {name}: link={state.get('status')} PATH={state.get('path_status')}")
         if isinstance(component.get("upstream_inspection"), dict):
             try:
                 evidence = upstream.inspect_component(component)
@@ -1193,7 +1375,8 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
         destination = skills_install.resolve_destination(getattr(args, "destination", None))
         try:
             changed = skills_install.uninstall_collection(
-                collection_skill_names(component), destination, collection_bootstrap_skill(component)
+                collection_skill_names(component), destination, collection_bootstrap_skill(component),
+                collection_commands(component["collection_contract"].get("commands")), Path.home(),
             )
         except skills_install.InstallError as error:
             raise BootstrapError(str(error)) from error
@@ -1346,6 +1529,32 @@ def component_operation(
     return "changed"
 
 
+def inspect_collection_commands(destination: Path, commands: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    observed: dict[str, dict[str, str]] = {}
+    home = Path.home()
+    for name, mapping in commands.items():
+        link = home / mapping["link"]
+        target = destination / mapping["target"]
+        status = "missing"
+        try:
+            if link.is_symlink() and link.resolve(strict=True) == target.resolve(strict=True):
+                status = "match"
+            elif link.exists() or link.is_symlink():
+                status = "drifted"
+        except OSError:
+            status = "blocked"
+        resolved = shutil.which(name)
+        path_status = "match" if resolved and Path(resolved).absolute() == link.absolute() else (
+            "shadowed" if resolved else "not-in-path"
+        )
+        if status == "match" and (
+            target.is_symlink() or not target.is_file() or not target.stat().st_mode & 0o111
+        ):
+            status = "drifted"
+        observed[name] = {"status": status, "path_status": path_status}
+    return observed
+
+
 def configuration_parent_status(
     args: argparse.Namespace, catalog: dict[str, Any], target: dict[str, Any]
 ) -> str:
@@ -1358,7 +1567,9 @@ def configuration_parent_status(
         raise BootstrapError(f"configuration delivery is {status}: {key}")
     if component.get("delivery") == "collection":
         destination = skills_install.resolve_destination(getattr(args, "destination", None))
-        integrity = skills_install.collection_receipt_state(destination)
+        integrity = skills_install.collection_receipt_state(
+            destination, collection_commands(component["collection_contract"].get("commands"))
+        )
         if integrity != "match":
             raise BootstrapError(f"configuration collection integrity is {integrity}")
     return key
@@ -1369,7 +1580,12 @@ def configure_configuration_target(
 ) -> None:
     configuration_parent_status(args, catalog, target)
     digest = configuration_digest(catalog)
-    state = configuration.configure_target(target["adapter"], args.codex_home, target.get("settings"))
+    state = configuration.configure_target(
+        target["adapter"], args.codex_home, target.get("settings"),
+        collection_root=skills_install.resolve_destination(getattr(args, "destination", None))
+        if target.get("collection") else None,
+        collection_member=target.get("member"),
+    )
     if state not in {"ready", "configured"}:
         raise BootstrapError(f"configuration postcondition failed: {target['id']} is {state}")
     configuration.enable_target(args.codex_home, digest, target["id"])
@@ -1475,6 +1691,8 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
             collection_bootstrap_skill(component),
             allow_legacy=True,
             obsolete_names=set(component.get("obsolete_skills", [])),
+            commands=collection_commands(component["collection_contract"].get("commands")),
+            command_home=Path.home(),
         )
     except skills_install.InstallError as error:
         raise BootstrapError(str(error)) from error

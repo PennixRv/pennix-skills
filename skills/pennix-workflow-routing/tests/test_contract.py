@@ -47,6 +47,11 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("正确 native channel 不可用时保留原始能力缺口并停止", content)
         self.assertIn("FastCtx 才能做不推进 owner 状态的读取或分析", content)
 
+    def test_fastctx_availability_uses_the_host_registry_not_nested_exec_tools(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("`functions.exec` 内嵌编排器的 `ALL_TOOLS` 不是宿主完整工具清单", content)
+        self.assertIn("schema、权限、传输或服务错误", content)
+
     def test_trellis_parallel_route_preserves_native_admission_and_acceptance(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         route = content.split("## 当前 Trellis fork 并行工作流", 1)[1].split("## 本地证据优先", 1)[0]

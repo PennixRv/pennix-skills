@@ -46,7 +46,7 @@ Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`�
 | 测试、日志、长差异、递归检索、构建/依赖输出或大文件分析 | FastCtx 有界工具或 job | 默认当前请求/显式 job 处理；不要把结果自动写入任务事实 |
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用原生读取或 FastCtx 分页分析 | 不把原始结果重新塞回工具参数 |
 
-无法预判本地文本规模且没有独立协议时，使用 FastCtx 的有界读取、搜索或 job；无法判断一个结构化工具是否有界时，先使用其原协议。FastCtx 不可用时直接降级到宿主原生工具，不重新引入旧的 `ctx_*` 路径。专用 owner 不可用时不允许降级到 FastCtx 或 shell 模拟。
+无法预判本地文本规模且没有独立协议时，使用 FastCtx 的有界读取、搜索或 job；无法判断一个结构化工具是否有界时，先使用其原协议。判断 FastCtx 是否可用，只依据当前会话暴露的宿主原生工具和对该工具的实际调用结果；`functions.exec` 内嵌编排器的 `ALL_TOOLS` 不是宿主完整工具清单，不能因其中缺少 MCP 名称而判定 FastCtx 不可用。只有宿主当前确实未暴露 FastCtx 原生工具时，普通本地操作才直接降级到宿主原生工具，不重新引入旧的 `ctx_*` 路径。原生调用发生 schema、权限、传输或服务错误时保留实际错误类别，不得把它改写为“工具缺失”。专用 owner 不可用时不允许降级到 FastCtx 或 shell 模拟。
 
 专用 owner 的 executable 仍属于专用 owner：不得使用 `mcp__fastctx.run`、FastCtx
 `run_background`/job、`replace`、shell HTTP 或通用 wrapper 启动、转发、重试、轮询、等待

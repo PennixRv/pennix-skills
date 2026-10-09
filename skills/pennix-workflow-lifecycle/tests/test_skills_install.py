@@ -240,6 +240,108 @@ class SkillsCollectionTest(unittest.TestCase):
                     self.assertTrue((destination / "alpha" / "old").is_file())
                     self.assertEqual(MODULE.collection_receipt_state(destination), "match")
 
+    def test_command_install_and_uninstall_are_receipt_owned(self) -> None:
+        commands = {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}}
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            root = home / ".codex" / "skills"
+            destination, staging = root / "pennix-skills", root / ".stage"
+            executable = staging / "grok-search" / "bin" / "grok-search"
+            executable.parent.mkdir(parents=True)
+            executable.write_text("#!/bin/sh\n", encoding="utf-8")
+            executable.chmod(0o755)
+            (staging / "grok-search" / "SKILL.md").write_text(
+                "---\nname: grok-search\ndescription: Test Skill.\n---\n", encoding="utf-8"
+            )
+            MODULE.replace_collection({"grok-search"}, staging, destination, commands=commands, command_home=home)
+            link = home / ".local/bin/grok-search"
+            self.assertEqual(link.resolve(), destination / commands["grok-search"]["target"])
+            self.assertEqual(MODULE.collection_receipt_state(destination, commands), "match")
+            self.assertTrue(MODULE.uninstall_collection({"grok-search"}, destination, commands=commands, command_home=home))
+            self.assertFalse(link.exists())
+            self.assertFalse(destination.exists())
+
+    def test_unowned_command_path_blocks_replacement_without_touching_it(self) -> None:
+        commands = {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}}
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            root = home / ".codex" / "skills"
+            destination, staging = root / "pennix-skills", root / ".stage"
+            command = staging / "grok-search" / "bin" / "grok-search"
+            command.parent.mkdir(parents=True)
+            command.write_text("#!/bin/sh\n", encoding="utf-8")
+            command.chmod(0o755)
+            (staging / "grok-search" / "SKILL.md").write_text(
+                "---\nname: grok-search\ndescription: Test Skill.\n---\n", encoding="utf-8"
+            )
+            link = home / ".local/bin/grok-search"
+            link.parent.mkdir(parents=True)
+            link.write_text("user file\n", encoding="utf-8")
+            with self.assertRaisesRegex(MODULE.InstallError, "unmanaged"):
+                MODULE.replace_collection({"grok-search"}, staging, destination, commands=commands, command_home=home)
+            self.assertEqual(link.read_text(encoding="utf-8"), "user file\n")
+            self.assertFalse(destination.exists())
+
+    def test_link_creation_failure_rolls_back_new_tree_receipt_and_directories(self) -> None:
+        commands = {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}}
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            destination = home / ".codex/skills/pennix-skills"
+            staging = destination.parent / ".stage"
+            self.make_skill(staging, "grok-search")
+            command = staging / "grok-search/bin/grok-search"
+            command.parent.mkdir()
+            command.write_text("#!/bin/sh\n")
+            command.chmod(0o755)
+            with mock.patch.object(Path, "symlink_to", side_effect=OSError("link failure")):
+                with self.assertRaisesRegex(OSError, "link failure"):
+                    MODULE.replace_collection({"grok-search"}, staging, destination, commands=commands, command_home=home)
+            self.assertTrue(staging.is_dir())
+            self.assertFalse(destination.exists())
+            self.assertFalse(MODULE.receipt_path(destination).exists())
+            self.assertFalse((home / ".local").exists())
+
+    def test_schema_one_requires_explicit_migration_and_valid_digest(self) -> None:
+        import json
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "skills/pennix-skills"
+            staging = destination.parent / ".stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(staging, "alpha")
+            receipt = MODULE.receipt_path(destination)
+            receipt.write_text(json.dumps({"schema": 1, "destination": destination.name, "digest": MODULE.collection_digest(destination)}))
+            receipt.chmod(0o600)
+            self.assertEqual(MODULE.collection_receipt_state(destination), "legacy")
+            with self.assertRaises(MODULE.InstallError):
+                MODULE.replace_collection({"alpha"}, staging, destination)
+            MODULE.replace_collection({"alpha"}, staging, destination, allow_legacy=True)
+            self.assertEqual(json.loads(receipt.read_text())["schema"], 2)
+            self.make_skill(staging, "alpha")
+            (destination / "alpha/unowned").write_text("user change")
+            with self.assertRaisesRegex(MODULE.InstallError, "drifted"):
+                MODULE.replace_collection({"alpha"}, staging, destination, allow_legacy=True)
+
+    def test_upgrade_does_not_adopt_same_target_link_without_receipt_command_proof(self) -> None:
+        commands = {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}}
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            destination = home / ".codex/skills/pennix-skills"
+            staging = destination.parent / ".stage"
+            for parent in (destination, staging):
+                self.make_skill(parent, "grok-search")
+                command = parent / "grok-search/bin/grok-search"
+                command.parent.mkdir()
+                command.write_text("#!/bin/sh\n")
+                command.chmod(0o755)
+            self.trust_collection(destination)
+            link = home / ".local/bin/grok-search"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(destination / commands["grok-search"]["target"])
+            with self.assertRaisesRegex(MODULE.InstallError, "unmanaged"):
+                MODULE.replace_collection({"grok-search"}, staging, destination, commands=commands, command_home=home)
+            self.assertTrue(link.is_symlink())
+            self.assertTrue(staging.exists())
+
     def test_destination_must_be_collection_root(self) -> None:
         with self.assertRaises(MODULE.InstallError):
             MODULE.resolve_destination("/tmp/not-a-pennix-install")

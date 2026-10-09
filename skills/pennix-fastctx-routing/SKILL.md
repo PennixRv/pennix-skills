@@ -25,6 +25,12 @@ FastCtx job 模拟、接管或绕过。
 
 ## 路由规则
 
+工具可用性以当前会话宿主实际暴露的原生 MCP 工具为准。`functions.exec` 中的嵌套编排器
+`ALL_TOOLS` 只列出可供该编排器调用的嵌套工具，不是宿主原生 MCP 清单；其缺少 FastCtx
+名称不能证明 FastCtx 未安装或不可用。原生 FastCtx 工具已暴露时直接调用；仅当宿主未暴露
+该原生工具时，普通本地操作才按下方规则降级。调用已暴露工具遇到 schema、权限、传输或
+服务错误时保留原错误类别，不得改报为工具缺失。
+
 1. 只有普通本地读取、搜索、非交互 CLI、构建、测试或明确 FastCtx job 语义通过 owner-first 排除后，才进入 FastCtx 路由。
 2. 仅当工具 schema 支持批量且已知有多个文本文件时，使用 `inspect_local_file` 的 `files` 批量读取；单一目标或不同视图直接调用对应工具。
 3. `run` 只承载一条非交互式 CLI；长时操作改用 `run_background`、`job_output`、`job_kill`。已有直接 FastCtx schema 的操作不再包一层 shell，也绝不把 `apply_patch` 传给 `run`。

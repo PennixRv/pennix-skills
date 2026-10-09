@@ -1,0 +1,54 @@
+{
+  "id": "pennix-collection-upgrade",
+  "name": "pennix-collection-upgrade",
+  "title": "Upgrade Pennix collection consumers and routing contracts",
+  "description": "Materialize the approved Grok v0.3.0 release, align Windsurf consumer provenance, extend lifecycle receipt and PATH command ownership, retire Firecrawl migration targets, resolve Windsurf native CLI entrypoints, and record native FastCtx availability routing contracts. Preserve owner boundaries, secrets, and transactional rollback guarantees.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-09",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "parent_task": "10-09-grok-windsurf-fastctx-upgrade-plan",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "pennix-collection-upgrade",
+        "task_name": "10-09-pennix-collection-upgrade",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "bc4f25caad9ebc1837f6fed384c55e45e100dfce0955f5f9bb85d7fa57c469a5",
+          "design.md": "b8fa4bf00712c9abc9c37bff15268703a610405117e979ad6cba8df218b85c38",
+          "implement.md": "a8fc58a5af5eba876b55ec395c578406d863116fc71a09816d3f1020092f7431"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-09T06:48:14.985547+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户批准按封口方案实施 Pennix 消费者与路由合同升级",
+      "approved_at": "2026-10-09T06:50:13.591344+00:00"
+    }
+  }
+}

@@ -6,6 +6,12 @@ SKILL = Path(__file__).parents[1] / "SKILL.md"
 
 
 class FastCtxRoutingContractTest(unittest.TestCase):
+    def test_native_tool_availability_is_not_inferred_from_exec_nested_tools(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("`functions.exec` 中的嵌套编排器", content)
+        self.assertIn("不是宿主原生 MCP 清单", content)
+        self.assertIn("调用已暴露工具遇到 schema、权限、传输或", content)
+
     def test_native_workflow_protocols_are_excluded_before_fastctx(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         for marker in (
