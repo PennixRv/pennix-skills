@@ -26,15 +26,15 @@ approval record is manufactured from the parent's approval.
 
 ## Acceptance Criteria
 
-- [ ] Same-file absolute interpreter aliases pass readiness; configuration and
+- [x] Same-file absolute interpreter aliases pass readiness; configuration and
   private record bytes remain unchanged, with no terminal input.
-- [ ] A different interpreter, a changed helper path, extra argv, a missing or
+- [x] A different interpreter, a changed helper path, extra argv, a missing or
   unverifiable executable, required-field drift and marker drift fail closed.
-- [ ] The existing lifecycle/configuration/install suite, routing contracts,
+- [x] The existing lifecycle/configuration/install suite, routing contracts,
   syntax and diff checks pass.
-- [ ] Commit and push this source to main; the parent installs the complete
+- [x] Commit and push this source to main; the parent installs the complete
   collection through the native installer/lifecycle and records the exact SHA.
-- [ ] The parent's native AoE verification matches 1.19.0, SiYuan readiness is
+- [x] The parent's native AoE verification matches 1.19.0, SiYuan readiness is
   configured, full verify has no corresponding failures, and offline integration
   passes. Temporary fixture/staging artifacts are cleaned by their owners.
 
