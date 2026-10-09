@@ -509,3 +509,26 @@ Pinned FastCtx 0.2.23 and Ponytail 5.1.0/v5.1.0; installed exact immutable 11-Sk
 ### Status
 
 [OK] **Completed**
+
+
+## Session 22: AoE baseline and SiYuan readiness aligned
+<!-- trellis-session: v=2 fp=cf87763d35b32f1f -->
+
+**Date**: 2026-10-09
+**Task**: AoE baseline and SiYuan readiness aligned
+**Branch**: `main`
+
+### Summary
+
+Aligned the approved AoE version to installed 1.19.0; fixed false SiYuan drift for same-file Python aliases without rewriting user configuration. All 150 lifecycle and 11 routing tests passed; native collection installation, full verification and 8 offline checks passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c12c8c6` | fix: align AoE baseline and SiYuan helper readiness |
+| `b066b30` | docs: record verified lifecycle readiness delivery |
+
+### Status
+
+[OK] **Completed**
