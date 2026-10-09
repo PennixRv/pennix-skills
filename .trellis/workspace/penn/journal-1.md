@@ -532,3 +532,27 @@ Aligned the approved AoE version to installed 1.19.0; fixed false SiYuan drift f
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: Progressive decisions and full user rules
+<!-- trellis-session: v=2 fp=44acf81a443d1788 -->
+
+**Date**: 2026-10-10
+**Task**: Progressive decisions and full user rules
+**Branch**: `main`
+
+### Summary
+
+Completed approved SAG fixes, actual YAML admission, full-file user rules migration, doctor and handoff boundaries; beta.43 assets synced and current-device collection reinstalled with matching receipt. Model behavior not_run; root records task-external tmux baseline drift.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9353bf4` | fix: layer user rules and progressive workflow decisions |
+| `b7e3c41` | fix: distinguish optional checkout from parent repository |
+| `d6f400a` | chore: sync beta.43 project assets and installation evidence |
+
+### Status
+
+[OK] **Completed**

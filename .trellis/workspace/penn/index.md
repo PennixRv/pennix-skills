@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 22
-- **Last Active**: 2026-10-09
+- **Total Sessions**: 23
+- **Last Active**: 2026-10-10
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~534 | Active |
+| `journal-1.md` | ~558 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 23 | 2026-10-10 | Progressive decisions and full user rules | `9353bf4`, `b7e3c41`, `d6f400a` | `main` |
 | 22 | 2026-10-09 | AoE baseline and SiYuan readiness aligned | `c12c8c6`, `b066b30` | `main` |
 | 21 | 2026-10-09 | Retrieval consumers and native availability routing | `ca6a544`, `581b21a` | `main` |
 | 20 | 2026-10-09 | Workflow footprint baseline installed | `17d406e`, `b5f471b`, `4c3b576` | `main` |
