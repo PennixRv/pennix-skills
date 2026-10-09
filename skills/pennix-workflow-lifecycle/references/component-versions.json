@@ -396,7 +396,7 @@
       "adapter": "codex-agents",
       "template": {
         "name": "AGENTS.md.install",
-        "revision": "sha256:00ca8f19bb54e824377a8e1f0fdae5e9011c96a0e90a24033da0d55e80f693a2"
+        "revision": "sha256:96307dbfbc9effe504748080008f8b250e4ae94b5a526325d58b00a8d7e49202"
       }
     },
     "pennix-skills": {
