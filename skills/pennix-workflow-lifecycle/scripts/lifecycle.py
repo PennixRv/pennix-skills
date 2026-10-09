@@ -994,7 +994,11 @@ def probe_component(
     if adapter == "codex-agents":
         target = (codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))) / "AGENTS.md"
         state = codex_static.template_state(target)
-        return {"current": "match", "absent": "missing"}.get(state, "drifted"), state
+        effective = codex_static.effective_agents(target)
+        status = {"current": "match", "absent": "missing"}.get(state, "drifted")
+        if state == "current" and effective["status"] != "active":
+            status = "blocked"
+        return status, f"{state}:{effective['status']}"
     if adapter == "tmux-config":
         template = component.get("template")
         revision = template.get("revision") if isinstance(template, dict) else None
@@ -1175,6 +1179,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             components[key]["static_target"] = asset.get("target")
             static_assets[key] = asset
         if component.get("adapter") == "pennix-skills":
+            components[key]["format_readiness"] = skills_install.format_readiness()
             try:
                 destination_path = skills_install.resolve_destination(getattr(args, "destination", None))
                 components[key]["missing_skills"] = skills_install.collection_missing_names(
@@ -1223,6 +1228,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
         "static": {
             "agents_path": str(agents),
             "agents_template": agents_state,
+            "agents_effective": codex_static.effective_agents(agents),
             "config_path": str(config),
             "config_install": config_state,
             "assets": static_assets,
@@ -1356,13 +1362,15 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
         if operation == "uninstall":
             if state == "absent":
                 return "no-op"
-            if state not in {"current", "partial"}:
+            if state not in {"current", "legacy"}:
                 raise BootstrapError(f"refusing {state} lifecycle template: {path}")
             before, after = codex_static.remove_template(path)
             return "changed" if before != after else "no-op"
         if state == "current":
             return "no-op"
-        if state in {"absent", "partial"}:
+        if state in {"absent", "legacy"}:
+            if state == "legacy" and operation != "upgrade":
+                raise BootstrapError("known legacy AGENTS.md requires explicit upgrade")
             if operation == "upgrade" and state == "absent":
                 raise BootstrapError("cannot upgrade an uninstalled AGENTS.md template")
             codex_static.apply_template(path)

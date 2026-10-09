@@ -572,26 +572,17 @@ class BootstrapTests(unittest.TestCase):
             target = home / "AGENTS.md"
             target.write_text("# user instructions\n", encoding="utf-8")
             args = SimpleNamespace(codex_home=home, destination=None)
-            self.assertEqual(
-                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "uninstall"),
-                "no-op",
-            )
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "drifted"):
+                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "uninstall")
             self.assertTrue(target.exists())
+            self.assertEqual(target.read_text(), "# user instructions\n")
 
-    def test_agents_install_adds_missing_owned_blocks_without_replacing_custom_content(self) -> None:
+    def test_agents_install_materializes_the_whole_template_and_reenters(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "codex"
             home.mkdir()
             target = home / "AGENTS.md"
             template = bootstrap.codex_static.template("AGENTS.md.install")
-            fastctx = bootstrap.codex_static._agent_block(
-                template,
-                "<!-- pennix-fastctx:begin -->",
-                "<!-- pennix-fastctx:end -->",
-            )
-            self.assertIsNotNone(fastctx)
-            original = "# user instructions\n\n" + fastctx + "\n"
-            target.write_text(original, encoding="utf-8")
             args = SimpleNamespace(codex_home=home, destination=None)
 
             self.assertEqual(
@@ -599,13 +590,11 @@ class BootstrapTests(unittest.TestCase):
                 "changed",
             )
             updated = target.read_text(encoding="utf-8")
-            self.assertIn("# user instructions", updated)
-            self.assertIn("$pennix-fastctx", updated)
-            self.assertIn("只读 `analysis_only` 研究无论复杂度或跨 owner", updated)
-            self.assertIn("仅用户要求独立 subnode 研究时", updated)
-            self.assertEqual(updated.count("<!-- pennix-workflow-lifecycle:begin -->"), 1)
+            self.assertEqual(updated, template)
+            self.assertNotIn("<!--", updated)
+            self.assertEqual(bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "install"), "no-op")
 
-    def test_agents_install_refuses_modified_owned_block(self) -> None:
+    def test_agents_install_refuses_partial_legacy_content(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "codex"
             home.mkdir()
@@ -615,19 +604,89 @@ class BootstrapTests(unittest.TestCase):
                 encoding="utf-8",
             )
             args = SimpleNamespace(codex_home=home, destination=None)
-            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "pennix-fastctx"):
+            before = target.read_bytes()
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "drifted"):
                 bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "install")
+            self.assertEqual(target.read_bytes(), before)
 
-    def test_agents_install_refuses_duplicate_owned_block(self) -> None:
+    def test_agents_upgrade_requires_exact_known_full_legacy_version(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "codex"
             home.mkdir()
             target = home / "AGENTS.md"
-            block = "<!-- pennix-fastctx:begin -->\nkeep\n<!-- pennix-fastctx:end -->\n"
-            target.write_text(block + block, encoding="utf-8")
+            original = "# a known full previous template\n"
+            target.write_text(original, encoding="utf-8")
             args = SimpleNamespace(codex_home=home, destination=None)
-            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "markers are invalid"):
-                bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "install")
+            with patch.object(bootstrap.codex_static, "LEGACY_AGENTS_DIGESTS", {bootstrap.codex_static.digest(original)}):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "explicit upgrade"):
+                    bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "install")
+                self.assertEqual(target.read_text(), original)
+                target.write_text(original + "personal change\n", encoding="utf-8")
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "drifted"):
+                    bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "upgrade")
+                target.write_text(original, encoding="utf-8")
+                self.assertEqual(bootstrap.static_operation(args, "codex-agents", {"adapter": "codex-agents"}, "upgrade"), "changed")
+                self.assertEqual(target.read_text(), bootstrap.codex_static.template("AGENTS.md.install"))
+
+    def test_agents_atomic_failure_preserves_known_legacy_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "AGENTS.md"
+            original = "# known previous rules\n"
+            target.write_text(original)
+            with (
+                patch.object(bootstrap.codex_static, "LEGACY_AGENTS_DIGESTS", {bootstrap.codex_static.digest(original)}),
+                patch.object(bootstrap.codex_static.os, "replace", side_effect=OSError("write failed")),
+                self.assertRaisesRegex(OSError, "write failed"),
+            ):
+                bootstrap.codex_static.apply_template(target)
+            self.assertEqual(target.read_text(), original)
+            self.assertEqual(list(target.parent.iterdir()), [target])
+
+    def test_agents_rejects_symlink_and_unsafe_permissions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            actual = root / "rules"
+            actual.write_text(bootstrap.codex_static.template("AGENTS.md.install"))
+            target = root / "AGENTS.md"
+            target.symlink_to(actual)
+            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "symbolic-link"):
+                bootstrap.codex_static.apply_template(target)
+            target.unlink()
+            target.write_text(actual.read_text())
+            target.chmod(0o666)
+            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "permissions"):
+                bootstrap.codex_static.remove_template(target)
+            self.assertTrue(target.exists())
+
+    def test_agents_rejects_foreign_owner_without_overwriting(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "AGENTS.md"
+            target.write_text(bootstrap.codex_static.template("AGENTS.md.install"))
+            with patch.object(bootstrap.codex_static.os, "getuid", return_value=target.stat().st_uid + 1):
+                with self.assertRaises(bootstrap.codex_static.StaticError):
+                    bootstrap.codex_static.apply_template(target)
+
+    def test_agents_nondefault_home_distinguishes_empty_and_nonempty_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "alternate-codex-home"
+            home.mkdir()
+            target = home / "AGENTS.md"
+            bootstrap.codex_static.apply_template(target)
+            override = home / "AGENTS.override.md"
+            component = {"adapter": "codex-agents"}
+            with patch.dict(os.environ, {"CODEX_HOME": str(home)}):
+                self.assertEqual(bootstrap.probe_component(component), ("match", "current:active"))
+                override.write_text("   \n")
+                self.assertEqual(bootstrap.probe_component(component), ("match", "current:active"))
+                override.write_text("# different rules\n")
+                self.assertEqual(bootstrap.codex_static.template_state(target), "current")
+                self.assertEqual(bootstrap.probe_component(component), ("blocked", "current:shadowed"))
+                self.assertEqual(bootstrap.codex_static.effective_agents(target)["path"], str(override))
+                self.assertEqual(override.read_text(), "# different rules\n")
+                catalog = {"components": {"codex-agents": component, "other": {"adapter": "fixture"}}}
+                inventory = {"components": {"codex-agents": {"status": "blocked"}, "other": {"status": "match"}}}
+                self.assertEqual(bootstrap.verify_inventory(SimpleNamespace(component="other"), catalog, inventory), [])
+                self.assertEqual(bootstrap.verify_inventory(SimpleNamespace(component="codex-agents"), catalog, inventory), ["codex-agents: observed status is blocked"])
 
     def tmux_fixture(self, root: Path) -> tuple[SimpleNamespace, dict[str, object], Path, Path]:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)

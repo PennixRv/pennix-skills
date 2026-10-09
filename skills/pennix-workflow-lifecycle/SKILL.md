@@ -82,10 +82,11 @@ metadata. Before replacement, verify that the staged tree contains exactly the
 catalog Skill names, valid frontmatter, and an executable `seed-arch.sh`, then
 run the native entry from that validated staging tree, so catalog and adjacent
 templates belong to the same version (do not inject a new catalog into an older
-installed entry). If the owned AGENTS template changes, first use the still-installed
-old entry to uninstall its exact `codex-agents` blocks, preserving outside text;
-after collection replacement, install the new blocks with the new entry. A drifted
-old block stops this path rather than authorizing an overwrite:
+installed entry). Skill admission requires PyYAML (`python-yaml` on Arch); `discover`
+reports parser readiness and never silently installs it or falls back to regex validation.
+If the AGENTS template changes, keep the old complete file during collection replacement,
+then explicitly `upgrade --component codex-agents --yes` with the new entry. Only an
+exact known previous full template may migrate; unknown local changes stop the action.
 
 ```bash
 python3 <staged-lifecycle>/scripts/lifecycle.py replace-staged \
@@ -160,9 +161,16 @@ they use tracked templates, managed blocks, per-asset integrity receipts, and
 fail-closed drift handling; they never read or write the private configuration
 profile or a shared `.env`. `codex-config` accepts an existing configuration as
 `compatible` when all lifecycle-owned values are semantically present, and leaves
-additional user-owned values untouched. `codex-agents` manages only its two lifecycle marker
-blocks and preserves all unowned `AGENTS.md` content; missing owned blocks may be
-added, while duplicate, unpaired, or modified owned blocks block the operation.
+additional user-owned values untouched. `codex-agents` manages the whole user-level
+`AGENTS.md` from one source template, without begin/end blocks or a personal extension
+area. Personal rule changes belong in that source. Install creates an absent file;
+explicit upgrade atomically replaces only a verified complete previous version;
+uninstall removes only an exact current or known previous file. Unknown content,
+unsafe owners, permissions or symbolic links are preserved and block the action.
+Materialized template state and effective instruction source are separate: a nonempty
+`AGENTS.override.md` shadows `AGENTS.md`, remains untouched, and blocks a claim that
+the managed rules are active. Empty overrides are ignored; diagnostics honor `CODEX_HOME`.
+Merely activating this Skill never writes static assets.
 `tmux-config` is an explicit component action and manages only the Pennix block in
 `HOME/.tmux.conf`. Its baseline covers
 `default-terminal`, true-color `terminal-overrides`, and the paired tmux window

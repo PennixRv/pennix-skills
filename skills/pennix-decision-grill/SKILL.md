@@ -1,152 +1,52 @@
 ---
 name: pennix-decision-grill
-description: Decide when a complex task needs user input, batch independent planning questions, and return material implementation ambiguity to the Trellis planning gate.
+description: Identify consequential user decisions and resolve them through prioritized, dependency-aware question rounds. Use for planning or material new choices during execution; skip settled choices, discoverable facts, local implementation details, and clearly bounded research without a user decision.
 metadata:
-  short-description: Govern interactive planning decisions
+  short-description: Resolve important decisions in progressive rounds
 ---
 
 # Pennix Decision Grill
 
-Use this Skill for every Trellis planning gate (`clarify`, `research`, `plan`,
-`plan-check`, or `grill-me`) when a choice may change scope, owner, safety
-boundary, public behavior, data, deployment, cost, or acceptance criteria. It
-does not perform deployment and does not create a second task lifecycle.
+帮助用户与代理在当前范围内形成可执行的共同方案。非调研任务先筛选重要取舍；有真正需要用户决定的选择时进入本Skill，不以复杂度、未知项数量或提问次数作为标准。边界清楚的只读研究直接完成证据；研究范围或方法确有用户取舍时仍提问。
 
-The caller must classify the request before entering this Skill: `work_domain`,
-`delivery_mode`, `execution_class`, `decision_frontier`, and `approval_mode`. A simple
-single-owner implementation may skip this gate only after recording a lightweight/direct
-classification and an immediate verification path. Enter this gate when planning is already
-required and an unresolved user-owned choice may materially change scope, owner, safety, public
-behavior, data, deployment, cost, or acceptance. A frontier may contain one decision; batch only
-the independent decisions that are ready in the current round. A complex task with no unresolved
-user-owned choice remains planned but does not need a question. Do not use `analysis_only`,
-`subnode`, or an execution approval as a substitute for the classification.
+## 筛选真正的决策
 
-Before routing, distinguish evidence work from change-bearing work. A bounded
-`analysis_only` task may be complex, cross-owner, and produce recommendations
-or unresolved product choices; those facts do not require implementation
-approval or a Planning Seal to complete the requested research. Record the
-findings and keep protected targets unchanged. Ask only for user-owned choices
-that materially define the requested evidence scope or method. If independent
-subnode evidence is requested, use Trellis Channel's frozen dispatch-plan gate
-and obtain explicit approval before spawn/send; this authorizes only the named
-evidence. Implementation, deployment, release, credential changes, or other
-protected-target mutations use the normal change-bearing planning and approval
-path.
+先复用当前任务、明确指令、证据与已定选择，只补会改变结论的缺口。询问会实质改变范围、体验、职责、权限/数据、部署、成本或验收、且不能由既有约定决定的用户取舍。一个重要选择就足够，不要求多个。
 
-## Decide Whether To Ask
+代理核验可查事实并处理局部、可逆、可验证的实现选择；不让用户替代源码检索，不重复问已定事项，不把实施批准伪装成设计问题。无法核实的必要事实明确记为证据缺口，仅在确需用户协助时索取最小信息。
 
-Do not ask when an existing task, spec, sealed decision, or project convention
-covers the choice, or when the choice is local, reversible, testable, and does
-not change an external contract. Record the local choice in the current task
-when it may help later work.
+## 决策树逐步演进
 
-Ask when the unresolved choice has multiple reasonable options and changes a
-material boundary. Present concrete mutually exclusive options, mark one
-recommendation, and explain the consequence of each option.
+从当前已知范围建立简要决策链，不要求一次穷举。复用本任务PRD、decisions或研究记录：重要节点保留问题、依据、选项、推荐及理由、依赖、实际答案及影响；有争议或变化时记下重开条件。证据与局部工程选择由代理关闭，不创建第二状态机或会话配置台账。
 
-## Batch Questions
+每轮只选依赖和所需证据已满足的未决用户选择，再按影响与阻断优先级排序。先处理会限制后续方案的边界；后序问题可能因回答新出现、改变或不再需要。
 
-Build the dependency order before asking:
+- 本轮只问主题连贯、互不影响的就绪项，数量不超过宿主工具限额，当前为1–3；只需一问就问一问。
+- 如果前序答案会改变后序选项、推荐、范围、风险、owner、验证或下一步，后序留到之后的轮次。
+- 给出简洁问题、真实互斥选项、推荐和主要后果；不以凑批次、填工具槽位或一次问全为目标。
 
-- Put only independent decisions from the same planning gate in one request.
-- Keep the batch within the current host's question limit, currently 1–3.
-- Give every question a stable id, concise header, and distinct options.
-- Split questions when one answer changes another question's options, scope,
-  risk, owner, validation path, or next action.
-- Keep execution authorization separate from design decisions.
+真实答复先立即写回当前任务，再核验影响、更新分支和重算下一轮。用户自定义答案按实际意图记录，不能强行归入最接近的预设项；部分回答只关闭已答节点。改口或新证据只重开受影响的决定，保留旧结论与原因；淘汰分支标明原因，不反复提问。回答到来后继续规划，不把每轮提问当成任务结束。
 
-## Decision Chain State
+## 有界证据辅助与上下文保护
 
-At the start of planning, inspect the task evidence and create a decision
-inventory in the active Trellis PRD or research artifact. Each node records an
-id, owner, question, options, recommendation, evidence, dependencies, impact,
-and revisit condition. Mark nodes `open`, `answered`, `blocked`, or `sealed`;
-facts that the repository or approved sources can answer are closed by the
-agent and are not user questions.
+证据工作可能拉长或分散决策链时，先在当前task保存待决定节点、缺失事实、影响和返回动作。当前机器/源码用本地工具；真正的外部事实用grok-search或其专用官方检索owner。只取得会改变当前决定的证据，不把整条对话或不相关决定外发。
 
-The planning artifact is the durable state. Do not keep the decision graph only
-in the conversation, runtime state, Codex configuration, or a parallel ledger.
+独立证据有明确并行价值且具备授权时，可按当前项目trellis-channel procedure派subnode；先冻结问题、边界、允许工具/证据落点与派发方案并获专门批准。子节点核验事实，不选择用户取舍、不改主任务事实；结果由主代理核验后回写原节点，再重算就绪问题。dispatch/wait遵守原生合同，不加轮询或另一个调度器；本Skill不默认派节点，也不重复维护Channel schema。
 
-## Frontier And Rounds
+## 原生交互与收口
 
-At each round, calculate the frontier: unresolved user-owned nodes whose
-dependencies are sealed. Ask all independent frontier nodes in one native
-request, with at most three questions. If only one independent node is ready,
-ask one; batching is conditional, not a quota. Do not ask a dependent node
-early. Keep execution approval separate from design decisions.
+直接使用当前宿主原生阻塞request_user_input，不替换为request_user_input_async、代理waiter、shell/MCP模拟或工具发现探测。不设代理等待上限、不因时间默认采用推荐；只在原生调用实际返回后继续，宿主控制其生命周期。
 
-When the native request returns answers in the current continuation, immediately
-record every selected option and rationale in the active PRD/research artifact,
-recheck evidence and downstream dependencies, and recalculate the frontier.
-Do not ask the next round before the previous answers are durable. Continue the
-same planning flow after that persistence; a question is not a terminal state.
+宿主拒绝、取消、超时或不可用不构成真实答案；保留必要未决项并停止其依赖动作，允许时用普通文本说明。可选问题空回执服从更高优先级宿主合同，不循环重问、不声称Skill能保证宿主无限阻塞，不发明配置键。
 
-When the frontier becomes empty, run a conflict audit across scope, ownership,
-security, compatibility, rollout, rollback, cost, and acceptance. If any two
-sealed decisions conflict, mark the affected nodes `blocked`, explain the
-conflict, and ask a new conflict-resolution question. Repeat the
-answer-record-frontier-audit cycle until no conflict remains.
+就绪项为空时检查：是证据/依赖尚未完成，还是当前范围的重要取舍已经闭合。前者继续必要且已授权的核验；后者检查方案、owner、风险和验收是否冲突。不得依据空列表直接封口，也不遍历全部理论分支或扩展未来需求来延长访谈。
 
-For change-bearing work only, write the final seal after all nodes are `sealed`, the conflict audit is clean, `prd.md`, `design.md`, and `implement.md` agree, and implementation has no user-owned ambiguity. Resolve every static pending choice: no `TBD`, `TODO`, `decision-needed`, unowned option, unspecified target branch, open implementation path, validation gap, or conditional acceptance point may remain. Each implementation step must name its owner, intended change, verification, rollout/rollback boundary, and completion
-condition determined. Present the plan and stop before implementation. `analysis_only` work does not need a final seal or implementation approval: complete its evidence and verify the protected-target boundary. Follow Trellis's native plan seal/approve/start contract for change-bearing tasks; this Skill does not maintain another approval schema. Material changes invalidate implementation approval; wording, formatting, and progress notes do not. Do not ask for implementation approval to finish requested research.
+只有当前范围的必要选择已明确、证据足以支持行动、方案文档一致且各步骤owner、验证、部署/回退和完成点确定，才结束规划。需要规划批准的change-bearing按实际owner合同展示方案并停在实施前；已初始化Trellis项目使用原生plan seal及当前实质版本的后续明确批准，再approve/start。设计回答不授予实施权，不向其他项目强加不存在的Trellis命令或文档。analysis_only完成证据不要求实施seal/批准。独立subnode工作仍需冻结派发方案及专门批准，本Skill不默认派节点。
 
-Call the current session's native blocking `request_user_input` directly when
-available. Never substitute `request_user_input_async` or an agent-managed
-waiter. Do not set an agent waiting deadline, treat elapsed time as an answer,
-or auto-select the recommendation. Remain in the native blocking call until it
-returns; only the host controls its lifetime. Do not detect or replace it through
-`functions.exec`, nested `tools.*`, `ALL_TOOLS`, shell, or MCP. Correct a schema
-error at most once. Host refusal, cancellation, timeout, or genuine unavailability
-does not answer a required decision: keep it open and stop dependent work, using
-a plain-text fallback when permitted. Respect higher-priority host rules for
-optional questions that return no answer.
+## 执行中的新选择
 
-Do not invent a TOML timeout key or claim that a Skill changes host behavior.
-Only use a host waiting control when its current supported interface exposes it;
-otherwise report the capability limit without adding retries or a custom waiter.
+普通实现沿已定选择继续。出现实质未决选择时，立即说明问题、影响与推荐，停止依赖动作并写当前任务；已in_progress的Trellis任务先原生task.py replan回planning，再阻塞提问、收敛、重新封口与展示，并取得新实质版本后续批准。任务已在planning时更新并重新seal，不误用仅允许in_progress的replan；不手改task.json或伪造批准。
 
-If native interaction yields without answers because of host refusal,
-cancellation, timeout, or genuine unavailability, stop the turn with the
-decision open. If it returns answers in the current continuation, persist them
-before writing new questions, applying, committing, archiving, or advancing a
-dependent gate, then continue the planning flow as above.
+用户明确提出的同任务、同owner、小范围、可逆、低风险增量，且不改变封口实质范围、公开行为、数据/凭据、部署/发布路径或验收，可沿原生允许的在途短路径记录请求、判定和验证后继续；该请求只授权精确增量。任一条件不满足或不清楚，回规划处理。缺少原生状态能力时报告缺口，不另建生命周期。
 
-## During Implementation
-
-Use sealed task/spec decisions for ordinary implementation choices. For a
-local reversible choice, continue and record the decision. For a material
-unresolved ambiguity, do not open a popup during implementation or apply:
-record `decision-needed`, run `task.py replan <task> "<reason>"`, and return to
-the Trellis planning/design step. Continue implementation only after the new
-frontier is answered, conflict-audited, sealed, presented, and subsequently
-approved for the new material revision. If evidence disproves the
-approach, preserve the retracted conclusion and the reason in task history.
-
-### Bounded user-requested amendments while in progress
-
-When a user explicitly adds work to the current `in_progress` task, keep the
-task in progress only when every condition holds: the addition serves the
-same task, keeps the same actual owner and target, is small, reversible, and
-low risk, and does not change the sealed scope in substance, owner, risk,
-public behavior, data integrity, credentials, deployment or release path, or
-acceptance. The explicit request authorizes only that exact bounded addition.
-Record the request, classification, owner, acceptance, and verification in
-the task's unsealed execution record; do not create a second lifecycle.
-
-If any condition is false or unclear, treat the addition as material: preserve
-the current conclusion, record `decision-needed`, run `task.py replan <task>
-"<reason>"`, and return through the planning, seal, presentation, and later
-approval gates. This rule does not authorize model-invented scope, a new owner,
-credentials, external data, public behavior, or a new deployment or release.
-
-Never edit `task.json.status` by hand. If the installed Trellis runtime lacks
-the controlled `replan` transition, stop at the planning boundary and report
-the runtime gap instead of opening a popup or silently choosing.
-
-## Decision Record
-
-For each material decision, retain: question, options, selected option,
-recommendation, rationale, impact, evidence, and the condition that would
-justify revisiting it. Keep this record in the current Trellis task; do not
-create a parallel ledger in Codex configuration or runtime state.
+普通继续或充分压缩断点复用已知决定和待办，不重新全量盘点；实际新输入只更新相关节点。当前任务记录是持久依据，提示词不是强制等待、权限隔离或模型行为的确定性保证。

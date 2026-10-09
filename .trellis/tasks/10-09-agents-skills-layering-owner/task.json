@@ -1,0 +1,53 @@
+{
+  "id": "agents-skills-layering-owner",
+  "name": "agents-skills-layering-owner",
+  "title": "AGENTS 分层与 Skills 审查问题修复",
+  "description": "承接根任务10-09-agents-skills-layering-remediation：SAG-01/02全局/03/04/07/08/09/10，规划全局静态资产分层、格式门禁、诊断、恢复合同与验证，不实施。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-09",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "execution_class": "planned",
+    "planning": {
+      "revision": 2,
+      "seal": {
+        "revision": 2,
+        "task_id": "agents-skills-layering-owner",
+        "task_name": "10-09-agents-skills-layering-owner",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "f97f36d6e6be142ec93f914c4b3a357e11efccc55648123b086fd9b03eab5c96",
+          "design.md": "9df3ae3b4d0b9cb7fa3117cecc4919cfa1698213bb70378293557f4c27263e4b",
+          "implement.md": "f3139af86affdc59c1ec7346d1bff0df9548fef07bec55f52f7544d814a19ce7"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-09T15:28:34.734617+00:00"
+      },
+      "approved_revision": 2,
+      "approval_basis": "用户明确批准已展示完整修订包，推进修复发布安装与收敛",
+      "approved_at": "2026-10-09T15:33:28.660891+00:00"
+    }
+  }
+}

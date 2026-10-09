@@ -11,6 +11,11 @@ import hashlib
 import json
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MANAGED_COMMANDS = {"grok-search": {"target": "grok-search/bin/grok-search", "link": ".local/bin/grok-search"}}
@@ -53,20 +58,55 @@ def resolve_destination(raw_destination: str | None) -> Path:
 
 
 def read_skill_name(skill_directory: Path) -> str:
+    if yaml is None:
+        raise InstallError("Skill admission requires PyYAML; install the host's python-yaml package")
     skill_md = skill_directory / "SKILL.md"
     if not skill_md.is_file() or skill_md.is_symlink():
         raise InstallError(f"Missing safe SKILL.md: {skill_directory}")
-    content = skill_md.read_text(encoding="utf-8")
+    try:
+        content = skill_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise InstallError(f"Cannot safely read Skill: {skill_md}") from error
     frontmatter = re.match(r"\A---\n(.*?)\n---\n", content, re.DOTALL)
     if not frontmatter:
         raise InstallError(f"Invalid YAML frontmatter: {skill_md}")
-    match = re.search(r"^name:\s*([a-z0-9-]+)\s*$", frontmatter.group(1), re.MULTILINE)
-    if not match:
+    class UniqueSafeLoader(yaml.SafeLoader):
+        def construct_mapping(self, node, deep=False):
+            self.flatten_mapping(node)
+            mapping = {}
+            for key_node, value_node in node.value:
+                key = self.construct_object(key_node, deep=deep)
+                try:
+                    if key in mapping:
+                        raise yaml.constructor.ConstructorError(None, None, f"duplicate key: {key}", key_node.start_mark)
+                    mapping[key] = self.construct_object(value_node, deep=deep)
+                except TypeError as error:
+                    raise yaml.constructor.ConstructorError(None, None, "unhashable key", key_node.start_mark) from error
+            return mapping
+
+    try:
+        metadata = yaml.load(frontmatter.group(1), Loader=UniqueSafeLoader)
+    except yaml.YAMLError as error:
+        raise InstallError(f"Invalid YAML frontmatter: {skill_md}: {error}") from error
+    if not isinstance(metadata, dict):
+        raise InstallError(f"Skill frontmatter must be a mapping: {skill_md}")
+    name, description = metadata.get("name"), metadata.get("description")
+    if not isinstance(name, str) or len(name) > 64 or not SKILL_NAME.fullmatch(name):
         raise InstallError(f"Missing valid Skill name: {skill_md}")
-    return match.group(1)
+    if name != skill_directory.name:
+        raise InstallError(f"Skill name does not match directory: {skill_md}")
+    if not isinstance(description, str) or not description.strip() or len(description) > 1024:
+        raise InstallError(f"Missing valid Skill description: {skill_md}")
+    return name
+
+
+def format_readiness() -> dict[str, str]:
+    return {"status": "ready" if yaml is not None else "missing", "parser": "PyYAML"}
 
 
 def collection_state(expected_names: set[str], destination: Path, bootstrap_name: str | None = None) -> str:
+    if yaml is None:
+        raise InstallError("Skill admission requires PyYAML; install the host's python-yaml package")
     destination = assert_safe_destination(destination)
     if not destination.exists():
         return "missing"

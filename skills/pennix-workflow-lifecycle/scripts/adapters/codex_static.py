@@ -16,18 +16,9 @@ ROOT_BEGIN = "# pennix-workflow-lifecycle:install-root:begin"
 ROOT_END = "# pennix-workflow-lifecycle:install-root:end"
 FEATURE_BEGIN = "# pennix-workflow-lifecycle:install-features:begin"
 FEATURE_END = "# pennix-workflow-lifecycle:install-features:end"
-AGENTS_BLOCKS = (
-    (
-        "pennix-workflow-lifecycle",
-        "<!-- pennix-workflow-lifecycle:begin -->",
-        "<!-- pennix-workflow-lifecycle:end -->",
-    ),
-    (
-        "pennix-fastctx",
-        "<!-- pennix-fastctx:begin -->",
-        "<!-- pennix-fastctx:end -->",
-    ),
-)
+LEGACY_AGENTS_DIGESTS = frozenset({
+    "96307dbfbc9effe504748080008f8b250e4ae94b5a526325d58b00a8d7e49202",
+})
 TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "templates"
 
 
@@ -209,96 +200,65 @@ def remove_config_sections(path: Path) -> tuple[str, str]:
 
 
 def template_state(path: Path, template_name: str = "AGENTS.md.install") -> str:
-    contents = read(path)
-    if not contents:
-        return "absent" if not path.exists() else "drifted"
-    expected = template(template_name)
-    present = 0
-    for name, begin, end in AGENTS_BLOCKS:
-        observed = _agent_block(contents, begin, end)
-        expected_block = _agent_block(expected, begin, end)
-        if observed is None:
-            continue
-        present += 1
-        if observed != expected_block:
-            raise StaticError(f"lifecycle AGENTS block is drifted: {name}")
-    return "current" if present == len(AGENTS_BLOCKS) else "partial"
-
-
-def _agent_block(contents: str, begin: str, end: str) -> str | None:
-    begin_count = contents.count(begin)
-    end_count = contents.count(end)
-    if begin_count != end_count or begin_count > 1:
-        raise StaticError(f"lifecycle AGENTS markers are invalid: {begin}")
-    if begin_count == 0:
-        return None
-    start = contents.index(begin)
+    assert_no_symlink_ancestor(path)
     try:
-        finish = contents.index(end, start) + len(end)
-    except ValueError as error:
-        raise StaticError(f"lifecycle AGENTS markers are out of order: {begin}") from error
-    if finish < start:
-        raise StaticError(f"lifecycle AGENTS markers are out of order: {begin}")
-    return contents[start:finish]
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return "absent"
+    except OSError as error:
+        raise StaticError(f"cannot safely inspect lifecycle template: {path}") from error
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o022:
+        raise StaticError(f"unsafe lifecycle template permissions: {path}")
+    if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
+        raise StaticError(f"unsafe lifecycle template owner: {path}")
+    try:
+        contents = path.read_bytes()
+        contents.decode("utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise StaticError(f"cannot safely read lifecycle template: {path}") from error
+    if contents == template(template_name).encode("utf-8"):
+        return "current"
+    if template_name == "AGENTS.md.install" and hashlib.sha256(contents).hexdigest() in LEGACY_AGENTS_DIGESTS:
+        return "legacy"
+    return "drifted"
 
 
-def _agent_missing_blocks(contents: str, expected: str) -> list[str]:
-    missing: list[str] = []
-    for name, begin, end in AGENTS_BLOCKS:
-        observed = _agent_block(contents, begin, end)
-        if observed is None:
-            missing.append(_agent_block(expected, begin, end) or "")
-    return [block for block in missing if block]
-
-
-def _append_agent_blocks(contents: str, blocks: list[str]) -> str:
-    after = contents
-    for block in blocks:
-        if after and not after.endswith("\n"):
-            after += "\n"
-        if after and not after.endswith("\n\n"):
-            after += "\n"
-        after += block + "\n"
-    return after
+def effective_agents(path: Path) -> dict[str, str]:
+    """Report this instruction directory's effective source without exposing text."""
+    for candidate in (path.with_name("AGENTS.override.md"), path):
+        try:
+            contents = read(candidate)
+        except StaticError:
+            return {"status": "unknown", "path": str(candidate)}
+        if contents.strip():
+            return {
+                "status": "active" if candidate == path else "shadowed",
+                "path": str(candidate),
+            }
+    return {"status": "absent", "path": str(path)}
 
 
 def remove_template(path: Path, template_name: str = "AGENTS.md.install") -> tuple[str, str]:
-    before = read(path)
     state_name = template_state(path, template_name)
-    if state_name in {"absent", "partial"} and not any(
-        _agent_block(before, begin, end) is not None for _, begin, end in AGENTS_BLOCKS
-    ):
-        return before, before
-    if state_name not in {"current", "partial"}:
+    if state_name == "absent":
+        return "", ""
+    if state_name not in {"current", "legacy"}:
         raise StaticError(f"refusing {state_name} lifecycle template: {path}")
-    after = before
-    for _, begin, end in AGENTS_BLOCKS:
-        block = _agent_block(after, begin, end)
-        if block is None:
-            continue
-        start = after.index(block)
-        finish = start + len(block)
-        if after[finish : finish + 2] == "\n\n":
-            finish += 2
-        elif after[finish : finish + 1] == "\n":
-            finish += 1
-        after = after[:start] + after[finish:]
-    write(path, after)
-    return before, after
+    before = read(path)
+    path.unlink()
+    return before, ""
 
 
 def apply_template(path: Path, template_name: str = "AGENTS.md.install") -> tuple[str, str]:
-    before = read(path)
     state_name = template_state(path, template_name)
+    before = read(path)
     if state_name == "current":
         return before, before
-    expected = template(template_name)
-    if state_name == "partial":
-        after = _append_agent_blocks(before, _agent_missing_blocks(before, expected))
-    elif state_name == "absent":
-        after = expected
-    else:
+    if state_name not in {"absent", "legacy"}:
         raise StaticError(f"refusing {state_name} lifecycle template: {path}")
+    after = template(template_name)
+    if not after.strip():
+        raise StaticError("lifecycle template candidate is empty")
     write(path, after)
     if template_state(path, template_name) != "current":
         raise StaticError(f"lifecycle template verification failed: {path}")

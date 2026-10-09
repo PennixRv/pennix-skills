@@ -116,7 +116,7 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "3. Only when the receipt is `ready`, read the paired package JSON and this entire handoff prompt before acting on `Pending`.",
         "4. Run `$trellis-start`, then compare the captured task, Git state, evidence, and pending action with current facts.",
         "5. Do not call `task.py start` or claim ownership during initial intake; do not close it from this snapshot. Record no admission until the complete read/start/reconciliation sequence has finished; an interrupted sequence is not consumed.",
-        "6. If a subsequent user instruction authorizes continuation of this task, use the handoff ownership `claim` operation first; it binds only this direct target session, then use `$trellis-continue` as appropriate.",
+        "6. If a subsequent user instruction authorizes continuation of this task, use the handoff ownership `claim` operation first; it binds only this direct target session, then use `$trellis-continue` for the actual classification and phase. Read-only `analysis_only` research remains in planning without `task.py start`; change-bearing work starts only with its current native seal and approval; already running work resumes its checkpoint.",
         "7. After work is consumed, record ownership `consume` and then ownership `archive` separately; use `$trellis-finish-work` for the normal task lifecycle.",
         "8. Stop after reconciliation. Do not execute the pending next action or begin implementation until a subsequent user instruction.",
         "9. Treat current user instructions, Trellis, Issue state, Git and current files as higher-priority facts.", "",

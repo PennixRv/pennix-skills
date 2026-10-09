@@ -52,7 +52,6 @@ def main() -> int:
         check(root / ".trellis/workflow.md"),
         check(root / ".trellis/scripts/task.py"),
         check(root / ".agents/skills", "dir"),
-        check(root / "Trellis/package.json"),
     ]
     trellis_state = git_state(root / "Trellis") if (root / "Trellis").is_dir() else {"status": "missing"}
     package_scope = "unknown"
@@ -67,7 +66,6 @@ def main() -> int:
     malformed_skills = malformed_project_skill_dirs(root)
     status = "pass" if (
         all(item["status"] == "pass" for item in checks)
-        and trellis_state["status"] == "pass"
         and not malformed_skills
     ) else "degraded"
     output = {
@@ -75,6 +73,7 @@ def main() -> int:
         "project_root": str(root),
         "checks": checks,
         "trellis": trellis_state,
+        "trellis_checkout_required": False,
         "package_scope": package_scope,
         "stale_workflow_paths": stale_paths,
         "malformed_project_skill_dirs": malformed_skills,

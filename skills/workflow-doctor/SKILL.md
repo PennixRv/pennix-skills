@@ -1,6 +1,6 @@
 ---
 name: workflow-doctor
-description: Diagnose the local Trellis fork, project Skills, top-level workflow files, and migration residue without changing state.
+description: Diagnose an initialized Trellis project's generated assets, Skills and migration residue without changing state; a local fork checkout is optional.
 ---
 
 # Workflow Doctor
@@ -11,8 +11,8 @@ Run the read-only diagnostic from the project root:
 python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/workflow-doctor/scripts/doctor.py" --project-root .
 ```
 
-The output is a bounded JSON summary of required project files, the local Trellis checkout, package identity, and any
-legacy profile path that still exists. `degraded` is diagnostic information, not permission to silently repair or install
+The output separates required generated project assets from optional local Trellis source-checkout and package information.
+A normal consumer does not need a `Trellis/` checkout. `degraded` is diagnostic information, not permission to silently repair or install
 anything. Inspect the reported files in the owning repository and choose the next task explicitly.
 
 This Skill does not probe providers, alter Codex configuration, stop workers, install packages, delete Plugin caches, or write task

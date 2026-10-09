@@ -34,6 +34,43 @@ class SkillsCollectionTest(unittest.TestCase):
         staged = MODULE._write_receipt(destination, MODULE.collection_digest(destination))
         os.replace(staged, MODULE.receipt_path(destination))
 
+    def test_frontmatter_accepts_quoted_names_and_multiline_descriptions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            skill = self.make_skill(Path(temporary), "alpha")
+            (skill / "SKILL.md").write_bytes(b'---\r\nname: "alpha"\r\ndescription: >-\r\n  A useful\r\n  description.\r\n---\r\n# Test\r\n')
+            self.assertEqual(MODULE.read_skill_name(skill), "alpha")
+
+    def test_frontmatter_rejects_invalid_metadata_and_duplicate_keys(self) -> None:
+        cases = [
+            "name: alpha\n", "name: alpha\ndescription: null\n",
+            "name: alpha\ndescription: '  '\n", "name: alpha\ndescription: []\n",
+            "name: alpha\ndescription: [unfinished\n",
+            "name: alpha\nname: alpha\ndescription: valid\n",
+            "name: alpha\ndescription: valid\nmetadata:\n  x: 1\n  x: 2\n",
+            "name: other\ndescription: valid\n", "name: 42\ndescription: valid\n",
+            "- name: alpha\n- description: valid\n",
+            "name: alpha\ndescription: !!python/object:builtins.object {}\n",
+            "name: alpha\ndescription: " + "x" * 1025 + "\n",
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            skill = self.make_skill(Path(temporary), "alpha")
+            for metadata in cases:
+                with self.subTest(metadata=metadata[:60]):
+                    (skill / "SKILL.md").write_text("---\n" + metadata + "---\n# Test\n")
+                    with self.assertRaises(MODULE.InstallError):
+                        MODULE.read_skill_name(skill)
+                    self.assertEqual(MODULE.collection_state({"alpha"}, skill.parent), "drifted")
+
+    def test_missing_parser_is_readiness_failure_without_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            skill = self.make_skill(Path(temporary), "alpha")
+            with mock.patch.object(MODULE, "yaml", None):
+                self.assertEqual(MODULE.format_readiness(), {"status": "missing", "parser": "PyYAML"})
+                with self.assertRaisesRegex(MODULE.InstallError, "requires PyYAML"):
+                    MODULE.read_skill_name(skill)
+                with self.assertRaisesRegex(MODULE.InstallError, "requires PyYAML"):
+                    MODULE.collection_state({"alpha"}, skill.parent)
+
     def test_collection_state_accepts_exact_installed_names(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "skills" / "pennix-skills"

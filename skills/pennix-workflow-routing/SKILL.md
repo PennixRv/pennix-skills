@@ -20,7 +20,7 @@ admission；单一工具已有明确 native protocol 时直接遵循，不额外
 - `work_domain`：工程/工作流治理、系统 lifecycle 消费、项目 Trellis 资产更新，或普通本地操作；
 - `delivery_mode`：受保护目标不变的精确证据交付，或 change-bearing；
 - `execution_class`：单 owner、范围和验证都立即可收敛的 direct/lightweight，或 planned；
-- `decision_frontier`：是否有多个独立的 material decision；
+- `decision_frontier`：是否存在至少一个尚未由既有约定决定的 material decision；
 - `approval_mode`：是否已有同一 task、当前封口实质版本、展示最终方案之后的明确实施批准；初始交付请求、父任务批准和设计选项回答不算。
 
 `analysis_only` 只表示受保护目标不变的只读证据交付；复杂度、跨 owner、多证据单元、推荐或未决产品选项都不触发实施批准。明确的研究请求授权主会话完成其证据工作。只有当研究范围/方法依赖尚未回答的用户选择时，才就该选择调用 `$pennix-decision-grill`。用户要求并行 subnode 时，必须先冻结派发方案并获明确批准再 spawn/send；批准仅覆盖列明的证据工作。任何实际变更、部署、发布、凭据或外部运行态动作仍按 change-bearing owner 的原生授权路径处理。
@@ -28,6 +28,8 @@ admission；单一工具已有明确 native protocol 时直接遵循，不额外
 Admission 不是第二套状态机。它只返回 `owner`、`allowed_transport`、`state_writer`、
 `exit_conditions` 和 `replan_trigger`；Trellis、lifecycle、FastCtx 及其他 owner 仍各自
 维护自己的状态。
+
+除边界明确的只读研究外，先筛选真正由用户决定的实质取舍；单个就绪选择也进入 `$pennix-decision-grill`。其依赖、优先级、分轮与答复记录由该 Skill 负责，不在路由层复制问答过程。执行中的实质歧义立即说明影响并暂停依赖动作；证据工作拉长前先在当前 task 保存决策节点和返回动作，再走对应检索 owner。
 
 ## 判定顺序
 

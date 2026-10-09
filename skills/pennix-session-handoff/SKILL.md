@@ -165,8 +165,11 @@ session_source `session:<target-key>`. The prepared canonical source and
 source rollout `session_id` are rejected as target identities. The rollout id is provenance
 only and is rejected as target identity. Admission never executes the pending
 action, starts a task, changes a task pointer, or closes a task. A later,
-separately authorized continuation uses native Trellis `task.py start` for an
-incomplete task and then rechecks its direct current source. A completed task
+separately authorized continuation first uses ownership `claim`, then follows
+the current task classification and phase through `$trellis-continue`.
+Read-only `analysis_only` research remains in planning without `task.py start`;
+change-bearing work starts only with the current native seal and approval,
+and already running work resumes its checkpoint. A completed task
 instead follows native Trellis finish/archive by exact task path; do not
 manufacture a session pointer.
 

@@ -22,12 +22,6 @@ class WorkflowDoctorTests(unittest.TestCase):
             "---\nname: trellis-start\ndescription: Test Skill.\n---\n",
             encoding="utf-8",
         )
-        (root / "Trellis/packages/cli").mkdir(parents=True)
-        (root / "Trellis/package.json").write_text("{}\n", encoding="utf-8")
-        (root / "Trellis/packages/cli/package.json").write_text(
-            json.dumps({"name": "@pennixrv/trellis"}), encoding="utf-8"
-        )
-        subprocess.run(["git", "init", "-q", str(root / "Trellis")], check=True)
 
     def run_doctor(self, root: Path) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
         result = subprocess.run(
@@ -48,7 +42,29 @@ class WorkflowDoctorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(payload["status"], "pass")
             self.assertEqual(payload["malformed_project_skill_dirs"], [])
+            self.assertEqual(payload["trellis"]["status"], "missing")
+            self.assertFalse(payload["trellis_checkout_required"])
             self.assertFalse(payload["mutated"])
+
+    def test_optional_non_git_checkout_does_not_degrade_consumer(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="workflow-doctor-") as temporary:
+            root = Path(temporary)
+            self.make_project(root)
+            (root / "Trellis/packages/cli").mkdir(parents=True)
+            (root / "Trellis/packages/cli/package.json").write_text('{"name":"@pennixrv/trellis"}\n')
+            result, payload = self.run_doctor(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(payload["package_scope"], "@pennixrv/trellis")
+            self.assertEqual(payload["trellis"]["status"], "unavailable")
+
+    def test_missing_required_generated_asset_is_degraded(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="workflow-doctor-") as temporary:
+            root = Path(temporary)
+            self.make_project(root)
+            (root / ".trellis/scripts/task.py").unlink()
+            result, payload = self.run_doctor(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(payload["status"], "degraded")
 
     def test_reports_project_skill_directory_without_skill_markdown(self) -> None:
         with tempfile.TemporaryDirectory(prefix="workflow-doctor-") as temporary:
