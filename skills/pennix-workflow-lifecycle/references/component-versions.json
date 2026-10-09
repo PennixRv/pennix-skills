@@ -130,7 +130,7 @@
     },
     "fastctx": {
       "delivery": "package",
-      "approved_version": "0.2.21",
+      "approved_version": "0.2.22",
       "source": "PennixRv/fastctx npm package",
       "owner": "fastctx",
       "scope": "global",
@@ -184,7 +184,7 @@
     },
     "ponytail-plugin": {
       "delivery": "plugin",
-      "approved_version": "4.13.0",
+      "approved_version": "5.1.0",
       "source": "Codex native plugin from pinned Ponytail marketplace",
       "owner": "codex",
       "scope": "global",
@@ -205,7 +205,7 @@
         "marketplace": {
           "name": "ponytail",
           "source": "https://github.com/DietrichGebert/ponytail.git",
-          "ref": "v4.13.0",
+          "ref": "v5.1.0",
           "sparse": []
         }
       }
