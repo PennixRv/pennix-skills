@@ -16,6 +16,8 @@ def check(path: Path, kind: str = "file") -> Dict[str, Any]:
 
 
 def git_state(path: Path) -> Dict[str, Any]:
+    if not (path / ".git").exists():
+        return {"status": "unavailable"}
     result = subprocess.run(
         ["git", "-C", str(path), "status", "--short", "--branch"],
         stdout=subprocess.PIPE,

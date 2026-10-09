@@ -51,6 +51,7 @@ class WorkflowDoctorTests(unittest.TestCase):
             root = Path(temporary)
             self.make_project(root)
             (root / "Trellis/packages/cli").mkdir(parents=True)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             (root / "Trellis/packages/cli/package.json").write_text('{"name":"@pennixrv/trellis"}\n')
             result, payload = self.run_doctor(root)
             self.assertEqual(result.returncode, 0, result.stderr)
