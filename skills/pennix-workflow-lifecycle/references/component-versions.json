@@ -288,7 +288,7 @@
     },
     "aoe": {
       "delivery": "package",
-      "approved_version": "1.18.0",
+      "approved_version": "1.19.0",
       "source": "AUR agent-of-empires-bin package; upstream installer inspected as evidence",
       "owner": "aoe",
       "scope": "global/project",

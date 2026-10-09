@@ -34,8 +34,10 @@ def _entry(codex_home: Path, value: dict) -> dict:
     return {"url": value["url"], "http_headers_helper": shlex.join([sys.executable, str(helper_path(codex_home))]), "required": False}
 
 
-def _section(codex_home: Path, value: dict) -> str:
+def _section(codex_home: Path, value: dict, *, headers_helper: str | None = None) -> str:
     entry = _entry(codex_home, value)
+    if headers_helper is not None:
+        entry["http_headers_helper"] = headers_helper
     return f'{BEGIN}\n[mcp_servers.siyuan]\nurl = {json.dumps(entry["url"])}\nhttp_headers_helper = {json.dumps(entry["http_headers_helper"])}\nrequired = false\n{END}\n'
 
 
@@ -50,7 +52,23 @@ def merged_config(contents: str, codex_home: Path, value: dict, previous: dict |
             raise configuration.ConfigurationError("SiYuan config ownership is unclear")
         start = contents.index(BEGIN)
         finish = contents.index(END, start) + len(END)
-        if contents[start:finish] != _section(codex_home, previous).rstrip("\n") or observed != _entry(codex_home, previous):
+        expected = _entry(codex_home, previous)
+        command = observed.get("http_headers_helper") if isinstance(observed, dict) else None
+        try:
+            argv = shlex.split(command) if isinstance(command, str) else []
+            expected_argv = shlex.split(expected["http_headers_helper"])
+            equivalent = (
+                len(argv) == 2 and argv[1:] == expected_argv[1:]
+                and Path(argv[0]).is_absolute() and Path(expected_argv[0]).is_absolute()
+                and Path(argv[0]).samefile(expected_argv[0])
+            )
+        except (OSError, ValueError):
+            equivalent = False
+        if not equivalent:
+            raise configuration.ConfigurationError("SiYuan config drifted")
+        # Interpreter aliases identify the same executable; keep other ownership checks exact.
+        expected["http_headers_helper"] = command
+        if contents[start:finish] != _section(codex_home, previous, headers_helper=command).rstrip("\n") or observed != expected:
             raise configuration.ConfigurationError("SiYuan config drifted")
         return contents[:start] + _section(codex_home, value).rstrip("\n") + contents[finish:]
     if observed is not None:

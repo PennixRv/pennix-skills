@@ -1,0 +1,29 @@
+{
+  "id": "lifecycle-readiness-alignment",
+  "name": "lifecycle-readiness-alignment",
+  "title": "Align AoE baseline and SiYuan helper readiness",
+  "description": "Implement the root revision 3 readiness closure: align the approved AoE catalog with verified 1.19.0 and accept same-file Python aliases in the exact owned SiYuan helper stanza without relaxing other drift checks.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-09",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "direct",
+    "delivery_mode": "change_bearing"
+  }
+}

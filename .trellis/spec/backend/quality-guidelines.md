@@ -75,6 +75,11 @@ Questions to answer:
   PATH shadowing is reported independently of the link's state.
 - Windsurf readiness and configuration resolve its native executable from the
   receipted collection. They never select an arbitrary same-name PATH command.
+- SiYuan owned helper commands may use a different absolute interpreter path
+  only when filesystem samefile proves the expected executable and the two-item
+  argv keeps the exact installed helper path. Other fields and owned stanza
+  bytes remain strict; readiness never rewrites configuration or credentials.
+  Unverifiable paths, changed scripts or interpreters, and extra argv fail closed.
 - Retired configuration migration uses explicit `reconcile`, validates private
   files and known record shapes before writing, preserves other credentials
   and target selections, verifies writes and reports partial failures closed.
