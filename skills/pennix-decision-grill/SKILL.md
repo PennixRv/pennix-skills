@@ -123,6 +123,23 @@ frontier is answered, conflict-audited, sealed, presented, and subsequently
 approved for the new material revision. If evidence disproves the
 approach, preserve the retracted conclusion and the reason in task history.
 
+### Bounded user-requested amendments while in progress
+
+When a user explicitly adds work to the current `in_progress` task, keep the
+task in progress only when every condition holds: the addition serves the
+same task, keeps the same actual owner and target, is small, reversible, and
+low risk, and does not change the sealed scope in substance, owner, risk,
+public behavior, data integrity, credentials, deployment or release path, or
+acceptance. The explicit request authorizes only that exact bounded addition.
+Record the request, classification, owner, acceptance, and verification in
+the task's unsealed execution record; do not create a second lifecycle.
+
+If any condition is false or unclear, treat the addition as material: preserve
+the current conclusion, record `decision-needed`, run `task.py replan <task>
+"<reason>"`, and return through the planning, seal, presentation, and later
+approval gates. This rule does not authorize model-invented scope, a new owner,
+credentials, external data, public behavior, or a new deployment or release.
+
 Never edit `task.json.status` by hand. If the installed Trellis runtime lacks
 the controlled `replan` transition, stop at the planning boundary and report
 the runtime gap instead of opening a popup or silently choosing.

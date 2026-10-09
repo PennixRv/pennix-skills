@@ -1,0 +1,29 @@
+{
+  "id": "bounded-in-progress-amendment",
+  "name": "bounded-in-progress-amendment",
+  "title": "在途增量规则与生命周期模板",
+  "description": "Owner task for the bounded in-progress amendment rule, its contract test, and lifecycle AGENTS template synchronization; coordinated by the root task.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-09",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "direct",
+    "delivery_mode": "change_bearing"
+  }
+}

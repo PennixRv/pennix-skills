@@ -20,6 +20,14 @@ class DecisionGrillContractTests(unittest.TestCase):
         self.assertIn("run `task.py replan <task>", content)
         self.assertIn("Never edit `task.json.status` by hand", content)
 
+    def test_bounded_in_progress_amendment_keeps_current_lifecycle(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        self.assertIn("Bounded user-requested amendments while in progress", content)
+        self.assertIn("The explicit request authorizes only that exact bounded addition", content)
+        self.assertIn("do not create a second lifecycle", content)
+        self.assertIn("If any condition is false or unclear", content)
+        self.assertIn("credentials, external data, public behavior", content)
+
     def test_research_does_not_require_implementation_approval(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         self.assertIn("do not require implementation", content)
