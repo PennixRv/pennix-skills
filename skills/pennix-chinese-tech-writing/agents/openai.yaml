@@ -1,0 +1,4 @@
+interface:
+  display_name: "中文技术写作"
+  short_description: "保留事实、条件和风险，准确撰写中文技术内容"
+  default_prompt: "使用 $pennix-chinese-tech-writing 按当前内容类型撰写、改写、校对或审阅中文技术内容，保留事实与机器可读标识，编辑和保存仍遵守各自接口。"

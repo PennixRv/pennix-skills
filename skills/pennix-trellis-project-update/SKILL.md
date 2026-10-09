@@ -92,8 +92,13 @@ trellis workflow --template TEMPLATE_ID \
   --create-new
 ```
 
-`--create-new` writes `.trellis/workflow.md.new` only; it does not update the
-active workflow or provenance. Review the entire candidate against the current
+Explicit `trellis workflow --create-new` always writes `.trellis/workflow.md.new`,
+even when the active workflow matches its previous source exactly; it does not
+update the active workflow or provenance. This differs from the conflict
+candidates written by `trellis update --create-new`. A `modified` classification
+can also reflect a changed source/ref or comparison baseline; it does not by
+itself prove that someone edited the consumer file. Verify the recorded source,
+commit and bytes before drawing that conclusion. Review the entire candidate against the current
 project rules and active task, record acceptance, then apply that same explicit
 template/source/ref. Use `--force` only when the reviewed active file is
 classified as modified and the task explicitly authorizes that replacement.

@@ -24,7 +24,7 @@
 curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh | bash
 ```
 
-当缺少任一 seed 文件时，它下载同一 `main` 上受控的两个静态模板，并从 `/dev/tty` 读取所需交互输入；没有控制终端时会在任何包或配置写入前失败。两份文件均已存在时不需要模板或终端。若本机没有 AUR helper，随后还会检出并构建 `yay` 的 AUR package；它不下载或执行 Pennix 的远端源码。
+远程命令执行指定的 `seed-arch.sh`。缺少任一 seed 文件时，脚本下载同一 `main` 上的两个静态模板，并从 `/dev/tty` 读取所需输入；没有控制终端时，在包或配置写入前失败。两份文件均已存在时不需要模板或终端。缺少 AUR helper 时，脚本检出并构建 `yay` 的 AUR package；它不检出整个 `PennixRv/pennix-skills` 仓库，也不调用完整的 `scripts/lifecycle.py` 入口。
 
 seed 脚本在源码仓库中的明确位置是：
 
@@ -80,7 +80,8 @@ Trellis、CodeGraph 和 AOE 的 CLI 可以由系统生命周期动作部署或�
 包括人工经验、项目合同、源码 Skill 和有明确适用范围的全局规则，不要求逐级经过所有库。
 
 连接是可选的 `siyuan-connection` target：先 lifecycle discover，再从操作者自己的终端 configure
-该单一目标。从目标思源内核的“设置 → 鉴权 → API token”取得已有值；连接NAS时在NAS网页中
-查看，不使用另一独立客户端的Token。它区别于网页登录密码、模型API Key和S3密钥，仅在
-lifecycle终端隐藏录入私有文件；原生 header helper 无数据代理逻辑。索引作用域、
-模型配置和其他客户端同步由思源内核 owner 管理，配置成功不能代替原生工具和语义质量验收。
+该单一目标。从目标思源内核的“设置 → 鉴权 → API token”取得已有值；连接 NAS 时在 NAS 网页中查看，不使用另一独立客户端的 Token。它区别于网页登录密码、模型 API Key 和 S3 密钥，仅在 lifecycle 终端隐藏录入私有文件；原生 header helper 无数据代理逻辑。索引作用域、模型配置和其他客户端同步由思源内核管理，配置成功不能代替原生工具和语义质量验收。
+
+## 中文技术写作
+
+`pennix-chinese-tech-writing` 在本仓库内维护适配版，固定来源和 MIT 许可见该 Skill 的 `UPSTREAM.md` 与 `LICENSE`。它适用于所有新写或修改的中文技术内容，包括用户规则、Skill、Trellis 任务与规范、思源技术笔记；按内容类型加载参考，保留事实、条件、风险和确定程度。只读检查器提供校对建议，不建立样式门禁，也不授权文件修改、任务状态转换或知识保存。

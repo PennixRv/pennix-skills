@@ -26,7 +26,7 @@ Lifecycle 必须把系统安装和项目初始化分开显示、计划和确认�
 
 ### 系统安装
 
-On a fresh Arch Linux host, before Codex or Pennix Skills exists, prefer the
+On a fresh Arch Linux host, before Codex or the `pennix-skills` collection exists, prefer the
 remote seed entry:
 
 ```bash
@@ -38,7 +38,9 @@ templates over HTTPS and reads the needed answers from `/dev/tty`; it fails
 before package/config writes when no control terminal is available. It needs
 neither templates nor a terminal when both files already exist. When no AUR
 helper exists, it also checks out and builds the `yay` AUR package. It does not
-clone or execute the Pennix source.
+clone `PennixRv/pennix-skills` or invoke its full `scripts/lifecycle.py` entry.
+The remote command executes the named `seed-arch.sh` script, which fetches its
+static templates and builds `yay` only when required.
 
 For maintenance and offline fixture testing, the executable may be launched
 from either `bash` or `zsh`; its Bash shebang selects the required interpreter.
@@ -57,7 +59,7 @@ If the catalog-authorized legacy `openai-codex` package is installed, the seed
 migrates it through the selected AUR helper to `openai-codex-bin`; it does not
 guess or remove an unlisted package owner.
 
-The seed does not clone or execute remote Pennix source, write the key to TOML,
+The seed does not clone `PennixRv/pennix-skills` or invoke the full lifecycle entry, write the key to TOML,
 print the key, or add the current package candidate to the fixed component
 catalog. It accepts no arguments: `seed-arch.sh --uninstall` is rejected before
 any write.
@@ -205,15 +207,16 @@ ref cannot be verified is blocked rather than modified. If the subsequent plugin
 fails, lifecycle removes the marketplace it just created only when native inventory
 proves no plugin was installed; any ambiguous state remains blocked for manual owner recovery.
 FastCtx itself never materializes or refreshes user `AGENTS.md`; its normal Apply
-and TUI paths leave that file untouched. The static Pennix template is the only
-workflow-owned guidance source.
+and TUI paths leave that file untouched. The template maintained in
+`PennixRv/pennix-skills` at `skills/pennix-workflow-lifecycle/templates/AGENTS.md.install`
+is the only workflow-owned user guidance source; `codex-agents` materializes it.
 
 ### Trellis/CCH 会话计费升级验证
 
 先 discover，按 catalog 固定版本选择 `trellis-cli` upgrade/verify；开始前
 确认相关 Channel 已派节点及预留槽位排空，不为升级擅自 kill。项目资产逐个
 绑定明确 root 并由 `$pennix-trellis-project-update` 更新，保留原 workflow。
-CCH 的 install/upgrade 仍属于 native owner：从固定 GitHub Release 下载官方
+CCH 的 install/upgrade 仍走其原生安装接口：从固定 GitHub Release 下载官方
 包并核 checksum，更新 discover 确认的包落点，再执行原生 install 刷新 managed
 runtime。核对 package/CLI/runtime 版本与渲染器字节一致，并核 endpoint、token、
 非受管 tmux 正文在升级前后不变；只报告比较结果，不输出秘密。
@@ -291,7 +294,7 @@ performs recursive cleanup or migrates credentials.
 
 ### 上游安装器与提问
 
-对 catalog 含 `upstream_inspection` 的组件，`install` 和 `upgrade` 会在调用原生 owner
+对 catalog 含 `upstream_inspection` 的组件，`install` 和 `upgrade` 会在调用组件原生安装接口
 前读取 catalog 指定的 HTTPS 文本，限制大小、计算 SHA-256，并用组件专属 parser 检查已知的
 安装控制面；它绝不执行下载内容。`upstream-contract-changed` 或 `unavailable` 会阻断该组件，
 不得以“继续执行上游脚本”绕过。
@@ -331,16 +334,17 @@ stops the turn. If answers arrive in the same native continuation, persist the
 decision, re-evaluate dependent gates, and continue the current lifecycle flow;
 do not close the turn merely because a question was asked. Never auto-select the
 recommendation. Batch independent decisions from the same gate when the host
-allows it; keep dependent decisions separate. During implementation, do not ask
-a new question: use the sealed task/spec decision, or record `decision-needed`
-if the ambiguity is material.
+allows it; keep dependent decisions separate. During implementation, reuse settled
+task/spec decisions. If a material new choice appears, record `decision-needed`,
+stop dependent actions, and use `$pennix-decision-grill` under the current task's
+native replanning contract. Same-scope low-risk increments need no repeated approval.
 
 All component versions, refs, configuration targets, and closed post-install
 action IDs come from `references/component-versions.json`.
 Do not add a second version table to this Skill or to an adapter. Do not print
 secret values, full configuration, sessions, databases, logs, caches, locks, or
 runtime state. `uninstall` only removes exact lifecycle-owned files, an exact
-Pennix Skills collection, or a package/plugin through its native owner; drifted
+`pennix-skills` collection, or a package/plugin through its native interface; drifted
 content is left untouched. Stage 0 has no uninstall mode and never removes
 `auth.json`, its Codex package, AUR helpers, build dependencies, full Skills,
 plugins, or project assets. After the collection is present, remove one explicit

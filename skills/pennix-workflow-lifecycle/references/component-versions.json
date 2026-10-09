@@ -396,7 +396,7 @@
       "adapter": "codex-agents",
       "template": {
         "name": "AGENTS.md.install",
-        "revision": "sha256:916e8c3fe62a13db6e8731dd1e496240c8446e276900f8e47dd9f7464043cbfb"
+        "revision": "sha256:57eda055881bdd719bd9e72e9d94e009d74b99beac20fc55687b22974689268d"
       }
     },
     "pennix-skills": {
@@ -415,10 +415,11 @@
       },
       "project_init": "not-applicable",
       "adapter": "pennix-skills",
-      "native_owner_reason": "Pennix Skills installation and upgrade use Codex's system $skill-installer in an agent turn; target hosts do not keep a local repository checkout.",
+      "native_owner_reason": "The pennix-skills collection is installed and upgraded by Codex's system $skill-installer in an agent turn; target hosts do not keep a local repository checkout.",
       "collection_contract": {
         "skills": [
           "grok-search",
+          "pennix-chinese-tech-writing",
           "pennix-decision-grill",
           "pennix-fastctx-routing",
           "pennix-session-handoff",
@@ -435,6 +436,7 @@
           "repo": "PennixRv/pennix-skills",
           "ref": "main",
           "paths": [
+            "skills/pennix-chinese-tech-writing",
             "skills/pennix-decision-grill",
             "skills/pennix-fastctx-routing",
             "skills/pennix-session-handoff",
@@ -451,8 +453,8 @@
         "materialized": {
           "grok-search": {
             "repo": "PennixRv/grok-search",
-            "ref": "v0.3.1",
-            "commit": "85abc396bd8b6900ca5e3b4c22ad6c5ad395140e",
+            "ref": "76a6475bd8e1aa190eb611fba654e1eb6d7b16db",
+            "commit": "76a6475bd8e1aa190eb611fba654e1eb6d7b16db",
             "path": ".",
             "name": "grok-search",
             "snapshot": "archive",

@@ -12,6 +12,12 @@ not raw session dumps. Never copy tokens, passwords, connection files, private
 model keys, database snapshots, or logs into notes. A nonsecret service URL can
 be included when it is needed for the authorized knowledge.
 
+For Chinese technical knowledge writing or revision, use
+`$pennix-chinese-tech-writing` and its applicable references. Preserve facts,
+conditions, risks and certainty. It governs wording only: notebook authorization,
+native MCP writes, concurrency handling and readback remain under this Skill.
+It does not authorize an automatic save.
+
 Before changing a document, read its current blocks. Apply a focused revision
 and preserve unrelated human changes. After each write, read the resulting
 blocks/attributes back. If a timeout or validation failure follows a write,

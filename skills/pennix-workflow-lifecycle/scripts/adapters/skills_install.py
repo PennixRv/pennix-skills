@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify and remove the exact Pennix Skills collection installed by Codex."""
+"""Verify and remove the exact pennix-skills collection installed by Codex."""
 
 from __future__ import annotations
 

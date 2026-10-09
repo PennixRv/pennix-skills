@@ -18,6 +18,7 @@ FEATURE_BEGIN = "# pennix-workflow-lifecycle:install-features:begin"
 FEATURE_END = "# pennix-workflow-lifecycle:install-features:end"
 LEGACY_AGENTS_DIGESTS = frozenset({
     "96307dbfbc9effe504748080008f8b250e4ae94b5a526325d58b00a8d7e49202",
+    "916e8c3fe62a13db6e8731dd1e496240c8446e276900f8e47dd9f7464043cbfb",
 })
 TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "templates"
 
