@@ -1,19 +1,13 @@
 ---
 name: workflow-doctor
-description: Diagnose an initialized Trellis project's generated assets, Skills and migration residue without changing state; a local fork checkout is optional.
+description: 只读诊断已初始化 Trellis 项目的生成资产、Skills 和迁移残留；可选地检查本地 fork 检出目录。
 ---
-
-# Workflow Doctor
-
-Run the read-only diagnostic from the project root:
-
+# 工作流诊断
+在项目根目录运行只读诊断：
 ```bash
 python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/workflow-doctor/scripts/doctor.py" --project-root .
 ```
 
-The output separates required generated project assets from optional local Trellis source-checkout and package information.
-A normal consumer does not need a `Trellis/` checkout. `degraded` is diagnostic information, not permission to silently repair or install
-anything. Inspect the reported files in the owning repository and choose the next task explicitly.
+输出会区分项目必须具备的生成资产，以及可选的本地 Trellis 源代码检出和包信息。普通消费者不需要 `Trellis/` 检出目录。`degraded` 是诊断信息，不是悄悄修复或安装任何内容的授权。检查报告文件的归属仓库，再明确选择下一项任务。
 
-This Skill does not probe providers, alter Codex configuration, stop workers, install packages, delete Plugin caches, or write task
-facts. It must not be used as a replacement for Trellis's own channel lifecycle commands.
+本 Skill 不探测服务商、不修改 Codex 配置、不停止工作节点、不安装包、不删除插件缓存，也不写入任务事实。不得用它替代 Trellis 自己的 Channel 生命周期命令。

@@ -1,9 +1,9 @@
 ---
 name: pennix-fastctx-routing
-description: Select FastCtx tools for local-file reading/search, non-interactive commands, and jobs. Exclude semantic edits, Trellis task/Channel operations, external retrieval calls, and component deployment; follow each named tool's native interface.
+description: 为本地文件读取、搜索、普通非交互命令和后台任务选择 FastCtx 工具。排除语义编辑、Trellis 任务与 Channel、外部检索和组件部署，遵守各自原生接口。
 ---
 
-# Pennix FastCtx 路由
+# FastCtx 本地操作路由
 
 ## 适用范围
 
@@ -16,7 +16,7 @@ description: Select FastCtx tools for local-file reading/search, non-interactive
 | 源码、配置、任务文档等文本的语义创建或修改 | 宿主原生 `apply_patch`；组件生成的资产仍由其生成接口写入 |
 | Trellis 任务状态、绑定、`task.py`、Channel 子节点与等待 | Trellis 原生接口；`task.py` 在 Codex 中通过 `exec_command` 调用 |
 | 正式交接、Hook 事件/诊断、原生 Plugin/MCP/TUI 和用户提问 | 对应组件或宿主规定的接口；用户提问用原生 `request_user_input` |
-| Grok Search、Tavily、Windsurf Code Search、CodeGraph 和官方文档检索 | 各检索工具规定的命令、MCP 或 API 入口 |
+| `grok-search`、Tavily、Windsurf Code Search、CodeGraph 和官方文档检索 | 各检索工具规定的命令、MCP 或 API 入口 |
 | 系统组件安装、配置、验证和集合替换 | `$pennix-workflow-lifecycle` 及其指定的原生安装工具 |
 
 上述操作不转交 FastCtx，即使最终涉及本地文件、命令或等待。规定接口不可用或调用被拒绝时，保留真实错误并停止相关动作，不用 FastCtx、轮询、shell HTTP 或文件替换模拟协议。

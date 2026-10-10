@@ -23,19 +23,19 @@ class DecisionGrillContractTests(unittest.TestCase):
             self.assertIn(marker, self.content)
 
     def test_evidence_does_not_erase_the_decision_checkpoint_or_choose_for_user(self) -> None:
-        for marker in ("先在当前task保存", "返回动作", "子节点核验事实，不选择用户取舍", "不加轮询或另一个调度器", "证据/依赖尚未完成", "不得依据空列表直接封口"):
+        for marker in ("先在当前任务保存", "返回动作", "子节点只核验事实，不替用户决定取舍", "不加轮询、另一套调度器", "证据与依赖尚未完成", "不得依据空列表直接封口"):
             self.assertIn(marker, self.content)
 
     def test_required_unanswered_question_never_becomes_a_timed_default(self) -> None:
-        for marker in ("原生阻塞request_user_input", "不因时间默认采用推荐", "保留必要未决项并停止其依赖动作", "可选问题空回执服从更高优先级宿主合同"):
+        for marker in ("原生阻塞式 `request_user_input`", "不因时间默认采用推荐", "保留必要未决项并停止其依赖动作", "可选问题空回执服从更高优先级宿主合同"):
             self.assertIn(marker, self.content)
 
     def test_material_execution_choice_uses_native_phase_while_small_addition_can_continue(self) -> None:
-        for marker in ("立即说明问题、影响与推荐", "先原生task.py replan回planning", "任务已在planning时更新并重新seal", "不手改task.json", "该请求只授权精确增量", "不创建第二状态机"):
+        for marker in ("立即说明问题、影响与推荐", "先用原生 `task.py replan` 回到 `planning`", "任务已在 `planning` 时更新并重新 `seal`", "不手改 `task.json`", "该请求仅授权精确增量", "不创建第二状态机"):
             self.assertIn(marker, self.content)
 
     def test_approval_research_and_continue_keep_their_distinct_boundaries(self) -> None:
-        for marker in ("设计回答不授予实施权", "analysis_only完成证据不要求实施seal/批准", "专门批准", "普通继续或充分压缩断点复用已知决定", "模型行为的确定性保证"):
+        for marker in ("设计回答不授予实施权", "`analysis_only` 完成证据不要求实施批准", "专门批准", "普通继续或充分压缩断点复用已知决定", "模型行为的确定性保证"):
             self.assertIn(marker, self.content)
 
 

@@ -1,26 +1,6 @@
-# Query and citation
+# 查询与引用
+访问前核对原生 Schema 和默认笔记本。精确名称、已知 ID、部署键和错误片段适合全文搜索或限定范围的只读 SQL。概念问题和改述后的经验适合原生语义搜索；已配置时使用原生重排。先取小页面（通常为 10 条），只为回答已知缺口再扩大范围。将笔记本过滤条件放入原生查询；先全局取数再本地过滤已经越过默认范围。如果语义工具没有笔记本过滤条件，只有在所有者确认其索引已限定到选定笔记本后才能使用；否则使用限定范围的全文搜索，并报告语义搜索限制。
+命中后读取原始块或文档及有用的引用或大纲。引用思源笔记块 URI 或原生引用，并附来源日期或版本；区分历史原因与当前核验行为。搜索片段或模型摘要单独不能证明当前配置。
+语义索引会将符合条件的笔记内容发送给嵌入模型服务；重排会将查询和候选文本发送给对应服务。NAS 内核的索引范围独立于读取者约定的笔记本范围和 S3 同步。索引规则和向量维护属于部署所有者。配置维度或服务测试成功不等于语义排序质量已被证明。
 
-Confirm native schemas and default notebook before access. Exact names, known
-IDs, deployment keys, and error fragments suit full-text search or scoped
-read-only SQL. Conceptual questions and paraphrased experience suit native
-semantic search, with native rerank when configured. Begin with a small page
-(usually 10), then expand only to answer a known gap. Put the notebook filter
-in the native query; fetching globally and filtering locally already reads
-outside the default scope. If a semantic tool lacks a notebook filter, use it
-only after the owner has verified that its index is limited to the selected
-notebook; otherwise use scoped full-text search and report the semantic limit.
-
-Retrieve the original blocks/document and useful references/outline after a
-hit. Cite the SiYuan block URI or native reference plus source date/version,
-and distinguish historical rationale from current verified behavior. A search
-snippet or model summary alone cannot establish current configuration.
-
-Semantic indexing sends eligible note content to the embedding provider;
-rerank sends the query and candidate text to its provider. The NAS kernel's
-index scope is independent of the reader's notebook convention and of S3 sync.
-Index rules and vector maintenance belong to the deployment owner. A configured
-dimension or successful provider test does not prove semantic ranking quality.
-
-Report no match as no match. Report authentication, index, provider, and tool
-failure as the actual failed layer; do not silently broaden scope, change
-models, reconfigure providers, or scan raw history to hide it.
+无匹配就报告无匹配。认证、索引、服务商和工具失败都应报告实际失败层；不要悄悄扩大范围、切换模型、重配服务商或扫描原始历史来掩盖失败。

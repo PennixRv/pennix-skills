@@ -15,37 +15,37 @@ class FastCtxRoutingContractTest(unittest.TestCase):
     def test_native_workflow_protocols_are_excluded_before_fastctx(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         for marker in (
-            "Trellis task",
-            "正式 handoff",
+            "Trellis 任务状态",
+            "正式交接",
             "`request_user_input`",
             "Hook",
-            "owner\ncontrolled TUI",
-            "必须直接调用其原生接口",
-            "绝不以 `run`",
+            "原生 Plugin/MCP/TUI",
+            "对应组件或宿主规定的接口",
+            "不转交 FastCtx",
         ):
             self.assertIn(marker, content)
 
     def test_external_retrieval_owners_are_not_fastctx_adapters(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         self.assertIn("`grok-search`", content)
-        self.assertIn("不调用、代替或吸收其检索协议", content)
+        self.assertIn("不得调用、代替或推进检索协议", content)
 
     def test_owner_executable_transport_is_forbidden_but_posthoc_read_is_allowed(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         for marker in (
-            "semantic owner preflight",
-            "专用 owner 的 executable 或 CLI 禁止通过 FastCtx `run`",
+            "先按操作语义区分",
+            "命令禁止通过 FastCtx `run`",
             "`run_background`",
             "`replace`",
-            "保留 blocked/capability-gap 结果",
-            "owner 已完成后读取已批准的普通结果",
+            "保留 `blocked`/`capability-gap` 结果",
+            "完成调用并产生已批准的普通本地结果文件后",
         ):
             self.assertIn(marker, content)
 
         grok = (SKILL.parents[1] / "grok-search" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("must be launched through the host's native", grok)
-        self.assertIn("Do not start it with `mcp__fastctx.run`", grok)
-        self.assertIn("FastCtx may read an approved ordinary result file", grok)
+        self.assertIn("必须通过宿主原生直接命令路径启动", grok)
+        self.assertIn("不要用 `mcp__fastctx.run`", grok)
+        self.assertIn("FastCtx 可以读取已批准的普通结果文件", grok)
 
 
 if __name__ == "__main__":

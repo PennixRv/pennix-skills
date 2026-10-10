@@ -9,29 +9,29 @@ class WorkflowRoutingContractTest(unittest.TestCase):
     def test_admission_precedes_route_selection(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         for marker in (
-            "## Admission first",
+            "## 调用前判定",
             "`work_domain`",
             "`delivery_mode`",
             "`execution_class`",
             "`decision_frontier`",
             "`approval_mode`",
-            "`analysis_only` 只表示受保护目标不变的只读证据交付",
-            "明确的研究请求授权主会话完成其证据工作",
-            "必须先冻结派发方案并获明确批准再 spawn/send",
-            "Admission 不是第二套状态机",
+            "`analysis_only` 表示受保护目标不变的只读证据交付",
+            "明确研究请求授权主会话完成证据工作",
+            "并行子节点先冻结派发方案并获明确批准",
+            "这不是第二套状态机",
         ):
             self.assertIn(marker, content)
 
     def test_owner_first_rule_covers_workflow_native_protocols(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("直接调用唯一原生 owner", content)
-        self.assertIn("原生不可用即停止", content)
-        self.assertIn("专用 owner 不可用时不允许降级到 FastCtx", content)
+        self.assertIn("对应组件或宿主规定的原生接口", content)
+        self.assertIn("原生不可用时停止", content)
+        self.assertIn("组件规定接口不可用时不允许用 FastCtx", content)
 
     def test_grok_remains_an_external_retrieval_owner(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("`grok-search` 是外部检索 owner", content)
-        self.assertIn("不能把它的网络调用", content)
+        self.assertIn("`grok-search` 负责外部检索", content)
+        self.assertIn("不接管其网络调用", content)
 
     def test_project_trellis_updates_have_a_native_owner(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
@@ -41,24 +41,24 @@ class WorkflowRoutingContractTest(unittest.TestCase):
 
     def test_owner_transport_and_fastctx_default_are_both_explicit(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("先做 work-domain 和 native-owner preflight", content)
-        self.assertIn("普通本地文件、非交互 CLI", content)
-        self.assertIn("不得使用 `mcp__fastctx.run`", content)
-        self.assertIn("正确 native channel 不可用时保留原始能力缺口并停止", content)
-        self.assertIn("FastCtx 才能做不推进 owner 状态的读取或分析", content)
+        self.assertIn("先判断请求和交付范围，再选择工具", content)
+        self.assertIn("普通本地文件、非交互命令", content)
+        self.assertIn("不能通过 FastCtx `run`", content)
+        self.assertIn("若基础工具按正确原生调用仍不可用，保留原错误并停止", content)
+        self.assertIn("FastCtx 可以读取或分析该文件，但不能确认或模拟组件状态", content)
 
     def test_fastctx_availability_uses_the_host_registry_not_nested_exec_tools(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("`functions.exec` 内嵌编排器的 `ALL_TOOLS` 不是宿主完整工具清单", content)
-        self.assertIn("schema、权限、传输或服务错误", content)
+        self.assertIn("`functions.exec` 的 `ALL_TOOLS` 不是宿主完整工具清单", content)
+        self.assertIn("参数校验、权限、传输或服务错误", content)
 
     def test_trellis_parallel_route_preserves_native_admission_and_acceptance(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         route = content.split("## 当前 Trellis fork 并行工作流", 1)[1].split("## 本地证据优先", 1)[0]
         for invariant in (
-            "主会话 inline 完成",
-            "change-bearing work 需要其原生 Planning Seal 与实施批准",
-            "仅对会实质改变研究范围/方法的用户选择调用 `$pennix-decision-grill`",
+            "默认由主会话完成",
+            "`change_bearing` 工作需要原生规划封口与实施批准",
+            "仅对会实质改变研究范围或方法的用户选择调用 `$pennix-decision-grill`",
             "首次 spawn/send 前",
             "`subnode-work` procedure",
             "`.trellis/agents/subnode-profiles.json`",

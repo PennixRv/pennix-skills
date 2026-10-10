@@ -1,37 +1,8 @@
-# Explicit writes and knowledge promotion
+# 明确写入与知识晋升
+保存指令只授权其中点名的内容和目标。使用原生文档、块、引用、属性和标签；复用相关主题，不要为每个任务或会话创建一个笔记本。保留用户的笔记本和文档组织。导入前确认选定文件、目标位置、来源与权利以及支持的原生格式。
+有用的整理条目应说明事实或方法、用途、适用范围、已核验的来源或日期或版本，以及尚未解决的限制。保存可复用结论，不保存原始会话转储。不得把令牌、密码、连接文件、私有模型密钥、数据库快照或日志复制到笔记。经授权的知识确实需要时，可以包含非秘密服务 URL。
+撰写或修改中文技术知识时，使用 `$pennix-chinese-tech-writing` 及其适用参考。保留事实、条件、风险和确定程度。它只负责措辞；笔记本授权、原生 MCP 写入、并发处理和回读仍由本 Skill 负责。它不授权自动保存。
 
-A save instruction authorizes its named content and target. Use native
-documents/blocks, references, attributes and tags; reuse an existing relevant
-topic rather than one notebook per task/session. Preserve the user's notebook
-and document organization. For imports, identify the selected files, destination,
-source/rights, and supported native format before invoking the importer.
+修改文档前读取当前块。进行聚焦修订并保留无关的人为变更。每次写入后回读结果块和属性。如果写入后出现超时或核验失败，状态可能未知：再次操作前检查预期目标。不要重复含义不明的创建并留下重复笔记。并发冲突需要协调，不要用旧副本替换整个文档。
 
-Useful curated entries state the fact or method, purpose, applicable scope,
-verified source/date/version, and unresolved limits. Save reusable conclusions,
-not raw session dumps. Never copy tokens, passwords, connection files, private
-model keys, database snapshots, or logs into notes. A nonsecret service URL can
-be included when it is needed for the authorized knowledge.
-
-For Chinese technical knowledge writing or revision, use
-`$pennix-chinese-tech-writing` and its applicable references. Preserve facts,
-conditions, risks and certainty. It governs wording only: notebook authorization,
-native MCP writes, concurrency handling and readback remain under this Skill.
-It does not authorize an automatic save.
-
-Before changing a document, read its current blocks. Apply a focused revision
-and preserve unrelated human changes. After each write, read the resulting
-blocks/attributes back. If a timeout or validation failure follows a write,
-its state may be unknown: inspect the intended target before any repeat. Do
-not repeat an ambiguous create and leave duplicate notes. Concurrent conflict
-requires reconciliation; do not replace an entire document with an old copy.
-
-Knowledge promotion is a specific proposal, not a mandatory sequence. Curated
-experience belongs here; executable project contracts belong in project
-`AGENTS.md`/specs; stable reusable methods belong in the owning source Skill;
-cross-project rules belong in global guidance only with a stated common scope.
-Use the normal target owner workflow and checks. Show the intended target and
-the minimal source-note status/version/target-link update together. One explicit
-approval of that proposal covers both writes; separately verify both. If either
-state is unknown, inspect it, report the partial outcome, and avoid automatic
-rollback or synchronization. Routine task/spec recording already authorized by
-the active workflow does not need a new knowledge-promotion popup.
+知识晋升是具体提案，不是强制流程。整理后的经验属于此处；可执行的项目合同属于项目 `AGENTS.md` 或规范；稳定的可复用方法属于其源 Skill；跨项目规则只有在明确具有共同范围时才进入全局指导。使用正常的目标所有者流程和核验。一起展示预期目标以及最小的源笔记状态、版本和目标链接更新；一次明确批准覆盖这两次写入，并分别核验。如果任一状态未知，先检查、报告部分结果，避免自动回滚或同步。当前工作流已经授权的例行任务或规范记录不需要再次弹出知识晋升确认。

@@ -1,17 +1,17 @@
 ---
 name: pennix-chinese-tech-writing
-description: "Write, revise, proofread, or review Chinese technical content, including AGENTS.md, Skills, prompts, Trellis task/spec assets, and SiYuan technical notes. Preserve facts, conditions, risks, and certainty; load references by content type. This Skill guides wording, not edit authorization, task state, or knowledge persistence."
+description: "撰写、改写、校对或审阅中文技术内容，包括用户规则、Skill、自定义 Trellis 正文和思源技术笔记。按内容类型加载规范，保留事实、条件、风险与确定程度；不授予编辑、任务状态或知识保存权限。"
 ---
 
 # 中文技术写作
 
-适用于新写或修改的中文技术内容，包括普通技术文档、操作说明、API 与界面文案、工作流规则、Skill、Trellis 资产和思源技术笔记。日常回复采用核心原则，不为短回复加载全部参考，也不遍历重写历史记录。
+适用于新写或修改的中文技术内容，包括普通技术文档、操作说明、API 与界面文案、工作流规则、Skill、自定义 Trellis 正文和思源技术笔记。新增技术文档默认简体中文，明确语言要求除外；不因此翻译已有文档。日常回复采用核心原则，不为短回复加载全部参考。
 
 本 Skill 只指导内容与表达。文件语义编辑仍用原生 `apply_patch`；生成资产、Trellis 状态和思源保存遵守各自接口与授权，不自动保存知识或创建项目约定。
 
 ## 优先级与保真
 
-依次保留事实、逻辑、条件、风险与法律含义，遵守用户要求和目标项目约定，保持术语与机器可读内容准确，再改善结构、语气和排版。不能为了精简、统一或更确定的语气删除高优先级信息。
+先遵守目标载体的原生格式和机械惯例，再改善自定义中文内容。Trellis 原生模板、骨架章节、标记和生成流程按其合同保留，不因解析器未依赖某段文字就擅自改写。依次保留事实、逻辑、条件、风险与法律含义，遵守明确语言要求和项目约定，保持术语与机器可读内容准确，再改善表达。不能为了精简、统一或更确定的语气删除高优先级信息。
 
 - 不补造日期、数字、时限、能力、因果或结论。必要事实无法确认时标明缺口。
 - 不删前置条件、适用范围、例外、否定、单位、默认值、失败处理和兼容限制。
@@ -43,6 +43,7 @@ description: "Write, revise, proofread, or review Chinese technical content, inc
 
 | 内容或问题 | 参考 |
 | --- | --- |
+| 用户规则、Skill、Trellis 自定义内容或思源技术笔记 | [工作流文档载体](references/workflow-assets.md) |
 | 术语、歧义、错词、大小写、标点与留白 | [术语与排版](references/terminology-and-typography.md) |
 | 操作、部署、故障排查、安全说明、多步骤 API 流程 | [受控中文技术写作](references/controlled-technical-chinese.md) |
 | API 参数、状态、错误码与恢复提示 | [API 状态与错误文案](references/api-status-copy.md) |

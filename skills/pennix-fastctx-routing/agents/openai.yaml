@@ -1,4 +1,4 @@
 interface:
-  display_name: "Pennix FastCtx 路由"
-  short_description: "选择本地读取、搜索、非交互命令和后台任务的工具"
+  display_name: "FastCtx 本地操作路由"
+  short_description: "选择本地读取、搜索与非交互命令工具，排除原生组件协议"
   default_prompt: "使用 $pennix-fastctx-routing 处理本地读取、搜索、非交互命令和后台任务，排除语义编辑及各组件规定的原生调用。"

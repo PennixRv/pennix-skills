@@ -17,8 +17,8 @@ class TrellisProjectUpdateContractTest(unittest.TestCase):
             "trellis workflow --list",
             "trellis workflow --verify",
             "`.trellis/workflow-provenance.json`",
-            "byte-identical sidecar",
-            "directory-wide glob",
+            "逐字相同的 sidecar",
+            "宽泛的 `find ... -delete`",
             "`.trellis/.template-hashes.json`",
         ):
             self.assertIn(marker, content)
@@ -29,19 +29,19 @@ class TrellisProjectUpdateContractTest(unittest.TestCase):
             "$pennix-workflow-lifecycle",
             "workflow-doctor",
             "$pennix-decision-grill",
-            "inline main-session delivery",
-            "explicitly requested independent evidence",
-            "immutable ref",
+            "主会话内联交付",
+            "明确要求的独立证据",
+            "不可变引用",
             "`.trellis/workflow.md.new`",
-            "Do not copy files from a Trellis checkout",
+            "不要从 Trellis 检出目录复制文件",
         ):
             self.assertIn(marker, content)
 
     def test_destructive_paths_are_not_default(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("Do not use `--force` as the default", content)
-        self.assertIn("Never hand-edit", content)
-        self.assertIn("Do not guess, force, or report completion", content)
+        self.assertIn("不要默认使用 `--force`", content)
+        self.assertIn("不得手改", content)
+        self.assertIn("不要猜测、强制操作或声称完成", content)
 
 
 if __name__ == "__main__":

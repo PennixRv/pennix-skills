@@ -1,78 +1,40 @@
 ---
 name: tavily-hikari
-description: Use the self-hosted Hikari-backed tvly-hikari CLI for Tavily-specific search, URL extraction, bounded mapping/crawling, or the one direct fallback after Grok Search is unavailable. Do not use for local repository lookup, ordinary Grok-first retrieval, or a route that requires a specific official source or tool.
+description: 使用自托管 Hikari 的 tvly-hikari CLI 执行 Tavily 专属搜索、URL 提取、限定范围映射与爬取，或在 Grok Search 不可用时执行一次直接后备；不用于本地仓库、通常的 Grok 优先检索或要求特定官方来源或工具的路径。
 metadata:
-  short-description: Hikari-backed Tavily web retrieval
+  short-description: Hikari 承载的 Tavily 网络检索
 ---
-
 # Tavily Hikari
+仅在 Tavily 专属操作或确认需要从 `grok-search` 切换一次后备时使用已配置的 `tvly-hikari` CLI。它将官方 Tavily CLI 操作转发到用户自托管的 Hikari 端点，并返回结构化结果。普通在线检索从 `grok-search` 开始。
+配置的端点必须是用户自托管的 Hikari 部署。在配置存在之前，此入口视为不可用；不得使用已有的公共 Hikari 端点。
 
-Use the configured `tvly-hikari` CLI only for Tavily-specific operations or a
-confirmed single fallback from `grok-search`. It routes official Tavily CLI
-operations through the user's self-hosted Hikari endpoint and returns
-structured results. Ordinary online retrieval starts with `grok-search`.
+## 边界
 
-The configured endpoint must be the user's self-hosted Hikari deployment.
-Until that configuration exists, treat this route as unavailable; do not use a
-pre-existing public Hikari endpoint.
+- 使用 `tvly-hikari ... --json` 获取 Agent 可读结果。外部事实依赖检索结果时引用返回的来源 URL；会影响项目、任务或 Git 事实的结果必须在本地核验。
+- Hikari 访问令牌以 `th-` 开头，不是 Tavily API 密钥。不得索取、输出、复制、提交或重配令牌。不得读取 Hikari 配置文件；只有用户要求进行掩码诊断时才允许 `tvly-hikari config show`。
+- 本 Skill 不安装或升级 `tvly`，不配置 Hikari，不启用 MCP，不添加 Hook，也不启动其他外部服务商。不得切换到公共 Hikari、Firecrawl 或 Codex 原生网络检索。
+- Hikari 是第三方服务。搜索查询、目标 URL 和配置的访问令牌会发送到其端点。查询和目标必须与用户请求相关；不得提交秘密、本地路径、私有文档或无关个人数据。不要自动设置 `--client-name`，因为它可能泄露用户、项目或 Agent 身份。
+- 不用于本地文件、字面量、日志、仓库历史、符号、任务状态或含义不明的旧代码位置候选。后一类在本地检索和 CodeGraph 不足后仍走现有且更窄的 Windsurf Code Search 入口。
 
-## Boundary
+## 选择操作
 
-- Use `tvly-hikari ... --json` for agent-readable results. Cite the returned source URLs when external
-  facts support the answer, and locally verify any result that will affect project, task, or Git facts.
-- Hikari access tokens begin with `th-`; they are not Tavily API keys. Never request, print, copy, commit,
-  or reconfigure a token. Do not read the Hikari config file. `tvly-hikari config show` is permitted only
-  for a user-requested, masked diagnostic.
-- This Skill does not install or upgrade `tvly`, configure Hikari, enable MCP,
-  add Hooks, or start another external provider. It does not fall back to
-  public Hikari, Firecrawl, or Codex native web retrieval.
-- Hikari is a third-party service. Search queries, target URLs, and the configured access token are sent
-  to its endpoint. Keep queries and targets relevant to the user's request; do not submit secrets, local
-  paths, private documents, or unrelated personal data. Do not set `--client-name` automatically: it can
-  disclose a user, project, or agent identity.
-- Do not use this Skill for local files, literals, logs, repository history, symbols, task state, or
-  ambiguous legacy code-location candidates. Keep Windsurf Code Search in its existing, narrower role for the
-  latter after local retrieval and CodeGraph are insufficient.
+1. **搜索**：不知道具体 URL。先形成窄查询，再只加入确需的时效、域名、主题、深度或结果数限制。
+2. **提取**：已知一个或多个相关公共 URL。提取文本作为证据，不直接当作未经核验的结论。
+3. **映射**：已知网站或文档根目录，但不知道相关页面。将有用 URL 提供给后续提取或限定爬取。
+4. **爬取**：需要读取限定公共网站区域的多个页面。运行前定义起始 URL 和限制；全站爬取不是默认行为。
+5. **调研**：需要多来源综合。运行前说明范围、时间段、地域和来源限制。
 
-## Select An Operation
+使用 map、crawl 或 research 前，以及 search 或 extract 需要选择参数、保存输出或处理失败时，阅读 [操作参考](references/operations.md)。
 
-1. **Search**: no specific URL is known. Shape a narrow query, then add only the needed freshness, domain,
-   topic, depth, or result-count controls.
-2. **Extract**: one or more relevant public URLs are already known. Use the extracted text as evidence, not
-   as an unverified conclusion.
-3. **Map**: a site or documentation root is known but the relevant pages are not. Feed only useful URLs
-   into a later extract or bounded crawl.
-4. **Crawl**: multiple pages from a bounded public site section are needed. Define start URL and limits
-   before running it; broad site-wide crawling is not a default.
-5. **Research**: a multi-source synthesis is needed. State scope, time period, geography, and source
-   constraints before requesting it.
+## 失败边界
 
-Read [the operation reference](references/operations.md) before using map, crawl, or research, and whenever
-the basic search/extract command needs option selection, saved output, or failure handling.
+- 格式正确的操作若返回上游或网络错误、配额响应、超时、前置条件不可用、来源导致的命令失败或格式错误响应，则本次请求不可用。
+- 先纠正不支持的选项、缺少的参数或本地命令格式；这不授权切换服务商。
+- 不重试、不并行运行、不修改 Hikari 配置、不选择其他服务商。报告限定的检索缺口。要求特定来源或工具的系统、用户或任务指令优先级更高。
 
-## Failure Boundary
+## 执行与证据
 
-- A correctly formed operation that returns an upstream/network error, quota
-  response, timeout, unavailable prerequisite, source-caused command failure,
-  or malformed response is unavailable for that request.
-- Correct an unsupported option, missing argument, or malformed local command
-  first. It does not authorize a provider change.
-- Do not retry, parallel-run, alter Hikari configuration, or select another
-  provider. Report the bounded retrieval gap. A system, user, or task
-  instruction requiring a specific source/tool remains higher priority.
-
-## Execution And Evidence
-
-- Run `tvly-hikari doctor` only after a CLI or configuration-related failure, or when the user asks to
-  diagnose readiness. It is not a per-task or per-query preflight. Its output can include masked
-  configuration fields; never relay those fields in messages or task artifacts.
-- Keep normal results in the current request. Pass `-o` or `--output-dir` only when the user asks for a
-  reusable artifact or an approved task path requires it; do not write retrieval output into a project by
-  default.
-- Treat search, extract, map, crawl, and research output as external evidence. Preserve source URLs, date
-  context, scope, and material uncertainty in any conclusion. In an initialized Trellis project, use its
-  bundled `trellis-research-record` for verified task-relevant findings; raw result dumps and token-bearing
-  configuration never enter task artifacts.
-- Treat an availability failure as an operational diagnostic, not a factual
-  result. Do not hide it with retries, configuration changes, or provider
-  rotation.
+- 只有 CLI 或配置失败后，或用户要求诊断就绪性时，才运行 `tvly-hikari doctor`。它不是每个任务或查询的预检；输出可能包含掩码配置字段，不得在消息或任务资产中转述。
+- 正常结果留在当前请求。只有用户要求可复用产物或已批准任务路径要求时才使用 `-o` 或 `--output-dir`；默认不把检索结果写入项目。
+- 将 search、extract、map、crawl 和 research 输出视为外部证据。结论须保留来源 URL、日期背景、范围和重要不确定性。在初始化的 Trellis 项目中，使用其内置 `trellis-research-record` 记录与任务相关且已核验的发现；原始结果转储和含令牌的配置不得进入任务资产。
+- 可用性失败是运行诊断，不是事实结论。不要用重试、配置改动或服务商轮换掩盖它。

@@ -1,9 +1,9 @@
 ---
 name: pennix-workflow-routing
-description: "Route cross-component Pennix workflow requests by ownership and call semantics across Trellis, FastCtx, CodeGraph, Windsurf Code Search, web retrieval, Skills, Hook/config, and native tools. Use when a task spans or may span these components, or the correct route is unclear; do not use for ordinary single-tool work."
+description: "按职责与调用语义路由跨组件工作流请求，区分 Trellis、FastCtx、CodeGraph、Windsurf Code Search、网页检索、Skill、Hook 和宿主原生工具。用于涉及多个组件或职责不清的请求，不用于普通单工具操作。"
 ---
 
-# Pennix 工作流路由
+# 跨组件工作流路由
 
 ## 适用范围
 
@@ -34,7 +34,7 @@ description: "Route cross-component Pennix workflow requests by ownership and ca
 | Trellis 任务/阶段/Channel、正式交接、Codex 交互/Hook、原生 MCP/TUI、系统部署或组件错误协议 | 对应组件或宿主规定的原生接口 | 保留协议状态；原生不可用时停止，不用 FastCtx 模拟 |
 | Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 对应检索工具的命令、MCP 或 API | FastCtx 不承担检索启动、凭据或降级协议 |
 | 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过 FastCtx 或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
-| 中文技术相关文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 包括 Trellis 资产与思源技术笔记；只指导表达，编辑、任务状态和保存仍走各自规定接口 |
+| 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
 | 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | FastCtx，按 `$pennix-fastctx-routing` | 排除上表的专门调用；机械替换先预览并限定次数，不自动持久化结果 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |
@@ -96,7 +96,7 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 各保留自身状态和规定接口。中文技术知识的撰写或改写加载 `$pennix-chinese-tech-writing`，保存仍需具体用户授权。知识失败不阻断任务或交接，禁止无条件预加载、自动捕获与双向同步。
 
 - `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；FastCtx 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
-- 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。中文写作方法同样适用于这些技术资产，生成资产仍回实际模板来源修改。
+- 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。Trellis 原生模板、骨架与机械惯例优先，自定义中文正文采用写作方法；生成资产仍回实际模板来源修改。
 - CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置由 `$pennix-workflow-lifecycle` 的 CodeGraph deployment adapter 计划并执行，不因普通检索自动初始化，
   linked Git worktree 不使用 CodeGraph。
 - 确有独立证据价值的工作遵循当前项目选择的 Trellis `subnode` procedure。Trellis 维护其 brief、持久化报告和

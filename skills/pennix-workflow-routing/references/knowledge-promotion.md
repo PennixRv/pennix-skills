@@ -1,37 +1,16 @@
-# Knowledge source selection and promotion
-
-| User intent | Primary authority | Target when persisting |
+# 知识来源选择与晋升
+| 用户意图 | 首要依据 | 持久化目标 |
 |---|---|---|
-| Current code/config/task progress | Current source, Git, task, AGENTS/spec | Existing project owner artifacts |
-| What we discussed or why we chose it | trellis-session-insight / local mem | Only the verified facts needed by the task |
-| Reusable human knowledge/experience | Configured native knowledge tool, pennix-siyuan-memory | User-selected notebook/document |
-| Executable project contract | Project AGENTS/spec and current code | trellis-update-spec / project task |
-| Stable reusable operational method | Source Skill and actual owner protocol | skill-creator in the source repository |
-| Cross-project collaboration rule | Global guidance and affected owners | Global AGENTS/router only for the approved common scope |
-| Formal session handoff | pennix-session-handoff and native Trellis task ownership | Explicit local handoff package, independent of knowledge service |
+| 当前代码、配置和任务进展 | 当前源代码、Git、任务、AGENTS/spec | 现有项目归属资产 |
+| 讨论过什么或为何作出选择 | trellis-session-insight / 本地 mem | 任务所需的已核验事实 |
+| 可复用的人类知识或经验 | 已配置的原生知识工具、pennix-siyuan-memory | 用户选定的笔记本或文档 |
+| 可执行的项目合同 | 项目 AGENTS/spec 和当前代码 | trellis-update-spec / 项目任务 |
+| 稳定的可复用操作方法 | 源 Skill 和实际归属协议 | 源仓库中的 skill-creator |
+| 跨项目协作规则 | 全局指导和受影响的归属方 | 仅在批准的共同范围内写入全局 AGENTS/router |
+| 正式会话交接 | pennix-session-handoff 和原生 Trellis 任务归属 | 独立的本地正式交接包，不依赖知识服务 |
+为问题选择一个来源，仅为具体证据缺口补充来源。原始历史对话、整理笔记和可执行规则用途不同；不要求先访问另外两者。当前合同优先于过时笔记。如果其他主机启用了 Codex 原生自动记忆，那是独立的平台行为，既不是这些归属方的前置条件，也不能替代它们。遵守宿主机的启用选择，不通过知识使用过程打开它。
+自然收敛时，如果结果可复用，可以提出保存或晋升。说明内容、已核验证据、适用范围和具体目标。只有用户明确意图才授权知识写入或新的晋升；已有任务或规范记录职责仍由活动项目工作流负责。没有有用候选时不强制弹窗，也不存在自动采集器。
 
-Choose one source for the question and supplement only a specific evidence gap.
-Raw historical dialogue, curated notes, and executable rules have different
-purposes; none requires visiting the other two first. Current contracts prevail
-over stale notes. Codex native automatic memory, if enabled on another host,
-is a separate platform behavior; it is neither a prerequisite nor a replacement
-for these owners. Respect the host's selected enablement and do not turn it on
-through knowledge use.
+晋升写入实际源归属，然后执行其正常核验、提交、发布和消费者更新。不得编辑已安装 Skill 来代替源仓库。具体提案可以同时包含最小的原始笔记状态、版本和目标链接更新；一次批准覆盖点名的两个目标。分别核验，协调并发的人为变更；写入状态未知时先检查再重试。不存在自动双向同步或默认的全有或全无事务。
 
-At natural convergence, propose a save or promotion when the result is reusable.
-State the content, verified evidence, applicable scope and concrete destination.
-Only explicit user intent authorizes a knowledge write or new promotion; existing
-task/spec duties remain governed by the active project workflow. There is no
-mandatory popup when no useful candidate exists and no automatic collector.
-
-Promotion targets the actual source owner, then its normal checks, commit/publish
-and consumers. Do not edit an installed Skill instead of its source. A specific
-proposal may include the minimal original-note status/version/target-link update;
-one approval covers both named targets. Verify each separately, reconcile
-concurrent human changes, and inspect unknown write state before retry. No
-automatic bidirectional sync or assumed all-or-nothing transaction exists.
-
-Knowledge access failures and empty results do not block task transitions,
-engineering verification, local conversation history, or formal handoff. Use
-the native knowledge tools when bound; unbound tools require reconnection,
-not shell HTTP or a parallel data client.
+知识访问失败和空结果不得阻塞任务转换、工程核验、本地对话历史或正式交接。工具已绑定时使用原生知识工具；工具未绑定时请求重新连接，不使用 Shell HTTP 或并行数据客户端。

@@ -1,0 +1,54 @@
+{
+  "id": "skills-chinese-docs-revision",
+  "name": "skills-chinese-docs-revision",
+  "title": "用户文档中文默认值与 Skill 操作文档全集修订",
+  "description": "承接 10-10-global-agents-routing-revision，落实根协调任务 10-10-chinese-docs-skills-revision 的语言、格式和职责设计，修订 12 个成员的入口与执行文档及正式交接提示词生成文案。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-10",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "predecessor": ".trellis/tasks/archive/2026-10/10-10-global-agents-routing-revision",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "skills-chinese-docs-revision",
+        "task_name": "10-10-skills-chinese-docs-revision",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "ab323a87fc64c417e0ca5dd11a71676674fac209e9f066d0d3a584cdc0b875f1",
+          "design.md": "aab7a75b2a6176db33891b01d35eca9e7d1dd03c83cfe421847d26d40a298f87",
+          "implement.md": "8677d73962bc299d33a5f3308c7285b775d7b69c425ddd65ba8b6b05ddba72e6"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-09T23:22:25.950385+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户在根与组件 revision 1 完整方案已封口展示后批准上述完整修订包进入实施并全量推进到部署与收敛，覆盖本组件方案。",
+      "approved_at": "2026-10-10T00:13:43.045984+00:00"
+    }
+  }
+}

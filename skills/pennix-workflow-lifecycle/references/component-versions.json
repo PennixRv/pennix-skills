@@ -396,7 +396,7 @@
       "adapter": "codex-agents",
       "template": {
         "name": "AGENTS.md.install",
-        "revision": "sha256:57eda055881bdd719bd9e72e9d94e009d74b99beac20fc55687b22974689268d"
+        "revision": "sha256:a126ddcab9cef58a2fdc70d827d079accf28df3f10ede25df3d5c40e80687a58"
       }
     },
     "pennix-skills": {
@@ -453,8 +453,8 @@
         "materialized": {
           "grok-search": {
             "repo": "PennixRv/grok-search",
-            "ref": "76a6475bd8e1aa190eb611fba654e1eb6d7b16db",
-            "commit": "76a6475bd8e1aa190eb611fba654e1eb6d7b16db",
+            "ref": "1af50d6e049d5349cbd44d1f398ea016bd70a37a",
+            "commit": "1af50d6e049d5349cbd44d1f398ea016bd70a37a",
             "path": ".",
             "name": "grok-search",
             "snapshot": "archive",
@@ -464,8 +464,8 @@
           },
           "windsurf-code-search": {
             "repo": "PennixRv/windsurf-code-search",
-            "ref": "bc27fbf2dd04f9b8583193cc8b43a1e89ee37da1",
-            "commit": "bc27fbf2dd04f9b8583193cc8b43a1e89ee37da1",
+            "ref": "ff4c2e2a4432e13cc0a19155a8178c792af57375",
+            "commit": "ff4c2e2a4432e13cc0a19155a8178c792af57375",
             "path": ".",
             "name": "windsurf-code-search",
             "snapshot": "npm-pack"

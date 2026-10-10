@@ -57,18 +57,18 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertIn("$pennix-session-handoff", rendered.stdout)
         prompt = self.root / Path(relative).with_name("session-handoff-prompt.md")
         self.assertTrue(prompt.is_file())
-        self.assertIn("Required New-Session Route", prompt.read_text(encoding="utf-8"))
+        self.assertIn("新会话必经路径", prompt.read_text(encoding="utf-8"))
         prompt_text = prompt.read_text(encoding="utf-8")
         self.assertIn("$trellis-finish-work", prompt_text)
-        self.assertIn("do not close it from this snapshot", prompt_text)
-        self.assertIn("read the paired package JSON and this entire handoff prompt", prompt_text)
+        self.assertIn("不要从此快照关闭任务", prompt_text)
+        self.assertIn("完整读取配对包 JSON 和本交接提示词", prompt_text)
         self.assertIn("preserved semantic scene", prompt_text)
         self.assertIn("research/worktime-memory.md", prompt_text)
-        self.assertIn("Do not execute the pending next action", prompt_text)
-        self.assertIn("`analysis_only` research remains in planning without `task.py start`", prompt_text)
-        self.assertIn("change-bearing work starts only with its current native seal and approval", prompt_text)
-        self.assertIn("already running work resumes its checkpoint", prompt_text)
-        self.assertLess(prompt_text.index("ownership `claim`"), prompt_text.index("actual classification and phase"))
+        self.assertIn("不执行 pending next action", prompt_text)
+        self.assertIn("只读 `analysis_only` 研究保持 planning，不调用 `task.py start`", prompt_text)
+        self.assertIn("变更工作只有在当前原生 seal 和批准存在时才开始", prompt_text)
+        self.assertIn("已经运行的工作恢复其检查点", prompt_text)
+        self.assertLess(prompt_text.index("归属 `claim`"), prompt_text.index("实际分类和阶段"))
         self.assertLess(prompt_text.index("$trellis-start"), prompt_text.index("$trellis-continue"))
         self.assertIn(relative, rendered.stdout)
         repeated = self.run_cli(RENDER, "--handoff", relative)
@@ -91,7 +91,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertEqual(core["conversation"]["candidates"][0]["text"], " ".join(candidate.split()))
         prompt = (self.root / Path(relative).with_name("session-handoff-prompt.md")).read_text(encoding="utf-8")
         self.assertIn("conversation.candidates", prompt)
-        self.assertIn("count: 1", prompt)
+        self.assertIn("数量：1", prompt)
         self.assertNotIn(candidate, prompt)
 
     def test_invalid_package_never_emits_prompt(self) -> None:
@@ -101,7 +101,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertNotEqual(rendered.returncode, 0)
         self.assertEqual(rendered.stdout, "")
         self.assertFalse((self.root / Path(relative).with_name("session-handoff-prompt.md")).exists())
-        self.assertIn("handoff is not ready: recovery_required", rendered.stderr)
+        self.assertIn("handoff 未就绪: recovery_required", rendered.stderr)
 
     def test_renderer_is_idempotent_after_source_becomes_ready(self) -> None:
         relative = self.write()
@@ -141,6 +141,16 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertIn("只读审计", result.stdout)
         self.assertEqual((core.read_bytes(), prompt.read_bytes()), before)
 
+    def test_renderer_refuses_a_different_existing_pair(self) -> None:
+        relative = self.write()
+        prompt = self.root / Path(relative).with_name("session-handoff-prompt.md")
+        prompt.write_text("existing pair\n", encoding="utf-8")
+        before = prompt.read_bytes()
+        result = self.run_cli(RENDER, "--handoff", relative)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(prompt.read_bytes(), before)
+        self.assertIn("配对 prompt 已存在且内容不同", result.stderr)
+
     def test_pending_lifecycle_never_emits_prompt(self) -> None:
         relative = self.write()
         prepared = self.run_cli(HANDOFF, "prepare", "--handoff", relative, "--mode", "core_only")
@@ -149,7 +159,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertNotEqual(rendered.returncode, 0)
         self.assertEqual(rendered.stdout, "")
         self.assertFalse((self.root / Path(relative).with_name("session-handoff-prompt.md")).exists())
-        self.assertIn("lifecycle is not ready: pending", rendered.stderr)
+        self.assertIn("handoff lifecycle 未就绪: pending", rendered.stderr)
 
 
 if __name__ == "__main__":

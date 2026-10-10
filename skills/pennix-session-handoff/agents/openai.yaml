@@ -1,3 +1,3 @@
 interface:
-  display_name: "Pennix Session Handoff"
-  short_description: "Create and validate explicit timestamped handoffs"
+  display_name: "正式会话交接"
+  short_description: "仅按明确请求创建、核验带时间戳的正式交接包并保留生命周期边界"

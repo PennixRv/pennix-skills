@@ -1,39 +1,8 @@
-# Native capability use
+# 使用原生能力
+以当前原生 MCP 工具目录作为能力和参数依据。上游内核可以提供文档或块的读写、全文或语义搜索、SQL、大纲或引用、属性、笔记本和文档组织、资源、导入导出、历史、内置 Agent Skills 以及系统或网络管理。工具出现在目录中不等于获得副作用授权。保留原生入口，不要另造并行 API。
+SQL 仅用于问题所需的限定范围读取，不是常规写入入口。处理块时保留原生 ID 和引用语法。处理附件时区分资源 URL、本地 Codex 文件和内核服务器路径。导入导出路径以 Schema 规定的服务器端路径为准；不要假定 NAS 容器中存在桌面客户端路径。Docker 可能没有桌面文档转换器；应报告原生限制，不要暗中安装转换器。
+思源笔记内核在 `data/storage/ai/agent/skills` 和内核主机的 `~/.agents/skills` 下管理 Skills。连接的是 NAS 或容器内核时，这些路径属于 NAS 或容器，不属于外部 Codex 主机。原生 list/load 可以向内置或外部 Agent 提供文本和资源位置。原生 install/save/remove/rename 都是明确的内核侧管理操作。加载 Skill 不会将它安装到 Codex，不会执行其中脚本，也不会使它自动受信。Codex Skills 和思源笔记 Skills 由各自源所有者维护发布，并由各自管理入口安装；两套集合的位置和归属不同。
 
-Use the current native MCP tool catalog as the capability and argument
-authority. Upstream kernels can expose document/block reads and edits,
-full-text/semantic search, SQL, outlines/references, attributes, notebook and
-document organization, assets, import/export, history, internal Agent Skills,
-and system/network management. Presence in the catalog does not authorize a
-side effect. Preserve native exposure instead of inventing a parallel API.
+历史恢复、删除、笔记本管理、远程 URL 获取、网络或系统功能以及 Skill 安装都需要相关的明确意图和已知目标。不要在真实笔记上测试破坏性管理操作。按请求使用原生导出和恢复；导出成功不等于所有附件或格式都能往返。核验用户要求的可观察结果。
 
-For SQL, use scoped read queries for the question; SQL is not the normal writer.
-For blocks, preserve native IDs and reference syntax. For attachments, distinguish
-an asset URL, a local Codex file, and a path on the kernel server. Import/export
-paths are server-side where the schema says so; do not pretend a desktop path
-exists in the NAS container. Docker may lack desktop document converters.
-Report that native limitation rather than install a converter by implication.
-
-SiYuan's kernel manages Skills under `data/storage/ai/agent/skills` and the
-kernel host's `~/.agents/skills`. These paths belong to the NAS/container when
-that is the connected kernel, not to the external Codex host. Native list/load
-can supply their text and resource locations to internal or external agents.
-Native install/save/remove/rename are explicit kernel-side management actions.
-Loading a Skill never installs it into Codex, executes its scripts, or makes it trusted.
-Codex/Pennix Skills are maintained and published by their source owner and the
-system skill installer. The two collections have distinct locations and owners.
-
-History restoration, deletion, notebook administration, remote URL fetches,
-network/system functions and Skill installation need relevant explicit intent
-and a known target. Do not test destructive administration on real notes.
-Use native export and restore when requested; export success is not proof that
-all attachments or formats round-trip. Verify the requested observable result.
-
-Observed native MCP limits in SiYuan v3.8.6: `export(action="sy")` produced a
-`.sy.zip` with Markdown payload, rejected by native `import(action="sy")`.
-Do not use that action as a restorable SY backup without a verified round-trip
-on the target version. Markdown ZIP retained fixture text and an HTML asset,
-but converted block references to links; it is not an ID/history-preserving backup.
-DOCX export required a configured Pandoc executable. Asset upload from a
-workspace `temp` fixture was refused as sensitive; honor the refusal rather
-than bypassing it. Separately authorized native `create_html` was supported.
+在思源笔记 v3.8.6 中观察到的原生 MCP 限制：`export(action="sy")` 生成包含 Markdown 内容的 `.sy.zip`，但被原生 `import(action="sy")` 拒绝。在目标版本完成往返核验前，不要把该操作当作可恢复的 SY 备份。Markdown ZIP 保留了测试文本和 HTML 资源，但将块引用转换为链接；它不保留块 ID 或历史。DOCX 导出需要已配置的 Pandoc 可执行文件。从工作区 `temp` 测试目录上传资源被判定为敏感内容并拒绝；应遵守拒绝，不要绕过。另有明确授权的原生 `create_html` 已验证可用。
