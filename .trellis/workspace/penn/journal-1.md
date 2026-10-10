@@ -579,3 +579,26 @@ Rechecked all historical rule intents, restored concise FastCtx and writing entr
 ### Status
 
 [OK] **Completed**
+
+
+## Session 25: Skill 中文修订与机器合同保真交付
+<!-- trellis-session: v=2 fp=4b4509d165623943 -->
+
+**Date**: 2026-10-10
+**Task**: Skill 中文修订与机器合同保真交付
+**Branch**: `main`
+
+### Summary
+
+12 入口、执行参考和 7 界面完成中文修订，Trellis 原生惯例优先；字段和标识保真检查发现并恢复三处交接路径。来源已推送，232 项 Python、114 项 Windsurf 和 Grok 7 组测试通过。系统安装器固定产品提交，原生替换集合并升级用户规则，141 文件和权限一致，scoped verify 通过，临时副本已清理，任务已归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d7bb185` | docs: revise Chinese skills and preserve native contracts |
+| `69ed9e9` | docs: record verified collection and user rules installation |
+
+### Status
+
+[OK] **Completed**

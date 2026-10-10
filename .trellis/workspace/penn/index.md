@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 24
+- **Total Sessions**: 25
 - **Last Active**: 2026-10-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~581 | Active |
+| `journal-1.md` | ~604 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 25 | 2026-10-10 | Skill 中文修订与机器合同保真交付 | `d7bb185`, `69ed9e9` | `main` |
 | 24 | 2026-10-10 | Refine user guidance and Chinese technical writing | `91e867f`, `112009a` | `main` |
 | 23 | 2026-10-10 | Progressive decisions and full user rules | `9353bf4`, `b7e3c41`, `d6f400a` | `main` |
 | 22 | 2026-10-09 | AoE baseline and SiYuan readiness aligned | `c12c8c6`, `b066b30` | `main` |
