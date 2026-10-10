@@ -225,7 +225,7 @@
     },
     "tmux": {
       "delivery": "package",
-      "approved_version": "3.7c",
+      "approved_version": "3.8",
       "source": "system installation",
       "owner": "system",
       "scope": "global",

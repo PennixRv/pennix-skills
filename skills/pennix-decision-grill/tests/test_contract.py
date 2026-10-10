@@ -38,6 +38,20 @@ class DecisionGrillContractTests(unittest.TestCase):
         for marker in ("设计回答不授予实施权", "`analysis_only` 完成证据不要求实施批准", "专门批准", "普通继续或充分压缩断点复用已知决定", "模型行为的确定性保证"):
             self.assertIn(marker, self.content)
 
+    def test_extra_findings_return_to_the_mainline_and_keep_approval_distinct(self) -> None:
+        for marker in (
+            "先核验其是否真实",
+            "纳入当前任务",
+            "记录后另建任务",
+            "当前范围已有覆盖",
+            "明确排除",
+            "不能静默丢弃",
+            "纳入规划不等于实施批准",
+            "回读原始请求、主线决策和未决项",
+            "不能让额外发现取代主线",
+        ):
+            self.assertIn(marker, self.content)
+
 
 if __name__ == "__main__":
     unittest.main()
