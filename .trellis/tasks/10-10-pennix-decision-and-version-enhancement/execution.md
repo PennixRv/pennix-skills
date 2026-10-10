@@ -8,7 +8,7 @@ Trellis beta.45 已由官方 workflow 成功发布，Pennix catalog 的 `trellis
 
 ## 项目刷新与验收
 
-本项目已运行原生 `trellis update --create-new`，从 beta.43 刷新到 beta.45，生成 Skill、模板哈希和 bundled Native Workflow provenance 均由原生 CLI 维护。lifecycle discover/verify 显示 Pennix 集合、trellis-cli beta.45、tmux 3.8 均为 `match`。
+本项目已运行原生 `trellis update --create-new`，从 beta.43 刷新到 beta.45，生成 Skill、模板哈希和 bundled Native Workflow provenance 均由原生 CLI 维护；项目更新和任务证据提交为 `57bc074`，已推送 `main`。lifecycle discover/verify 显示 Pennix 集合、trellis-cli beta.45、tmux 3.8 均为 `match`。
 
 Pennix 19 个真实测试目录共 239 tests passed；decision grill 8/8、workflow lifecycle 157/157、中文写作 lint 无错误。递归测试命令曾因包含空测试目录退出 5，已改用只枚举含 `test_*.py` 的目录重跑并通过；该退出不属于产品失败。
 
