@@ -602,3 +602,39 @@ Rechecked all historical rule intents, restored concise FastCtx and writing entr
 ### Status
 
 [OK] **Completed**
+
+
+## Session 26: Handoff intake contract delivery
+<!-- trellis-session: v=2 fp=803593964b884ff6 -->
+
+**Date**: 2026-10-10
+**Task**: Handoff intake contract delivery
+**Branch**: `main`
+
+### Summary
+
+Completed the schema 10 handoff intake contract repair, pushed product and delivery evidence, replaced the installed pennix-skills collection, and archived the component task.
+
+### Main Changes
+
+- Implemented strict consumed-field validation, canonical conversation history, read-only core/history views, and schema 8/9 read-only boundaries.
+- Pinned and pushed product commit 2d54c918; recorded delivery evidence in 83535c0.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2d54c91802fa69d95436eb7bbaaf3d459c1e8140` | fix: tighten session handoff intake contract |
+| `83535c0` | docs: record handoff delivery verification |
+
+### Testing
+
+- [OK] Component and installed handoff tests passed; scoped lifecycle verification matched; root offline integration passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- No pending action for this task; unrelated active tasks remain untouched.
