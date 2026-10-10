@@ -18,14 +18,14 @@ from typing import Any, Dict, Iterable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workflow_contracts import (  # noqa: E402
-    ContractError, SECRET_RE, LIFECYCLE_MODES, TARGET_SOURCE_RE, _text, _text_list, free_text, lifecycle_mode,
+    ContractError, SECRET_RE, LIFECYCLE_MODES, TARGET_SOURCE_RE, _text, _text_list, _fields, _integer, free_text, lifecycle_mode,
     load_json_file, safe_id, validate_attestation,
     validate_observation,
 )
 
 
-SCHEMA_VERSION = 9
-SUPPORTED_SCHEMA_VERSIONS = {8, 9}
+SCHEMA_VERSION = 10
+SUPPORTED_SCHEMA_VERSIONS = {8, 9, SCHEMA_VERSION}
 KIND = "pennix-session-handoff"
 PARSER_VERSION = "codex-jsonl-local-v1"
 HANDOFFS = ".trellis/session-handoffs"
@@ -39,7 +39,7 @@ LIFECYCLE_RUNTIME = ".trellis/.runtime/handoff-lifecycle"
 ARCHIVE_RUNTIME = ".trellis/.runtime/handoff-archive"
 LIFECYCLE_SCHEMA_VERSION = 2
 LIFECYCLE_EVENT_KIND = "pennix-handoff-lifecycle-event"
-CONSUMPTION_STEPS = ("core_read", "prompt_read", "trellis_started", "facts_reconciled")
+CONSUMPTION_STEPS = ("core_view_read", "prompt_read", "trellis_started", "facts_reconciled")
 SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "pending", "unavailable", "unsupported", "failed", "expired"}
 TARGET_STATES = {"not_admitted", "admitted", "reconciled", "blocked", "disposed"}
 RETENTION_STATES = {"none", "archive_eligible", "archived", "retained", "restored", "reopened", "purged"}
@@ -321,7 +321,7 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
                     if topic:
                         repeat_key = topic + "\0" + message_text
                         repeated[repeat_key] = repeated.get(repeat_key, 0) + 1
-                        item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeated[repeat_key] > 1 else _timeline_state(message_text), "event_index": event_index, "summary": message_text, "source": source, "repeat_count": repeated[repeat_key]}
+                        item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeated[repeat_key] > 1 else _timeline_state(message_text), "event_index": event_index, "repeat_count": repeated[repeat_key]}
                         if topic in latest_by_topic:
                             item["supersedes_event_index"] = latest_by_topic[topic]
                         latest_by_topic[topic] = event_index
@@ -412,7 +412,7 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
         "blockers": _text_list(value["blockers"], "blockers"), "risks": _text_list(value["risks"], "risks"),
         "validation": normalized_validation, "rollout": _read_rollout_path(value["rollout"]),
         "memory_projection": {
-            "semantic_capsule": free_text(memory_projection.get("semantic_capsule", ""), "memory_projection.semantic_capsule"),
+            "semantic_capsule": _text(memory_projection.get("semantic_capsule"), "memory_projection.semantic_capsule"),
             "local": _text_list(memory_projection.get("local", []), "memory_projection.local"),
             "archive_refs": _text_list(memory_projection.get("archive_refs", []), "memory_projection.archive_refs"),
         },
@@ -453,7 +453,7 @@ def build(root: Path, request: Dict[str, Any], handoff_id: str) -> Dict[str, Any
         "created_at": datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
         "project": {"name": root.name},
         "work_context": {"task": task},
-        "source": {"session_label": request["session_label"], "git": source["git"], "evidence": evidence, "rollout": rollout},
+        "source": {"session_label": request["session_label"], "git": source["git"], "evidence": evidence, "rollout": source["rollout_identity"]},
         "verified": {"facts": request["facts"], "validation": request["validation"]},
         "conversation": {"candidates": rollout["conversation_candidates"], "timeline": rollout["timeline"], "coverage": rollout["coverage"]},
         "pending": {"next_action": request["next_action"], "blockers": request["blockers"], "risks": request["risks"]},
@@ -462,59 +462,219 @@ def build(root: Path, request: Dict[str, Any], handoff_id: str) -> Dict[str, Any
     return payload
 
 
+def _source_position(value: Dict[str, Any], boundary: int, label: str) -> None:
+    _integer(value.get("line"), label + ".line", 1)
+    start = _integer(value.get("byte_start"), label + ".byte_start")
+    end = _integer(value.get("byte_end"), label + ".byte_end", start + 1)
+    if end > boundary:
+        raise ContractError(label + " exceeds capture boundary")
+
+
+def _validate_conversation(conversation: Any, rollout: Dict[str, Any], *, historical: bool) -> None:
+    _fields(conversation, {"candidates", "timeline", "coverage"}, "conversation")
+    candidates, timeline, coverage = (conversation[key] for key in ("candidates", "timeline", "coverage"))
+    if not isinstance(candidates, list) or not isinstance(timeline, list):
+        raise ContractError("conversation candidates/timeline must be lists")
+    _fields(coverage, {"source_bytes_at_capture", "capture_end", "record_count", "event_count", "excluded", "unknown", "omissions", "unknown_spans", "compacted_spans", "incomplete_tool_calls"}, "conversation.coverage")
+    boundary = _integer(coverage["capture_end"], "coverage.capture_end")
+    size = _integer(coverage["source_bytes_at_capture"], "coverage.source_bytes_at_capture")
+    records = _integer(coverage["record_count"], "coverage.record_count")
+    if boundary > size or boundary != rollout["capture_end"] or records != rollout["record_count"]:
+        raise ContractError("conversation coverage and rollout disagree")
+    if _integer(coverage["event_count"], "coverage.event_count") != len(candidates) or records < len(candidates):
+        raise ContractError("conversation event count disagrees with candidates")
+    previous_end = 0
+    previous_line = 0
+    calls: set[str] = set()
+    results: set[str] = set()
+    for index, candidate in enumerate(candidates, 1):
+        if not isinstance(candidate, dict):
+            raise ContractError("conversation candidate must be an object")
+        kind = _text(candidate.get("kind"), "candidate.kind")
+        fields = {"kind", "event_index", "source"}
+        if kind in {"user", "assistant"}:
+            fields.add("text")
+            _text(candidate.get("text"), "candidate.text")
+        elif kind in {"tool_call", "tool_result"}:
+            if kind == "tool_call":
+                fields.add("tool")
+                if candidate.get("tool") is not None:
+                    _text(candidate["tool"], "candidate.tool")
+            if "call_id" in candidate:
+                fields.add("call_id")
+                (calls if kind == "tool_call" else results).add(_text(candidate["call_id"], "candidate.call_id"))
+        else:
+            raise ContractError("conversation candidate kind is invalid")
+        _fields(candidate, fields, "candidate")
+        if _integer(candidate["event_index"], "candidate.event_index", 1) != index:
+            raise ContractError("candidate event indices must be consecutive")
+        source = candidate["source"]
+        source_fields = {"line", "byte_start", "byte_end", "record_type"}
+        if isinstance(source, dict) and "timestamp" in source:
+            source_fields.add("timestamp")
+            _text(source["timestamp"], "candidate.source.timestamp")
+        _fields(source, source_fields, "candidate.source")
+        _text(source["record_type"], "candidate.source.record_type")
+        _source_position(source, boundary, "candidate.source")
+        if source["byte_start"] < previous_end or source["line"] <= previous_line:
+            raise ContractError("candidate source positions are out of order")
+        previous_end, previous_line = source["byte_end"], source["line"]
+    latest: dict[str, int] = {}
+    repeats: dict[tuple[str, str], int] = {}
+    previous_index = 0
+    for item in timeline:
+        if not isinstance(item, dict):
+            raise ContractError("timeline item must be an object")
+        fields = {"topic_key", "state", "event_index", "repeat_count"}
+        if historical:
+            fields |= {"summary", "source"}
+        if "supersedes_event_index" in item:
+            fields.add("supersedes_event_index")
+        _fields(item, fields, "timeline item")
+        event_index = _integer(item["event_index"], "timeline.event_index", 1)
+        if not previous_index < event_index <= len(candidates):
+            raise ContractError("timeline reference is invalid or out of order")
+        candidate = candidates[event_index - 1]
+        if candidate["kind"] != "user":
+            raise ContractError("timeline must reference a user candidate")
+        if historical and (item["summary"] != candidate["text"] or item["source"] != candidate["source"]):
+            raise ContractError("historical timeline and candidate disagree")
+        topic = _text(item["topic_key"], "timeline.topic_key")
+        state = _text(item["state"], "timeline.state")
+        if state not in {"proposed", "accepted", "reaccepted", "rejected", "revoked", "corrected", "repeated"}:
+            raise ContractError("timeline state is invalid")
+        repeat_key = (topic, candidate["text"])
+        repeats[repeat_key] = repeats.get(repeat_key, 0) + 1
+        repeat_count = _integer(item["repeat_count"], "timeline.repeat_count", 1)
+        if repeat_count != repeats[repeat_key] or (state == "repeated") != (repeat_count > 1):
+            raise ContractError("timeline repeat count is inconsistent")
+        supersedes = item.get("supersedes_event_index")
+        if supersedes is not None:
+            _integer(supersedes, "timeline.supersedes_event_index", 1)
+        elif "supersedes_event_index" in item:
+            raise ContractError("timeline supersedes reference cannot be null")
+        if supersedes != latest.get(topic):
+            raise ContractError("timeline supersedes reference is inconsistent")
+        latest[topic], previous_index = event_index, event_index
+    for key in ("excluded", "unknown"):
+        counts = coverage[key]
+        if not isinstance(counts, dict):
+            raise ContractError("coverage.%s must be an object" % key)
+        for kind, count in counts.items():
+            _text(kind, "coverage count key")
+            _integer(count, "coverage.%s count" % key, 1)
+    if len(candidates) + sum(coverage["unknown"].values()) + sum(coverage["excluded"].values()) > records:
+        raise ContractError("coverage counts exceed record count")
+    unknown_counts: dict[str, int] = {}
+    trailing_partials = 0
+    for key in ("unknown_spans", "compacted_spans", "omissions"):
+        if not isinstance(coverage[key], list):
+            raise ContractError("coverage.%s must be a list" % key)
+        previous_end = 0
+        previous_line = 0
+        for span in coverage[key]:
+            if not isinstance(span, dict):
+                raise ContractError("coverage span must be an object")
+            if key == "omissions" and span.get("kind") == "trailing_partial_record":
+                trailing_partials += 1
+                if trailing_partials > 1:
+                    raise ContractError("coverage has multiple trailing partial records")
+                _fields(span, {"kind", "byte_start", "bytes"}, "trailing partial record")
+                if _integer(span["byte_start"], "partial.byte_start") != boundary or boundary + _integer(span["bytes"], "partial.bytes", 1) != size:
+                    raise ContractError("partial record boundary is inconsistent")
+                continue
+            fields = {"line", "byte_start", "byte_end"}
+            if key == "unknown_spans":
+                fields.add("record_type")
+                kind = _text(span.get("record_type"), "unknown span.record_type")
+                unknown_counts[kind] = unknown_counts.get(kind, 0) + 1
+            else:
+                fields.add("bytes")
+                if key == "omissions":
+                    fields.add("kind")
+                    if span.get("kind") != "nul_padding_record":
+                        raise ContractError("coverage omission kind is invalid")
+            _fields(span, fields, "coverage span")
+            _source_position(span, boundary, "coverage span")
+            if "bytes" in span and _integer(span["bytes"], "span.bytes", 1) != span["byte_end"] - span["byte_start"]:
+                raise ContractError("coverage span length is inconsistent")
+            if span["byte_start"] < previous_end or span["line"] <= previous_line:
+                raise ContractError("coverage spans are out of order")
+            previous_end, previous_line = span["byte_end"], span["line"]
+    if (boundary < size) != (trailing_partials == 1):
+        raise ContractError("trailing partial record coverage is inconsistent")
+    if unknown_counts != coverage["unknown"] or len(coverage["compacted_spans"]) != coverage["excluded"].get("compacted", 0):
+        raise ContractError("coverage spans and counts disagree")
+    if _text_list(coverage["incomplete_tool_calls"], "coverage.incomplete_tool_calls") != sorted(calls ^ results):
+        raise ContractError("coverage incomplete tool calls disagree")
+    if historical and (rollout["conversation_candidates"] != candidates or rollout["timeline"] != timeline or rollout["coverage"] != coverage):
+        raise ContractError("historical conversation projections disagree")
+
+
 def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str) -> None:
-    legacy = False
+    if not isinstance(payload, dict):
+        raise ContractError("handoff core must be an object")
+    historical = payload.get("schema_version") != SCHEMA_VERSION
     expected = {"schema_version", "kind", "handoff_id", "created_at", "project", "work_context", "source", "verified", "conversation", "pending", "memory_projection", "authorization"}
-    if legacy:
-        expected.add("integrity")
-    if set(payload) != expected or payload["schema_version"] not in SUPPORTED_SCHEMA_VERSIONS or payload["kind"] != KIND:
+    if set(payload) != expected or type(payload["schema_version"]) is not int or payload["schema_version"] not in SUPPORTED_SCHEMA_VERSIONS or payload["kind"] != KIND:
         raise ContractError("handoff schema is unsupported")
     if payload["handoff_id"] != handoff_id or not HANDOFF_ID.fullmatch(handoff_id):
         raise ContractError("handoff id does not match package path")
     _text(payload["created_at"], "created_at")
-    if not isinstance(payload["project"], dict) or payload["project"].get("name") != root.name:
+    if _fields(payload["project"], {"name"}, "handoff project")["name"] != root.name:
         raise ContractError("handoff project identity is invalid")
     context = payload["work_context"]
     if not isinstance(context, dict) or set(context) != {"task"}:
         raise ContractError("handoff work context is invalid")
     task = context["task"]
-    if task is not None and (not isinstance(task, dict) or not {"id", "path", "status"}.issubset(task)):
-        raise ContractError("handoff task is invalid")
+    if task is not None:
+        _fields(task, {"id", "path", "status"}, "handoff task")
+        for key in task:
+            _text(task[key], "task." + key)
+        if not task["path"].startswith(".trellis/tasks/"):
+            raise ContractError("handoff task path is unsafe")
+        _project_file(root, task["path"], "task path")
     source = payload["source"]
     if not isinstance(source, dict) or set(source) != {"session_label", "git", "evidence", "rollout"}:
         raise ContractError("handoff source is invalid")
     _text(source["session_label"], "source.session_label")
+    git = _fields(source["git"], {"branch", "head", "worktree_state", "recent_commits"}, "source.git")
+    for key in ("branch", "head"):
+        if git[key] is not None:
+            _text(git[key], "git." + key)
+    if _text(git["worktree_state"], "git.worktree_state") not in {"dirty", "clean"}:
+        raise ContractError("git worktree state is invalid")
+    _text_list(git["recent_commits"], "git.recent_commits")
     if not isinstance(source["evidence"], list):
         raise ContractError("handoff evidence is invalid")
     for item in source["evidence"]:
-        if not isinstance(item, dict) or set(item) != {"path"}:
-            if not legacy or not isinstance(item, dict) or set(item) != {"path", "bytes", "sha256"}:
-                raise ContractError("handoff evidence item is invalid")
-        if not isinstance(item, dict) or "path" not in item:
-            raise ContractError("handoff evidence item is invalid")
+        _fields(item, {"path"}, "handoff evidence item")
         _project_file(root, _text(item["path"], "evidence.path"), "evidence path")
     rollout = source["rollout"]
-    rollout_expected = {"path", "session_id", "capture_end", "record_count", "parser_version", "coverage", "conversation_candidates", "timeline"}
-    if legacy:
-        rollout_expected |= {"device", "inode", "prefix_sha256"}
+    rollout_expected = {"path", "session_id", "capture_end", "record_count", "parser_version"}
+    if historical:
+        rollout_expected |= {"coverage", "conversation_candidates", "timeline"}
     if not isinstance(rollout, dict) or set(rollout) != rollout_expected:
         raise ContractError("handoff rollout descriptor is invalid")
-    _text(rollout["path"], "rollout.path")
+    if not Path(_text(rollout["path"], "rollout.path")).is_absolute():
+        raise ContractError("rollout path must be absolute")
     if rollout["session_id"] is not None:
         _text(rollout["session_id"], "rollout.session_id")
     for field in ("capture_end", "record_count"):
-        if not isinstance(rollout[field], int) or rollout[field] < 0:
-            raise ContractError("rollout.%s is invalid" % field)
+        _integer(rollout[field], "rollout." + field)
     if rollout["parser_version"] != PARSER_VERSION:
         raise ContractError("rollout parser version is unsupported")
-    if not isinstance(rollout["coverage"], dict) or not isinstance(rollout["conversation_candidates"], list) or not isinstance(rollout["timeline"], list):
-        raise ContractError("rollout summary is invalid")
+    _validate_conversation(payload["conversation"], rollout, historical=historical)
     verified = payload["verified"]
     if not isinstance(verified, dict) or set(verified) != {"facts", "validation"}:
         raise ContractError("handoff verified context is invalid")
     _text_list(verified["facts"], "verified.facts")
     if not isinstance(verified["validation"], list):
         raise ContractError("handoff validation is invalid")
+    for item in verified["validation"]:
+        _fields(item, {"command", "result"}, "verified.validation item")
+        _text(item["command"], "validation.command")
+        _text(item["result"], "validation.result")
     pending = payload["pending"]
     if not isinstance(pending, dict) or set(pending) != {"next_action", "blockers", "risks"}:
         raise ContractError("handoff pending context is invalid")
@@ -534,7 +694,7 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
             raise ContractError("handoff memory projection is invalid")
     elif set(memory) != fields:
         raise ContractError("handoff memory projection is invalid")
-    free_text(memory["semantic_capsule"], "memory_projection.semantic_capsule")
+    (free_text if historical else _text)(memory["semantic_capsule"], "memory_projection.semantic_capsule")
     for field in fields - {"semantic_capsule"}:
         _text_list(memory[field], "memory_projection.%s" % field)
     if payload["schema_version"] == 8:
@@ -545,7 +705,63 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
         raise ContractError("handoff authorization is invalid")
 def validate(root: Path, payload: Dict[str, Any], handoff_id: str) -> str:
     _validate_payload_shape(root, payload, handoff_id)
-    return "ready"
+    return "historical" if payload["schema_version"] != SCHEMA_VERSION else "ready"
+
+
+def _view_text(payload: Dict[str, Any], view: str, event_index: Optional[int] = None) -> str:
+    _require_current(payload)
+    conversation = payload["conversation"]
+    if view == "history":
+        value = conversation
+        if event_index is not None:
+            _integer(event_index, "event_index", 1)
+            if event_index > len(conversation["candidates"]):
+                raise ContractError("history event_index is unavailable")
+            value = conversation["candidates"][event_index - 1]
+    elif view == "core" and event_index is None:
+        value = {key: item for key, item in payload.items() if key != "conversation"}
+        coverage = conversation["coverage"]
+        value["history_summary"] = {
+            "candidate_count": len(conversation["candidates"]), "timeline_count": len(conversation["timeline"]),
+            "coverage": {key: coverage[key] for key in ("source_bytes_at_capture", "capture_end", "record_count", "event_count", "excluded", "unknown")},
+            "omission_count": len(coverage["omissions"]), "incomplete_tool_call_count": len(coverage["incomplete_tool_calls"]),
+            "references": ["conversation.candidates", "conversation.timeline", "conversation.coverage"],
+        }
+    else:
+        raise ContractError("read view or event_index is invalid")
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+
+
+def read_view(root: Path, handoff_path: str, view: str, offset: int, length: int, event_index: Optional[int] = None) -> Dict[str, Any]:
+    handoff_id, _, payload = _core(root, handoff_path)
+    content = _view_text(payload, view, event_index)
+    _integer(offset, "read offset")
+    _integer(length, "read length", 1)
+    if offset > len(content):
+        raise ContractError("read offset exceeds view length")
+    end = min(offset + length, len(content))
+    return {"handoff_id": handoff_id, "view": view, "event_index": event_index, "offset": offset, "next_offset": end, "total_chars": len(content), "complete": end == len(content), "text": content[offset:end]}
+
+
+def _validate_history_reading(payload: Dict[str, Any], attestation: Dict[str, Any]) -> None:
+    lengths: dict[Optional[int], int] = {}
+    full_ranges: list[tuple[int, int]] = []
+    for reference in attestation["history_refs"]:
+        event_index = reference["event_index"]
+        if event_index not in lengths:
+            lengths[event_index] = len(_view_text(payload, "history", event_index))
+        if reference["next_offset"] > lengths[event_index]:
+            raise ContractError("history reading range exceeds view length")
+        if event_index is None:
+            full_ranges.append((reference["offset"], reference["next_offset"]))
+    if attestation["history_read"] == "full":
+        end = 0
+        for start, stop in sorted(full_ranges):
+            if start > end:
+                raise ContractError("full history reading contains a gap")
+            end = max(end, stop)
+        if end != lengths.get(None):
+            raise ContractError("full history reading requires the entire history view")
 
 
 def _atomic_json(destination: Path, payload: Dict[str, Any]) -> None:
@@ -608,7 +824,7 @@ def _core(root: Path, handoff_path: str, *, mutable: bool = False) -> tuple[str,
     handoff_id, destination = _destination(root, handoff_path=handoff_path)
     _regular_file(destination, "handoff path")
     payload = load_json_file(destination)
-    if validate(root, payload, handoff_id) != "ready":
+    if validate(root, payload, handoff_id) not in {"ready", "historical"}:
         raise ContractError("handoff core is not ready")
     if mutable:
         _require_current(payload)
@@ -942,10 +1158,10 @@ def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: O
 def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
     handoff_id, core, payload = _core(root, handoff_path, mutable=operation != "status")
     core_digest = _ownership_core_digest(core)
+    if operation == "status" and payload["schema_version"] != SCHEMA_VERSION:
+        return {"handoff_id": handoff_id, "ownership": {"status": "historical"}}
     task_id, task_path = _ownership_task(payload)
     if operation == "status":
-        if payload["schema_version"] != SCHEMA_VERSION:
-            return {"handoff_id": handoff_id, "ownership": {"status": "historical"}}
         result = _ownership_call(root, operation, task_id, handoff_id, core_digest, ["--json"], explicit=False)
         return {"handoff_id": handoff_id, "ownership": result}
     if not explicit:
@@ -1114,6 +1330,7 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     handoff_id, _, payload = _core(root, handoff_path, mutable=True)
     _read_paired_prompt(root, handoff_path)
     attestation = validate_attestation(load_json_file(_project_file(root, attestation_path, "attestation path")))
+    _validate_history_reading(payload, attestation)
     rollout_session = payload["source"]["rollout"].get("session_id")
     if rollout_session is not None and attestation["target_source"] == "session:" + rollout_session:
         raise ContractError("target source cannot reuse the handoff source session id")
@@ -1141,7 +1358,8 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     result = _append_event(
         root, handoff_id, "admit",
         {"source": current_state["source"], "target": "reconciled", "retention": "archive_eligible"},
-        ["target=" + target_source, "steps=" + ",".join(steps)],
+        ["target=" + target_source, "steps=" + ",".join(steps), "history_read=" + attestation["history_read"],
+         "history_refs=" + json.dumps(attestation["history_refs"], ensure_ascii=True, sort_keys=True, separators=(",", ":"))],
     )
     return handoff_id, result
 
@@ -1240,7 +1458,7 @@ def emit(operation: str, status: str, reason: Optional[str] = None, **details: A
     result: Dict[str, Any] = {"operation": operation, "status": status, **details}
     if reason:
         result["reason"] = reason
-    print(json.dumps(result, ensure_ascii=True, sort_keys=True))
+    print(json.dumps(result, ensure_ascii=operation != "read", sort_keys=True))
 
 
 def main() -> int:
@@ -1252,6 +1470,12 @@ def main() -> int:
     write.add_argument("--explicit-user-request", action="store_true")
     check = sub.add_parser("validate")
     check.add_argument("--handoff", required=True)
+    read = sub.add_parser("read")
+    read.add_argument("--handoff", required=True)
+    read.add_argument("--view", required=True, choices=("core", "history"))
+    read.add_argument("--event-index", type=int)
+    read.add_argument("--offset", type=int, default=0)
+    read.add_argument("--length", type=int, default=4096)
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--handoff", required=True)
     prepare.add_argument("--mode", default="core_only", choices=sorted(LIFECYCLE_MODES))
@@ -1295,7 +1519,10 @@ def main() -> int:
             payload = load_json_file(destination)
             status = validate(root, payload, handoff_id)
             emit("validate", status, handoff_path=relative, handoff_id=handoff_id)
-            return 0 if status == "ready" else 2
+            return 0 if status in {"ready", "historical"} else 2
+        if args.command == "read":
+            emit("read", "ready", **read_view(root, args.handoff, args.view, args.offset, args.length, args.event_index))
+            return 0
         if args.command == "prepare":
             handoff_id, result = lifecycle_prepare(root, args.handoff, args.mode)
             _lifecycle_result("prepare", handoff_id, result)
@@ -1341,6 +1568,7 @@ def main() -> int:
         if destination.parent.exists():
             raise ContractError("handoff package already exists: %s" % handoff_id)
         payload = build(root, request, handoff_id)
+        validate(root, payload, handoff_id)
         _atomic_json(destination, payload)
         emit("write", "ready", handoff_id=handoff_id, handoff_path=destination.relative_to(root).as_posix())
         return 0

@@ -1,0 +1,53 @@
+{
+  "id": "handoff-canonical-intake-contract",
+  "name": "handoff-canonical-intake-contract",
+  "title": "修复交接规范数据与阅读接纳流程",
+  "description": "修复消费字段校验与重复投影，收敛完整历史保存及接纳阅读合同，同步 Skill、渲染器、测试和发布证据；当前仅规划，封口展示后等待用户明确批准实施。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-10",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "handoff-canonical-intake-contract",
+        "task_name": "10-10-handoff-canonical-intake-contract",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "a601addc98fc23ed4139f563c9433a85e6dbc57ab71e91c4f71160dad803c6fe",
+          "design.md": "c03e45cfe0058dcff0f1bdf6ed0a9038840976e6d17fff24b150e79c82b26521",
+          "implement.md": "1cbfb30225bcec67d0e44ec1e944cf9479a272554a84cee1416e53509d5163eb"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-10T03:53:31.205986+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户在根与组件 revision 1 封口方案完整展示后明确批准完整修订包进入实施，覆盖本组件修复、验证、提交推送及根侧重装交付。",
+      "approved_at": "2026-10-10T03:56:42.131369+00:00"
+    }
+  }
+}

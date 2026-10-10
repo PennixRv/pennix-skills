@@ -52,7 +52,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertIn("当前会话位于", rendered.stdout)
         self.assertNotIn("新开 Codex 会话", rendered.stdout)
         self.assertIn("完整阅读", rendered.stdout)
-        self.assertIn("配对 JSON core", rendered.stdout)
+        self.assertIn("必读核心视图", rendered.stdout)
         self.assertIn("不得执行 pending next action", rendered.stdout)
         self.assertIn("$pennix-session-handoff", rendered.stdout)
         prompt = self.root / Path(relative).with_name("session-handoff-prompt.md")
@@ -61,7 +61,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         prompt_text = prompt.read_text(encoding="utf-8")
         self.assertIn("$trellis-finish-work", prompt_text)
         self.assertIn("不要从此快照关闭任务", prompt_text)
-        self.assertIn("完整读取配对包 JSON 和本交接提示词", prompt_text)
+        self.assertIn("handoff read --view core", prompt_text)
         self.assertIn("preserved semantic scene", prompt_text)
         self.assertIn("research/worktime-memory.md", prompt_text)
         self.assertIn("不执行 pending next action", prompt_text)
@@ -128,18 +128,29 @@ class RenderHandoffPromptTests(unittest.TestCase):
         relative = self.write()
         core = self.root / relative
         payload = json.loads(core.read_text())
-        payload["schema_version"] = 8
-        payload["memory_projection"]["legacy_extension"] = []
-        core.write_text(json.dumps(payload))
+        conversation = payload["conversation"]
+        for item in conversation["timeline"]:
+            candidate = conversation["candidates"][item["event_index"] - 1]
+            item.update(summary=candidate["text"], source=candidate["source"])
         prompt = core.with_name("session-handoff-prompt.md")
-        self.assertNotEqual(self.run_cli(RENDER, "--handoff", relative).returncode, 0)
-        self.assertFalse(prompt.exists())
-        prompt.write_text("original historical navigation\n")
-        before = (core.read_bytes(), prompt.read_bytes())
-        result = self.run_cli(RENDER, "--handoff", relative)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("只读审计", result.stdout)
-        self.assertEqual((core.read_bytes(), prompt.read_bytes()), before)
+        for version in (8, 9):
+            with self.subTest(version=version):
+                payload["schema_version"] = version
+                if version == 8:
+                    payload["memory_projection"]["legacy_extension"] = []
+                else:
+                    payload["memory_projection"].pop("legacy_extension", None)
+                payload["source"]["rollout"].update(coverage=conversation["coverage"], conversation_candidates=conversation["candidates"], timeline=conversation["timeline"])
+                core.write_text(json.dumps(payload))
+                prompt.unlink(missing_ok=True)
+                self.assertNotEqual(self.run_cli(RENDER, "--handoff", relative).returncode, 0)
+                self.assertFalse(prompt.exists())
+                prompt.write_text("original historical navigation\n")
+                before = (core.read_bytes(), prompt.read_bytes())
+                result = self.run_cli(RENDER, "--handoff", relative)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("只读审计", result.stdout)
+                self.assertEqual((core.read_bytes(), prompt.read_bytes()), before)
 
     def test_renderer_refuses_a_different_existing_pair(self) -> None:
         relative = self.write()

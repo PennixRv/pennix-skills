@@ -49,6 +49,25 @@ Questions to answer:
 
 ---
 
+## Session Handoff Intake Contract
+
+- Current handoff schema stores conversation history once under `conversation`;
+  `source.rollout` contains capture identity and boundary only, while timeline
+  entries reference candidate event indices instead of copying message text.
+- Validate every consumed field and cross-reference before rendering, reading,
+  lifecycle changes, ownership operations, or retention. Integer fields reject
+  booleans, and malformed packages fail through the controlled contract error.
+- Core and history views are read-only, deterministically serialized UTF-8 text
+  with Unicode-character offsets. Read ranges do not mutate the package or
+  create persistent cursors. Admission records actual history ranges in its
+  existing receipt; structural validation does not claim semantic reading.
+- Historical schemas remain inspectable but read-only. Do not migrate them or
+  accept their previous admission semantics under the current schema.
+- Tests cover malformed consumed shapes at shared entry points, lossless paging
+  of long Unicode text, receipt range boundaries, and historical write gates.
+
+---
+
 ## Required Patterns
 
 ### Skill collection deployment boundary

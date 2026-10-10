@@ -12,6 +12,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from handoff import SCHEMA_VERSION, ContractError, _core
+
 
 SCRIPT_PATH = Path(__file__).with_name("handoff.py")
 PROMPT_NAME = "session-handoff-prompt.md"
@@ -46,7 +48,7 @@ def _run_validate(root: Path, handoff: str) -> Mapping[str, Any]:
         receipt = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise PromptError("handoff validate 返回了无效 JSON") from exc
-    if result.returncode != 0 or not isinstance(receipt, Mapping) or receipt.get("status") != "ready":
+    if result.returncode != 0 or not isinstance(receipt, Mapping) or receipt.get("status") not in {"ready", "historical"}:
         status = receipt.get("status") if isinstance(receipt, Mapping) else None
         raise PromptError("handoff 未就绪%s" % (": " + str(status) if status else ""))
     return receipt
@@ -71,17 +73,10 @@ def _run_lifecycle_status(root: Path, handoff: str) -> Mapping[str, Any]:
 
 
 def _payload(root: Path, relative: str) -> Mapping[str, Any]:
-    candidate = root / relative
-    if Path(relative).is_absolute() or candidate.is_symlink() or not candidate.is_file():
-        raise PromptError("handoff 文件不可用")
-    raw = candidate.read_bytes()
     try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise PromptError("handoff 文件无效") from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") not in {8, 9} or payload.get("kind") != "pennix-session-handoff":
-        raise PromptError("handoff 文件的 schema 不受支持")
-    return payload
+        return _core(root, relative)[2]
+    except ContractError as exc:
+        raise PromptError("handoff 文件无效：%s" % exc) from exc
 
 
 def _markdown_list(values: Any) -> str:
@@ -113,9 +108,9 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "## 新会话必经路径", "",
         "1. 读取 `AGENTS.md` 和 `.trellis/workflow.md`。",
         "2. 对精确的包 JSON 运行 `$pennix-session-handoff` 核验。",
-        "3. 只有 receipt 为 `ready` 时，才完整读取配对包 JSON 和本交接提示词，然后处理 `Pending`。",
+        "3. 只有结构核验和源生命周期 receipt 为 `ready` 时，才用 `handoff read --view core` 逐页完整阅读必读核心视图，再完整阅读本交接提示词；历史按需读取。",
         "4. 运行 `$trellis-start`，再将捕获的任务、Git 状态、证据和 pending action 与当前事实比较。",
-        "5. 初次接纳期间不要调用 `task.py start` 或 claim 归属，也不要从此快照关闭任务。完整的读取、启动和协调序列结束前不要记录接纳；中断的序列不算消费。",
+        "5. 初次接纳期间不要调用 `task.py start` 或 claim 归属，也不要从此快照关闭任务。核心视图缺页、输出截断或中断时不得声明已读；完整的必读和协调序列结束前不要记录接纳。",
         "6. 后续用户指令授权继续此任务时，先使用交接归属 `claim` 操作；它只绑定当前直接目标会话，然后使用 `$trellis-continue` 处理实际分类和阶段。只读 `analysis_only` 研究保持 planning，不调用 `task.py start`；变更工作只有在当前原生 seal 和批准存在时才开始；已经运行的工作恢复其检查点。",
         "7. 工作被消费后，分别记录归属 `consume` 和归属 `archive`；正常任务生命周期使用 `$trellis-finish-work`。",
         "8. 协调后停止。没有后续用户指令时，不执行 pending next action，也不开始实施。",
@@ -138,7 +133,7 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "- 解析器：`%s`" % rollout["parser_version"],
         "- 这些只是在本地对话中形成的候选，不能覆盖上面的已核验快照。", "",
         "## 语义交接摘要", "",
-        memory.get("semantic_capsule") or "未提供额外语义摘要；以任务和当前事实为准。", "",
+        memory["semantic_capsule"], "",
         "### 本地引用", "",
         _markdown_list(memory.get("local", [])),
         _markdown_list(memory.get("archive_refs", [])),
@@ -148,12 +143,13 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
     candidates = conversation.get("candidates", [])
     lines.extend([
         "- 完整时间线条目保留在包 JSON 的 `conversation.timeline` 中；数量：%d。" % len(timeline) if isinstance(timeline, list) else "- 完整时间线条目保留在包 JSON 的 `conversation.timeline` 中。",
-        "- 重建决策和已被替代的方向时完整读取该字段。",
+        "- 时间线通过 event_index 引用用户候选；重建重要决定、修正和撤销时按需查阅其依据。",
         "", "### 对话候选", "",
         "- 完整候选条目保留在包 JSON 的 `conversation.candidates` 中；数量：%d。" % len(candidates) if isinstance(candidates, list) else "- 完整候选条目保留在包 JSON 的 `conversation.candidates` 中。",
-        "- 完整读取该字段；提示词有意不重复候选正文。",
+        "- 用 `handoff read --view history --event-index <n>` 按需读取候选；默认分页 4096 字符，沿 next_offset 续读到 complete。",
         "", "### 覆盖范围说明", "",
-        "- 完整覆盖范围和来源信息保留在包 JSON 的 `conversation.coverage` 中；完整读取。",
+        "- 完整覆盖范围和来源信息保留在包 JSON 的 `conversation.coverage` 中；程序全量校验，代理按需查阅。",
+        "- 程序校验不等于代理语义阅读；使用 core_view_read 和 history_read/history_refs 如实声明实际范围。",
         "- 包 JSON 是规范资产；本提示词只是紧凑导航视图。",
         "", "## Pending", "", "- 下一步：%s" % pending["next_action"],
         "", "### 阻塞项", "", _markdown_list(pending["blockers"]), "### 风险", "", _markdown_list(pending["risks"]),
@@ -197,7 +193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _run_lifecycle_status(root, args.handoff)
         payload = _payload(root, args.handoff)
         prompt_relative = str(Path(args.handoff).with_name(PROMPT_NAME))
-        if payload["schema_version"] == 8:
+        if payload["schema_version"] != SCHEMA_VERSION:
             prompt = root / prompt_relative
             if prompt.is_symlink() or not prompt.is_file():
                 raise PromptError("历史配对 prompt 不可用；只读审计不能创建它")
@@ -209,7 +205,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         entry = (
             "当前会话位于 %s。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
             "`$pennix-session-handoff` 对 `%s` 运行 `handoff validate --handoff %s`；只有 receipt 为 `ready` 才继续。"
-            "随后完整阅读配对 JSON core `%s` 和 `%s`，按 `$trellis-start` 严格核对并收敛交接 task；不得执行 pending next action，停在可继续交接前会话任务的现场。"
+            "再核验源生命周期 status 为 ready。随后用 `handoff read --handoff %s --view core` 逐页完整阅读必读核心视图，沿 next_offset 续读到 complete，再完整阅读 `%s`；完整历史保留并按需读取。按 `$trellis-start` 严格核对并收敛交接 task；不得执行 pending next action，停在可继续交接前会话任务的现场。"
             % (json.dumps(str(root), ensure_ascii=False), args.handoff, args.handoff, args.handoff, prompt_relative)
         )
         print("可直接复制到新会话的短提示词：\n\n```text\n%s\n```" % entry)

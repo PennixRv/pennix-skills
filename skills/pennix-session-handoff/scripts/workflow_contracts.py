@@ -53,6 +53,18 @@ def _text_list(value: Any, label: str) -> list[str]:
     return [_text(item, "%s[%d]" % (label, index)) for index, item in enumerate(value)]
 
 
+def _fields(value: Any, fields: set[str], label: str) -> Dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != fields:
+        raise ContractError("%s fields are invalid" % label)
+    return value
+
+
+def _integer(value: Any, label: str, minimum: int = 0) -> int:
+    if type(value) is not int or value < minimum:
+        raise ContractError("%s must be an integer >= %d" % (label, minimum))
+    return value
+
+
 def load_json_file(path: Path) -> Dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ContractError("JSON input must be a regular file: %s" % path)
@@ -156,18 +168,31 @@ def validate_observation(value: Any) -> Dict[str, Any]:
 
 def validate_attestation(value: Any) -> Dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {
-        "target_source", "core_read", "prompt_read", "trellis_started", "facts_reconciled",
-        "action_authorized", "task_disposition", "task_path", "continuation_status"
+        "target_source", "core_view_read", "prompt_read", "trellis_started", "facts_reconciled",
+        "action_authorized", "task_disposition", "task_path", "continuation_status",
+        "history_read", "history_refs"
     }:
         raise ContractError("attestation fields are invalid")
     target_source = _text(value["target_source"], "attestation.target_source")
     if not TARGET_SOURCE_RE.fullmatch(target_source):
         raise ContractError("attestation target source is not a direct session source")
-    for field in ("core_read", "prompt_read", "trellis_started", "facts_reconciled", "action_authorized"):
+    for field in ("core_view_read", "prompt_read", "trellis_started", "facts_reconciled", "action_authorized"):
         if not isinstance(value[field], bool):
             raise ContractError("attestation.%s is invalid" % field)
     if value["action_authorized"]:
         raise ContractError("initial admission cannot authorize pending action")
+    history_read = _text(value["history_read"], "attestation.history_read")
+    history_refs = value["history_refs"]
+    if history_read not in {"none", "partial", "full"} or not isinstance(history_refs, list):
+        raise ContractError("attestation history reading is invalid")
+    if (history_read == "none") != (not history_refs):
+        raise ContractError("attestation history scope and references disagree")
+    for reference in history_refs:
+        _fields(reference, {"event_index", "offset", "next_offset"}, "history reference")
+        if reference["event_index"] is not None:
+            _integer(reference["event_index"], "history reference event_index", 1)
+        offset = _integer(reference["offset"], "history reference offset")
+        _integer(reference["next_offset"], "history reference next_offset", offset + 1)
     disposition = _text(value["task_disposition"], "attestation.task_disposition")
     if disposition not in {"incomplete", "complete", "blocked", "none"}:
         raise ContractError("attestation task disposition is invalid")
@@ -183,10 +208,11 @@ def validate_attestation(value: Any) -> Dict[str, Any]:
         if continuation not in {"absent", "ready", "stale", "withheld"}:
             raise ContractError("attestation continuation status is invalid")
     normalized = {
-        "target_source": target_source, "core_read": value["core_read"], "prompt_read": value["prompt_read"],
+        "target_source": target_source, "core_view_read": value["core_view_read"], "prompt_read": value["prompt_read"],
         "trellis_started": value["trellis_started"], "facts_reconciled": value["facts_reconciled"],
         "action_authorized": False, "task_disposition": disposition,
         "task_path": task_path, "continuation_status": continuation,
+        "history_read": history_read, "history_refs": history_refs,
     }
     if SECRET_RE.search(json.dumps(normalized, ensure_ascii=False)):
         raise ContractError("attestation contains a possible credential or secret")

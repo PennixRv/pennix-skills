@@ -30,9 +30,11 @@ description: 仅在用户明确要求正式跨会话交接时，创建、核验�
 
 `session_id` 是可选的宿主会话标识，只记录为 rollout 元数据，不参与目标身份核验。
 
+`semantic_capsule` 必须非空，由源代理根据当前事实写明重要决策、用户修正、否定或撤销，以及未完成工作和风险。程序只校验结构，不证明摘要完整；源代理必须核对其语义，不能让目标通过穷尽历史重新推导当前合同。
+
 `evidence_paths` 必须是已存在的、项目相对的、非运行态文件。rollout 路径必须明确为绝对路径：不得扫描会话目录，也不得按修改时间选择文件。请求中不得放入凭据、原始工具输出、转录文本、缓存路径或临时状态。辅助程序把 rollout 当作流式 JSONL 源读取到捕获边界，只投影符合条件的公开用户或助手消息及工具元数据。源可以很大；不设置包文本、记录、候选或收据长度上限。它排除 reasoning、developer、system 消息、原始工具参数、原始工具输出和凭据。文件顺序是时间线顺序，记录时间戳只作辅助。较晚的明确用户修正与早期事件一起保留，不静默覆盖历史。
 
-JSON 包是完整的规范资产。配对 Markdown prompt 是紧凑导航视图，保留生命周期指令、已核验事实、语义摘要、记忆引用和待处理工作，同时引用 core 中完整的 `conversation.timeline`、`conversation.candidates` 和 `conversation.coverage` 字段，不重复它们。接纳时必须完整阅读两个文件。
+JSON 包是完整的规范资产。历史仅保存于 `conversation.candidates`、`conversation.timeline` 和 `conversation.coverage`；`source.rollout` 只保存来源标识与捕获边界，时间线通过 `event_index` 引用候选，不复制正文或来源。配对 Markdown prompt 保留生命周期指令、已核验事实、语义摘要、记忆引用和待处理工作。接纳必须完整阅读程序提供的核心视图与配对 prompt；历史按需阅读，并准确声明实际范围。
 
 运行：
 
@@ -58,7 +60,35 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 
 `validate` 返回 `ready` 只证明包结构有效。生命周期就绪还要求观察到源边界和规范 JSON 或 prompt 配对；包含任务的包还要求原生 Trellis quiesce 或 seal 收据。目标必须协调当前任务、Git、证据和 rollout；目标 attestation 不能绕过源门禁。本 Skill 不改变任务状态、不控制工作节点，也不复制凭据、缓存或运行台账。
 
-新包使用 schema 9。schema 8 包和已有配对 prompt 只可读审查；`status` 返回 `historical`，所有生命周期、归属和保留写入都拒绝它。继续工作要从当前事实创建新包，不能改写历史包。
+新包使用 schema 10。schema 8/9 的 `validate` 和 `status` 返回 `historical`，只允许结构审查及读取已有配对 prompt；分页视图和所有生命周期、归属、保留写入都拒绝历史包。继续工作要从当前事实创建新包，不迁移历史包，也不保留旧版全文阅读与接纳语义。
+
+## 必读核心与历史阅读
+
+目标先确认精确包的 `validate` 和生命周期 `status` 均为 `ready`，再调用原生阅读接口。`PENNIX_HANDOFF` 的设置见下节：
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view core --offset 0 --length 4096
+python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view history --event-index <n> --offset 0 --length 4096
+```
+
+核心视图包含所有非历史字段及历史统计、引用。必须从 `offset=0` 开始，按返回的 `next_offset` 逐页读取，直到 `complete=true`，再完整阅读配对 prompt。`offset`、`next_offset` 和 `total_chars` 按 Unicode 字符计数；依次拼接每页 `text` 可恢复完整视图。宿主输出若截断、页缺失或读取中断，不能声明已完整阅读；减小 `length` 后补读缺失范围。接口只读，不自动记录消费或推进任务。
+
+历史视图指定 `event_index` 时返回一条完整候选，不指定时返回完整 `conversation`。事实冲突、关键反转或用户要求追溯依据时，按需阅读相应历史；程序完成结构校验不能算代理读过历史。保留现有公开消息投影、规范化和脱敏，不裁掉长消息或较早事件。
+
+目标 attestation 使用以下字段；任务为空时使用 `task_disposition="none"` 和 `task_path=null`：
+
+```json
+{
+  "target_source": "session:<当前直接会话标识>",
+  "core_view_read": true, "prompt_read": true,
+  "trellis_started": true, "facts_reconciled": true,
+  "history_read": "none", "history_refs": [],
+  "action_authorized": false, "task_disposition": "incomplete",
+  "task_path": ".trellis/tasks/<task>", "continuation_status": "withheld"
+}
+```
+
+`history_read` 只能为 `none`、`partial` 或 `full`。`none` 必须对应空引用；`partial` 记录实际读到的范围，例如 `{"event_index":1,"offset":0,"next_offset":4096}`，整段历史视图使用 `event_index=null`。`full` 要求整段历史视图的引用覆盖从 0 到末尾且没有缺口；完整阅读一条候选仍只算 `partial`。范围按实际阅读结果填写，可以合并相邻范围；程序检查引用和边界，但不证明代理理解。旧字段 `core_read` 被拒绝。声明与引用仅保存于现有接纳收据，不建立第二份阅读台账。
 
 ## 生命周期收据与保留
 
@@ -100,7 +130,7 @@ write -> validate -> render -> prepare(core_only)
 
 对包含任务的包，接纳前必须完成源侧归属 `quiesce` 和 `seal`。缺失本地证据保持 `pending`。`admit` 还检查准备模式的当前源状态；有效目标 attestation 不能把 `pending` 源变成已协调接纳。源就绪与目标协调是两条独立收据轴。
 
-`admit` 的目标 attestation 始终按固定顺序累计：完整读取 JSON core、完整读取配对 prompt、运行 `$trellis-start`、协调当前事实。未完成的前缀只报告进度，不创建目标预约，也不标记消费；只有完整四步前缀才记录 `reconciled` 这一逻辑消费标记。相同目标可在中断后重试，其他目标不能消费。源仍 pending 时记录 `blocked`，保持可重试且不声明消费。`target_source` 必须精确等于当前 Trellis 直接 `session_source` 的 `session:<target-key>`；规范源、源 rollout ID 和 rollout 会话 ID 不能冒充目标身份。
+`admit` 的目标 attestation 始终按固定顺序累计：完整读取核心视图、完整读取配对 prompt、完成 `$trellis-start` 所需上下文、协调当前事实。已有明确上下文时不重复启动检查。未完成的前缀只报告进度，不创建目标预约，也不标记消费；只有完整四步前缀才记录 `reconciled` 这一逻辑消费标记。相同目标可在中断后重试，其他目标不能消费。源仍 pending 时返回 `pending`，保持可重试且不声明消费。`target_source` 必须精确等于当前 Trellis 直接 `session_source` 的 `session:<target-key>`；规范源、源 rollout ID 和 rollout 会话 ID 不能冒充目标身份。
 
 接纳从不执行 `pending.next_action`，不启动任务，不改变任务指针，也不关闭任务。后续继续必须另行获得授权，先执行归属 `claim`，再依据当前任务分类和阶段使用 `$trellis-continue`。只读 `analysis_only` 研究保持 planning，不运行 `task.py start`；变更任务只有在当前原生 seal 和批准存在时才 start，已经运行的工作恢复已有检查点。完成任务按原生 Trellis `finish` 或 `archive` 使用精确任务路径，不制造会话指针。
 
@@ -111,8 +141,8 @@ write -> validate -> render -> prepare(core_only)
 目标会话中“关闭交接”只表示在继续工作前用当前 Trellis 事实协调捕获任务：
 
 1. 核验精确包，并在收据不是 `ready` 时停止。
-2. 在处理 pending next action 前完整读取 JSON core 和 `session-handoff-prompt.md`。
-3. 运行 `$trellis-start`，将捕获任务、Git、证据和待处理动作与当前事实比较。用 `action_authorized=false` 记录累计 `admit` 进度；只有完整读取、启动和协调序列才算消费。
+2. 在处理 pending next action 前逐页完整读取核心视图和 `session-handoff-prompt.md`，历史按需阅读。
+3. 按 `$trellis-start` 补齐缺失上下文，将捕获任务、Git、证据和待处理动作与当前事实比较。用 `action_authorized=false` 和真实的阅读范围记录累计 `admit` 进度；只有完整核心与 prompt 阅读、上下文初始化和协调序列才算消费。
 4. 如果任务已经实际完成，先按正常 `$trellis-finish-work` 流程完成并归档。
 5. 如果任务未完成、已变化或被阻塞，不从快照关闭；记录当前处置，并且只有适合继续时使用 `$trellis-continue`。
 6. 协调后停止。不要执行 pending next action，也不要在用户后续指令前开始新的实施。

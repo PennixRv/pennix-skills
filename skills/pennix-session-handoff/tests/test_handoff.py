@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import os
@@ -70,7 +71,7 @@ class HandoffTests(unittest.TestCase):
     def run_cli(self, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(["python3", str(SCRIPT), "--project-root", str(root), *arguments], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
 
-    def make_request(self, root: Path, rollout: Path | None = None, capsule: str = "") -> Path:
+    def make_request(self, root: Path, rollout: Path | None = None, capsule: str = "verified fixture decisions and risks") -> Path:
         handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
         request = Path(handle.name)
         json.dump({
@@ -88,6 +89,19 @@ class HandoffTests(unittest.TestCase):
     @staticmethod
     def handoff_path_from(stdout: str) -> str:
         return json.loads(stdout)["handoff_path"]
+
+    @staticmethod
+    def historical_payload(payload: dict, version: int) -> dict:
+        payload = copy.deepcopy(payload)
+        payload["schema_version"] = version
+        conversation = payload["conversation"]
+        for item in conversation["timeline"]:
+            candidate = conversation["candidates"][item["event_index"] - 1]
+            item.update(summary=candidate["text"], source=candidate["source"])
+        payload["source"]["rollout"].update(coverage=conversation["coverage"], conversation_candidates=conversation["candidates"], timeline=conversation["timeline"])
+        if version == 8:
+            payload["memory_projection"]["legacy_extension"] = []
+        return payload
 
     def test_task_symlink_is_rejected_before_resolve(self) -> None:
         root = self.make_root(".trellis/tasks/link")
@@ -122,7 +136,9 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(destination.parent.stat().st_mode), 0o700)
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        self.assertEqual(payload["schema_version"], 9)
+        self.assertEqual(payload["schema_version"], 10)
+        self.assertEqual(set(payload["source"]["rollout"]), {"path", "session_id", "capture_end", "record_count", "parser_version"})
+        self.assertTrue(all("summary" not in item and "source" not in item for item in payload["conversation"]["timeline"]))
         self.assertNotIn("integrity", payload)
         self.assertEqual(payload["handoff_id"], Path(relative).parts[-2])
         self.assertTrue(any(item["kind"] == "user" for item in payload["conversation"]["candidates"]))
@@ -149,6 +165,184 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(normalized["boundary"]["proof_ref"], "boundary-proof")
         self.assertEqual(normalized["capsule"]["proof_ref"], "capsule-proof")
         self.assertEqual(normalized["memory"]["proof_ref"], "memory-proof")
+
+    def test_consumed_conversation_fields_are_validated(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        relative = self.handoff_path_from(written.stdout)
+        core = root / relative
+        original = json.loads(core.read_text())
+        for conversation in ([], {}, {**original["conversation"], "candidates": []}):
+            with self.subTest(conversation=type(conversation).__name__):
+                payload = copy.deepcopy(original)
+                payload["conversation"] = conversation
+                core.write_text(json.dumps(payload))
+                result = self.run_cli(root, "validate", "--handoff", relative)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(json.loads(result.stdout)["status"], "recovery_required")
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_invalid_consumed_shapes_fail_at_every_entry(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        relative = self.handoff_path_from(written.stdout)
+        core = root / relative
+        original = json.loads(core.read_text())
+        mutations = [
+            (("conversation", "candidates"), {}),
+            (("conversation", "candidates", 0, "event_index"), True),
+            (("conversation", "candidates", 1, "event_index"), 1),
+            (("conversation", "candidates", 0, "source", "byte_end"), original["source"]["rollout"]["capture_end"] + 1),
+            (("conversation", "timeline", 0, "event_index"), 2),
+            (("conversation", "timeline", 1, "supersedes_event_index"), 2),
+            (("conversation", "timeline", 0, "repeat_count"), 0),
+            (("conversation", "coverage", "event_count"), 0),
+            (("conversation", "coverage", "event_count"), original["conversation"]["coverage"]["event_count"] + 1),
+            (("conversation", "coverage", "unknown"), {"unknown": 1}),
+            (("conversation", "coverage", "compacted_spans"), []),
+            (("conversation", "coverage", "incomplete_tool_calls"), ["call-1"]),
+            (("source", "git", "recent_commits"), [0]),
+            (("project", "extra"), "unconsumed"),
+            (("verified", "validation", 0), {"command": "missing result"}),
+            (("memory_projection", "semantic_capsule"), ""),
+            (("source", "rollout", "coverage"), original["conversation"]["coverage"]),
+        ]
+        for path, value in mutations:
+            with self.subTest(path=path):
+                payload = copy.deepcopy(original)
+                target = payload
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+                core.write_text(json.dumps(payload))
+                for arguments in (("validate",), ("read", "--view", "core"), ("prepare",)):
+                    result = self.run_cli(root, *arguments, "--handoff", relative)
+                    self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                    self.assertEqual(json.loads(result.stdout)["status"], "recovery_required")
+                    self.assertNotIn("Traceback", result.stderr)
+                result = subprocess.run(["python3", str(SKILL / "scripts/render_handoff_prompt.py"), "--project-root", str(root), "--handoff", relative], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse((root / handoff.LIFECYCLE_RUNTIME).exists())
+        self.assertFalse(core.with_name("session-handoff-prompt.md").exists())
+
+    def test_empty_capsule_is_rejected_without_creating_a_package(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        result = self.run_cli(root, "write", "--request", str(self.make_request(root, capsule=" ")), "--explicit-user-request")
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse((root / handoff.HANDOFFS).exists())
+
+    def test_views_page_long_unicode_without_writes_or_loss(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        rollout = root / "long.jsonl"
+        message = "决定 `paging`：" + "汉字😀🧑‍💻 " * 2000
+        rollout.write_text(json.dumps({"type": "event_msg", "payload": {"type": "user_message", "message": message}}, ensure_ascii=False) + "\n")
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, rollout, capsule="合同😀 " * 1800)), "--explicit-user-request")
+        relative = self.handoff_path_from(written.stdout)
+        core = root / relative
+        before = core.read_bytes()
+        payload = json.loads(before)
+        for view, event_index in (("core", None), ("history", None), ("history", 1)):
+            offset, pieces = 0, []
+            while True:
+                result = self.run_cli(root, "read", "--handoff", relative, "--view", view, "--offset", str(offset), "--length", "4096", *([] if event_index is None else ["--event-index", str(event_index)]))
+                self.assertEqual(result.returncode, 0, result.stdout)
+                page = json.loads(result.stdout)
+                self.assertEqual(page["offset"], offset)
+                self.assertEqual(page["next_offset"], offset + len(page["text"]))
+                pieces.append(page["text"])
+                offset = page["next_offset"]
+                if page["complete"]:
+                    break
+            content = "".join(pieces)
+            self.assertEqual(len(content), page["total_chars"])
+            value = json.loads(content)
+            if view == "core":
+                self.assertNotIn("conversation", value)
+                self.assertEqual({key: value[key] for key in payload if key != "conversation"}, {key: item for key, item in payload.items() if key != "conversation"})
+                self.assertEqual(value["history_summary"]["candidate_count"], 1)
+            elif event_index is None:
+                self.assertEqual(value, payload["conversation"])
+            else:
+                self.assertEqual(value["text"], message.strip())
+                self.assertEqual(value, payload["conversation"]["candidates"][0])
+            end = handoff.read_view(root, relative, view, offset, 1, event_index)
+            self.assertTrue(end["complete"])
+            self.assertEqual(end["text"], "")
+        for arguments in (("--offset", "-1"), ("--length", "0"), ("--offset", "99999999"), ("--event-index", "1")):
+            self.assertEqual(self.run_cli(root, "read", "--handoff", relative, "--view", "core", *arguments).returncode, 2)
+        for index in ("0", "2"):
+            self.assertEqual(self.run_cli(root, "read", "--handoff", relative, "--view", "history", "--event-index", index).returncode, 2)
+        self.assertEqual(core.read_bytes(), before)
+        self.assertFalse((root / handoff.LIFECYCLE_RUNTIME).exists())
+
+    def test_legal_coverage_exceptions_and_empty_history(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        rollout = self.make_rollout()
+        with rollout.open("ab") as handle:
+            for record in ({"type": "future_kind", "payload": {}}, {"type": "response_item", "payload": {"type": "future_item"}}, {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": []}}, {"type": "response_item", "payload": {"type": "function_call", "name": "tool", "call_id": "unmatched"}}):
+                handle.write(json.dumps(record).encode() + b"\n")
+            handle.write(b"\n" + b'{"type":"partial')
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, rollout)), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stdout)
+        relative = self.handoff_path_from(written.stdout)
+        payload = json.loads((root / relative).read_text())
+        coverage = payload["conversation"]["coverage"]
+        self.assertEqual(coverage["unknown"], {"future_kind": 1, "response_item:future_item": 1})
+        self.assertEqual(coverage["incomplete_tool_calls"], ["unmatched"])
+        self.assertEqual(coverage["omissions"][-1]["kind"], "trailing_partial_record")
+        self.assertEqual(self.run_cli(root, "validate", "--handoff", relative).returncode, 0)
+        partial = payload["conversation"]["coverage"]["omissions"].pop()
+        core = root / relative
+        core.write_text(json.dumps(payload))
+        self.assertEqual(self.run_cli(root, "validate", "--handoff", relative).returncode, 2)
+        payload["conversation"]["coverage"]["omissions"].append(partial)
+        core.write_text(json.dumps(payload))
+        rollout.write_bytes(b"")
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root, rollout)), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stdout)
+        relative = self.handoff_path_from(written.stdout)
+        self.assertEqual(json.loads(handoff.read_view(root, relative, "history", 0, 4096)["text"])["candidates"], [])
+
+    def test_history_attestation_ranges_are_checked_and_receipted(self) -> None:
+        root = self.make_git_root()
+        self.addCleanup(shutil.rmtree, root)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        relative = self.handoff_path_from(written.stdout)
+        payload = json.loads((root / relative).read_text())
+        size = handoff.read_view(root, relative, "history", 0, 1)["total_chars"]
+        candidate_size = handoff.read_view(root, relative, "history", 0, 1, 1)["total_chars"]
+        base = {"target_source": "session:target", "core_view_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent", "history_read": "none", "history_refs": []}
+        def check(value: dict) -> None:
+            handoff._validate_history_reading(payload, handoff.validate_attestation(value))
+        for change in ({"history_read": "partial"}, {"history_refs": [{"event_index": None, "offset": 0, "next_offset": 1}]}, {"history_read": "full", "history_refs": [{"event_index": 1, "offset": 0, "next_offset": candidate_size}]}, {"history_read": "full", "history_refs": [{"event_index": None, "offset": 1, "next_offset": size}]}, {"history_read": "partial", "history_refs": [{"event_index": True, "offset": 0, "next_offset": 1}]}, {"history_read": "partial", "history_refs": [{"event_index": 999, "offset": 0, "next_offset": 1}]}, {"history_read": "partial", "history_refs": [{"event_index": None, "offset": 0, "next_offset": size + 1}]}, {"history_read": "partial", "history_refs": [{"event_index": None, "offset": 1, "next_offset": 1}]}):
+            with self.subTest(change=change), self.assertRaises(handoff.ContractError):
+                check({**base, **change})
+        old = {**base, "core_read": base["core_view_read"]}
+        del old["core_view_read"]
+        with self.assertRaises(handoff.ContractError):
+            check(old)
+        check(base)
+        check({**base, "history_read": "partial", "history_refs": [{"event_index": 1, "offset": 0, "next_offset": candidate_size}]})
+        full = {**base, "history_read": "full", "history_refs": [{"event_index": None, "offset": size // 2, "next_offset": size}, {"event_index": None, "offset": 0, "next_offset": size // 2}]}
+        check(full)
+        (root / relative).with_name("session-handoff-prompt.md").write_text("prompt\n")
+        handoff.lifecycle_prepare(root, relative, "core_only")
+        handoff.lifecycle_seal(root, relative, explicit=True)
+        attestation = root / "attestation.json"
+        attestation.write_text(json.dumps(full))
+        with mock.patch.dict(os.environ, {"FIXTURE_TARGET": "target"}):
+            result = handoff.lifecycle_admit(root, relative, "attestation.json")
+            self.assertEqual(result[1]["status"], "recorded")
+            self.assertEqual(handoff.lifecycle_admit(root, relative, "attestation.json")[1]["status"], "idempotent")
+        events = handoff._read_events(handoff._lifecycle_path(root, payload["handoff_id"]), payload["handoff_id"])
+        self.assertIn("history_read=full", events[-1]["evidence_refs"])
+        self.assertIn("history_refs=" + json.dumps(full["history_refs"], ensure_ascii=True, sort_keys=True, separators=(",", ":")), events[-1]["evidence_refs"])
 
     def test_core_only_mode_admits_after_boundary_is_sealed(self) -> None:
         root = self.make_git_root()
@@ -177,7 +371,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root))).returncode, 0)
         attestation = root / ".trellis/.runtime/attestation.json"
         attestation.write_text(json.dumps({
-            "target_source": "session:target", "core_read": True, "prompt_read": True,
+            "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -226,7 +420,7 @@ class HandoffTests(unittest.TestCase):
         attestation = root / ".trellis/.runtime/attestation.json"
         attestation.parent.mkdir(parents=True, exist_ok=True)
         attestation.write_text(json.dumps({
-            "target_source": "session:target", "core_read": True, "prompt_read": True,
+            "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -236,7 +430,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(admitted[1]["status"], "recorded")
 
         attestation.write_text(json.dumps({
-            "target_source": "session:other", "core_read": True, "prompt_read": True,
+            "target_source": "session:other", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -247,7 +441,7 @@ class HandoffTests(unittest.TestCase):
 
         os.environ["FIXTURE_TARGET"] = "target"
         attestation.write_text(json.dumps({
-            "target_source": "session:target", "core_read": True, "prompt_read": True,
+            "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -321,7 +515,7 @@ class HandoffTests(unittest.TestCase):
         attestation = root / ".trellis/.runtime/attestation.json"
         attestation.parent.mkdir(parents=True, exist_ok=True)
         attestation.write_text(json.dumps({
-            "target_source": "session:target", "core_read": False, "prompt_read": False,
+            "target_source": "session:target", "core_view_read": False, "history_read": "none", "history_refs": [], "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -347,19 +541,19 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(incomplete[1]["status"], "incomplete")
         self.assertEqual(incomplete[1]["state"]["target"], "not_admitted")
         attestation.write_text(json.dumps({
-            "target_source": "session:target", "core_read": True, "prompt_read": False,
+            "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
         self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["status"], "incomplete")
         attestation.write_text(json.dumps({
-            "target_source": "session:target", "core_read": False, "prompt_read": False,
+            "target_source": "session:target", "core_view_read": False, "history_read": "none", "history_refs": [], "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
         self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["status"], "incomplete")
         attestation.write_text(json.dumps({
-            "target_source": "session:target", "core_read": True, "prompt_read": True,
+            "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -457,7 +651,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(json.loads(finalized.stdout)["status"], "recorded")
         attestation = package / "attestation.json"
         attestation.write_text(json.dumps({
-            "target_source": "session:target-session", "core_read": True, "prompt_read": True,
+            "target_source": "session:target-session", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -526,7 +720,7 @@ class HandoffTests(unittest.TestCase):
         attestation = root / ".trellis/.runtime" / "attestation.json"
         attestation.parent.mkdir(parents=True, exist_ok=True)
         attestation.write_text(json.dumps({
-            "target_source": "session:fixture-session", "core_read": True, "prompt_read": True,
+            "target_source": "session:fixture-session", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
             "task_disposition": "none", "task_path": None, "continuation_status": "absent",
         }), encoding="utf-8")
@@ -572,7 +766,7 @@ class HandoffTests(unittest.TestCase):
         handoff.lifecycle_seal(root, relative, explicit=True)
         self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
         attestation = root / "attestation.json"
-        payload = {"target_source": "session:source", "core_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent"}
+        payload = {"target_source": "session:source", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent"}
         attestation.write_text(json.dumps(payload))
         with self.assertRaisesRegex(handoff.ContractError, "prepared source session"):
             handoff.lifecycle_admit(root, relative, "attestation.json")
@@ -581,35 +775,59 @@ class HandoffTests(unittest.TestCase):
             attestation.write_text(json.dumps(payload))
             self.assertEqual(handoff.lifecycle_admit(root, relative, "attestation.json")[1]["status"], "recorded")
 
-    def test_historical_core_and_receipt_are_read_only(self) -> None:
+    def test_schema_8_and_9_are_read_only_and_never_use_old_read_semantics(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
         relative = self.handoff_path_from(written.stdout)
-        handoff.lifecycle_prepare(root, relative, "core_only")
         core = root / relative
-        payload = json.loads(core.read_text())
-        payload["schema_version"] = 8
-        payload["memory_projection"]["legacy_extension"] = []
-        core.write_text(json.dumps(payload))
-        receipt = handoff._lifecycle_path(root, payload["handoff_id"])
-        receipt.write_text("opaque historical lifecycle receipt\n")
-        before = (core.read_bytes(), receipt.read_bytes())
-        self.assertEqual(handoff.validate(root, payload, payload["handoff_id"]), "ready")
-        historical_status = handoff.lifecycle_status(root, relative)
-        self.assertEqual(historical_status["status"], "historical")
-        self.assertEqual(historical_status["mode"], None)
-        for operation in ("prepare", "seal", "admit", "retention", "ownership"):
-            args = {
-                "prepare": [], "seal": ["--explicit-user-request"],
-                "admit": ["--attestation", "missing.json"],
-                "retention": ["archive", "--confirm-handoff-id", payload["handoff_id"]],
-                "ownership": ["claim", "--expected-generation", "0", "--explicit-user-request"],
-            }[operation]
-            result = self.run_cli(root, operation, *args, "--handoff", relative)
-            self.assertNotEqual(result.returncode, 0, operation)
-            self.assertIn("read-only", result.stdout)
-        self.assertEqual((core.read_bytes(), receipt.read_bytes()), before)
+        current = json.loads(core.read_text())
+        observation = root / ".trellis/.runtime/observation.json"
+        observation.parent.mkdir(parents=True, exist_ok=True)
+        observation.write_text(json.dumps({
+            "availability": "available", "boundary": {"status": "sealed", "proof_ref": "boundary"},
+            "source_session": {"status": "verified", "identity": "source"},
+            "capsule": {"status": "verified", "proof_ref": "capsule"},
+            "task": {"status": "incomplete", "completion_artifact": None},
+            "memory": {"status": "unverified", "proof_ref": None},
+        }))
+        for version in (8, 9):
+            with self.subTest(version=version):
+                payload = self.historical_payload(current, version)
+                core.write_text(json.dumps(payload))
+                receipt = handoff._lifecycle_path(root, payload["handoff_id"])
+                receipt.parent.mkdir(parents=True, exist_ok=True)
+                receipt.write_text("opaque historical lifecycle receipt\n")
+                before = (core.read_bytes(), receipt.read_bytes())
+                self.assertEqual(handoff.validate(root, payload, payload["handoff_id"]), "historical")
+                self.assertEqual(json.loads(self.run_cli(root, "validate", "--handoff", relative).stdout)["status"], "historical")
+                self.assertEqual(self.run_cli(root, "read", "--handoff", relative, "--view", "core").returncode, 2)
+                historical_status = handoff.lifecycle_status(root, relative)
+                self.assertEqual(historical_status["status"], "historical")
+                self.assertIsNone(historical_status["mode"])
+                archive = root / handoff.ARCHIVE_RUNTIME / payload["handoff_id"]
+                archive.mkdir(parents=True, exist_ok=True)
+                (archive / handoff.HANDOFF_NAME).write_bytes(core.read_bytes())
+                (archive / "session-handoff-prompt.md").write_text("historical prompt\n")
+                operations = {
+                    "prepare": ["prepare"],
+                    "finalize": ["finalize", "--observation", str(observation.relative_to(root))],
+                    "seal": ["seal", "--explicit-user-request"],
+                    "admit": ["admit", "--attestation", "missing.json"],
+                    "retention": ["retention", "archive", "--confirm-handoff-id", payload["handoff_id"]],
+                    "restore": ["retention", "restore", "--confirm-handoff-id", payload["handoff_id"]],
+                    "reopen": ["retention", "reopen", "--confirm-handoff-id", payload["handoff_id"]],
+                    "purge": ["retention", "purge", "--confirm-handoff-id", payload["handoff_id"]],
+                    "ownership_quiesce": ["ownership", "quiesce", "--explicit-user-request"],
+                    "ownership_claim": ["ownership", "claim", "--expected-generation", "0", "--explicit-user-request"],
+                }
+                for label, args in operations.items():
+                    result = self.run_cli(root, *args, "--handoff", relative)
+                    self.assertEqual(result.returncode, 2, label)
+                    self.assertIn("read-only", result.stdout)
+                self.assertEqual(self.run_cli(root, "ownership", "status", "--handoff", relative).returncode, 0)
+                self.assertEqual((core.read_bytes(), receipt.read_bytes()), before)
+                shutil.rmtree(archive)
 
     def test_invalid_current_is_not_a_taskless_snapshot(self) -> None:
         root = self.make_root()
