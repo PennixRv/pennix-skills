@@ -17,4 +17,4 @@
 
 ## 交付边界
 
-尚未包含源提交/推送、系统 staging 安装与 scoped verify、根侧固定产品提交和原生归档。这些在 `deployment.md` 及根任务 acceptance 中记录实际结果。
+源提交、推送、系统 staging 安装、scoped verify 和根侧固定产品提交的实际结果见同目录 `deployment.md` 及根仓库对应任务的 `acceptance.md`；原生任务归档由收尾流程产生。
