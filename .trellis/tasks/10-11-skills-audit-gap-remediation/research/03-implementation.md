@@ -77,3 +77,21 @@ F07/F08 失败回归确认旧 writer 生成 schema 10 且缺 history 文件。�
 最终 F07/F08 验证已完成：19 个 Python 测试模块共 260 项通过，普通运行按设计跳过显式资源门；session-handoff Skill 的 quick_validate 和 `git diff --check` 通过。显式资源门在 1k、10k、100k 与 8 MiB Unicode 四种规模运行 64 个 native helper 操作，全部退出 0；每个进程受 192 MiB 地址空间限制，最高 RSS 97,032 KiB，测试目录临时数据峰值 773,293,099 字节，低于 1 GiB。100k receipt、task-bearing ownership/core_digest、分页、renderer、prepare/seal/admit/status、archive/purge/restore 均覆盖。根 full-local 再验 13/13 passed、零 failed/blocked。该资源结果来自隔离 fixture；真实 handoff 目标宿主仍未验收。
 
 最终资源门现已通过：64 个操作全部退出 0，资源与规模数值见上。当前本地差异尚未提交或推送。接下来按精确 Pennix SHA 交付、CI、原生全集合 staging/接纳与完整宿主 verify；再继续原 100 轮预算的 after 场景及人工轨迹核对。预算保持 55/100，之前 10 个不依赖本次 handoff 文件的 after 轨迹只在已逐字节核对所读来源后保留，S04-negative 的中断轨迹不覆盖；新测试轮次还须重试该例。当前工具目录没有可启动第二 Codex 目标会话的原生能力，非交互 `codex exec` 不替代真实目标；正式 handoff 接纳门保持待验证，不宣称任务完成。
+
+## E01 after 收口
+
+最终 Pennix 提交 `b3ed75cce4e7ef4c19c896f87d481b4ed061b093` 已推送，CI run `38155875742` 成功；系统 `$skill-installer` 按精确 SHA 暂存 12 项，新的 `replace-staged` 原子接纳完成，组件级和完整 host verify 均为 `match`、零 failures/advisories。固定 fixture SHA `f746a75d6729033a6b0b9d9907a712e5c66c12b93587e6a7f0a81683f4072fe1` 与 before/budget 保持一致。
+
+after 已覆盖 44 个唯一场景，实际使用 45 个轮次（S04-negative 第 55 轮人工中止后按原合同以第 56 轮重测），总预算消耗为 89/100。S04-boundary #57、S06-boundary #63、S11-positive #76、C02 #83、C05 #86、C07 #88 保留为 `blocked_native_execution`，均未重试；C08 #89 完成。每条完成轨迹均由主会话读取原始 JSONL 后人工判断，未把驱动的 `review_needed` 自评当作通过，未把阻塞轮次包装成成功。
+
+after 证明当前已安装集合可以实际使用 FastCtx 的读取、搜索、分页和普通命令接口，故不能将模型混用宿主 shell 统一解释为 FastCtx fork 不可用。与此同时，多个场景仍以宿主 shell 读取 Skill、搜索 fixture、执行普通本地命令，且多次无必要地全量读取 1001 行 `long.txt`；这是复现的路由稳定性和范围控制问题，但现有事件不足以把根因唯一归属到用户规则、Skill 理解、宿主工具面、上下文竞争或 fork 缺陷中的单一层。该行为证据留在 E01 矩阵，不扩大本次已批准代码范围。
+
+C08 还验证了 schema 11 的 handoff owner 边界：正式 `validate/read/status/admit` help 通过宿主调用 handoff CLI，fixture 缺少精确包、prompt、history、receipt 和 Trellis 状态时不猜造、不接纳、不生成 attestation、不执行 `next_action`。但 C08 的普通本地读取仍未使用 FastCtx，因此仅为正式协议边界通过；真实源侧 `validate/status/read`、跨会话目标 host 接纳和实际 Trellis 事实协调仍需真实目标会话完成。
+
+E01 模型行为后测已完成矩阵人工收口；`actual_model` 仍为 `null`，结论只适用于本次 native codex-cli、当前配置和实际暴露工具。源 task 与根 task 保持 `in_progress`，不因模型后测结束而归档；下一独立门是使用真实源会话和真实目标宿主完成 handoff 包的最终验收，且不得执行包中的 `pending.next_action`。
+
+## 真实源 handoff 包
+
+使用真实源 session `codex_01a123bd-4342-7ed1-b857-4f40a7dea46c` 和固定 rollout 创建的临时包为 `/tmp/pennix-skills-gap-e01-20261011/handoff-project/.trellis/session-handoffs/20261011T182832238893Z/session-handoff.json`，配对 prompt 为同目录 `session-handoff-prompt.md`，历史为 `session-handoff-history.jsonl`。源侧 `validate` 返回 `ready`；`prepare(core_only)`、Trellis ownership `quiesce -> seal -> retire`、本地 `finalize` 完成，最终 lifecycle `status=ready`，ownership generation 3/status ready，source boundary sealed，target not_admitted。
+
+已通过原生 `handoff read --view core` 从 offset 0 读到 `complete=true`，核心 2,980 字符；配对 prompt 97 行已完整读取。包明确保留 `action_authorized=false`、task `planning/analysis_only`、下一步哨兵和目标宿主阻塞；`MUST_NOT_EXECUTE_NEXT_ACTION` 文件不存在。当前环境没有启动另一个真实目标宿主的原生接口，因此没有执行 `admit`，没有读取目标侧 Trellis 事实，没有 claim/consume/archive，也没有执行 pending action。该包和运行态收据只在 `/tmp`，不提交 Git；真实目标会话必须使用包中的 prompt 在另一宿主继续，并在完整协调后停在可继续现场。
