@@ -39,3 +39,11 @@
 - 当前 6 项新名：pennix-grok-search、pennix-siyuan-knowledge、pennix-component-lifecycle、pennix-tavily-search、pennix-windsurf-code-search、pennix-trellis-asset-check；其余 6 项保留。
 - Grok/Windsurf 名称变更在真实源任务完成；CLI/package/component IDs 与运行态标识按各自职责保留，不全局替换或建立旧 Skill 别名。
 - 全部真实 caller、catalog/command targets、bootstrap/模板、MCP helper 配置、根集成和模型前后 ID 必须一起纳入最终方案及验收。此为规划选择，未授权当前编辑源码或安装副本。
+
+## D13：profile catalog 摘要刷新（已回答）
+
+- 根任务 N03 实际答复：用户选择“纳入当前任务（推荐）”。完整宿主 verify 的现有阻塞和选择依据记于根 research/08。
+- 按已选边界复用现有 `reconcile --component pennix-workflow-state --yes`：profile 私有结构/权限、字段与所有 target IDs 必须严格有效；`default_enabled ∪ selected` 的所有 target readiness 通过后只刷新 catalog digest，原样保留 targets 和配置。
+- 未知字段/target、无效或未就绪 target、权限/路径异常、并发写入均拒绝；使用现有原子私有写入并核验，失败时不得覆盖并发外部字节。不得提示、执行 configure、访问远端服务或收集/输出凭据值；复用本地 readiness probe。
+- 覆盖成功、幂等、拒绝边界、写入失败恢复及并发回滚回归；完整 verify 仍单独核验其他静态/组件状态。
+- 新范围已经进入源 task replan。新增实现仍须在更新 PRD/design/implement、native seal 并展示后取得明确批准；此前不得编辑产品代码或测试。

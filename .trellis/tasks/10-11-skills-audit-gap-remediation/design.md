@@ -21,8 +21,19 @@
 | U7 | Windsurf 受管 PATH 命令 | catalog、skills_install/lifecycle 相关入口/测试、集合 README/规范 | 新装/升级/冲突/回退/卸载、现场 PATH 与 receipt |
 | N01 | 根 D10 已明确全部 12 项统一 pennix- 前缀、短而职责准确、不强求动名词；6 改/6 保留 | Skill 身份、真实 source snapshot、全部 caller/catalog/bootstrap/静态资产/安装及必要配置 | 名称、实际 source、MCP/command targets 与模型场景一致，受管更新/失败回退可核验 |
 | N02 | 根 D11/D12：取消两处强制 direct-only、保留直接能力；本仓停止钉死共享数组，允许同一 MCP 原生嵌套 | FastCtx/routing SKILL、config.toml.install、codex_static 现有兼容路径/相关 tests、catalog | 合法 namespace 无 drift，旧 static 由现有受管路径接受；实际宿主工具/聚合/Partial 门，不增加 developer 指令 |
+| N03 | 根 D13 已答复纳入：catalog digest 变化造成 workflow profile stale，增加有界摘要刷新 | lifecycle.py reconcile 与 test_lifecycle.py | 仅严格有效 profile、所有启用 target 有效且 readiness 通过时只改 digest；保留 target 选择/配置，未知漂移/并发/失败安全停止或回滚 |
 
 根 research/06-naming-and-coverage.md 保存当前有效 12 项短职责表；原 3 改/9 保留和全动名词草案停用。6 项新名为 pennix-grok-search、pennix-siyuan-knowledge、pennix-component-lifecycle、pennix-tavily-search、pennix-windsurf-code-search、pennix-trellis-asset-check，其余 6 项保留。Grok/Windsurf Skill 身份回真实源；CLI/package/component IDs 不改。当前 Siyuan helper_path 与 merged_config 校验使用旧 Skill 目录，rename 会影响受管 MCP helper 引用；生命周期 bootstrap、规则模板、catalog/command targets 与根集成调用也需全链路核验，不能只改目录或把运行态标识全局替换。
+
+## Profile Catalog Digest Reconciliation
+
+N03 是完整 host verify 暴露的 Pennix lifecycle 现有 reconcile 缺口，根任务 D13 已决定纳入。复用 `reconcile --component pennix-workflow-state --yes`，不新增 CLI 命令、配置项、迁移表或独立框架。
+
+从现有私有 state namespace 读取 profile；要求目录和文件 owner/mode/path 安全、普通文件、精确字段为 `schema/catalog_digest/targets` 且 schema/digest/targets 类型合法。所选 IDs 必须全部属于当前 catalog。对 `default_enabled ∪ selected` 逐项复用 `configuration.target_state` 及 catalog readiness 所用的当前 probe；仅当每项状态为现有 verify 接受的 `ready` 或 `configured` 才可更新。未知字段/target、未就绪目标、坏 digest、路径/权限异常均 blocked 且不写入。复用的本地 readiness probe 可能读取受管私有记录以判断配置状态，但不提示、不调用 configure/远端服务、不收集、复制或输出凭据值。
+
+通过预检后仅替换 `catalog_digest`，targets 数组按原值保留。沿既有私有原子写入和回读模式；写入前重读并逐字节比较原值，任一并发变化拒绝。写入或校验失败只在目标仍是本次写入内容时恢复旧字节；如果出现第三方字节则保留外部内容并返回 rollback-incomplete，不覆盖。current profile 不改写并返回幂等成功。
+
+回归覆盖：安全 stale profile 成功刷新且 targets 数组不变；未知 selected ID、enabled/default target 未 ready、字段/schema/digest/mode/path drift 全部不变地 blocked；并发写入保留外部字节；写入失败完整恢复；成功后回读 current 且重复调用幂等。该能力只核准 profile digest，不替代对所有 lifecycle 组件、静态资产和完整宿主的 verify。
 
 ## Session Handoff Contract
 

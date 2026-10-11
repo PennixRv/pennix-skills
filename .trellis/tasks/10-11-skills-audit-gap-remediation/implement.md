@@ -12,7 +12,7 @@
 4. 落实 Windsurf catalog command mapping、Grok 旧 target 到新目录协调、Siyuan 已受管 MCP helper 引用更新，并扩展现有事务回退。 preflight/备份/写入/并发核验按 design，不重新索取秘密或接管用户配置；静态规则由 codex-agents 受管动作刷新。
 5. Grok/Windsurf 源任务按各自计划修订并跑原生离线测试；提交推送后通过既有生成规则刷新快照。FastCtx 源 task 完成真实 0.2.24 发行后固定其 approved_version/来源；全部 catalog 指向验收 SHA/artifact，快照差异由固定来源重建。
 6. 按现有 CI 方式运行全部 Python unittest，必要 compile/语法检查，Grok Node 与 Windsurf 源测试/pack 校验；审阅所有变更、调用者和安全错误输出。文案检查只处理实际修改文件，不递归历史任务。
-7. 推送 Pennix 验收提交，根协调固定来源的 skill-installer staging → 新 lifecycle replace-staged → FastCtx 原生固定版本升级/apply → codex-config/agents 原生受管更新 → discover/verify/PATH/receipt/实际字节检查。N02 两 owner 依赖顺序按 design，proof 不足即停，不手改配置。
+7. 推送 Pennix 验收提交，根协调固定来源的 skill-installer staging → 新 lifecycle replace-staged → FastCtx 原生固定版本升级/apply → codex-config/agents 原生受管更新。若 workflow profile stale，先按 design 使用同一 lifecycle `reconcile`，确认摘要刷新或明确 blocked，再 discover/verify/PATH/receipt/实际字节检查；不调用 configure、不提示、不收集或输出凭据值。N02 两 owner 依赖顺序按 design，proof 不足即停，不手改配置。
 8. 对最终活动集合执行同一 44 场景，完成两类真实交互门；更新源侧净化矩阵与根侧验收。必要失败复测计入剩余预算，超过 100 或能力缺失保持 blocked 并返回决策。
 9. 更新影响到的原生规范与源侧执行记录，核对最终推送和消费者；根验收完成后归档/记录 session。收敛记录提交与代码交付提交区分，最终来源重新核对，不伪造完成。
 
@@ -29,6 +29,7 @@
 | PATH | 新装、Grok-only 升级、重复替换、两命令链接冲突/遮蔽/权限/CODEX_HOME/第二链接失败 | verified prior proof 和新 desired map 分开；事务回退和精确卸载，无未知接管 |
 | 身份/配置 | 12 名、真实上游、bootstrap/CI/模板/catalog；旧 MCP helper、Grok target、未配置/漂移/并发/写入失败 | 新目录与实际引用一致；不改凭据或无关字节，完整事务回退，静态资产原生更新与真实 MCP 核验 |
 | 宿主接入 | N02 已知旧 static、新 policy、其他 namespace、两个 owner 更新顺序与故障 | 共享数组不再钉死，未知归属不覆盖；无 developer 指令/实验开关增量，实际新宿主 direct/嵌套/聚合/Partial 完整 |
+| workflow profile | stale digest、current、未知/未就绪 target、非法字段/权限、写入失败、并发改写 | 仅安全 stale 更新 catalog digest 且保留 targets；其他漂移不变地 blocked，回滚不覆盖并发外部字节，重复调用幂等 |
 | 组合/模型 | 根 D6 固定 44 场景前后与两类交互门 | 预期/动作逐例核验，正确 owner/资源/停止边界，失败不隐藏；至多 100 轮 |
 | 安装 | 最终 SHA 全集合 staging 与新入口接纳 | 完整树、catalog、receipt、Grok/Windsurf PATH、configure owner 解析与原生 verify 一致 |
 

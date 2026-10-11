@@ -39,3 +39,9 @@ FastCtx 源侧已完成 0.2.24 接入修订的 all-features Rust 测试：217 �
 最终安装后 `verify --component pennix-skills --yes` 返回 match、零 failures。完整 verify 仍被旧 lifecycle profile 摘要和 `~/.codex/AGENTS.md` 未知漂移阻塞。按现有原生 reconcile 尝试状态核验，明确返回 `lifecycle profile has an unrelated catalog revision`，没有迁移或改写 profile；静态资产原生 upgrade 此前也拒绝覆盖 drifted 的 AGENTS 文件，没有写入。受管资产边界要求保留这两处现场。
 
 后基线在启动前被评估驱动按合同拒绝：source 文件当前精确 SHA-256 和 Git blob 为 `0ce643aa95c7f530c2a5b2965975d56de77f9973dc865da848a21120d941d1db`，但本记录既有冻结值、私有 budget 与 44 份前测摘要均记为 `f746a75d6729033a6b0b9d9907a712e5c66c12b93587e6a7f0a81683f4072fe1`。`load_cases` 要求精确字节摘要与 budget 一致，因此 after 在第一轮前返回 blocked `ValueError`；budget 仍为 44 次 before、0 次 after，没有新模型轮次。当前仓库与任务落点未找到旧字节副本，不能重写 budget 或伪称对照有效。前测 43 份 `review_needed` 也尚未逐例语义复核；C05 原生执行超时保持不重试。后测和 E01 对照验收因此 blocked，须找回原冻结文件及其真实摘要，或由用户批准新的前后测合同/轮次安排后再继续。
+
+## N03：profile 摘要刷新决策与规划
+
+完整宿主 `verify` 的失败中，`pennix-workflow-state` stale 与 profile stale 同源：catalog 更新后 profile 保存的 catalog 摘要仍旧。当前 `reconcile` 只允许已知 Firecrawl 退役场景，因此拒绝本次 catalog 修订；拒绝本身保护了未审查的 profile 状态。若坚持完成原计划的完整宿主验收，需判断是否在本任务增加受限的 profile-only reconcile：仅在 profile 结构和私有权限有效、全部启用目标仍存在且当前 readiness 可验证、更新前字节未并发变化时，原子更新 catalog 摘要并回读；保留目标选择和密钥记录，对无效/禁用目标、未知字段漂移、权限异常或并发写入拒绝，并覆盖回滚测试。此为新行为，未包含在已封口实现中。
+
+用户通过原生 grill 选择“纳入当前任务（推荐）”。根 D13 和本任务 decisions.md 已记录答复；两侧均已 native replan。计划限定为复用现有 reconcile、只更改摘要、启用 targets 的 readiness gate、保护并发字节及失败回滚，不提示、不调用 configure/远端服务、不收集或输出凭据值。接下来完成两侧计划修订和 native seal，向用户展示新增范围并取得明确实施批准前，不修改产品代码或测试。该项不能解除 E01 fixture 摘要不匹配或 `~/.codex/AGENTS.md` 未知 drift。
