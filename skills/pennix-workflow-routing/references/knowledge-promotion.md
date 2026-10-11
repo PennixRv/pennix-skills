@@ -3,7 +3,7 @@
 |---|---|---|
 | 当前代码、配置和任务进展 | 当前源代码、Git、任务、AGENTS/spec | 现有项目归属资产 |
 | 讨论过什么或为何作出选择 | trellis-session-insight / 本地 mem | 任务所需的已核验事实 |
-| 可复用的人类知识或经验 | 已配置的原生知识工具、pennix-siyuan-memory | 用户选定的笔记本或文档 |
+| 可复用的人类知识或经验 | 已配置的原生知识工具、pennix-siyuan-knowledge | 用户选定的笔记本或文档 |
 | 可执行的项目合同 | 项目 AGENTS/spec 和当前代码 | trellis-update-spec / 项目任务 |
 | 稳定的可复用操作方法 | 源 Skill 和实际归属协议 | 源仓库中的 skill-creator |
 | 跨项目协作规则 | 全局指导和受影响的归属方 | 仅在批准的共同范围内写入全局 AGENTS/router |

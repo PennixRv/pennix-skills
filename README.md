@@ -3,12 +3,12 @@
 用户自维护的 Codex 工作流 Skills 源码。
 
 通用 Trellis Skill 随 Trellis 组件交付；本仓库只维护用户工作流策略、确定性辅助脚本和
-对应测试。`skills/windsurf-code-search` 和 `skills/grok-search` 是发布集合中的普通目录；其上游
+对应测试。`skills/pennix-windsurf-code-search` 和 `skills/pennix-grok-search` 是发布集合中的普通目录；其上游
 仓库、ref、精确提交和安装后动作由唯一 lifecycle catalog 记录。目标机只接收物化 Skill 集合，
-不创建 submodule 或源码 checkout。其可发现名称保持为 `windsurf-code-search` 和 `grok-search`，
+不创建 submodule 或源码 checkout。其可发现名称为 `pennix-windsurf-code-search` 和 `pennix-grok-search`，
 不要与 `fastctx` 本地操作运行时混用。
 
-工作流部署统一从 `pennix-workflow-lifecycle` 进入；它只编排内部 deployment adapters，
+工作流部署统一从 `pennix-component-lifecycle` 进入；它只编排内部 deployment adapters，
 不接管 Trellis、FastCtx、CodeGraph、Codex Plugin/MCP 或 Hook 的原生所有权。
 
 当前 lifecycle 的宿主边界是 Linux 上的 Arch Linux，包括原生 Arch Linux 和 WSL2
@@ -21,24 +21,24 @@
 新环境的首选入口是不预下载源码的远程 seed：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-workflow-lifecycle/scripts/seed-arch.sh | bash
+curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-component-lifecycle/scripts/seed-arch.sh | bash
 ```
 
 远程命令执行指定的 `seed-arch.sh`。缺少任一 seed 文件时，脚本下载同一 `main` 上的两个静态模板，并从 `/dev/tty` 读取所需输入；没有控制终端时，在包或配置写入前失败。两份文件均已存在时不需要模板或终端。缺少 AUR helper 时，脚本检出并构建 `yay` 的 AUR package；它不检出整个 `PennixRv/pennix-skills` 仓库，也不调用完整的 `scripts/lifecycle.py` 入口。
 
 seed 脚本在源码仓库中的明确位置是：
 
-`skills/pennix-workflow-lifecycle/scripts/seed-arch.sh`
+`skills/pennix-component-lifecycle/scripts/seed-arch.sh`
 
 维护和测试本地 checkout 时必须连同相邻模板目录一起使用。在本仓库根目录中可直接复制执行：
 
 ```bash
-bash ./skills/pennix-workflow-lifecycle/scripts/seed-arch.sh
+bash ./skills/pennix-component-lifecycle/scripts/seed-arch.sh
 ```
 
 该可执行脚本可从 `bash` 或 `zsh` 启动；脚本通过 Bash shebang 使用所需解释器，
 应直接执行，不要使用 `source` 将它加载进调用者 shell。若要复制到其他位置，
-请复制整个 `skills/pennix-workflow-lifecycle/` 目录，以保留 `templates/`。
+请复制整个 `skills/pennix-component-lifecycle/` 目录，以保留 `templates/`。
 
 它从官方仓库安装 `npm`、从 AUR 安装当前 `openai-codex-bin`，交互式收集缺失的 `base_url`
 或隐藏 API key，根据 `templates/config.toml.seed`、`templates/auth.json.seed` 只物化 seed 阶段字段。已有
@@ -74,7 +74,7 @@ Trellis、CodeGraph 和 AOE 的 CLI 可以由系统生命周期动作部署或�
 
 ## 人工知识与经验
 
-`pennix-siyuan-memory` 按用户意图通过思源原生 MCP 检索、引用、整理、导入和显式保存知识。
+`pennix-siyuan-knowledge` 按用户意图通过思源原生 MCP 检索、引用、整理、导入和显式保存知识。
 它不捕获会话，不替代 Trellis task、正式交接或本地 `trellis mem` 历史；当前源码/任务/spec
 仍是工程事实权威。完整晋升方向在 workflow-routing 的 `references/knowledge-promotion.md`，
 包括人工经验、项目合同、源码 Skill 和有明确适用范围的全局规则，不要求逐级经过所有库。

@@ -33,7 +33,7 @@ jobs:
           import json
           import sys
 
-          catalog = json.load(open("skills/pennix-workflow-lifecycle/references/component-versions.json", encoding="utf-8"))
+          catalog = json.load(open("skills/pennix-component-lifecycle/references/component-versions.json", encoding="utf-8"))
           contract = catalog["components"]["pennix-skills"]["collection_contract"]
           with open(sys.argv[1], "a", encoding="utf-8") as output:
               for name, source in contract["materialized"].items():
@@ -67,9 +67,9 @@ jobs:
 
       - name: Validate collection
         run: |
-          python3 -m unittest discover -s skills/pennix-workflow-lifecycle/tests -p 'test_*.py'
-          python3 -m json.tool skills/pennix-workflow-lifecycle/references/component-versions.json >/dev/null
-          (cd skills/grok-search && npm ci --omit=dev --ignore-scripts)
+          python3 -m unittest discover -s skills/pennix-component-lifecycle/tests -p 'test_*.py'
+          python3 -m json.tool skills/pennix-component-lifecycle/references/component-versions.json >/dev/null
+          (cd skills/pennix-grok-search && npm ci --omit=dev --ignore-scripts)
 
       - name: Open or update synchronization PR
         uses: peter-evans/create-pull-request@v7

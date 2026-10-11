@@ -20,3 +20,5 @@ jobs:
           find skills -path '*/tests/test_*.py' -type f -print0 \
             | sort -z \
             | xargs -0 -n1 python3
+      - name: Test native evaluation driver offline
+        run: python3 evaluations/test_run_codex_cases.py

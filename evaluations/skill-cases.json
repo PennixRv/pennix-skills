@@ -1,0 +1,638 @@
+{
+  "schema_version": 1,
+  "model_turn_limit": 100,
+  "cases": [
+    {
+      "id": "S01-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-grok-search"
+      ],
+      "skills_after": [
+        "pennix-grok-search"
+      ],
+      "prompt": "读取 https://developers.openai.com/codex/mcp 的公开正文，先确定应加载的入口和原生命令。",
+      "expected": [
+        "加载 Grok Skill，读取必要引用，选择 native fetch"
+      ]
+    },
+    {
+      "id": "S01-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-grok-search"
+      ],
+      "skills_after": [
+        "pennix-grok-search"
+      ],
+      "prompt": "在 fixture.txt 中找字面量 routing-marker，目标文件已知。",
+      "expected": [
+        "本地文件工具；不网络搜索"
+      ]
+    },
+    {
+      "id": "S01-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-grok-search"
+      ],
+      "skills_after": [
+        "pennix-grok-search"
+      ],
+      "prompt": "只核对 X 来源关于 routing-marker 的信息；没有授权额外 web 来源或 extra。",
+      "expected": [
+        "来源保持 X-only；普通 search 显式 --no-extra，不切 web"
+      ]
+    },
+    {
+      "id": "S02-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-chinese-tech-writing"
+      ],
+      "skills_after": [
+        "pennix-chinese-tech-writing"
+      ],
+      "prompt": "审阅 notes.md 中的中文操作说明，保留条件、失败范围和不确定程度；不要写回。",
+      "expected": [
+        "加载写作 Skill 和按类型选择的引用"
+      ]
+    },
+    {
+      "id": "S02-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-chinese-tech-writing"
+      ],
+      "skills_after": [
+        "pennix-chinese-tech-writing"
+      ],
+      "prompt": "仅引用 notes.md 中固定的错误原文，不改写或校对。",
+      "expected": [
+        "原文保持，不无条件加载改写流程"
+      ]
+    },
+    {
+      "id": "S02-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-chinese-tech-writing"
+      ],
+      "skills_after": [
+        "pennix-chinese-tech-writing"
+      ],
+      "prompt": "审阅 template.md：Trellis 的英文机械标题和配置键须保持，自定义正文按中文规范检查。",
+      "expected": [
+        "原生骨架与机器字段保持；review 不授权写入"
+      ]
+    },
+    {
+      "id": "S03-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-decision-grill"
+      ],
+      "skills_after": [
+        "pennix-decision-grill"
+      ],
+      "prompt": "方案有实质选择：保留现有公开 JSON 格式，或改为 JSONL；两者的成本已知，用户尚未决定。请推进这个选择。",
+      "expected": [
+        "加载 grill，使用可用的原生交互；不可用则明确停止该依赖"
+      ]
+    },
+    {
+      "id": "S03-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-decision-grill"
+      ],
+      "skills_after": [
+        "pennix-decision-grill"
+      ],
+      "prompt": "fixture.txt 的行数是多少？这是可查事实。",
+      "expected": [
+        "直接查事实，不提决策问题"
+      ]
+    },
+    {
+      "id": "S03-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-decision-grill"
+      ],
+      "skills_after": [
+        "pennix-decision-grill"
+      ],
+      "prompt": "用户已经决定采用 JSONL，当前只继续记录这个决定；不要重复问。若当前宿主不能原生阻塞提问，不模拟交互。",
+      "expected": [
+        "消费已定答复一次；不重问、不默认、无代理计时器"
+      ]
+    },
+    {
+      "id": "S04-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-fastctx-routing"
+      ],
+      "skills_after": [
+        "pennix-fastctx-routing"
+      ],
+      "prompt": "读取 fixture.txt，并在其内容中查 routing-marker；按本地工具的职责选择入口。",
+      "expected": [
+        "普通文件读/搜索选择 FastCtx；同一原生 MCP 可按宿主编排"
+      ]
+    },
+    {
+      "id": "S04-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-fastctx-routing"
+      ],
+      "skills_after": [
+        "pennix-fastctx-routing"
+      ],
+      "prompt": "查看当前 Trellis task CLI 的 help；这不是普通本地文件检索，请保留原生任务接口。",
+      "expected": [
+        "Trellis 使用原生接口，不包 FastCtx"
+      ]
+    },
+    {
+      "id": "S04-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-fastctx-routing"
+      ],
+      "skills_after": [
+        "pennix-fastctx-routing"
+      ],
+      "prompt": "直接 MCP 可用与嵌套清单可见性可能不同；遇到 Partial 必须按返回 offset 续页，目录错误不能当成服务缺失。请实际读取 long.txt 的有限页。",
+      "expected": [
+        "真实工具域与错误类别准确；依赖分页按真实 offset"
+      ]
+    },
+    {
+      "id": "S05-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-session-handoff"
+      ],
+      "skills_after": [
+        "pennix-session-handoff"
+      ],
+      "prompt": "我明确要求正式跨会话交接。当前只读取适用入口与合同，说明创建新交接包的必要步骤，不实际创建。",
+      "expected": [
+        "加载正式 handoff 入口，来源与整包合同准确"
+      ]
+    },
+    {
+      "id": "S05-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-session-handoff"
+      ],
+      "skills_after": [
+        "pennix-session-handoff"
+      ],
+      "prompt": "继续刚才读取 fixture.txt 的工作；这是普通继续，不要求正式交接。",
+      "expected": [
+        "不触发正式交接"
+      ]
+    },
+    {
+      "id": "S05-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-session-handoff"
+      ],
+      "skills_after": [
+        "pennix-session-handoff"
+      ],
+      "prompt": "初次接纳尚未完整读取 core 和 prompt，源 pending next_action 仍未执行。请核对停止边界，不 claim、start 或执行下一动作。",
+      "expected": [
+        "完整前缀不足不接纳；初次接纳不执行 next_action"
+      ]
+    },
+    {
+      "id": "S06-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-siyuan-knowledge"
+      ],
+      "skills_after": [
+        "pennix-siyuan-knowledge"
+      ],
+      "prompt": "从思源中查用户已整理的 routing-marker 知识，只确定原生 notebook 检索入口；不要发请求或写笔记。",
+      "expected": [
+        "加载知识入口，使用原生 SiYuan notebook 语义"
+      ]
+    },
+    {
+      "id": "S06-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-siyuan-knowledge"
+      ],
+      "skills_after": [
+        "pennix-siyuan-knowledge"
+      ],
+      "prompt": "当前工程任务状态以 Trellis task 和 Git 为准；不要把思源当当前状态权威。",
+      "expected": [
+        "当前 task/Git/原始对话不由思源维护"
+      ]
+    },
+    {
+      "id": "S06-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-siyuan-knowledge"
+      ],
+      "skills_after": [
+        "pennix-siyuan-knowledge"
+      ],
+      "prompt": "没有授权保存知识，原生思源 MCP 也未绑定；不要使用 shell HTTP 代替或偷偷写入。",
+      "expected": [
+        "无授权不写；工具缺失不绕过接口"
+      ]
+    },
+    {
+      "id": "S07-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-trellis-project-update"
+      ],
+      "skills_after": [
+        "pennix-trellis-project-update"
+      ],
+      "prompt": "用户明确要求升级一个已初始化项目的 Trellis 生成资产；当前只核对更新入口、项目根和所选工作流，不真正更新。",
+      "expected": [
+        "加载项目更新入口，原生 update/workflow，确认明确根"
+      ]
+    },
+    {
+      "id": "S07-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-trellis-project-update"
+      ],
+      "skills_after": [
+        "pennix-trellis-project-update"
+      ],
+      "prompt": "只诊断是否缺少生成文件，不修复、不升级系统组件。",
+      "expected": [
+        "只读诊断不变成更新"
+      ]
+    },
+    {
+      "id": "S07-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-trellis-project-update"
+      ],
+      "skills_after": [
+        "pennix-trellis-project-update"
+      ],
+      "prompt": "更新前发现用户修改了生成文件，所选工作流未知；停下来核实，不覆盖或猜工作流。",
+      "expected": [
+        "未知漂移/工作流保持，不静默覆盖"
+      ]
+    },
+    {
+      "id": "S08-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-component-lifecycle"
+      ],
+      "skills_after": [
+        "pennix-component-lifecycle"
+      ],
+      "prompt": "我需要配置、协调并核验已有工作流组件的受管安装；当前只检查生命周期入口及其支持的动作，不写配置。",
+      "expected": [
+        "metadata 可发现配置/reconcile/受管集合与核验，正文一致"
+      ]
+    },
+    {
+      "id": "S08-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-component-lifecycle"
+      ],
+      "skills_after": [
+        "pennix-component-lifecycle"
+      ],
+      "prompt": "在项目中用 CodeGraph 定位一个函数；不要部署系统组件或修改用户 Hook。",
+      "expected": [
+        "CodeGraph 项目/Hook 行为保持原生 owner"
+      ]
+    },
+    {
+      "id": "S08-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-component-lifecycle"
+      ],
+      "skills_after": [
+        "pennix-component-lifecycle"
+      ],
+      "prompt": "发现 staging 的来源 receipt 不足且 PATH 有同名未知命令；核对安全边界，不接管链接或配置。",
+      "expected": [
+        "来源和归属不足停止，两个命令受管映射不越权"
+      ]
+    },
+    {
+      "id": "S09-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-workflow-routing"
+      ],
+      "skills_after": [
+        "pennix-workflow-routing"
+      ],
+      "prompt": "请求涉及系统安装、CodeGraph 项目准备和 Trellis task；先划清各组件负责的原生入口，不执行安装。",
+      "expected": [
+        "加载跨组件路由，唯一真实 owner/transport"
+      ]
+    },
+    {
+      "id": "S09-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-workflow-routing"
+      ],
+      "skills_after": [
+        "pennix-workflow-routing"
+      ],
+      "prompt": "读取已知文件 fixture.txt，这是普通单工具操作。",
+      "expected": [
+        "直接文件操作，不增加无必要路由层"
+      ]
+    },
+    {
+      "id": "S09-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-workflow-routing"
+      ],
+      "skills_after": [
+        "pennix-workflow-routing"
+      ],
+      "prompt": "CodeGraph 已安装不表示该项目已初始化；系统部署授权不等于用户 Hook 或项目初始化授权。请核对职责。",
+      "expected": [
+        "系统与项目授权分离，无新增 Pennix adapter"
+      ]
+    },
+    {
+      "id": "S10-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-tavily-search"
+      ],
+      "skills_after": [
+        "pennix-tavily-search"
+      ],
+      "prompt": "用户明确要求 Tavily 的 URL 提取；只检查自托管 Hikari tvly-hikari 入口，不访问服务。",
+      "expected": [
+        "加载 Tavily 入口，使用自托管 Hikari 的专属 CLI"
+      ]
+    },
+    {
+      "id": "S10-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-tavily-search"
+      ],
+      "skills_after": [
+        "pennix-tavily-search"
+      ],
+      "prompt": "Grok 已有可用结果且当前只是本地字面量问题；不需要再跑 Tavily。",
+      "expected": [
+        "不正常双跑，不替代已可用 Grok"
+      ]
+    },
+    {
+      "id": "S10-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-tavily-search"
+      ],
+      "skills_after": [
+        "pennix-tavily-search"
+      ],
+      "prompt": "整条 Grok 命令不可用时允许一次自托管 Hikari 后备；Hikari 再失败即停止，不第三 provider，不读私有配置。",
+      "expected": [
+        "后备最多一次，不代理重试/读配置/第三 provider"
+      ]
+    },
+    {
+      "id": "S11-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-windsurf-code-search"
+      ],
+      "skills_after": [
+        "pennix-windsurf-code-search"
+      ],
+      "prompt": "本地和 CodeGraph 都无法定位一个真正模糊的旧业务入口。只核对外部语义搜索的执行前合同和有界 PATH 命令，不访问服务。",
+      "expected": [
+        "加载 Windsurf，先读 script-contract，PATH 命令有明确 project/query"
+      ]
+    },
+    {
+      "id": "S11-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-windsurf-code-search"
+      ],
+      "skills_after": [
+        "pennix-windsurf-code-search"
+      ],
+      "prompt": "在 fixture.txt 找已知字面量 routing-marker；不要外发。",
+      "expected": [
+        "本地已知目标不外发"
+      ]
+    },
+    {
+      "id": "S11-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-windsurf-code-search"
+      ],
+      "skills_after": [
+        "pennix-windsurf-code-search"
+      ],
+      "prompt": "候选结果为 truncated，coverage 只涵盖部分访问文件；先读取 script-contract，再说明必须本地核验候选，不能宣称全仓或语义正确。",
+      "expected": [
+        "complete/truncated 是范围完整性，不证明语义正确"
+      ]
+    },
+    {
+      "id": "S12-positive",
+      "kind": "positive",
+      "skills_before": [
+        "pennix-trellis-asset-check"
+      ],
+      "skills_after": [
+        "pennix-trellis-asset-check"
+      ],
+      "prompt": "对已初始化 Trellis 项目的生成资产执行只读诊断；当前只读取入口及实际检查清单，不修复。",
+      "expected": [
+        "加载只读资产诊断，清单与实现对应"
+      ]
+    },
+    {
+      "id": "S12-negative",
+      "kind": "negative",
+      "skills_before": [
+        "pennix-trellis-asset-check"
+      ],
+      "skills_after": [
+        "pennix-trellis-asset-check"
+      ],
+      "prompt": "需要安装组件并修复服务；这不属于只读资产检查器。",
+      "expected": [
+        "不由资产检查器安装/修复/测试 provider"
+      ]
+    },
+    {
+      "id": "S12-boundary",
+      "kind": "boundary",
+      "skills_before": [
+        "pennix-trellis-asset-check"
+      ],
+      "skills_after": [
+        "pennix-trellis-asset-check"
+      ],
+      "prompt": "诊断显示 pass；确认它只表示固定存在性/目录/唯一旧路径/可选 checkout 清单，不声称全面健康。",
+      "expected": [
+        "pass 的范围限定，无全面健康承诺"
+      ]
+    },
+    {
+      "id": "C01",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-workflow-routing",
+        "pennix-fastctx-routing"
+      ],
+      "skills_after": [
+        "pennix-workflow-routing",
+        "pennix-fastctx-routing"
+      ],
+      "prompt": "对 fixture.txt、notes.md 做独立本地检索并读取 long.txt 的 Partial 下一页，然后只查看 Trellis task CLI help。已有 FastCtx 直接工具不表示能嵌套；不要因批量要求改用 exec_command/Python/rg 包装。",
+      "expected": [
+        "原生 MCP 独立编排，Partial 依赖顺序；Trellis 保留 native owner；真实冲突如实说明"
+      ]
+    },
+    {
+      "id": "C02",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-workflow-routing",
+        "pennix-component-lifecycle"
+      ],
+      "skills_after": [
+        "pennix-workflow-routing",
+        "pennix-component-lifecycle"
+      ],
+      "prompt": "系统组件安装、CodeGraph 项目配置和用户 Hook 修改是三个授权范围；仅讨论各自原生 owner，不实际执行。",
+      "expected": [
+        "无项目/Hook adapter，无自动项目初始化"
+      ]
+    },
+    {
+      "id": "C03",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-grok-search",
+        "pennix-workflow-routing",
+        "pennix-tavily-search"
+      ],
+      "skills_after": [
+        "pennix-grok-search",
+        "pennix-workflow-routing",
+        "pennix-tavily-search"
+      ],
+      "prompt": "假设 Grok CLI 的内部一次 HTTP 尝试失败，但整条命令尚未结束。不要启动第二命令或后备；只核对分层规则。",
+      "expected": [
+        "内部受控尝试不授权代理重试；整条不可用才一次 Hikari"
+      ]
+    },
+    {
+      "id": "C04",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-grok-search",
+        "pennix-workflow-routing"
+      ],
+      "skills_after": [
+        "pennix-grok-search",
+        "pennix-workflow-routing"
+      ],
+      "prompt": "Grok 返回满足 X-only 来源的可用 degraded 结果。用户没要求 extra；核对该停止点和常规命令政策。",
+      "expected": [
+        "--no-extra；可用 degraded 不后备；来源约束保持"
+      ]
+    },
+    {
+      "id": "C05",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-windsurf-code-search",
+        "pennix-fastctx-routing"
+      ],
+      "skills_after": [
+        "pennix-windsurf-code-search",
+        "pennix-fastctx-routing"
+      ],
+      "prompt": "本地与图均不足才考虑外部模糊入口候选；读取 Windsurf 执行前合同，核对 PATH 调用与 truncated 含义，不请求服务。",
+      "expected": [
+        "合同先读、项目范围明确、最终本地语义核验"
+      ]
+    },
+    {
+      "id": "C06",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-chinese-tech-writing"
+      ],
+      "skills_after": [
+        "pennix-chinese-tech-writing"
+      ],
+      "prompt": "审阅 template.md 的中文自定义说明；英文 Trellis 机械骨架和机器键保留，review 不授权修改生成资产。",
+      "expected": [
+        "自然中文、条件保留、真实源 owner 不变"
+      ]
+    },
+    {
+      "id": "C07",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-siyuan-knowledge",
+        "pennix-workflow-routing"
+      ],
+      "skills_after": [
+        "pennix-siyuan-knowledge",
+        "pennix-workflow-routing"
+      ],
+      "prompt": "用户希望讨论是否把已有任务结论晋升为长期知识，尚未授权保存；先从知识入口有条件导航到 routing 的来源晋升 reference，不写思源。",
+      "expected": [
+        "精确条件资源导航，来源唯一权威，保存须授权"
+      ]
+    },
+    {
+      "id": "C08",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-session-handoff",
+        "pennix-decision-grill"
+      ],
+      "skills_after": [
+        "pennix-session-handoff",
+        "pennix-decision-grill"
+      ],
+      "prompt": "正式交接初次接纳须完整读取 core/prompt 并协调事实；历史按需。即使已接纳也不执行 pending next_action，不把设计答复当实施批准。",
+      "expected": [
+        "完整前缀/真实阅读独立；不 claim/start/消费下一动作；计划门保留"
+      ]
+    }
+  ]
+}

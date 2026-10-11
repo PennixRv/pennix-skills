@@ -38,12 +38,14 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 | 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | FastCtx，按 `$pennix-fastctx-routing` | 排除上表的专门调用；机械替换先预览并限定次数，不自动持久化结果 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |
-| 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `windsurf-code-search` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
-| 当前外部资料、网页或多来源研究 | 先 `grok-search`；一次确认不可用后，单次 `tavily-hikari` 自托管辅助路径 | 外部结果先作为证据候选；核验后才写入任务研究或用户明确指定的持久位置 |
+| 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `$pennix-windsurf-code-search` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
+| 当前外部资料、网页或多来源研究 | 先 `$pennix-grok-search`；一次确认不可用后，单次 `$pennix-tavily-search` 自托管辅助路径 | 外部结果先作为证据候选；核验后才写入任务研究或用户明确指定的持久位置 |
 | 测试、日志、长差异、递归检索、构建/依赖输出或大文件分析 | FastCtx 有界工具或 job | 默认当前请求/显式 job 处理；不要把结果自动写入任务事实 |
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用原生读取或 FastCtx 分页分析 | 不把原始结果重新塞回工具参数 |
 
 无法预判本地文本规模且没有独立协议时，使用 FastCtx 的有界读取、搜索或 job；无法判断一个结构化工具是否有界时，先使用其原协议。FastCtx 是否可用以当前会话暴露的原生工具和实际调用结果为准；`functions.exec` 的 `ALL_TOOLS` 不是宿主完整工具清单，不能因其中缺少 MCP 名称而判定缺失。确实未暴露 FastCtx 工具时，普通本地操作才降级到宿主原生工具，不重新引入旧的 `ctx_*` 路径。参数校验、权限、传输或服务错误保留实际类别，不改写为“工具缺失”；组件规定接口不可用时不允许用 FastCtx 或 shell 模拟。
+
+宿主实际暴露同一 FastCtx MCP 时，可以直接调用，也可以通过宿主原生编排器调用。工具选择与调用形式分别判断：原生嵌套不会改变 FastCtx 的职责范围，也不授权用 shell 包装已有文件工具。并行只适用于独立调用；逐工具结果、错误和 Complete/Partial 续读参数必须完整。聚合截断时先用有界直接调用补回；依赖前页 offset 的续读仍顺序执行。更多规则按需读取 [`pennix-fastctx-routing`](../pennix-fastctx-routing/SKILL.md)。
 
 各组件的命令仍须走规定入口，不能通过 FastCtx `run`、`run_background`、`replace`、shell HTTP 或通用包装器启动、转发、重试、轮询、等待或解释协议状态。规定入口不可用时保留能力缺口。操作完成并产生获准的普通结果文件后，FastCtx 可以读取或分析该文件，但不能确认或模拟组件状态。
 
@@ -69,20 +71,20 @@ Trellis 的本地 CLI（包括 `task.py`）使用当前宿主原生 shell 工具
 
 ## 本地证据优先
 
-- 涉及当前机器、当前项目、工作树、源码、配置、日志或已存在资源时，先使用本地文件工具、宿主原生工具和已批准的 CodeGraph；本地检索到足以回答问题的证据后，不启动 `grok-search`、`tavily-hikari` 或 `windsurf-code-search`。
+- 涉及当前机器、当前项目、工作树、源码、配置、日志或已存在资源时，先使用本地文件工具、宿主原生工具和已批准的 CodeGraph；本地检索到足以回答问题的证据后，不启动 `$pennix-grok-search`、`$pennix-tavily-search` 或 `$pennix-windsurf-code-search`。
 - 本地存在目标源码但问题要求当前上游状态、公开资料、跨项目比较或外部事实时，才进入外部检索；外部检索结果仅补充或对照本地证据，不能替代本地事实核验。
 - 本地检索结果为空、过时、无法解释，或用户明确要求外部来源时，按上表进入对应外部路径；用户明确指定的来源优先于本默认顺序，但仍不改变任务和凭据边界。
-- `grok-search` Skill 的可发现性不构成自动调用理由；调用前必须先判断问题是否确实需要外部资料。
+- `$pennix-grok-search` 的可发现性不构成自动调用理由；调用前必须先判断问题是否确实需要外部资料。
 
 ## 外部检索降级
 
-- 普通外部检索必须先走 `grok-search`。正确构造的单次 Grok
+- 普通外部检索必须先走 `$pennix-grok-search`，搜索显式使用 `--no-extra`；`--extra N` 仅在当前请求明确要求或已经获得批准时使用。CLI 自有的有界尝试不构成代理重试；代理不重复整个命令。正确构造的单次 Grok
   操作若因上游/网络错误、配额、超时、不可用前置条件、来源导致的命令失败或
-  畸形响应而不可用，才将同一个有界请求交给自托管 `tavily-hikari` 一次。
+  畸形响应而不可用，才将同一个有界请求交给自托管 `$pennix-tavily-search` 一次。
 - 不支持的 CLI 选项、缺少必需参数等可在本地改正的调用/用法错误，先改正调用，不能直接触发降级。
 - 降级只用于有界搜索和已知页面读取；原请求为 map、crawl 或 research 时，只能收敛为满足请求所需的
   搜索加页面读取，不宣称具备原路径的等价语义。
-- 整个路由只允许这一次降级：不重试、不并行双跑、不改配置、不暴露诊断中的敏感信息、不再选择第三个 provider。
+- Grok 已返回满足当前请求的可用降级结果时直接消费，不触发 Hikari；只有整个命令不可用才允许这一次降级。代理不重试、不并行双跑、不改配置、不读取配置判断 provider、不暴露诊断中的敏感信息、不再选择第三个 provider。
   保留用户、task 或 system 指定的来源、工具、时效、隐私和范围约束，并在对外结果中简要说明路由发生变化。
 - 若自托管 Tavily 路径也不可用，报告检索缺口并停止；显式要求特定工具或来源的更高优先级指令始终覆盖本默认规则。
 
@@ -92,18 +94,19 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 
 知识、历史回溯和规则晋升按用户意图选择唯一主要来源，见
 [`references/knowledge-promotion.md`](references/knowledge-promotion.md)。已配置思源的人工知识操作由
-`pennix-siyuan-memory` 使用原生 MCP；当前 task/源码/spec、`trellis mem` 历史和 formal handoff
+`pennix-siyuan-knowledge` 使用原生 MCP；当前 task/源码/spec、`trellis mem` 历史和 formal handoff
 各保留自身状态和规定接口。中文技术知识的撰写或改写加载 `$pennix-chinese-tech-writing`，保存仍需具体用户授权。知识失败不阻断任务或交接，禁止无条件预加载、自动捕获与双向同步。
 
 - `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；FastCtx 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。Trellis 原生模板、骨架与机械惯例优先，自定义中文正文采用写作方法；生成资产仍回实际模板来源修改。
-- CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用或改变索引配置由 `$pennix-workflow-lifecycle` 的 CodeGraph deployment adapter 计划并执行，不因普通检索自动初始化，
+- CodeGraph 只用于当前项目已经批准的 `.codegraph/` 索引；首次启用、project prepare 或改变索引配置由 CodeGraph 原生项目入口负责，需要明确项目根目录与授权，不因普通检索自动初始化，
   linked Git worktree 不使用 CodeGraph。
 - 确有独立证据价值的工作遵循当前项目选择的 Trellis `subnode` procedure。Trellis 维护其 brief、持久化报告和
   Channel 生命周期；主会话保留项目事实、验收和 Git，不把该合同复制为用户级 Skill。
 - 已初始化 Trellis 项目的 bundled `trellis-research-record` 将核验后的研究事实、候选、不确定项和下一动作写入当前 task；它不是第二套事实台账。
-- 已初始化项目的 Trellis 资产更新和已选 workflow 刷新由 `$pennix-trellis-project-update` 负责，必须调用当前 Trellis fork 的原生 `trellis update` / `trellis workflow`；系统级组件部署仍由 `$pennix-workflow-lifecycle` 负责，`workflow-doctor` 只做只读诊断。
-- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和确定性 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；正式交接通过本地来源封口和配对包验证记录来源收敛。初始 admission 只在 core、prompt、`$trellis-start` 和当前事实完整核对后记录一次 `reconciled`，不完整消费不写 target reservation；后续 `claim` 必须有新的明确继续授权。组件部署、Skills 物化、CodeGraph project prepare、FastCtx 更新和审查后的用户级 Hook 片段统一由 `$pennix-workflow-lifecycle` 的对应 deployment adapter 规划；不要从普通路由请求推导这些高影响动作的授权。
+- 已初始化项目的 Trellis 资产更新和已选 workflow 刷新由 `$pennix-trellis-project-update` 负责，必须调用当前 Trellis fork 的原生 `trellis update` / `trellis workflow`；系统级组件部署仍由 `$pennix-component-lifecycle` 负责，`$pennix-trellis-asset-check` 只做只读诊断。
+- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和确定性 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；正式交接通过本地来源封口和配对包验证记录来源收敛。初始 admission 只在 core、prompt、`$trellis-start` 和当前事实完整核对后记录一次 `reconciled`，不完整消费不写 target reservation；后续 `claim` 必须有新的明确继续授权。
+- 系统组件部署、Skills 物化和 FastCtx 更新由 `$pennix-component-lifecycle` 编排已登记动作；CodeGraph 项目操作归其原生入口，Hook 实现和配置归事件所属组件及宿主的原生入口。普通路由请求不授权这些高影响动作。
 - Hook/config 和拥有该行为的运行时负责必须发生的事件、阻断、信任、生命周期和审计；提示词只能表达决策原则，不能宣称确定性保证。
 
 ## 禁止混淆
@@ -111,7 +114,7 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 - FastCtx 的文件、搜索和 job 结果只描述当前操作；任务事实和授权应回到 Trellis/Git 与当前用户指令核验。
 - CodeGraph、Windsurf Code Search、Tavily 和 FastCtx 的结果都不能直接成为 task、Issue 或配置事实；先回到当前权威文件核验。
 - 不用 FastCtx 重实现 Trellis channel watcher、事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
-- `grok-search` 负责外部检索，不是 FastCtx 的后端或适配器；确实需要当前外部资料时才按其 Skill 调用。FastCtx 不接管其网络调用、凭据读取、备用供应商或错误协议，也不能将其改为本地 job。
+- `$pennix-grok-search` 负责外部检索，不是 FastCtx 的后端或适配器；确实需要当前外部资料时才按其 Skill 调用。FastCtx 不接管其网络调用、凭据读取、备用供应商或错误协议，也不能将其改为本地 job。
 - `openai-docs` 负责其允许的 OpenAI/Codex/API/ChatGPT 官方资料路径；它与 Grok 优先的外部检索有各自接口，均不得通过 FastCtx 启动或代理。
 - 改变、确认、等待、重试、轮询或解释组件协议状态的本地命令，仍须走该组件规定接口；FastCtx 只能读取该操作完成后的普通结果。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "package": "@pennixrv/windsurf-code-search@0.1.16",
+  "source_repository": "https://github.com/PennixRv/windsurf-code-search",
+  "upstream": {
+    "repository": "https://github.com/oulkurt/fast-context-skill",
+    "commit": "d5ebd5522295d21c1a4d6fcf05580e069104c5d6"
+  },
+  "runtime_files": [
+    "SKILL.md",
+    "README.md",
+    "NOTICE.md",
+    "LICENSE",
+    "references/script-contract.md",
+    "references/source-provenance.json",
+    "agents/openai.yaml",
+    "bin/windsurf-code-search",
+    "scripts/windsurf-code-search.mjs",
+    "scripts/lib/LICENSE.fast-context-mcp",
+    "scripts/lib/credentials.mjs",
+    "scripts/lib/core.mjs",
+    "scripts/lib/devin-credential-helper.mjs",
+    "scripts/lib/executor.mjs",
+    "scripts/lib/path-guard.mjs",
+    "scripts/lib/protobuf.mjs",
+    "scripts/lib/public-error.mjs"
+  ],
+  "classification": "public-runtime-projection",
+  "runtime_file_sha256": {
+    "SKILL.md": "3f082f8efdd91d112182a7d7d7ce33243fa997d797a915df7cd040a2ce848951",
+    "README.md": "c61ace8c2d3601980bf9ede299130e362970f00ce11f1e52d0c8d2c3166324f7",
+    "NOTICE.md": "cc25264b880d726f158bfa046bfdbe6871adb2ad86ebad3ecacad1f68410d61f",
+    "LICENSE": "bb9a2ce78d8b8ca19db1bb4ddc68b02aa1959487d28fc472d8414ede53cc3df1",
+    "references/script-contract.md": "de189f42d17479cac1c7cddabdfa283abfa35dd4a5c20e824575457eb0ab82b9",
+    "agents/openai.yaml": "17f3dfd00aa62dd9e829b62568a711e9b42e28745306c7b3a8a8a0e900f24c30",
+    "bin/windsurf-code-search": "5cc2f8088819f93f8d83ba174acb7e202d0ddcc99c7d55922bfb07ab1be98569",
+    "scripts/windsurf-code-search.mjs": "d51f5f8f85d9e0807969f6b232f6e1d15220bc1da8d47129c4c809066d9d2882",
+    "scripts/lib/LICENSE.fast-context-mcp": "06dcddbb6908a0c6dd4a9e8ec822eea41d5a460a53089fecccc8a68049e99241",
+    "scripts/lib/credentials.mjs": "d36d7e0dc471fc0215d4798a626434c100bb3a0fce64b04034a252edec3a3e91",
+    "scripts/lib/core.mjs": "84d5aed3888b80c3ef9351b6e9d0d3ad7d1688440dc5831f4f79c9ff72e6f0f3",
+    "scripts/lib/devin-credential-helper.mjs": "803ef84423c90b78f6c6a7ad410a2a8f2d5fd417ec2fac1d3654b770d99d3301",
+    "scripts/lib/executor.mjs": "87ff4c758764c601a53e0398cc0ff79af46edad7a27bea96f474e1d032a2f5cb",
+    "scripts/lib/path-guard.mjs": "cf8b5631ede6e6368fe80ae28fb6c42dc6353642ddf1a92b326dabc515cf3393",
+    "scripts/lib/protobuf.mjs": "be21011475d2623b993a6baced0d829ca0c36f0d871fe2c3fb5b439079c8b88a",
+    "scripts/lib/public-error.mjs": "c2a412470632aa50b7db1a946681a471da166c18529a3de569327e77c50cf2b3"
+  },
+  "self_digest": "omitted to avoid a self-referential digest",
+  "privacy": {
+    "contains_credentials": false,
+    "contains_runtime_state": false,
+    "contains_local_absolute_paths": false
+  }
+}

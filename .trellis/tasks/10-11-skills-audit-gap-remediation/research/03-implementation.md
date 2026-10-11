@@ -1,0 +1,27 @@
+# 源侧实施记录
+
+## 授权与当前单元
+
+完整修订包 revision 1 展示后获得用户明确实施批准；本任务 native plan approve/start 已成功，当前 in_progress，封口三份计划保持原字节。先完成 E01 冻结与前基线，不先替换活动安装集合。
+
+本单元最小修改为 evaluations/skill-cases.json、run_codex_cases.py、test_run_codex_cases.py，以及 .github/workflows/verify.yml 的离线测试接入。真实 native Codex 保留当前模型和配置，串行只读、临时 fixture、私有原始日志、100 次总上限；驱动只输出净化动作候选，不自动宣称技能通过。不能安全执行或缺能力时 blocked，真实 UI/交接目标会话另验。
+
+适用 backend quality/error 和共享思考指南已读取。活动安装树尚未改动；后续各单元完成即更新本自然落点，根只保存协调结果和来源。
+
+## F01/F02/F04/F06/E02 与 N02 内容单元
+
+lifecycle description 与入口正文补齐既有 discover/configure/reconcile/staging/seed 意图，明确系统部署和各组件原生项目初始化边界。workflow-routing 把 CodeGraph project prepare、Hook 实现还给原生 owner，移除对应 deployment adapter 承诺；Grok 普通搜索显式 no-extra，区分 CLI 自有有界尝试、代理不重复命令以及整个命令不可用时的一次 Hikari 后备。可用降级结果直接消费。
+
+FastCtx 两个路由入口按 N02 允许实际暴露的宿主原生编排与直接调用，保留逐结果与 Complete/Partial、独立并行及依赖续页边界；没有扩大原生组件协议的可代理范围。移除“只承载一条 CLI”这一容易误读的措辞，仍只承载普通非交互命令，不把已有文件工具包装到 shell。
+
+doctor 正文逐项对应当前脚本：pass 仅为固定路径存在及直接 Skill 目录有 SKILL.md；可选 checkout/包名、单一旧路径只是报告。它不证明 frontmatter、语义、版本、摘要、阶段或整体健康，未改脚本行为。两份已批准的长写作参考只添加按现有标题生成的目录，不改规则。
+
+核对 lifecycle 主入口实际 imports、源码和根调用者后，删除没有公共调用职责的 codegraph.py、codex_hooks.py、trellis.py、前两者专属测试及未引用的 CodeGraph 参考。根唯一真实消费者是 run-workflow-integration.mjs 的两项固定测试入口，已同步移除；封口计划及历史任务证据保留。全体 Skill 改名、条件式 sibling 链接、catalog/模板/生成快照、暂存与私有 helper 升级、handoff schema 11 均尚未完成，不计为当前通过。
+
+## 后续实施记录
+
+E01 前基线已使用固定 fixture 串行完成 44 个逻辑轮次；S01–S04、S06–S12 及 C01–C04、C06–C08 均为 `completed/review_needed`，C05 在第 41 轮因原生命令执行边界超时而记录 `blocked_native_execution`，没有重试。摘要中的 `review_needed` 只表示需要人工对照动作轨迹，不能当作行为通过；原始 JSONL 仍只在本机 `/tmp/pennix-skills-gap-e01-20261011/runs` 保存。前基线读取的是旧活动集合身份，后基线必须安装最终新集合后按相同 44 个 case 运行；模型 ID 未由 native JSON 返回，继续记为 `actual_model: null`。
+
+FastCtx 源侧已完成 0.2.24 接入修订的 all-features Rust 测试：217 个库测试、4 个 golden、15 个 CLI contract、1 个 v0.1.1 compatibility、1 个 glob、1 个 guarded burst、1 个 URI、6 个 property、13 个 runtime control center、8 个 server contract、11 个 shell contract、3 个 PDF 及其余 doc tests 均通过，1 个既有 ignored 测试保持 ignored。此结果仍未替代 clippy/MSRV/跨平台构建、发布和真实宿主接入门。
+
+名称与 PATH 单元的首次回归发现受管命令实现仍只声明 Grok，且原子替换会遗留已证明链接指向旧目录；已补为有限的 Grok/Windsurf 双命令映射、旧 Grok receipt/旧 target 的证据约束重定向、现有链接重建和事务回滚，并增加旧 receipt 升级回归。修订后 lifecycle 组件测试 144 项通过。生命周期持久化状态目录、静态资产 marker、旧 receipt 路径和 CLI/package/component 标识按设计保持稳定，不因 Skill 目录改名被全局替换。

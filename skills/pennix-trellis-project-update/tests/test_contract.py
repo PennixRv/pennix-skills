@@ -26,8 +26,8 @@ class TrellisProjectUpdateContractTest(unittest.TestCase):
     def test_ownership_and_latest_workflow_boundaries_are_explicit(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         for marker in (
-            "$pennix-workflow-lifecycle",
-            "workflow-doctor",
+            "$pennix-component-lifecycle",
+            "pennix-trellis-asset-check",
             "$pennix-decision-grill",
             "主会话内联交付",
             "明确要求的独立证据",

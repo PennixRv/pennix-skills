@@ -27,7 +27,7 @@ class FastCtxRoutingContractTest(unittest.TestCase):
 
     def test_external_retrieval_owners_are_not_fastctx_adapters(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("`grok-search`", content)
+        self.assertIn("`$pennix-grok-search`", content)
         self.assertIn("不得调用、代替或推进检索协议", content)
 
     def test_owner_executable_transport_is_forbidden_but_posthoc_read_is_allowed(self) -> None:
@@ -42,7 +42,7 @@ class FastCtxRoutingContractTest(unittest.TestCase):
         ):
             self.assertIn(marker, content)
 
-        grok = (SKILL.parents[1] / "grok-search" / "SKILL.md").read_text(encoding="utf-8")
+        grok = (SKILL.parents[1] / "pennix-grok-search" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("必须通过宿主原生直接命令路径启动", grok)
         self.assertIn("不要用 `mcp__fastctx.run`", grok)
         self.assertIn("FastCtx 可以读取已批准的普通结果文件", grok)
