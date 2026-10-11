@@ -27,3 +27,7 @@
 ## 后测后的宿主状态
 
 Pennix 最终提交 `43cdb51beba425631baad9214e94f186adcd8675` 的 CI run `38144053611` 成功，集合按该 SHA 原生重装。`verify --component pennix-skills --yes` 为 match、零 failures；`codex mcp list/get` 显示 SiYuan 已启用且 helper 字段存在并脱敏，但没有发起远端握手。完整 verify 仍被未知 lifecycle profile 摘要与 drifted 的用户级 AGENTS 文件阻塞；原生 reconcile/upgrade 按现有所有权规则拒绝修改，两项均保持原样。
+
+## 冻结字节精确恢复
+
+进一步有界复核发现，名称修订把 `skills_before` 中原应保留的 6 项历史 Skill 身份也全局改为新名。仅还原这些 before 字段，其余 44 场景 ID、kind、prompt、expected、skills_after、schema/预算和格式保持不动，文件精确 SHA-256 恢复为 f746a75d6729033a6b0b9d9907a712e5c66c12b93587e6a7f0a81683f4072fe1，与原 budget 及全部 before 摘要一致。原先“原冻结字节无法复现”的阻塞现已解除；这是已批准 N01/E01 的历史映射保真修正，不建立旧 Skill alias，不改变行为判断标准，不修改预算。原始 before 日志仍需逐例复核，C05 的历史 blocked 继续保留；接下来在最终新集合运行原计划 after。

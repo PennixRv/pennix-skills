@@ -55,3 +55,7 @@ N03 已在现有 reconcile 增加现行命名空间 profile-only 分支：严格
 新增 9 项 N03 回归。首次测试暴露夹具共用 XDG 目录导致权限污染，已按用例隔离；补充临时写入期间并发变更及回读故障恢复。全仓 17 模块共 243 项与 evaluation 5 项通过。
 
 AGENTS 阻塞进一步按真实源复核：现场 SHA-256 为 a126ddcab9cef58a2fdc70d827d079accf28df3f10ede25df3d5c40e80687a58，逐字节等于已发布 d7bb185 的旧完整模板；不是未知个人编辑。当前模板只把 lifecycle Skill 引用从旧名改为新名，原升级允许列表漏掉最近的已发布模板。按已批准 N01 的完整旧模板受管升级合同，补入该唯一已证实摘要，新增实际旧内容可升级、追加个人内容仍拒绝的回归，不改变未知内容拒绝策略。首次回归重建旧文案时误用 ASCII 分号，核对真实文件后改为中文分号；更新后 lifecycle 80 项通过。最终代码复核时保留 legacy Firecrawl 的既有目标路径语义，避免误把先复制后更新的 destination 改回 legacy source；最终定向检查、提交、安装与实际 verify 仍待完成。
+
+修复提交 b60a9311ca6942b90998d75cd7735d16d3ab5405 已推送 origin/main，CI run 38147739493 成功；系统 skill-installer 按精确 SHA 安装全部 12 项到相邻 staging，暂存 lifecycle replace-staged 原子接纳成功。实际安装入口的 profile reconcile 返回 refreshed，原生 codex-agents upgrade 返回 changed；没有手改活动集合、profile 或 AGENTS。完整 host verify 正在运行，结果单独记录。
+
+E01 冻结字节已精确恢复：仅把 skills_before 中被名称修订误改的历史身份还原，文件 SHA-256 恢复为原预算/全部 before 摘要的 f746a75d6729033a6b0b9d9907a712e5c66c12b93587e6a7f0a81683f4072fe1。prompt、expected、after 身份及 44 场景与 100 轮预算未改变，私有 budget 不改写；该修正落实原 N01/E01 历史映射保真合同，不新增旧名入口。后测将使用新安装集合继续；43 项 before 轨迹仍需逐例核验，不把冻结问题解除当作行为通过。
