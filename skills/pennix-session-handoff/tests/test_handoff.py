@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -91,17 +92,16 @@ class HandoffTests(unittest.TestCase):
         return json.loads(stdout)["handoff_path"]
 
     @staticmethod
-    def historical_payload(payload: dict, version: int) -> dict:
-        payload = copy.deepcopy(payload)
-        payload["schema_version"] = version
-        conversation = payload["conversation"]
-        for item in conversation["timeline"]:
-            candidate = conversation["candidates"][item["event_index"] - 1]
-            item.update(summary=candidate["text"], source=candidate["source"])
-        payload["source"]["rollout"].update(coverage=conversation["coverage"], conversation_candidates=conversation["candidates"], timeline=conversation["timeline"])
-        if version == 8:
-            payload["memory_projection"]["legacy_extension"] = []
-        return payload
+    def history_records(core: Path) -> list:
+        return [json.loads(line) for line in core.with_name(handoff.HISTORY_NAME).read_text().splitlines()]
+
+    @staticmethod
+    def rewrite_history(core: Path, payload: dict, records: list) -> None:
+        text = "".join(handoff._history_record(record["type"], record["value"]) for record in records)
+        data = text.encode("utf-8")
+        core.with_name(handoff.HISTORY_NAME).write_bytes(data)
+        payload["history"].update(sha256=hashlib.sha256(data).hexdigest(), bytes=len(data), characters=len(text), records=len(records))
+        core.write_text(json.dumps(payload))
 
     def test_task_symlink_is_rejected_before_resolve(self) -> None:
         root = self.make_root(".trellis/tasks/link")
@@ -136,19 +136,21 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(destination.parent.stat().st_mode), 0o700)
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        self.assertEqual(payload["schema_version"], 10)
+        self.assertEqual(payload["schema_version"], 11)
         self.assertEqual(set(payload["source"]["rollout"]), {"path", "session_id", "capture_end", "record_count", "parser_version"})
-        self.assertTrue(all("summary" not in item and "source" not in item for item in payload["conversation"]["timeline"]))
+        records = self.history_records(destination)
+        timeline = [record["value"] for record in records if record["type"] == "timeline"]
+        candidates = [record["value"] for record in records if record["type"] == "candidate"]
+        self.assertTrue(all("summary" not in item and "source" not in item for item in timeline))
         self.assertNotIn("integrity", payload)
         self.assertEqual(payload["handoff_id"], Path(relative).parts[-2])
-        self.assertTrue(any(item["kind"] == "user" for item in payload["conversation"]["candidates"]))
-        self.assertEqual([item["state"] for item in payload["conversation"]["timeline"]], ["corrected", "accepted"])
-        self.assertEqual(payload["conversation"]["timeline"][1]["supersedes_event_index"], 1)
-        self.assertEqual(payload["conversation"]["coverage"]["omissions"][0]["kind"], "nul_padding_record")
-        self.assertEqual(payload["conversation"]["coverage"]["excluded"]["compacted"], 1)
-        self.assertEqual(len(payload["conversation"]["coverage"]["compacted_spans"]), 1)
-        self.assertNotIn("must not enter handoff", json.dumps(payload, ensure_ascii=False))
-        self.assertNotIn("th-abcdefghijklmnopqrstuvwx", json.dumps(payload, ensure_ascii=False))
+        self.assertTrue(any(item["kind"] == "user" for item in candidates))
+        self.assertEqual([item["state"] for item in timeline], ["corrected", "accepted"])
+        self.assertEqual(timeline[1]["supersedes_event_index"], 1)
+        self.assertEqual(next(r["value"]["kind"] for r in records if r["type"] == "omission"), "nul_padding_record")
+        self.assertEqual(payload["history"]["counts"]["compacted_span"], 1)
+        self.assertNotIn("must not enter handoff", json.dumps(records, ensure_ascii=False))
+        self.assertNotIn("th-abcdefghijklmnopqrstuvwx", json.dumps(records, ensure_ascii=False))
         validated = self.run_cli(root, "validate", "--handoff", relative)
         self.assertEqual(validated.returncode, 0, validated.stderr)
         self.assertEqual(json.loads(validated.stdout)["status"], "ready")
@@ -173,10 +175,10 @@ class HandoffTests(unittest.TestCase):
         relative = self.handoff_path_from(written.stdout)
         core = root / relative
         original = json.loads(core.read_text())
-        for conversation in ([], {}, {**original["conversation"], "candidates": []}):
-            with self.subTest(conversation=type(conversation).__name__):
+        for history in ([], {}, {**original["history"], "path": "../outside.jsonl"}):
+            with self.subTest(history=type(history).__name__):
                 payload = copy.deepcopy(original)
-                payload["conversation"] = conversation
+                payload["history"] = history
                 core.write_text(json.dumps(payload))
                 result = self.run_cli(root, "validate", "--handoff", relative)
                 self.assertNotEqual(result.returncode, 0)
@@ -191,23 +193,19 @@ class HandoffTests(unittest.TestCase):
         core = root / relative
         original = json.loads(core.read_text())
         mutations = [
-            (("conversation", "candidates"), {}),
-            (("conversation", "candidates", 0, "event_index"), True),
-            (("conversation", "candidates", 1, "event_index"), 1),
-            (("conversation", "candidates", 0, "source", "byte_end"), original["source"]["rollout"]["capture_end"] + 1),
-            (("conversation", "timeline", 0, "event_index"), 2),
-            (("conversation", "timeline", 1, "supersedes_event_index"), 2),
-            (("conversation", "timeline", 0, "repeat_count"), 0),
-            (("conversation", "coverage", "event_count"), 0),
-            (("conversation", "coverage", "event_count"), original["conversation"]["coverage"]["event_count"] + 1),
-            (("conversation", "coverage", "unknown"), {"unknown": 1}),
-            (("conversation", "coverage", "compacted_spans"), []),
-            (("conversation", "coverage", "incomplete_tool_calls"), ["call-1"]),
+            (("history", "counts"), {}),
+            (("history", "counts", "candidate"), True),
+            (("history", "records"), 1),
+            (("history", "capture", "capture_end"), original["source"]["rollout"]["capture_end"] + 1),
+            (("history", "sha256"), "0" * 64),
+            (("history", "path"), "/tmp/history.jsonl"),
+            (("history", "characters"), 0),
+            (("history", "bytes"), 0),
             (("source", "git", "recent_commits"), [0]),
             (("project", "extra"), "unconsumed"),
             (("verified", "validation", 0), {"command": "missing result"}),
             (("memory_projection", "semantic_capsule"), ""),
-            (("source", "rollout", "coverage"), original["conversation"]["coverage"]),
+            (("source", "rollout", "coverage"), {}),
         ]
         for path, value in mutations:
             with self.subTest(path=path):
@@ -260,16 +258,15 @@ class HandoffTests(unittest.TestCase):
                     break
             content = "".join(pieces)
             self.assertEqual(len(content), page["total_chars"])
-            value = json.loads(content)
             if view == "core":
-                self.assertNotIn("conversation", value)
-                self.assertEqual({key: value[key] for key in payload if key != "conversation"}, {key: item for key, item in payload.items() if key != "conversation"})
-                self.assertEqual(value["history_summary"]["candidate_count"], 1)
+                self.assertEqual(json.loads(content), payload)
+                self.assertEqual(payload["history"]["counts"]["candidate"], 1)
             elif event_index is None:
-                self.assertEqual(value, payload["conversation"])
+                self.assertEqual(content, core.with_name(handoff.HISTORY_NAME).read_text())
             else:
+                value = json.loads(content)
                 self.assertEqual(value["text"], message.strip())
-                self.assertEqual(value, payload["conversation"]["candidates"][0])
+                self.assertEqual(value, self.history_records(core)[0]["value"])
             end = handoff.read_view(root, relative, view, offset, 1, event_index)
             self.assertTrue(end["complete"])
             self.assertEqual(end["text"], "")
@@ -292,22 +289,21 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(written.returncode, 0, written.stdout)
         relative = self.handoff_path_from(written.stdout)
         payload = json.loads((root / relative).read_text())
-        coverage = payload["conversation"]["coverage"]
-        self.assertEqual(coverage["unknown"], {"future_kind": 1, "response_item:future_item": 1})
-        self.assertEqual(coverage["incomplete_tool_calls"], ["unmatched"])
-        self.assertEqual(coverage["omissions"][-1]["kind"], "trailing_partial_record")
-        self.assertEqual(self.run_cli(root, "validate", "--handoff", relative).returncode, 0)
-        partial = payload["conversation"]["coverage"]["omissions"].pop()
         core = root / relative
-        core.write_text(json.dumps(payload))
+        records = self.history_records(core)
+        self.assertEqual({r["value"]["name"]: r["value"]["count"] for r in records if r["type"] == "count" and r["value"]["category"] == "unknown"}, {"future_kind": 1, "response_item:future_item": 1})
+        self.assertEqual([r["value"]["call_id"] for r in records if r["type"] == "incomplete_tool_call"], ["unmatched"])
+        self.assertTrue(any(r["type"] == "omission" and r["value"]["kind"] == "trailing_partial_record" for r in records))
+        self.assertEqual(self.run_cli(root, "validate", "--handoff", relative).returncode, 0)
+        without_partial = [r for r in records if not (r["type"] == "omission" and r["value"]["kind"] == "trailing_partial_record")]
+        self.rewrite_history(core, payload, without_partial)
         self.assertEqual(self.run_cli(root, "validate", "--handoff", relative).returncode, 2)
-        payload["conversation"]["coverage"]["omissions"].append(partial)
-        core.write_text(json.dumps(payload))
+        self.rewrite_history(core, payload, records)
         rollout.write_bytes(b"")
         written = self.run_cli(root, "write", "--request", str(self.make_request(root, rollout)), "--explicit-user-request")
         self.assertEqual(written.returncode, 0, written.stdout)
         relative = self.handoff_path_from(written.stdout)
-        self.assertEqual(json.loads(handoff.read_view(root, relative, "history", 0, 4096)["text"])["candidates"], [])
+        self.assertEqual(handoff.read_view(root, relative, "history", 0, 4096)["text"], "")
 
     def test_history_attestation_ranges_are_checked_and_receipted(self) -> None:
         root = self.make_git_root()
@@ -319,7 +315,7 @@ class HandoffTests(unittest.TestCase):
         candidate_size = handoff.read_view(root, relative, "history", 0, 1, 1)["total_chars"]
         base = {"target_source": "session:target", "core_view_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent", "history_read": "none", "history_refs": []}
         def check(value: dict) -> None:
-            handoff._validate_history_reading(payload, handoff.validate_attestation(value))
+            handoff._validate_history_reading(root, payload, handoff.validate_attestation(value))
         for change in ({"history_read": "partial"}, {"history_refs": [{"event_index": None, "offset": 0, "next_offset": 1}]}, {"history_read": "full", "history_refs": [{"event_index": 1, "offset": 0, "next_offset": candidate_size}]}, {"history_read": "full", "history_refs": [{"event_index": None, "offset": 1, "next_offset": size}]}, {"history_read": "partial", "history_refs": [{"event_index": True, "offset": 0, "next_offset": 1}]}, {"history_read": "partial", "history_refs": [{"event_index": 999, "offset": 0, "next_offset": 1}]}, {"history_read": "partial", "history_refs": [{"event_index": None, "offset": 0, "next_offset": size + 1}]}, {"history_read": "partial", "history_refs": [{"event_index": None, "offset": 1, "next_offset": 1}]}):
             with self.subTest(change=change), self.assertRaises(handoff.ContractError):
                 check({**base, **change})
@@ -474,10 +470,10 @@ class HandoffTests(unittest.TestCase):
         relative = self.handoff_path_from(written.stdout)
         payload = json.loads((root / relative).read_text(encoding="utf-8"))
         self.assertEqual(payload["work_context"]["task"]["id"], "fixture-task")
-        self.assertEqual(len(payload["conversation"]["candidates"]), 600)
+        self.assertEqual(payload["history"]["counts"]["candidate"], 600)
         self.assertEqual(len(payload["verified"]["facts"]), 64)
         self.assertNotIn("integrity", payload)
-        self.assertNotIn("sha256", json.dumps(payload))
+        self.assertIn("sha256", payload["history"])
         self.assertEqual(json.loads(self.run_cli(root, "validate", "--handoff", relative).stdout)["status"], "ready")
         self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
         receipt = (root / handoff.LIFECYCLE_RUNTIME / (Path(relative).parts[-2] + ".jsonl")).read_text(encoding="utf-8")
@@ -636,7 +632,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(repeated.returncode, 0, repeated.stderr)
         self.assertEqual(json.loads(repeated.stdout)["status"], "idempotent")
 
-        observation = package / "observation.json"
+        observation = root / "observation.json"
         observation.write_text(json.dumps({
             "availability": "available",
             "boundary": {"status": "sealed", "proof_ref": "local-boundary"},
@@ -649,7 +645,7 @@ class HandoffTests(unittest.TestCase):
         finalized = self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root)))
         self.assertEqual(finalized.returncode, 0, finalized.stderr)
         self.assertEqual(json.loads(finalized.stdout)["status"], "recorded")
-        attestation = package / "attestation.json"
+        attestation = root / "attestation.json"
         attestation.write_text(json.dumps({
             "target_source": "session:target-session", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
@@ -673,7 +669,7 @@ class HandoffTests(unittest.TestCase):
 
         archived = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertEqual(archived.returncode, 0, archived.stderr)
-        self.assertEqual({path.name for path in archive.iterdir()}, {"session-handoff.json", "session-handoff-prompt.md"})
+        self.assertEqual({path.name for path in archive.iterdir()}, {"session-handoff.json", handoff.HISTORY_NAME, "session-handoff-prompt.md"})
         repeated_archive = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertEqual(repeated_archive.returncode, 0, repeated_archive.stderr)
         self.assertEqual(json.loads(repeated_archive.stdout)["status"], "idempotent")
@@ -683,22 +679,24 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(purged.returncode, 0, purged.stderr)
         self.assertFalse(core.exists())
         self.assertFalse(prompt.exists())
+        self.assertFalse(core.with_name(handoff.HISTORY_NAME).exists())
         self.assertTrue((root / "evidence.md").exists())
 
         archived_prompt = archive / "session-handoff-prompt.md"
         archived_prompt.unlink()
-        events_before = handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)
+        events_before = list(handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id))
         incomplete_status = self.run_cli(root, "status", "--handoff", relative)
         self.assertNotEqual(incomplete_status.returncode, 0)
         incomplete_restore = self.run_cli(root, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertNotEqual(incomplete_restore.returncode, 0)
-        self.assertEqual(handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id), events_before)
+        self.assertEqual(list(handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)), events_before)
         archived_prompt.write_text("handoff prompt\n", encoding="utf-8")
 
         restored = self.run_cli(root, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertEqual(restored.returncode, 0, restored.stderr)
         self.assertTrue(core.is_file())
         self.assertTrue(prompt.is_file())
+        self.assertTrue(core.with_name(handoff.HISTORY_NAME).is_file())
         status = self.run_cli(root, "status", "--handoff", relative)
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertEqual(json.loads(status.stdout)["status"], "ready")
@@ -775,7 +773,7 @@ class HandoffTests(unittest.TestCase):
             attestation.write_text(json.dumps(payload))
             self.assertEqual(handoff.lifecycle_admit(root, relative, "attestation.json")[1]["status"], "recorded")
 
-    def test_schema_8_and_9_are_read_only_and_never_use_old_read_semantics(self) -> None:
+    def test_schema_8_9_10_are_rejected_without_mutation(self) -> None:
         root = self.make_git_root()
         self.addCleanup(shutil.rmtree, root)
         written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
@@ -791,20 +789,20 @@ class HandoffTests(unittest.TestCase):
             "task": {"status": "incomplete", "completion_artifact": None},
             "memory": {"status": "unverified", "proof_ref": None},
         }))
-        for version in (8, 9):
+        for version in (8, 9, 10):
             with self.subTest(version=version):
-                payload = self.historical_payload(current, version)
+                payload = copy.deepcopy(current)
+                payload["schema_version"] = version
                 core.write_text(json.dumps(payload))
                 receipt = handoff._lifecycle_path(root, payload["handoff_id"])
                 receipt.parent.mkdir(parents=True, exist_ok=True)
                 receipt.write_text("opaque historical lifecycle receipt\n")
                 before = (core.read_bytes(), receipt.read_bytes())
-                self.assertEqual(handoff.validate(root, payload, payload["handoff_id"]), "historical")
-                self.assertEqual(json.loads(self.run_cli(root, "validate", "--handoff", relative).stdout)["status"], "historical")
+                with self.assertRaises(handoff.ContractError):
+                    handoff.validate(root, payload, payload["handoff_id"])
+                self.assertEqual(self.run_cli(root, "validate", "--handoff", relative).returncode, 2)
                 self.assertEqual(self.run_cli(root, "read", "--handoff", relative, "--view", "core").returncode, 2)
-                historical_status = handoff.lifecycle_status(root, relative)
-                self.assertEqual(historical_status["status"], "historical")
-                self.assertIsNone(historical_status["mode"])
+                self.assertEqual(self.run_cli(root, "status", "--handoff", relative).returncode, 2)
                 archive = root / handoff.ARCHIVE_RUNTIME / payload["handoff_id"]
                 archive.mkdir(parents=True, exist_ok=True)
                 (archive / handoff.HANDOFF_NAME).write_bytes(core.read_bytes())
@@ -824,8 +822,8 @@ class HandoffTests(unittest.TestCase):
                 for label, args in operations.items():
                     result = self.run_cli(root, *args, "--handoff", relative)
                     self.assertEqual(result.returncode, 2, label)
-                    self.assertIn("read-only", result.stdout)
-                self.assertEqual(self.run_cli(root, "ownership", "status", "--handoff", relative).returncode, 0)
+                    self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual(self.run_cli(root, "ownership", "status", "--handoff", relative).returncode, 2)
                 self.assertEqual((core.read_bytes(), receipt.read_bytes()), before)
                 shutil.rmtree(archive)
 

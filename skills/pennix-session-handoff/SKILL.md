@@ -32,9 +32,11 @@ description: 仅在用户明确要求正式跨会话交接时，创建、核验�
 
 `semantic_capsule` 必须非空，由源代理根据当前事实写明重要决策、用户修正、否定或撤销，以及未完成工作和风险。程序只校验结构，不证明摘要完整；源代理必须核对其语义，不能让目标通过穷尽历史重新推导当前合同。
 
-`evidence_paths` 必须是已存在的、项目相对的、非运行态文件。rollout 路径必须明确为绝对路径：不得扫描会话目录，也不得按修改时间选择文件。请求中不得放入凭据、原始工具输出、转录文本、缓存路径或临时状态。辅助程序把 rollout 当作流式 JSONL 源读取到捕获边界，只投影符合条件的公开用户或助手消息及工具元数据。源可以很大；不设置包文本、记录、候选或收据长度上限。它排除 reasoning、developer、system 消息、原始工具参数、原始工具输出和凭据。文件顺序是时间线顺序，记录时间戳只作辅助。较晚的明确用户修正与早期事件一起保留，不静默覆盖历史。
+`evidence_paths` 必须是已存在的、项目相对的、非运行态文件。rollout 路径必须明确为绝对路径：不得扫描会话目录，也不得按修改时间选择文件。请求中不得放入凭据、原始工具输出、转录文本、缓存路径或临时状态。辅助程序把 rollout 当作流式 JSONL 源读取到捕获边界，只投影符合条件的公开用户或助手消息及工具元数据。源可以很大；不设置包文本、记录、候选或收据长度上限。它排除 reasoning、developer、system 消息、原始工具参数和原始工具输出；历史中的已识别秘密只替换敏感区间，保留其他文本，请求/core/收据命中则拒绝。检测是有限规则，不能保证识别任意未知秘密。文件顺序是时间线顺序，记录时间戳只作辅助。较晚的明确用户修正与早期事件一起保留，不静默覆盖历史。
 
-JSON 包是完整的规范资产。历史仅保存于 `conversation.candidates`、`conversation.timeline` 和 `conversation.coverage`；`source.rollout` 只保存来源标识与捕获边界，时间线通过 `event_index` 引用候选，不复制正文或来源。配对 Markdown prompt 保留生命周期指令、已核验事实、语义摘要、记忆引用和待处理工作。接纳必须完整阅读程序提供的核心视图与配对 prompt；历史按需阅读，并准确声明实际范围。
+core JSON 与同目录 `session-handoff-history.jsonl` 共同组成规范资产。core 的 `history` 描述绑定固定文件名、SHA-256、字节数、Unicode 字符数、记录数、有限分类统计与捕获边界。候选、时间线、覆盖区间、分类计数和工具关联以 typed JSONL 记录保存；正文只存一次，时间线通过 `event_index` 引用候选。`source.rollout` 只保存来源标识与捕获边界。配对 Markdown prompt 保留生命周期指令、已核验事实、语义摘要、记忆引用和待处理工作。接纳必须完整阅读程序提供的核心视图与配对 prompt；历史按需阅读，并准确声明实际范围。
+
+写入与整包核验逐记录处理；随历史增长的索引只保存在本次操作的私有临时 SQLite 中，操作后删除。内存随最大单记录、core、请求页及固定缓冲增长，不随历史记录数线性增长；超长单条消息仍需要相应内存。分页不建立持久 cursor；每个依赖入口先核验完整历史绑定，不把摘要或样本成功当作全量语义阅读。
 
 运行：
 
@@ -47,6 +49,7 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 
 ```text
 .trellis/session-handoffs/<handoff-id>/session-handoff.json
+.trellis/session-handoffs/<handoff-id>/session-handoff-history.jsonl
 ```
 
 时间戳目录冲突时失败，不覆盖旧包。它记录任务快照、Git 历史、请求的证据路径以及 rollout 覆盖范围或候选投影；不上传 rollout 内容，也不调用外部模型。
@@ -58,9 +61,9 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
   --project-root . validate --handoff .trellis/session-handoffs/<handoff-id>/session-handoff.json
 ```
 
-`validate` 返回 `ready` 只证明包结构有效。生命周期就绪还要求观察到源边界和规范 JSON 或 prompt 配对；包含任务的包还要求原生 Trellis quiesce 或 seal 收据。目标必须协调当前任务、Git、证据和 rollout；目标 attestation 不能绕过源门禁。本 Skill 不改变任务状态、不控制工作节点，也不复制凭据、缓存或运行台账。
+`validate` 返回 `ready` 只证明 core/history 结构与绑定有效。生命周期就绪还要求观察到源边界；接纳另行核验配对 prompt，包含任务的包还要求原生 Trellis quiesce 与 seal 收据及当前归属状态。目标必须协调当前任务、Git、证据和 rollout；目标 attestation 不能绕过源门禁。本 Skill 不直接改变任务状态、不控制工作节点，也不复制凭据、缓存或运行台账。
 
-新包使用 schema 10。schema 8/9 的 `validate` 和 `status` 返回 `historical`，只允许结构审查及读取已有配对 prompt；分页视图和所有生命周期、归属、保留写入都拒绝历史包。继续工作要从当前事实创建新包，不迁移历史包，也不保留旧版全文阅读与接纳语义。
+新包使用 schema 11。当前入口只接受该合同；旧包不迁移、不准入，也不使用旧版分页或生命周期语义。历史旧文件可用普通只读文件工具审阅；继续正式交接要从当前事实创建新三文件包。
 
 ## 必读核心与历史阅读
 
@@ -73,7 +76,7 @@ python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view his
 
 核心视图包含所有非历史字段及历史统计、引用。必须从 `offset=0` 开始，按返回的 `next_offset` 逐页读取，直到 `complete=true`，再完整阅读配对 prompt。`offset`、`next_offset` 和 `total_chars` 按 Unicode 字符计数；依次拼接每页 `text` 可恢复完整视图。宿主输出若截断、页缺失或读取中断，不能声明已完整阅读；减小 `length` 后补读缺失范围。接口只读，不自动记录消费或推进任务。
 
-历史视图指定 `event_index` 时返回一条完整候选，不指定时返回完整 `conversation`。事实冲突、关键反转或用户要求追溯依据时，按需阅读相应历史；程序完成结构校验不能算代理读过历史。保留现有公开消息投影、规范化和脱敏，不裁掉长消息或较早事件。
+历史视图指定 `event_index` 时返回一条完整候选的确定性 JSON，不指定时返回规范历史 JSONL。事实冲突、关键反转或用户要求追溯依据时，按需阅读相应历史；程序完成结构校验不能算代理读过历史。保留现有公开消息投影和规范化，不裁掉长消息或较早事件；已识别秘密按值或敏感区间脱敏，其他上下文保留。
 
 目标 attestation 使用以下字段；任务为空时使用 `task_disposition="none"` 和 `task_path=null`：
 
@@ -134,7 +137,7 @@ write -> validate -> render -> prepare(core_only)
 
 接纳从不执行 `pending.next_action`，不启动任务，不改变任务指针，也不关闭任务。后续继续必须另行获得授权，先执行归属 `claim`，再依据当前任务分类和阶段使用 `$trellis-continue`。只读 `analysis_only` 研究保持 planning，不运行 `task.py start`；变更任务只有在当前原生 seal 和批准存在时才 start，已经运行的工作恢复已有检查点。完成任务按原生 Trellis `finish` 或 `archive` 使用精确任务路径，不制造会话指针。
 
-协调接纳后，`retention archive` 在确认 core 可解析、prompt 可读后原子复制二者。重试归档是幂等的；失败归档仍可再次归档，不重复 intake。`restore`、`reopen` 和 `purge` 都要求同一交接 ID。 `purge` 只在归档核验后移除规范 core 和 prompt；不删除任务、rollout、会话、记忆、资源、watch、日志或远程数据。收据保留为审计证据。`status --handoff <core.json>` 用于查看选定生命周期模式是否 ready；渲染器拒绝 pending 高保证模式。
+协调接纳后，`retention archive` 核验整包与 prompt，再原子复制 core/history/prompt 三文件；恢复也按整包核验和目录事务进行。重试归档是幂等的；失败归档仍可再次归档，不重复 intake。`restore`、`reopen` 和 `purge` 都要求同一交接 ID。`purge` 在归档核验后通过目录切换移除规范三文件，收据写入失败时恢复原目录；发现未知资产则拒绝清理。它不删除任务、rollout、会话、记忆、资源、watch、日志或远程数据。收据按 JSONL 逐记录处理，保留为审计证据。`status --handoff <core.json>` 用于查看选定生命周期模式是否 ready；渲染器拒绝 pending 高保证模式。
 
 ## 新会话收尾
 

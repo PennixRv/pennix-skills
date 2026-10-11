@@ -59,3 +59,21 @@ AGENTS 阻塞进一步按真实源复核：现场 SHA-256 为 a126ddcab9cef58a2f
 修复提交 b60a9311ca6942b90998d75cd7735d16d3ab5405 已推送 origin/main，CI run 38147739493 成功；系统 skill-installer 按精确 SHA 安装全部 12 项到相邻 staging，暂存 lifecycle replace-staged 原子接纳成功。实际安装入口的 profile reconcile 返回 refreshed，原生 codex-agents upgrade 返回 changed；没有手改活动集合、profile 或 AGENTS。完整 host verify 正在运行，结果单独记录。
 
 E01 冻结字节已精确恢复：仅把 skills_before 中被名称修订误改的历史身份还原，文件 SHA-256 恢复为原预算/全部 before 摘要的 f746a75d6729033a6b0b9d9907a712e5c66c12b93587e6a7f0a81683f4072fe1。prompt、expected、after 身份及 44 场景与 100 轮预算未改变，私有 budget 不改写；该修正落实原 N01/E01 历史映射保真合同，不新增旧名入口。后测将使用新安装集合继续；43 项 before 轨迹仍需逐例核验，不把冻结问题解除当作行为通过。
+
+## F07/F08 实施漏项核对
+
+逐项复核已批准 Steps/Validation Matrix 时确认，源与安装树 handoff.py 仍为 SCHEMA_VERSION=10，SKILL.md 仍描述历史嵌入 conversation；Step 3 的 schema 11、独立 history JSONL、流式索引及秘密边界尚未实施。既有提交/局部测试不能覆盖该漏项。已停止正在运行的 after 驱动并保留原始事件及已消耗预算；不能把当前集合称为完整最终树，既有 after 结果仅适用于其实际读取的内容。补齐范围已在 revision 2 明确批准，无须新增范围决策或修改封口计划。
+
+下一有界单元只落实 F07/F08：修改 handoff writer/validator/read/lifecycle/ownership/retention、renderer、共享 workflow_contracts、对应测试与 Skill/源规范。复用标准库、现有原子发布和摘要；不改 Trellis runtime/身份，不迁移旧包，不修改源 rollout。先读完整接口及调用者，保留失败回归，再完成规模/秘密/事务门；最终重新交付安装后复测受影响场景，所有轮次仍计入原 100 上限。
+
+宿主核验已完成：b60a931 安装入口的 full verify 返回 match，零 failures/advisories，profile match，两命令及规则资产 match；根 full-local 13/13 passed、零 blocked。这些门独立于尚未完成的 F07/F08 和 E01。
+
+F07/F08 失败回归确认旧 writer 生成 schema 10 且缺 history 文件。当前已改为 schema 11 三文件合同，候选/时间线/覆盖/动态分类与工具引用逐记录写 JSONL；重复/主题/工具及验证索引在私有临时 SQLite，缓存 2 MiB、temp_store=FILE，不交付数据库。core 只存固定分类统计和完整摘要/捕获绑定。所有 read/render/lifecycle/ownership/retention 先核验历史的摘要与规范字节、字段/引用/计数；历史分页只读请求页，收据重复扫描不保留历史列表。旧 schemas 8/9/10 当前入口全部拒绝，普通工具只读审阅不受影响。
+
+秘密检测按 decoded 字段/值和有限 token/xai/key/bearer/private-key 规则进行，历史只替换识别区间或值，request/core/receipt 命中拒绝。加入 quoted/escaped/nested JSON 与正常技术文字回归、畸形但摘要重算的历史跨入口拒绝、SQLite/目录发布/恢复故障回退。第一轮旧测试因 schema 断言及嵌入历史假设失败，已按新公开合同保留对应行为覆盖；当前完整 handoff suite 41 项（资源门默认跳过 1）通过。192 MiB 显式资源门首次因测试 runpy 未设置脚本 import 路径失败，属于测试驱动差异；修正等价原生脚本路径后按原 1k/10k/100k 与 8 MiB 输入重跑，没有降低规模或预算。资源结果及全仓/真实交互仍待完成，不称 F07/F08 已验收。
+
+首轮显式资源门通过，56 个 native helper 子进程涵盖四种规模，1k/10k/100k 已记录 RSS 峰值约 34 MiB，8 MiB Unicode 单条最大 97,056 KiB；原始结果只留 /tmp。收敛前复核发现 purge 仍逐文件 unlink、空公开消息未计入覆盖，且资源门未直接调用 ownership、未测临时 SQLite 存在期间的磁盘峰值。新增两项回归先失败，随后将 purge 改为整包目录切换并在收据失败时恢复，空消息显式计数、覆盖总数严格相等、partial tail 后禁止源记录；所有增长分类都批量提交，内存不足和 renderer 的 SQLite/编码异常控制失败。有限 JSON 检测只对可能是 JSON 的字符串解析，减少收据重复扫描成本。更新后全仓测试通过；最终资源门正在按原规模和预算串行重跑，并补入 task-bearing ownership/core_digest 及每次操作的临时磁盘峰值采样。资源 fixture 的 task.py 明确是测试替身，不计为真实目标宿主门。
+
+最终 F07/F08 验证已完成：19 个 Python 测试模块共 260 项通过，普通运行按设计跳过显式资源门；session-handoff Skill 的 quick_validate 和 `git diff --check` 通过。显式资源门在 1k、10k、100k 与 8 MiB Unicode 四种规模运行 64 个 native helper 操作，全部退出 0；每个进程受 192 MiB 地址空间限制，最高 RSS 97,032 KiB，测试目录临时数据峰值 773,293,099 字节，低于 1 GiB。100k receipt、task-bearing ownership/core_digest、分页、renderer、prepare/seal/admit/status、archive/purge/restore 均覆盖。根 full-local 再验 13/13 passed、零 failed/blocked。该资源结果来自隔离 fixture；真实 handoff 目标宿主仍未验收。
+
+最终资源门现已通过：64 个操作全部退出 0，资源与规模数值见上。当前本地差异尚未提交或推送。接下来按精确 Pennix SHA 交付、CI、原生全集合 staging/接纳与完整宿主 verify；再继续原 100 轮预算的 after 场景及人工轨迹核对。预算保持 55/100，之前 10 个不依赖本次 handoff 文件的 after 轨迹只在已逐字节核对所读来源后保留，S04-negative 的中断轨迹不覆盖；新测试轮次还须重试该例。当前工具目录没有可启动第二 Codex 目标会话的原生能力，非交互 `codex exec` 不替代真实目标；正式 handoff 接纳门保持待验证，不宣称任务完成。

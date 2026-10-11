@@ -8,13 +8,72 @@ from pathlib import Path
 from typing import Any, Dict
 
 
-SECRET_RE = re.compile(
-    r"(?:-----BEGIN [A-Z0-9 ]+ PRIVATE KEY-----|"
-    r"bearer\s+[A-Za-z0-9._~+/=-]{20,}|"
-    r"\b(?:sk|th)-[A-Za-z0-9_-]{20,}|"
-    r"(?:api[_-]?key|password|secret)\s*[:=]\s*[A-Za-z0-9._~+/=-]{20,})",
-    re.IGNORECASE,
+SECRET_KEY_RE = re.compile(r"(?:api[_-]?key|password|secret|(?:access[_-]?|auth[_-]?)?token)", re.IGNORECASE)
+SECRET_VALUE_RE = re.compile(r"[A-Za-z0-9._~+/=-]{20,}")
+SECRET_PATTERNS = (
+    re.compile(r"(?P<secret>-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$))", re.IGNORECASE),
+    re.compile(r"\bbearer\s+(?P<secret>[A-Za-z0-9._~+/=-]{20,})", re.IGNORECASE),
+    re.compile(r"\b(?P<secret>(?:sk|th|xai)-[A-Za-z0-9_-]{20,})", re.IGNORECASE),
+    re.compile(r'''(?:api[_-]?key|password|secret|(?:access[_-]?|auth[_-]?)?token)(?:\\?["'])?\s*[:=]\s*(?:\\?["'])?(?P<secret>(?:[A-Za-z0-9._~+/=-]|\\u[0-9a-f]{4}|\\["\\/bfnrt]){20,})''', re.IGNORECASE),
 )
+
+
+def secret_spans(text: str):
+    spans = sorted(match.span("secret") for pattern in SECRET_PATTERNS for match in pattern.finditer(text))
+    merged = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def redact_text(text: str) -> str:
+    # Decode quoted JSON values before scanning, including Unicode escapes.
+    try:
+        value = json.loads(text) if text.lstrip().startswith(('"', '{', '[')) else None
+    except (ValueError, RecursionError):
+        value = None
+    if isinstance(value, str) and value != text and contains_secret(value):
+        return json.dumps(redact_text(value), ensure_ascii=False)
+    if isinstance(value, (dict, list)):
+        def scrub(item, key=None):
+            if isinstance(item, dict):
+                return {name: scrub(value, name) for name, value in item.items()}
+            if isinstance(item, list):
+                return [scrub(value, key) for value in item]
+            if isinstance(item, str):
+                if key and SECRET_KEY_RE.fullmatch(key) and SECRET_VALUE_RE.fullmatch(item):
+                    return "[redacted: possible credential]"
+                return redact_text(item)
+            return item
+        if contains_secret(value):
+            return json.dumps(scrub(value), ensure_ascii=False)
+    result, offset = [], 0
+    for start, end in secret_spans(text):
+        result.extend((text[offset:start], "[redacted: possible credential]"))
+        offset = end
+    result.append(text[offset:])
+    return "".join(result)
+
+
+def contains_secret(value: Any, key: str | None = None) -> bool:
+    if isinstance(value, dict):
+        return any(contains_secret(name) or contains_secret(item, name) for name, item in value.items())
+    if isinstance(value, list):
+        return any(contains_secret(item, key) for item in value)
+    if not isinstance(value, str):
+        return False
+    if (key and SECRET_KEY_RE.fullmatch(key) and SECRET_VALUE_RE.fullmatch(value)) or secret_spans(value):
+        return True
+    if not value.lstrip().startswith(('"', '{', '[')):
+        return False
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError):
+        return False
+    return isinstance(decoded, (dict, list, str)) and decoded != value and contains_secret(decoded, key)
 
 
 class ContractError(ValueError):
@@ -70,12 +129,15 @@ def load_json_file(path: Path) -> Dict[str, Any]:
         raise ContractError("JSON input must be a regular file: %s" % path)
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, ValueError, RecursionError) as exc:
         raise ContractError("JSON input is unreadable or invalid") from exc
     if not isinstance(value, dict):
         raise ContractError("JSON input must be an object")
-    if SECRET_RE.search(json.dumps(value, ensure_ascii=False)):
-        raise ContractError("JSON input contains a possible credential or secret")
+    try:
+        if contains_secret(value):
+            raise ContractError("JSON input contains a possible credential or secret")
+    except RecursionError as exc:
+        raise ContractError("JSON input nesting exceeds parser capability") from exc
     return value
 
 
@@ -161,7 +223,7 @@ def validate_observation(value: Any) -> Dict[str, Any]:
         "task": {"status": task_status, "completion_artifact": task["completion_artifact"]},
         "memory": {"status": memory_status, "proof_ref": memory_proof_ref},
     }
-    if SECRET_RE.search(json.dumps(normalized, ensure_ascii=False)):
+    if contains_secret(normalized):
         raise ContractError("observation contains a possible credential or secret")
     return normalized
 
@@ -214,6 +276,6 @@ def validate_attestation(value: Any) -> Dict[str, Any]:
         "task_path": task_path, "continuation_status": continuation,
         "history_read": history_read, "history_refs": history_refs,
     }
-    if SECRET_RE.search(json.dumps(normalized, ensure_ascii=False)):
+    if contains_secret(normalized):
         raise ContractError("attestation contains a possible credential or secret")
     return normalized

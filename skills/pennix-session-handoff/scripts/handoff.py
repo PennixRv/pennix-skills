@@ -9,27 +9,30 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workflow_contracts import (  # noqa: E402
-    ContractError, SECRET_RE, LIFECYCLE_MODES, TARGET_SOURCE_RE, _text, _text_list, _fields, _integer, free_text, lifecycle_mode,
+    ContractError, contains_secret, redact_text, LIFECYCLE_MODES, TARGET_SOURCE_RE, _text, _text_list, _fields, _integer, lifecycle_mode,
     load_json_file, safe_id, validate_attestation,
     validate_observation,
 )
 
 
-SCHEMA_VERSION = 10
-SUPPORTED_SCHEMA_VERSIONS = {8, 9, SCHEMA_VERSION}
+SCHEMA_VERSION = 11
 KIND = "pennix-session-handoff"
 PARSER_VERSION = "codex-jsonl-local-v1"
 HANDOFFS = ".trellis/session-handoffs"
 HANDOFF_NAME = "session-handoff.json"
+HISTORY_NAME = "session-handoff-history.jsonl"
+HISTORY_TYPES = {"candidate", "timeline", "omission", "unknown_span", "compacted_span", "count", "incomplete_tool_call"}
 HANDOFF_ID = re.compile(r"^\d{8}T\d{12}Z$")
 AUTHORIZATION = {
     "source": "current_user_explicit_request",
@@ -181,9 +184,7 @@ def _short_text(value: Any) -> Optional[str]:
     compact = " ".join(value.split())
     if not compact:
         return None
-    if SECRET_RE.search(compact):
-        return "[redacted: possible credential]"
-    return compact
+    return redact_text(compact)
 
 
 def _content_text(payload: Dict[str, Any]) -> Optional[str]:
@@ -242,30 +243,70 @@ def _timeline_state(text: str) -> str:
     return "proposed"
 
 
-def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
+@contextmanager
+def _history_index():
+    with tempfile.TemporaryDirectory(prefix="pennix-handoff-index-") as directory:
+        database = sqlite3.connect(str(Path(directory) / "index.sqlite"))
+        try:
+            database.executescript("""
+                PRAGMA cache_size=-2048;
+                PRAGMA temp_store=FILE;
+                PRAGMA journal_mode=OFF;
+                CREATE TABLE topics(topic TEXT PRIMARY KEY, event INTEGER);
+                CREATE TABLE repeats(topic TEXT, digest TEXT, n INTEGER, PRIMARY KEY(topic,digest));
+                CREATE TABLE tools(id TEXT PRIMARY KEY, calls INTEGER DEFAULT 0, results INTEGER DEFAULT 0);
+                CREATE TABLE counts(category TEXT, name TEXT, n INTEGER, PRIMARY KEY(category,name));
+                CREATE TABLE candidates(id INTEGER PRIMARY KEY, kind TEXT, topic TEXT, digest TEXT, state TEXT, chars INTEGER, timeline INTEGER DEFAULT 0);
+            """)
+            yield database
+        finally:
+            database.close()
+
+
+def _history_record(kind: str, value: Dict[str, Any]) -> str:
+    return json.dumps({"type": kind, "value": value}, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+
+
+def _topic_transition(database, topic: str, text_digest: str, event: int) -> tuple[int, Optional[int]]:
+    row = database.execute("SELECT n FROM repeats WHERE topic=? AND digest=?", (topic, text_digest)).fetchone()
+    repeat = 1 if row is None else row[0] + 1
+    previous = database.execute("SELECT event FROM topics WHERE topic=?", (topic,)).fetchone()
+    database.execute("INSERT OR REPLACE INTO repeats VALUES(?,?,?)", (topic, text_digest, repeat))
+    database.execute("INSERT OR REPLACE INTO topics VALUES(?,?)", (topic, event))
+    return repeat, None if previous is None else previous[0]
+
+
+def _count(database, category: str, name: str) -> None:
+    database.execute("INSERT INTO counts VALUES(?,?,1) ON CONFLICT(category,name) DO UPDATE SET n=n+1", (category, name))
+
+
+def _tool_seen(database, kind: str, call_id: str) -> None:
+    column = "calls" if kind == "tool_call" else "results"
+    database.execute("INSERT OR IGNORE INTO tools(id) VALUES(?)", (call_id,))
+    database.execute("UPDATE tools SET " + column + "=1 WHERE id=?", (call_id,))
+
+
+def _rollout_descriptor(raw: Dict[str, Optional[str]], history_path: Path) -> tuple[Dict[str, Any], Dict[str, Any]]:
     path = _regular_file(Path(str(raw["path"])), "rollout source")
     session_id = raw["session_id"]
-    with path.open("rb") as handle:
+    counts = {kind: 0 for kind in HISTORY_TYPES}
+    hasher = hashlib.sha256()
+    history_bytes = history_chars = 0
+    with _history_index() as database, history_path.open("xb") as output, path.open("rb") as handle:
+        os.chmod(history_path, 0o600)
+        def keep(kind: str, item: Dict[str, Any]) -> None:
+            nonlocal history_bytes, history_chars
+            encoded = _history_record(kind, item)
+            data = encoded.encode("utf-8")
+            output.write(data)
+            hasher.update(data)
+            history_bytes += len(data)
+            history_chars += len(encoded)
+            counts[kind] += 1
+
         start = os.fstat(handle.fileno())
         capture_size = start.st_size
         offset = line_number = record_count = event_index = 0
-        candidates: list[Dict[str, Any]] = []
-        timeline: list[Dict[str, Any]] = []
-        latest_by_topic: Dict[str, int] = {}
-        repeated: Dict[str, int] = {}
-        tool_calls: Dict[str, int] = {}
-        tool_results: Dict[str, int] = {}
-        excluded: Dict[str, int] = {}
-        unknown: Dict[str, int] = {}
-        unknown_spans: list[Dict[str, Any]] = []
-        omissions: list[Dict[str, Any]] = []
-        compacted_spans: list[Dict[str, Any]] = []
-
-        def keep(items: list[Dict[str, Any]], item: Dict[str, Any]) -> None:
-            items.append(item)
-
-        def count(items: Dict[str, int], key: str) -> None:
-            items[key] = items.get(key, 0) + 1
         while offset < capture_size:
             remaining = capture_size - offset
             raw_line = handle.readline(remaining + 1)
@@ -274,7 +315,7 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             if not raw_line.endswith(b"\n") and offset + len(raw_line) < capture_size:
                 raise ContractError("rollout contains an incomplete record before capture boundary")
             if not raw_line.endswith(b"\n"):
-                omissions.append({"kind": "trailing_partial_record", "byte_start": offset, "bytes": len(raw_line)})
+                keep("omission", {"kind": "trailing_partial_record", "byte_start": offset, "bytes": len(raw_line)})
                 break
             line_number += 1
             byte_start = offset
@@ -282,7 +323,7 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             if not raw_line.strip():
                 continue
             if raw_line.rstrip(b"\r\n") and not raw_line.rstrip(b"\r\n").replace(b"\0", b""):
-                omissions.append({
+                keep("omission", {
                     "kind": "nul_padding_record",
                     "line": line_number,
                     "byte_start": byte_start,
@@ -297,15 +338,17 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             if not isinstance(record, dict):
                 raise ContractError("rollout record is not an object at line %d" % line_number)
             record_count += 1
-            record_type = str(record.get("type", "unknown"))
+            if record_count % 256 == 0:
+                database.commit()
+            record_type = _short_text(str(record.get("type", "unknown")))
             payload = record.get("payload")
             source = {"line": line_number, "byte_start": byte_start, "byte_end": offset, "record_type": record_type}
             if isinstance(record.get("timestamp"), str):
                 source["timestamp"] = _short_text(record["timestamp"])
             payload_type = payload.get("type") if isinstance(payload, dict) else None
             if record_type == "compacted" or payload_type == "compacted":
-                count(excluded, "compacted")
-                compacted_spans.append({
+                _count(database, "excluded", "compacted")
+                keep("compacted_span", {
                     "line": line_number,
                     "byte_start": byte_start,
                     "byte_end": offset,
@@ -315,71 +358,71 @@ def _rollout_descriptor(raw: Dict[str, Optional[str]]) -> Dict[str, Any]:
             role, message_text = _event_message(record_type, payload)
             if role and message_text:
                 event_index += 1
-                keep(candidates, {"kind": role, "event_index": event_index, "text": message_text, "source": source})
+                keep("candidate", {"kind": role, "event_index": event_index, "text": message_text, "source": source})
                 if role == "user":
                     topic = _topic_key(message_text)
                     if topic:
-                        repeat_key = topic + "\0" + message_text
-                        repeated[repeat_key] = repeated.get(repeat_key, 0) + 1
-                        item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeated[repeat_key] > 1 else _timeline_state(message_text), "event_index": event_index, "repeat_count": repeated[repeat_key]}
-                        if topic in latest_by_topic:
-                            item["supersedes_event_index"] = latest_by_topic[topic]
-                        latest_by_topic[topic] = event_index
-                        keep(timeline, item)
+                        repeat, previous = _topic_transition(database, topic, hashlib.sha256(message_text.encode()).hexdigest(), event_index)
+                        item: Dict[str, Any] = {"topic_key": topic, "state": "repeated" if repeat > 1 else _timeline_state(message_text), "event_index": event_index, "repeat_count": repeat}
+                        if previous is not None:
+                            item["supersedes_event_index"] = previous
+                        keep("timeline", item)
                 continue
             if record_type != "response_item" or not isinstance(payload, dict):
-                count(unknown, record_type)
-                unknown_spans.append({"record_type": record_type, "line": line_number, "byte_start": byte_start, "byte_end": offset})
+                _count(database, "unknown", record_type)
+                keep("unknown_span", {"record_type": _short_text(record_type), "line": line_number, "byte_start": byte_start, "byte_end": offset})
                 continue
             item_type = str(payload.get("type", "unknown"))
             if item_type == "reasoning":
-                excluded["reasoning"] = excluded.get("reasoning", 0) + 1
+                _count(database, "excluded", "reasoning")
                 continue
             if item_type == "message":
                 role = payload.get("role")
                 if role not in {"user", "assistant"}:
-                    excluded["message:%s" % role] = excluded.get("message:%s" % role, 0) + 1
+                    _count(database, "excluded", _short_text("message:%s" % role))
                     continue
+                _count(database, "excluded", "empty_public_message")
                 continue
             if item_type in {"function_call", "custom_tool_call", "tool_call"}:
                 call_id = _short_text(payload.get("call_id") or payload.get("id"))
                 if call_id:
-                    tool_calls[call_id] = event_index + 1
+                    _tool_seen(database, "tool_call", call_id)
                 event_index += 1
                 item = {"kind": "tool_call", "event_index": event_index, "tool": _short_text(payload.get("name")), "source": source}
                 if call_id:
                     item["call_id"] = call_id
-                keep(candidates, item)
+                keep("candidate", item)
                 continue
             if item_type in {"function_call_output", "custom_tool_call_output", "tool_result"}:
                 call_id = _short_text(payload.get("call_id") or payload.get("id"))
                 if call_id:
-                    tool_results[call_id] = event_index + 1
+                    _tool_seen(database, "tool_result", call_id)
                 event_index += 1
                 item = {"kind": "tool_result", "event_index": event_index, "source": source}
                 if call_id:
                     item["call_id"] = call_id
-                keep(candidates, item)
+                keep("candidate", item)
                 continue
-            count(unknown, "response_item:%s" % item_type)
-            unknown_spans.append({"record_type": "response_item:%s" % item_type, "line": line_number, "byte_start": byte_start, "byte_end": offset})
+            name = _short_text("response_item:%s" % item_type)
+            _count(database, "unknown", name)
+            keep("unknown_span", {"record_type": name, "line": line_number, "byte_start": byte_start, "byte_end": offset})
         capture_end = offset
         end = os.fstat(handle.fileno())
-    if end.st_size < capture_end:
-        raise ContractError("rollout source changed while being captured")
-    coverage = {
-        "source_bytes_at_capture": capture_size, "capture_end": capture_end, "record_count": record_count,
-        "event_count": event_index, "excluded": excluded, "unknown": unknown, "omissions": omissions,
-        "unknown_spans": unknown_spans,
-        "compacted_spans": compacted_spans,
-        "incomplete_tool_calls": sorted(set(tool_calls) ^ set(tool_results)),
+        if end.st_size < capture_end:
+            raise ContractError("rollout source changed while being captured")
+        for category, name, n in database.execute("SELECT category,name,n FROM counts ORDER BY category,name"):
+            keep("count", {"category": category, "name": name, "count": n})
+        for (call_id,) in database.execute("SELECT id FROM tools WHERE calls<>results ORDER BY id"):
+            keep("incomplete_tool_call", {"call_id": call_id})
+        output.flush()
+        os.fsync(output.fileno())
+    identity = {"path": str(path), "session_id": session_id, "capture_end": capture_end, "record_count": record_count, "parser_version": PARSER_VERSION}
+    history = {
+        "path": HISTORY_NAME, "sha256": hasher.hexdigest(), "bytes": history_bytes,
+        "characters": history_chars, "records": sum(counts.values()), "counts": counts,
+        "capture": {"source_bytes_at_capture": capture_size, "capture_end": capture_end, "record_count": record_count},
     }
-    return {
-        "path": str(path), "session_id": session_id,
-        "capture_end": capture_end, "record_count": record_count,
-        "parser_version": PARSER_VERSION, "coverage": coverage, "conversation_candidates": candidates,
-        "timeline": timeline,
-    }
+    return identity, history
 
 
 def _source(root: Path, task: Optional[Dict[str, str]], evidence: list[Dict[str, Any]], rollout: Dict[str, Any]) -> Dict[str, Any]:
@@ -418,7 +461,7 @@ def _request(root: Path, path: Path) -> Dict[str, Any]:
         },
     }
     _evidence_snapshot(root, evidence_paths)
-    if SECRET_RE.search(json.dumps(normalized, ensure_ascii=False)):
+    if contains_secret(normalized):
         raise ContractError("handoff request contains a possible credential or secret")
     return normalized
 
@@ -443,8 +486,8 @@ def _destination(root: Path, handoff_path: Optional[str] = None, create_id: Opti
     return create_id, base / create_id / HANDOFF_NAME
 
 
-def build(root: Path, request: Dict[str, Any], handoff_id: str) -> Dict[str, Any]:
-    rollout = _rollout_descriptor(request["rollout"])
+def build(root: Path, request: Dict[str, Any], handoff_id: str, history_path: Path) -> Dict[str, Any]:
+    rollout, history = _rollout_descriptor(request["rollout"], history_path)
     evidence = _evidence_snapshot(root, request["evidence_paths"])
     task = _task_snapshot(root)
     source = _source(root, task, evidence, rollout)
@@ -455,7 +498,7 @@ def build(root: Path, request: Dict[str, Any], handoff_id: str) -> Dict[str, Any
         "work_context": {"task": task},
         "source": {"session_label": request["session_label"], "git": source["git"], "evidence": evidence, "rollout": source["rollout_identity"]},
         "verified": {"facts": request["facts"], "validation": request["validation"]},
-        "conversation": {"candidates": rollout["conversation_candidates"], "timeline": rollout["timeline"], "coverage": rollout["coverage"]},
+        "history": history,
         "pending": {"next_action": request["next_action"], "blockers": request["blockers"], "risks": request["risks"]},
         "memory_projection": request["memory_projection"], "authorization": dict(AUTHORIZATION),
     }
@@ -470,153 +513,176 @@ def _source_position(value: Dict[str, Any], boundary: int, label: str) -> None:
         raise ContractError(label + " exceeds capture boundary")
 
 
-def _validate_conversation(conversation: Any, rollout: Dict[str, Any], *, historical: bool) -> None:
-    _fields(conversation, {"candidates", "timeline", "coverage"}, "conversation")
-    candidates, timeline, coverage = (conversation[key] for key in ("candidates", "timeline", "coverage"))
-    if not isinstance(candidates, list) or not isinstance(timeline, list):
-        raise ContractError("conversation candidates/timeline must be lists")
-    _fields(coverage, {"source_bytes_at_capture", "capture_end", "record_count", "event_count", "excluded", "unknown", "omissions", "unknown_spans", "compacted_spans", "incomplete_tool_calls"}, "conversation.coverage")
-    boundary = _integer(coverage["capture_end"], "coverage.capture_end")
-    size = _integer(coverage["source_bytes_at_capture"], "coverage.source_bytes_at_capture")
-    records = _integer(coverage["record_count"], "coverage.record_count")
-    if boundary > size or boundary != rollout["capture_end"] or records != rollout["record_count"]:
-        raise ContractError("conversation coverage and rollout disagree")
-    if _integer(coverage["event_count"], "coverage.event_count") != len(candidates) or records < len(candidates):
-        raise ContractError("conversation event count disagrees with candidates")
-    previous_end = 0
-    previous_line = 0
-    calls: set[str] = set()
-    results: set[str] = set()
-    for index, candidate in enumerate(candidates, 1):
-        if not isinstance(candidate, dict):
-            raise ContractError("conversation candidate must be an object")
-        kind = _text(candidate.get("kind"), "candidate.kind")
-        fields = {"kind", "event_index", "source"}
-        if kind in {"user", "assistant"}:
-            fields.add("text")
-            _text(candidate.get("text"), "candidate.text")
-        elif kind in {"tool_call", "tool_result"}:
-            if kind == "tool_call":
-                fields.add("tool")
-                if candidate.get("tool") is not None:
-                    _text(candidate["tool"], "candidate.tool")
-            if "call_id" in candidate:
-                fields.add("call_id")
-                (calls if kind == "tool_call" else results).add(_text(candidate["call_id"], "candidate.call_id"))
-        else:
-            raise ContractError("conversation candidate kind is invalid")
-        _fields(candidate, fields, "candidate")
-        if _integer(candidate["event_index"], "candidate.event_index", 1) != index:
-            raise ContractError("candidate event indices must be consecutive")
-        source = candidate["source"]
-        source_fields = {"line", "byte_start", "byte_end", "record_type"}
-        if isinstance(source, dict) and "timestamp" in source:
-            source_fields.add("timestamp")
-            _text(source["timestamp"], "candidate.source.timestamp")
-        _fields(source, source_fields, "candidate.source")
-        _text(source["record_type"], "candidate.source.record_type")
-        _source_position(source, boundary, "candidate.source")
-        if source["byte_start"] < previous_end or source["line"] <= previous_line:
-            raise ContractError("candidate source positions are out of order")
-        previous_end, previous_line = source["byte_end"], source["line"]
-    latest: dict[str, int] = {}
-    repeats: dict[tuple[str, str], int] = {}
-    previous_index = 0
-    for item in timeline:
-        if not isinstance(item, dict):
-            raise ContractError("timeline item must be an object")
-        fields = {"topic_key", "state", "event_index", "repeat_count"}
-        if historical:
-            fields |= {"summary", "source"}
-        if "supersedes_event_index" in item:
-            fields.add("supersedes_event_index")
-        _fields(item, fields, "timeline item")
-        event_index = _integer(item["event_index"], "timeline.event_index", 1)
-        if not previous_index < event_index <= len(candidates):
-            raise ContractError("timeline reference is invalid or out of order")
-        candidate = candidates[event_index - 1]
-        if candidate["kind"] != "user":
-            raise ContractError("timeline must reference a user candidate")
-        if historical and (item["summary"] != candidate["text"] or item["source"] != candidate["source"]):
-            raise ContractError("historical timeline and candidate disagree")
-        topic = _text(item["topic_key"], "timeline.topic_key")
-        state = _text(item["state"], "timeline.state")
-        if state not in {"proposed", "accepted", "reaccepted", "rejected", "revoked", "corrected", "repeated"}:
-            raise ContractError("timeline state is invalid")
-        repeat_key = (topic, candidate["text"])
-        repeats[repeat_key] = repeats.get(repeat_key, 0) + 1
-        repeat_count = _integer(item["repeat_count"], "timeline.repeat_count", 1)
-        if repeat_count != repeats[repeat_key] or (state == "repeated") != (repeat_count > 1):
-            raise ContractError("timeline repeat count is inconsistent")
-        supersedes = item.get("supersedes_event_index")
-        if supersedes is not None:
-            _integer(supersedes, "timeline.supersedes_event_index", 1)
-        elif "supersedes_event_index" in item:
-            raise ContractError("timeline supersedes reference cannot be null")
-        if supersedes != latest.get(topic):
-            raise ContractError("timeline supersedes reference is inconsistent")
-        latest[topic], previous_index = event_index, event_index
-    for key in ("excluded", "unknown"):
-        counts = coverage[key]
-        if not isinstance(counts, dict):
-            raise ContractError("coverage.%s must be an object" % key)
-        for kind, count in counts.items():
-            _text(kind, "coverage count key")
-            _integer(count, "coverage.%s count" % key, 1)
-    if len(candidates) + sum(coverage["unknown"].values()) + sum(coverage["excluded"].values()) > records:
-        raise ContractError("coverage counts exceed record count")
-    unknown_counts: dict[str, int] = {}
-    trailing_partials = 0
-    for key in ("unknown_spans", "compacted_spans", "omissions"):
-        if not isinstance(coverage[key], list):
-            raise ContractError("coverage.%s must be a list" % key)
-        previous_end = 0
-        previous_line = 0
-        for span in coverage[key]:
-            if not isinstance(span, dict):
-                raise ContractError("coverage span must be an object")
-            if key == "omissions" and span.get("kind") == "trailing_partial_record":
-                trailing_partials += 1
-                if trailing_partials > 1:
-                    raise ContractError("coverage has multiple trailing partial records")
-                _fields(span, {"kind", "byte_start", "bytes"}, "trailing partial record")
-                if _integer(span["byte_start"], "partial.byte_start") != boundary or boundary + _integer(span["bytes"], "partial.bytes", 1) != size:
-                    raise ContractError("partial record boundary is inconsistent")
-                continue
-            fields = {"line", "byte_start", "byte_end"}
-            if key == "unknown_spans":
-                fields.add("record_type")
-                kind = _text(span.get("record_type"), "unknown span.record_type")
-                unknown_counts[kind] = unknown_counts.get(kind, 0) + 1
+def _history_path(root: Path, payload: Dict[str, Any]) -> Path:
+    return _destination(root, create_id=payload["handoff_id"])[1].with_name(HISTORY_NAME)
+
+
+def _validate_history(path: Path, history: Dict[str, Any], rollout: Dict[str, Any]) -> None:
+    _fields(history, {"path", "sha256", "bytes", "characters", "records", "counts", "capture"}, "history")
+    if history["path"] != HISTORY_NAME or not isinstance(history["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", history["sha256"]):
+        raise ContractError("history path or digest is invalid")
+    _fields(history["counts"], HISTORY_TYPES, "history counts")
+    for name in ("bytes", "characters", "records"):
+        _integer(history[name], "history." + name)
+    for name in HISTORY_TYPES:
+        _integer(history["counts"][name], "history count")
+    capture = _fields(history["capture"], {"source_bytes_at_capture", "capture_end", "record_count"}, "history capture")
+    for name in capture:
+        _integer(capture[name], "history capture." + name)
+    boundary, size, source_records = capture["capture_end"], capture["source_bytes_at_capture"], capture["record_count"]
+    if boundary > size or boundary != rollout["capture_end"] or source_records != rollout["record_count"]:
+        raise ContractError("history capture and rollout disagree")
+    _regular_file(path, "history")
+    digest, byte_count, char_count = hashlib.sha256(), 0, 0
+    counts = {kind: 0 for kind in HISTORY_TYPES}
+    previous_end = previous_line = previous_timeline = trailing = excluded = compacted_reported = 0
+    previous_count = previous_incomplete = None
+    phase = 0
+    with _history_index() as database, path.open("rb") as handle:
+        for raw in handle:
+            try:
+                text = raw.decode("utf-8")
+                record = json.loads(text)
+            except (UnicodeError, ValueError, RecursionError) as exc:
+                raise ContractError("history JSONL record is invalid") from exc
+            _fields(record, {"type", "value"}, "history record")
+            kind, item = record["type"], record["value"]
+            if not isinstance(kind, str) or kind not in HISTORY_TYPES or not isinstance(item, dict):
+                raise ContractError("history record type/value is invalid")
+            if text != _history_record(kind, item) or contains_secret(record):
+                raise ContractError("history record is noncanonical or unsafe")
+            digest.update(raw)
+            byte_count += len(raw)
+            char_count += len(text)
+            counts[kind] += 1
+            if kind not in {"count", "incomplete_tool_call"} and phase:
+                raise ContractError("history source records are out of order")
+            if kind not in {"count", "incomplete_tool_call"} and trailing:
+                raise ContractError("history source records follow the partial capture tail")
+            source = None
+            if kind == "candidate":
+                event = _integer(item.get("event_index"), "candidate.event_index", 1)
+                if event != counts[kind]:
+                    raise ContractError("candidate event indices must be consecutive")
+                role = _text(item.get("kind"), "candidate.kind")
+                fields = {"kind", "event_index", "source"}
+                topic = text_digest = state = None
+                if role in {"user", "assistant"}:
+                    fields.add("text")
+                    message = _text(item.get("text"), "candidate.text")
+                    text_digest = hashlib.sha256(message.encode()).hexdigest()
+                    if role == "user":
+                        topic, state = _topic_key(message), _timeline_state(message)
+                elif role in {"tool_call", "tool_result"}:
+                    if role == "tool_call":
+                        fields.add("tool")
+                        if item.get("tool") is not None:
+                            _text(item["tool"], "candidate.tool")
+                    if "call_id" in item:
+                        fields.add("call_id")
+                        _tool_seen(database, role, _text(item["call_id"], "candidate.call_id"))
+                else:
+                    raise ContractError("candidate kind is invalid")
+                _fields(item, fields, "candidate")
+                source = item["source"]
+                source_fields = {"line", "byte_start", "byte_end", "record_type"}
+                if isinstance(source, dict) and "timestamp" in source:
+                    source_fields.add("timestamp")
+                    _text(source["timestamp"], "candidate timestamp")
+                _fields(source, source_fields, "candidate source")
+                _text(source["record_type"], "candidate record_type")
+                database.execute("INSERT INTO candidates(id,kind,topic,digest,state,chars) VALUES(?,?,?,?,?,?)", (event, role, topic, text_digest, state, len(_json_view(item))))
+            elif kind == "timeline":
+                fields = {"topic_key", "state", "event_index", "repeat_count"}
+                if "supersedes_event_index" in item:
+                    fields.add("supersedes_event_index")
+                    _integer(item["supersedes_event_index"], "timeline supersedes", 1)
+                _fields(item, fields, "timeline")
+                event = _integer(item["event_index"], "timeline.event_index", previous_timeline + 1)
+                candidate = database.execute("SELECT kind,topic,digest,state FROM candidates WHERE id=?", (event,)).fetchone()
+                if candidate is None or candidate[0] != "user" or item["topic_key"] != candidate[1] or candidate[1] is None:
+                    raise ContractError("timeline candidate/topic reference is invalid")
+                repeat, previous = _topic_transition(database, candidate[1], candidate[2], event)
+                if _integer(item["repeat_count"], "timeline.repeat_count", 1) != repeat or item["state"] != ("repeated" if repeat > 1 else candidate[3]) or item.get("supersedes_event_index") != previous:
+                    raise ContractError("timeline repeat/state/supersedes reference is inconsistent")
+                database.execute("UPDATE candidates SET timeline=1 WHERE id=?", (event,))
+                previous_timeline = event
+            elif kind in {"omission", "unknown_span", "compacted_span"}:
+                if kind == "omission" and item.get("kind") == "trailing_partial_record":
+                    _fields(item, {"kind", "byte_start", "bytes"}, "partial record")
+                    if _integer(item["byte_start"], "partial start") != boundary or boundary + _integer(item["bytes"], "partial bytes", 1) != size:
+                        raise ContractError("trailing partial capture is inconsistent")
+                    trailing += 1
+                else:
+                    fields = {"line", "byte_start", "byte_end"}
+                    if kind == "unknown_span":
+                        fields.add("record_type")
+                        _count(database, "observed", _text(item.get("record_type"), "unknown record_type"))
+                    else:
+                        fields.add("bytes")
+                        if kind == "omission":
+                            fields.add("kind")
+                            if item.get("kind") != "nul_padding_record":
+                                raise ContractError("history omission is invalid")
+                    _fields(item, fields, "history span")
+                    _source_position(item, boundary, "history span")
+                    if "bytes" in item and _integer(item["bytes"], "span bytes", 1) != item["byte_end"] - item["byte_start"]:
+                        raise ContractError("history span length is inconsistent")
+                    source = item
+            elif kind == "count":
+                if phase == 2:
+                    raise ContractError("history counts are out of order")
+                phase = 1
+                _fields(item, {"category", "name", "count"}, "history count")
+                category = _text(item["category"], "count category")
+                name = _text(item["name"], "count name")
+                if category not in {"excluded", "unknown"} or (previous_count is not None and (category, name) <= previous_count):
+                    raise ContractError("history count category/order is invalid")
+                n = _integer(item["count"], "count", 1)
+                if category == "unknown":
+                    row = database.execute("SELECT n FROM counts WHERE category='observed' AND name=?", (name,)).fetchone()
+                    if row is None or row[0] != n:
+                        raise ContractError("unknown spans and counts disagree")
+                    database.execute("DELETE FROM counts WHERE category='observed' AND name=?", (name,))
+                else:
+                    excluded += n
+                    if name == "compacted":
+                        compacted_reported = n
+                previous_count = (category, name)
             else:
-                fields.add("bytes")
-                if key == "omissions":
-                    fields.add("kind")
-                    if span.get("kind") != "nul_padding_record":
-                        raise ContractError("coverage omission kind is invalid")
-            _fields(span, fields, "coverage span")
-            _source_position(span, boundary, "coverage span")
-            if "bytes" in span and _integer(span["bytes"], "span.bytes", 1) != span["byte_end"] - span["byte_start"]:
-                raise ContractError("coverage span length is inconsistent")
-            if span["byte_start"] < previous_end or span["line"] <= previous_line:
-                raise ContractError("coverage spans are out of order")
-            previous_end, previous_line = span["byte_end"], span["line"]
-    if (boundary < size) != (trailing_partials == 1):
-        raise ContractError("trailing partial record coverage is inconsistent")
-    if unknown_counts != coverage["unknown"] or len(coverage["compacted_spans"]) != coverage["excluded"].get("compacted", 0):
-        raise ContractError("coverage spans and counts disagree")
-    if _text_list(coverage["incomplete_tool_calls"], "coverage.incomplete_tool_calls") != sorted(calls ^ results):
-        raise ContractError("coverage incomplete tool calls disagree")
-    if historical and (rollout["conversation_candidates"] != candidates or rollout["timeline"] != timeline or rollout["coverage"] != coverage):
-        raise ContractError("historical conversation projections disagree")
+                phase = 2
+                _fields(item, {"call_id"}, "incomplete tool")
+                call_id = _text(item["call_id"], "incomplete tool id")
+                row = database.execute("SELECT id FROM tools WHERE calls<>results AND (? IS NULL OR id>?) ORDER BY id LIMIT 1", (previous_incomplete, previous_incomplete)).fetchone()
+                if row is None or row[0] != call_id:
+                    raise ContractError("incomplete tool references disagree")
+                previous_incomplete = call_id
+            if source is not None:
+                _source_position(source, boundary, "history source")
+                if source["byte_start"] < previous_end or source["line"] <= previous_line:
+                    raise ContractError("history source positions are out of order")
+                previous_end, previous_line = source["byte_end"], source["line"]
+            if sum(counts.values()) % 256 == 0:
+                database.commit()
+        if database.execute("SELECT 1 FROM counts WHERE category='observed' LIMIT 1").fetchone() or database.execute("SELECT 1 FROM candidates WHERE topic IS NOT NULL AND timeline=0 LIMIT 1").fetchone():
+            raise ContractError("history references or coverage counts are incomplete")
+        if database.execute("SELECT count(*) FROM tools WHERE calls<>results").fetchone()[0] != counts["incomplete_tool_call"]:
+            raise ContractError("history incomplete tool count disagrees")
+    if (boundary < size) != (trailing == 1) or trailing > 1:
+        raise ContractError("trailing partial coverage is inconsistent")
+    if counts["candidate"] + counts["unknown_span"] + excluded != source_records:
+        raise ContractError("history coverage disagrees with source record count")
+    if compacted_reported != counts["compacted_span"]:
+        raise ContractError("compacted spans and counts disagree")
+    if history["counts"] != counts or history["records"] != sum(counts.values()) or history["bytes"] != byte_count or history["characters"] != char_count or history["sha256"] != digest.hexdigest():
+        raise ContractError("history binding is invalid")
 
 
-def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str) -> None:
+def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str, history_path: Optional[Path] = None) -> None:
     if not isinstance(payload, dict):
         raise ContractError("handoff core must be an object")
-    historical = payload.get("schema_version") != SCHEMA_VERSION
-    expected = {"schema_version", "kind", "handoff_id", "created_at", "project", "work_context", "source", "verified", "conversation", "pending", "memory_projection", "authorization"}
-    if set(payload) != expected or type(payload["schema_version"]) is not int or payload["schema_version"] not in SUPPORTED_SCHEMA_VERSIONS or payload["kind"] != KIND:
+    expected = {"schema_version", "kind", "handoff_id", "created_at", "project", "work_context", "source", "verified", "history", "pending", "memory_projection", "authorization"}
+    if set(payload) != expected or type(payload["schema_version"]) is not int or payload["schema_version"] != SCHEMA_VERSION or payload["kind"] != KIND:
         raise ContractError("handoff schema is unsupported")
     if payload["handoff_id"] != handoff_id or not HANDOFF_ID.fullmatch(handoff_id):
         raise ContractError("handoff id does not match package path")
@@ -652,8 +718,6 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
         _project_file(root, _text(item["path"], "evidence.path"), "evidence path")
     rollout = source["rollout"]
     rollout_expected = {"path", "session_id", "capture_end", "record_count", "parser_version"}
-    if historical:
-        rollout_expected |= {"coverage", "conversation_candidates", "timeline"}
     if not isinstance(rollout, dict) or set(rollout) != rollout_expected:
         raise ContractError("handoff rollout descriptor is invalid")
     if not Path(_text(rollout["path"], "rollout.path")).is_absolute():
@@ -664,7 +728,7 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
         _integer(rollout[field], "rollout." + field)
     if rollout["parser_version"] != PARSER_VERSION:
         raise ContractError("rollout parser version is unsupported")
-    _validate_conversation(payload["conversation"], rollout, historical=historical)
+    _validate_history(history_path or _history_path(root, payload), payload["history"], rollout)
     verified = payload["verified"]
     if not isinstance(verified, dict) or set(verified) != {"facts", "validation"}:
         raise ContractError("handoff verified context is invalid")
@@ -685,71 +749,79 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
     if not isinstance(memory, dict):
         raise ContractError("handoff memory projection is invalid")
     fields = {"semantic_capsule", "local", "archive_refs"}
-    if payload["schema_version"] == 8:
-        # Older packages may contain an opaque extension. Validate its shape
-        # without retaining the historical component name or interpreting it.
-        if not fields.issubset(memory) or any(
-            not isinstance(value, list) for key, value in memory.items() if key not in fields
-        ):
-            raise ContractError("handoff memory projection is invalid")
-    elif set(memory) != fields:
+    if set(memory) != fields:
         raise ContractError("handoff memory projection is invalid")
-    (free_text if historical else _text)(memory["semantic_capsule"], "memory_projection.semantic_capsule")
+    _text(memory["semantic_capsule"], "memory_projection.semantic_capsule")
     for field in fields - {"semantic_capsule"}:
         _text_list(memory[field], "memory_projection.%s" % field)
-    if payload["schema_version"] == 8:
-        for key, value in memory.items():
-            if key not in fields:
-                _text_list(value, "memory_projection.extension")
     if payload["authorization"] != AUTHORIZATION:
         raise ContractError("handoff authorization is invalid")
-def validate(root: Path, payload: Dict[str, Any], handoff_id: str) -> str:
-    _validate_payload_shape(root, payload, handoff_id)
-    return "historical" if payload["schema_version"] != SCHEMA_VERSION else "ready"
+    if contains_secret(payload):
+        raise ContractError("handoff core contains a possible credential or secret")
 
 
-def _view_text(payload: Dict[str, Any], view: str, event_index: Optional[int] = None) -> str:
-    _require_current(payload)
-    conversation = payload["conversation"]
-    if view == "history":
-        value = conversation
-        if event_index is not None:
-            _integer(event_index, "event_index", 1)
-            if event_index > len(conversation["candidates"]):
-                raise ContractError("history event_index is unavailable")
-            value = conversation["candidates"][event_index - 1]
-    elif view == "core" and event_index is None:
-        value = {key: item for key, item in payload.items() if key != "conversation"}
-        coverage = conversation["coverage"]
-        value["history_summary"] = {
-            "candidate_count": len(conversation["candidates"]), "timeline_count": len(conversation["timeline"]),
-            "coverage": {key: coverage[key] for key in ("source_bytes_at_capture", "capture_end", "record_count", "event_count", "excluded", "unknown")},
-            "omission_count": len(coverage["omissions"]), "incomplete_tool_call_count": len(coverage["incomplete_tool_calls"]),
-            "references": ["conversation.candidates", "conversation.timeline", "conversation.coverage"],
-        }
-    else:
-        raise ContractError("read view or event_index is invalid")
+def validate(root: Path, payload: Dict[str, Any], handoff_id: str, history_path: Optional[Path] = None) -> str:
+    _validate_payload_shape(root, payload, handoff_id, history_path)
+    return "ready"
+
+
+def _json_view(value: Dict[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
 
 
+def _candidate_view(path: Path, event_index: int) -> str:
+    _integer(event_index, "event_index", 1)
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            record = json.loads(line)
+            if record["type"] == "candidate" and record["value"]["event_index"] == event_index:
+                return _json_view(record["value"])
+    raise ContractError("history event_index is unavailable")
+
+
+def _history_page(path: Path, offset: int, length: int) -> str:
+    position, remaining, pieces = 0, length, []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        while remaining:
+            text = handle.read(65536)
+            if not text:
+                break
+            end = position + len(text)
+            if end > offset:
+                piece = text[max(0, offset - position):max(0, offset - position) + remaining]
+                pieces.append(piece)
+                remaining -= len(piece)
+            position = end
+    return "".join(pieces)
+
+
 def read_view(root: Path, handoff_path: str, view: str, offset: int, length: int, event_index: Optional[int] = None) -> Dict[str, Any]:
-    handoff_id, _, payload = _core(root, handoff_path)
-    content = _view_text(payload, view, event_index)
+    handoff_id, core, payload = _core(root, handoff_path)
     _integer(offset, "read offset")
     _integer(length, "read length", 1)
-    if offset > len(content):
+    content = None
+    if view == "core" and event_index is None:
+        content = _json_view(payload)
+    elif view == "history":
+        if event_index is not None:
+            content = _candidate_view(core.with_name(HISTORY_NAME), event_index)
+    else:
+        raise ContractError("read view or event_index is invalid")
+    total = len(content) if content is not None else payload["history"]["characters"]
+    if offset > total:
         raise ContractError("read offset exceeds view length")
-    end = min(offset + length, len(content))
-    return {"handoff_id": handoff_id, "view": view, "event_index": event_index, "offset": offset, "next_offset": end, "total_chars": len(content), "complete": end == len(content), "text": content[offset:end]}
+    end = min(offset + length, total)
+    text = content[offset:end] if content is not None else _history_page(core.with_name(HISTORY_NAME), offset, length)
+    return {"handoff_id": handoff_id, "view": view, "event_index": event_index, "offset": offset, "next_offset": end, "total_chars": total, "complete": end == total, "text": text}
 
 
-def _validate_history_reading(payload: Dict[str, Any], attestation: Dict[str, Any]) -> None:
-    lengths: dict[Optional[int], int] = {}
+def _validate_history_reading(root: Path, payload: Dict[str, Any], attestation: Dict[str, Any]) -> None:
+    lengths: dict[Optional[int], int] = {None: payload["history"]["characters"]}
     full_ranges: list[tuple[int, int]] = []
     for reference in attestation["history_refs"]:
         event_index = reference["event_index"]
         if event_index not in lengths:
-            lengths[event_index] = len(_view_text(payload, "history", event_index))
+            lengths[event_index] = len(_candidate_view(_history_path(root, payload), event_index))
         if reference["next_offset"] > lengths[event_index]:
             raise ContractError("history reading range exceeds view length")
         if event_index is None:
@@ -764,35 +836,43 @@ def _validate_history_reading(payload: Dict[str, Any], attestation: Dict[str, An
             raise ContractError("full history reading requires the entire history view")
 
 
-def _atomic_json(destination: Path, payload: Dict[str, Any]) -> None:
+def _atomic_json(destination: Path, payload: Dict[str, Any], history_path: Path) -> None:
     base = destination.parent.parent
     if base.is_symlink():
         raise ContractError("session-handoffs directory is unsafe")
     base.mkdir(parents=True, exist_ok=True)
     os.chmod(base, 0o700)
-    destination.parent.mkdir(exist_ok=False)
-    os.chmod(destination.parent, 0o700)
-    temporary: Optional[Path] = None
+    temporary = Path(tempfile.mkdtemp(prefix="." + payload["handoff_id"] + ".", dir=base))
+    lock = base / ("." + payload["handoff_id"] + ".publish-lock")
+    lock_fd = None
     try:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=destination.parent, delete=False) as handle:
-            temporary = Path(handle.name)
-            json.dump(payload, handle, ensure_ascii=True, indent=2, sort_keys=True)
-            handle.write("\n")
+        lock_fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        history = temporary / HISTORY_NAME
+        shutil.copyfile(history_path, history)
+        os.chmod(history, 0o600)
+        with history.open("rb") as handle:
+            os.fsync(handle.fileno())
+        _validate_history(history, payload["history"], payload["source"]["rollout"])
+        with (temporary / HANDOFF_NAME).open("w", encoding="utf-8") as handle:
+            handle.write(_json_view(payload))
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, destination)
-        directory_fd = os.open(destination.parent, os.O_RDONLY)
+        os.chmod(temporary / HANDOFF_NAME, 0o600)
+        if destination.parent.exists():
+            raise ContractError("handoff package already exists")
+        os.rename(temporary, destination.parent)
+        directory_fd = os.open(base, os.O_RDONLY)
         try:
             os.fsync(directory_fd)
         finally:
             os.close(directory_fd)
     except Exception:
-        if temporary is not None and temporary.exists():
-            temporary.unlink()
-        if destination.parent.exists() and not any(destination.parent.iterdir()):
-            destination.parent.rmdir()
+        shutil.rmtree(temporary, ignore_errors=True)
         raise
+    finally:
+        if lock_fd is not None:
+            os.close(lock_fd)
+            lock.unlink()
 
 
 def _lifecycle_path(root: Path, handoff_id: str) -> Path:
@@ -817,14 +897,14 @@ def _archive_path(root: Path, handoff_id: str) -> Path:
 
 def _require_current(payload: Dict[str, Any]) -> None:
     if payload["schema_version"] != SCHEMA_VERSION:
-        raise ContractError("historical handoff is read-only; create a new package for continuation")
+        raise ContractError("handoff schema is unsupported; create a current package")
 
 
 def _core(root: Path, handoff_path: str, *, mutable: bool = False) -> tuple[str, Path, Dict[str, Any]]:
     handoff_id, destination = _destination(root, handoff_path=handoff_path)
     _regular_file(destination, "handoff path")
     payload = load_json_file(destination)
-    if validate(root, payload, handoff_id) not in {"ready", "historical"}:
+    if validate(root, payload, handoff_id) != "ready":
         raise ContractError("handoff core is not ready")
     if mutable:
         _require_current(payload)
@@ -835,7 +915,8 @@ def _read_paired_prompt(root: Path, handoff_path: str) -> None:
     _, core = _destination(root, handoff_path=handoff_path)
     prompt = _regular_file(core.with_name("session-handoff-prompt.md"), "paired handoff prompt")
     try:
-        prompt.read_text(encoding="utf-8")
+        if contains_secret(prompt.read_text(encoding="utf-8")):
+            raise ContractError("paired handoff prompt contains a possible credential")
     except (OSError, UnicodeError) as exc:
         raise ContractError("paired handoff prompt is unreadable") from exc
 
@@ -843,14 +924,11 @@ def _read_paired_prompt(root: Path, handoff_path: str) -> None:
 def _event_shape(event: Any, handoff_id: str) -> Dict[str, Any]:
     if not isinstance(event, dict):
         raise ContractError("lifecycle event schema is invalid")
-    legacy = event.get("schema_version") == 1
     expected = {
         "schema_version", "kind", "handoff_id", "event_type", "source_status", "target_status",
         "retention_status", "observed_at", "actor", "evidence_refs",
     }
-    if legacy:
-        expected |= {"core_digest", "event_id", "prev_event_digest", "event_digest"}
-    if set(event) != expected or event["schema_version"] not in {1, LIFECYCLE_SCHEMA_VERSION}:
+    if set(event) != expected or type(event["schema_version"]) is not int or event["schema_version"] != LIFECYCLE_SCHEMA_VERSION:
         raise ContractError("lifecycle event schema is invalid")
     if event["kind"] != LIFECYCLE_EVENT_KIND or event["handoff_id"] != handoff_id:
         raise ContractError("lifecycle event identity is invalid")
@@ -863,7 +941,7 @@ def _event_shape(event: Any, handoff_id: str) -> Dict[str, Any]:
     if event["actor"] != LIFECYCLE_ACTOR:
         raise ContractError("event.actor is invalid")
     _text_list(event["evidence_refs"], "event.evidence_refs")
-    if SECRET_RE.search(json.dumps(event, ensure_ascii=False)):
+    if contains_secret(event):
         raise ContractError("lifecycle event contains a possible credential or secret")
     return event
 
@@ -887,30 +965,51 @@ def _transition(axis: str, old: str, new: str) -> bool:
     return new in transitions[axis].get(old, set())
 
 
-def _read_events(path: Path, handoff_id: str) -> list[Dict[str, Any]]:
-    if not path.exists():
-        return []
-    _regular_file(path, "lifecycle receipt")
-    events: list[Dict[str, Any]] = []
-    states = {"source": "unprepared", "target": "not_admitted", "retention": "none"}
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeError) as exc:
-        raise ContractError("lifecycle receipt is unreadable") from exc
-    for raw in lines:
-        if not raw:
-            raise ContractError("lifecycle receipt contains an invalid line")
+class _ReceiptEvents:
+    """Repeatable disk scan; retain only the count and last receipt."""
+
+    def __init__(self, path: Path, handoff_id: str):
+        self.path, self.handoff_id = path, handoff_id
+        self.count, self.last = 0, None
+        for event in self:
+            self.count += 1
+            self.last = event
+
+    def __iter__(self):
+        if not self.path.exists():
+            return
+        _regular_file(self.path, "lifecycle receipt")
+        states = {"source": "unprepared", "target": "not_admitted", "retention": "none"}
         try:
-            event = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise ContractError("lifecycle receipt contains invalid JSON") from exc
-        event = _event_shape(event, handoff_id)
-        for axis, key in (("source", "source_status"), ("target", "target_status"), ("retention", "retention_status")):
-            if not _transition(axis, states[axis], event[key]):
-                raise ContractError("lifecycle %s transition is invalid" % axis)
-        states = {"source": event["source_status"], "target": event["target_status"], "retention": event["retention_status"]}
-        events.append(event)
-    return events
+            with self.path.open("r", encoding="utf-8") as handle:
+                for raw in handle:
+                    if not raw.endswith("\n"):
+                        raise ContractError("lifecycle receipt contains an incomplete line")
+                    try:
+                        event = _event_shape(json.loads(raw), self.handoff_id)
+                    except (ValueError, RecursionError) as exc:
+                        if isinstance(exc, ContractError):
+                            raise
+                        raise ContractError("lifecycle receipt contains invalid JSON") from exc
+                    for axis, key in (("source", "source_status"), ("target", "target_status"), ("retention", "retention_status")):
+                        if not _transition(axis, states[axis], event[key]):
+                            raise ContractError("lifecycle %s transition is invalid" % axis)
+                    states = {"source": event["source_status"], "target": event["target_status"], "retention": event["retention_status"]}
+                    yield event
+        except (OSError, UnicodeError) as exc:
+            raise ContractError("lifecycle receipt is unreadable") from exc
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self, index):
+        if index != -1 or self.last is None:
+            raise IndexError(index)
+        return self.last
+
+
+def _read_events(path: Path, handoff_id: str) -> _ReceiptEvents:
+    return _ReceiptEvents(path, handoff_id)
 
 
 def _state(events: list[Dict[str, Any]]) -> dict[str, str]:
@@ -931,14 +1030,14 @@ def _prepared_mode(events: list[Dict[str, Any]]) -> str:
 
 
 def _reconciled_admit_target(events: list[Dict[str, Any]]) -> Optional[str]:
-    targets: list[str] = []
+    target = None
     for event in events:
         if event["event_type"] != "admit" or event["target_status"] != "reconciled":
             continue
-        targets.append(_admission_target(event))
-    if len(targets) > 1:
-        raise ContractError("handoff asset has multiple successful consumers")
-    return targets[0] if targets else None
+        if target is not None:
+            raise ContractError("handoff asset has multiple successful consumers")
+        target = _admission_target(event)
+    return target
 
 
 def _admission_target(event: Dict[str, Any]) -> str:
@@ -1124,7 +1223,7 @@ def _ownership_call(root: Path, operation: str, task_id: str, handoff_id: str, c
         raise ContractError("Trellis ownership returned invalid JSON") from exc
     if not isinstance(value, dict):
         raise ContractError("Trellis ownership returned invalid JSON")
-    if SECRET_RE.search(json.dumps(value, ensure_ascii=False)):
+    if contains_secret(value):
         raise ContractError("Trellis ownership returned unsafe data")
     if result.returncode:
         reason = _text(value.get("reason"), "ownership failure") if value.get("reason") else "unknown failure"
@@ -1158,8 +1257,6 @@ def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: O
 def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
     handoff_id, core, payload = _core(root, handoff_path, mutable=operation != "status")
     core_digest = _ownership_core_digest(core)
-    if operation == "status" and payload["schema_version"] != SCHEMA_VERSION:
-        return {"handoff_id": handoff_id, "ownership": {"status": "historical"}}
     task_id, task_path = _ownership_task(payload)
     if operation == "status":
         result = _ownership_call(root, operation, task_id, handoff_id, core_digest, ["--json"], explicit=False)
@@ -1202,15 +1299,16 @@ def _archive_snapshot(root: Path, archive: Path, handoff_id: str) -> list[str]:
     if not archive.is_dir() or archive.is_symlink():
         raise ContractError("handoff archive is unavailable")
     names = {path.name for path in archive.iterdir()}
-    if names != {HANDOFF_NAME, "session-handoff-prompt.md"}:
-        raise ContractError("handoff archive must contain a core/prompt pair")
+    if names != {HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"}:
+        raise ContractError("handoff archive must contain core/history/prompt")
     core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
     payload = load_json_file(core)
-    _validate_payload_shape(root, payload, handoff_id)
+    _validate_payload_shape(root, payload, handoff_id, core.with_name(HISTORY_NAME))
     refs = ["archive=" + handoff_id]
     prompt = _regular_file(archive / "session-handoff-prompt.md", "archived prompt")
     try:
-        prompt.read_text(encoding="utf-8")
+        if contains_secret(prompt.read_text(encoding="utf-8")):
+            raise ContractError("archived prompt contains a possible credential")
     except (OSError, UnicodeError) as exc:
         raise ContractError("archived prompt is unreadable") from exc
     return refs
@@ -1219,7 +1317,12 @@ def _archive_snapshot(root: Path, archive: Path, handoff_id: str) -> list[str]:
 def _archive_copy(root: Path, handoff_id: str, core: Path) -> list[str]:
     archive = _archive_path(root, handoff_id)
     if archive.exists():
-        return _archive_snapshot(root, archive, handoff_id)
+        refs = _archive_snapshot(root, archive, handoff_id)
+        for name in (HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"):
+            _regular_file(core.with_name(name), "canonical archive asset")
+            if _ownership_core_digest(core.with_name(name)) != _ownership_core_digest(archive / name):
+                raise ContractError("existing archive differs from canonical package")
+        return refs
     parent = archive.parent
     parent.mkdir(parents=True, exist_ok=True)
     os.chmod(parent, 0o700)
@@ -1228,10 +1331,16 @@ def _archive_copy(root: Path, handoff_id: str, core: Path) -> list[str]:
         os.chmod(temporary, 0o700)
         shutil.copyfile(core, temporary / HANDOFF_NAME)
         os.chmod(temporary / HANDOFF_NAME, 0o600)
+        history = _regular_file(core.with_name(HISTORY_NAME), "handoff history")
+        shutil.copyfile(history, temporary / HISTORY_NAME)
+        os.chmod(temporary / HISTORY_NAME, 0o600)
         prompt = _regular_file(core.parent / "session-handoff-prompt.md", "handoff prompt")
         shutil.copyfile(prompt, temporary / "session-handoff-prompt.md")
         os.chmod(temporary / "session-handoff-prompt.md", 0o600)
         _archive_snapshot(root, temporary, handoff_id)
+        for name in (HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"):
+            with (temporary / name).open("rb") as handle:
+                os.fsync(handle.fileno())
         directory_fd = os.open(temporary, os.O_RDONLY)
         try:
             os.fsync(directory_fd)
@@ -1269,6 +1378,51 @@ def _restore_copy(source: Path, destination: Path) -> None:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
         raise
+
+
+def _restore_package(root: Path, archive: Path, destination: Path, handoff_id: str) -> None:
+    names = {HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"}
+    if destination.exists():
+        if destination.is_symlink() or not destination.is_dir() or {p.name for p in destination.iterdir()} - names:
+            raise ContractError("restore destination contains unknown assets")
+        for item in destination.iterdir():
+            _regular_file(item, "existing restore asset")
+            if _ownership_core_digest(item) != _ownership_core_digest(archive / item.name):
+                raise ContractError("restore destination differs from archive")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix="." + handoff_id + ".restore-", dir=destination.parent))
+    backup = None
+    try:
+        for name in names:
+            _restore_copy(archive / name, temporary / name)
+        _archive_snapshot(root, temporary, handoff_id)
+        if destination.exists():
+            backup = Path(tempfile.mkdtemp(prefix="." + handoff_id + ".backup-", dir=destination.parent))
+            backup.rmdir()
+            os.rename(destination, backup)
+        try:
+            os.rename(temporary, destination)
+            directory_fd = os.open(destination.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except Exception:
+            try:
+                if destination.exists():
+                    shutil.rmtree(destination)
+                if backup is not None:
+                    os.rename(backup, destination)
+                    backup = None
+            except Exception as rollback_error:
+                preserved = backup
+                backup = None
+                raise ContractError("restore rollback failed; previous package preserved at %s" % preserved) from rollback_error
+            raise
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
+        if backup is not None:
+            shutil.rmtree(backup, ignore_errors=True)
 
 
 def _lifecycle_result(operation: str, handoff_id: str, result: dict[str, Any]) -> None:
@@ -1330,7 +1484,7 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     handoff_id, _, payload = _core(root, handoff_path, mutable=True)
     _read_paired_prompt(root, handoff_path)
     attestation = validate_attestation(load_json_file(_project_file(root, attestation_path, "attestation path")))
-    _validate_history_reading(payload, attestation)
+    _validate_history_reading(root, payload, attestation)
     rollout_session = payload["source"]["rollout"].get("session_id")
     if rollout_session is not None and attestation["target_source"] == "session:" + rollout_session:
         raise ContractError("target source cannot reuse the handoff source session id")
@@ -1372,7 +1526,7 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
         archive = _archive_path(root, handoff_id)
         archived_core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
         archived_payload = load_json_file(archived_core)
-        _validate_payload_shape(root, archived_payload, handoff_id)
+        _validate_payload_shape(root, archived_payload, handoff_id, archive / HISTORY_NAME)
         _require_current(archived_payload)
         core = core_path
     else:
@@ -1382,7 +1536,7 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
     state = _state(events)
     if action == "archive":
         if state["retention"] == "archived":
-            _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
+            _archive_copy(root, handoff_id, core)
             return handoff_id, {"status": "idempotent", "state": state}
         if state["retention"] != "archive_eligible":
             raise ContractError("handoff is not archive eligible")
@@ -1391,33 +1545,42 @@ def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation
     elif action == "restore":
         archive = _archive_path(root, handoff_id)
         refs = _archive_snapshot(root, archive, handoff_id)
-        archived_core = archive / HANDOFF_NAME
-        if not core.exists():
-            core.parent.mkdir(parents=True, exist_ok=True)
-            _restore_copy(archived_core, core)
-        prompt = archive / "session-handoff-prompt.md"
-        canonical_prompt = core.parent / "session-handoff-prompt.md"
-        if not canonical_prompt.exists():
-            _restore_copy(prompt, canonical_prompt)
+        _restore_package(root, archive, core.parent, handoff_id)
         result = _append_event(root, handoff_id, "restore", {"source": state["source"], "target": state["target"], "retention": "restored"}, refs)
     elif action == "reopen":
         if state["retention"] not in {"archived", "retained", "restored"}:
             raise ContractError("handoff is not reopenable")
-        refs = _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
+        refs = _archive_copy(root, handoff_id, core)
         result = _append_event(root, handoff_id, "reopen", {"source": state["source"], "target": state["target"], "retention": "reopened"}, refs)
     elif action == "purge":
         if state["retention"] not in {"archived", "retained", "restored", "reopened"}:
             raise ContractError("handoff is not purgeable")
-        refs = _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
+        refs = _archive_copy(root, handoff_id, core)
+        if {p.name for p in core.parent.iterdir()} != {HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"}:
+            raise ContractError("purge package contains unknown assets")
         _append_event(root, handoff_id, "purge_intent", {"source": state["source"], "target": state["target"], "retention": state["retention"]}, refs)
-        core.unlink(missing_ok=True)
-        (core.parent / "session-handoff-prompt.md").unlink(missing_ok=True)
-        directory_fd = os.open(core.parent, os.O_RDONLY)
+        removed = Path(tempfile.mkdtemp(prefix="." + handoff_id + ".purge-", dir=core.parent.parent))
+        removed.rmdir()
+        os.rename(core.parent, removed)
         try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-        result = _append_event(root, handoff_id, "purge", {"source": state["source"], "target": state["target"], "retention": "purged"}, refs)
+            directory_fd = os.open(core.parent.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except Exception:
+            os.rename(removed, core.parent)
+            raise
+        try:
+            shutil.rmtree(removed)
+            result = _append_event(root, handoff_id, "purge", {"source": state["source"], "target": state["target"], "retention": "purged"}, refs)
+        except Exception as purge_error:
+            try:
+                _restore_package(root, _archive_path(root, handoff_id), core.parent, handoff_id)
+            except Exception as rollback_error:
+                raise ContractError("purge failed; verified archive retained for recovery") from rollback_error
+            shutil.rmtree(removed, ignore_errors=True)
+            raise ContractError("purge failed; package restored from verified archive") from purge_error
     else:
         raise ContractError("retention action is unsupported")
     return handoff_id, result
@@ -1432,14 +1595,6 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
         _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
         payload = load_json_file(_archive_path(root, handoff_id) / HANDOFF_NAME)
     path = _lifecycle_path(root, handoff_id)
-    if payload["schema_version"] != SCHEMA_VERSION:
-        return {
-            "status": "historical",
-            "handoff_id": handoff_id,
-            "schema_version": payload["schema_version"],
-            "state": {"source": "historical", "target": "historical", "retention": "historical"},
-            "mode": None,
-        }
     if not path.exists():
         return {"status": "absent", "handoff_id": handoff_id}
     events = _read_events(path, handoff_id)
@@ -1449,7 +1604,8 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     ownership: Optional[dict[str, Any]] = None
     if payload is not None and payload["work_context"]["task"] is not None:
         task_id, _ = _ownership_task(payload)
-        ownership = _ownership_call(root, "status", task_id, handoff_id, _ownership_core_digest(destination), ["--json"], explicit=False)
+        core = destination if destination.exists() else _archive_path(root, handoff_id) / HANDOFF_NAME
+        ownership = _ownership_call(root, "status", task_id, handoff_id, _ownership_core_digest(core), ["--json"], explicit=False)
         source_ready = source_ready and ownership.get("status") == "ready"
     return {"status": "ready" if source_ready else "pending", "handoff_id": handoff_id, "mode": mode, "state": state, **({"ownership": ownership} if ownership is not None else {})}
 
@@ -1519,7 +1675,7 @@ def main() -> int:
             payload = load_json_file(destination)
             status = validate(root, payload, handoff_id)
             emit("validate", status, handoff_path=relative, handoff_id=handoff_id)
-            return 0 if status in {"ready", "historical"} else 2
+            return 0 if status == "ready" else 2
         if args.command == "read":
             emit("read", "ready", **read_view(root, args.handoff, args.view, args.offset, args.length, args.event_index))
             return 0
@@ -1543,7 +1699,7 @@ def main() -> int:
             result = lifecycle_status(root, args.handoff)
             status = result.pop("status")
             emit("status", status, **result)
-            return 0 if status in {"ready", "absent", "historical"} else 2
+            return 0 if status in {"ready", "absent"} else 2
         if args.command == "ownership":
             result = ownership_operation(
                 root, args.ownership_command, args.handoff,
@@ -1567,13 +1723,16 @@ def main() -> int:
         _, destination = _destination(root, create_id=handoff_id)
         if destination.parent.exists():
             raise ContractError("handoff package already exists: %s" % handoff_id)
-        payload = build(root, request, handoff_id)
-        validate(root, payload, handoff_id)
-        _atomic_json(destination, payload)
+        with tempfile.TemporaryDirectory(prefix="pennix-handoff-write-") as temporary:
+            history = Path(temporary) / HISTORY_NAME
+            payload = build(root, request, handoff_id, history)
+            validate(root, payload, handoff_id, history)
+            _atomic_json(destination, payload, history)
         emit("write", "ready", handoff_id=handoff_id, handoff_path=destination.relative_to(root).as_posix())
         return 0
-    except (ContractError, OSError, subprocess.SubprocessError) as exc:
-        emit(getattr(args, "command", "handoff"), "recovery_required", str(exc))
+    except (ContractError, OSError, UnicodeError, RecursionError, MemoryError, sqlite3.Error, subprocess.SubprocessError) as exc:
+        reason = str(exc) if isinstance(exc, ContractError) else "handoff local I/O or native operation failed"
+        emit(getattr(args, "command", "handoff"), "recovery_required", reason)
         return 2
 
 

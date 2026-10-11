@@ -75,7 +75,7 @@ class RenderHandoffPromptTests(unittest.TestCase):
         self.assertEqual(repeated.returncode, 0, repeated.stderr)
         self.assertEqual(repeated.stdout, rendered.stdout)
 
-    def test_renderer_keeps_long_candidates_only_in_the_core(self) -> None:
+    def test_renderer_keeps_long_candidates_only_in_history(self) -> None:
         candidate = "candidate scene " * 10000
         self.rollout.write_text(
             json.dumps({
@@ -88,9 +88,11 @@ class RenderHandoffPromptTests(unittest.TestCase):
         rendered = self.run_cli(RENDER, "--handoff", relative)
         self.assertEqual(rendered.returncode, 0, rendered.stderr)
         core = json.loads((self.root / relative).read_text(encoding="utf-8"))
-        self.assertEqual(core["conversation"]["candidates"][0]["text"], " ".join(candidate.split()))
+        history = (self.root / relative).with_name("session-handoff-history.jsonl").read_text()
+        self.assertEqual(json.loads(history.splitlines()[0])["value"]["text"], " ".join(candidate.split()))
+        self.assertNotIn("conversation", core)
         prompt = (self.root / Path(relative).with_name("session-handoff-prompt.md")).read_text(encoding="utf-8")
-        self.assertIn("conversation.candidates", prompt)
+        self.assertIn("candidate", prompt)
         self.assertIn("数量：1", prompt)
         self.assertNotIn(candidate, prompt)
 
@@ -128,19 +130,10 @@ class RenderHandoffPromptTests(unittest.TestCase):
         relative = self.write()
         core = self.root / relative
         payload = json.loads(core.read_text())
-        conversation = payload["conversation"]
-        for item in conversation["timeline"]:
-            candidate = conversation["candidates"][item["event_index"] - 1]
-            item.update(summary=candidate["text"], source=candidate["source"])
         prompt = core.with_name("session-handoff-prompt.md")
-        for version in (8, 9):
+        for version in (8, 9, 10):
             with self.subTest(version=version):
                 payload["schema_version"] = version
-                if version == 8:
-                    payload["memory_projection"]["legacy_extension"] = []
-                else:
-                    payload["memory_projection"].pop("legacy_extension", None)
-                payload["source"]["rollout"].update(coverage=conversation["coverage"], conversation_candidates=conversation["candidates"], timeline=conversation["timeline"])
                 core.write_text(json.dumps(payload))
                 prompt.unlink(missing_ok=True)
                 self.assertNotEqual(self.run_cli(RENDER, "--handoff", relative).returncode, 0)
@@ -148,8 +141,8 @@ class RenderHandoffPromptTests(unittest.TestCase):
                 prompt.write_text("original historical navigation\n")
                 before = (core.read_bytes(), prompt.read_bytes())
                 result = self.run_cli(RENDER, "--handoff", relative)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("只读审计", result.stdout)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(result.stdout, "")
                 self.assertEqual((core.read_bytes(), prompt.read_bytes()), before)
 
     def test_renderer_refuses_a_different_existing_pair(self) -> None:

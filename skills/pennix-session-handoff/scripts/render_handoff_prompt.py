@@ -6,13 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from handoff import SCHEMA_VERSION, ContractError, _core
+from handoff import ContractError, _core
 
 
 SCRIPT_PATH = Path(__file__).with_name("handoff.py")
@@ -48,7 +49,7 @@ def _run_validate(root: Path, handoff: str) -> Mapping[str, Any]:
         receipt = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise PromptError("handoff validate 返回了无效 JSON") from exc
-    if result.returncode != 0 or not isinstance(receipt, Mapping) or receipt.get("status") not in {"ready", "historical"}:
+    if result.returncode != 0 or not isinstance(receipt, Mapping) or receipt.get("status") != "ready":
         status = receipt.get("status") if isinstance(receipt, Mapping) else None
         raise PromptError("handoff 未就绪%s" % (": " + str(status) if status else ""))
     return receipt
@@ -66,7 +67,7 @@ def _run_lifecycle_status(root: Path, handoff: str) -> Mapping[str, Any]:
         receipt = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise PromptError("handoff lifecycle status 返回了无效 JSON") from exc
-    if result.returncode != 0 or not isinstance(receipt, Mapping) or receipt.get("status") not in {"absent", "ready", "historical"}:
+    if result.returncode != 0 or not isinstance(receipt, Mapping) or receipt.get("status") not in {"absent", "ready"}:
         status = receipt.get("status") if isinstance(receipt, Mapping) else None
         raise PromptError("handoff lifecycle 未就绪%s" % (": " + str(status) if status else ""))
     return receipt
@@ -95,7 +96,7 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         task_text = "`%s` (%s, %s)" % (task.get("path"), task.get("id"), task.get("status"))
     git = source["git"]
     rollout = source["rollout"]
-    conversation = payload["conversation"]
+    history = payload["history"]
     memory = payload.get("memory_projection", {})
     if not isinstance(memory, Mapping):
         memory = {}
@@ -139,18 +140,16 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         _markdown_list(memory.get("archive_refs", [])),
         "### 决策时间线", "",
     ])
-    timeline = conversation.get("timeline", [])
-    candidates = conversation.get("candidates", [])
     lines.extend([
-        "- 完整时间线条目保留在包 JSON 的 `conversation.timeline` 中；数量：%d。" % len(timeline) if isinstance(timeline, list) else "- 完整时间线条目保留在包 JSON 的 `conversation.timeline` 中。",
+        "- 完整时间线保留在配对历史 JSONL 的 `timeline` 记录中；数量：%d。" % history["counts"]["timeline"],
         "- 时间线通过 event_index 引用用户候选；重建重要决定、修正和撤销时按需查阅其依据。",
         "", "### 对话候选", "",
-        "- 完整候选条目保留在包 JSON 的 `conversation.candidates` 中；数量：%d。" % len(candidates) if isinstance(candidates, list) else "- 完整候选条目保留在包 JSON 的 `conversation.candidates` 中。",
+        "- 完整候选保留在配对历史 JSONL 的 `candidate` 记录中；数量：%d。" % history["counts"]["candidate"],
         "- 用 `handoff read --view history --event-index <n>` 按需读取候选；默认分页 4096 字符，沿 next_offset 续读到 complete。",
         "", "### 覆盖范围说明", "",
-        "- 完整覆盖范围和来源信息保留在包 JSON 的 `conversation.coverage` 中；程序全量校验，代理按需查阅。",
+        "- 历史文件：`%s`；SHA-256：`%s`；记录数：%d。程序核验整包，代理按需查阅历史。" % (history["path"], history["sha256"], history["records"]),
         "- 程序校验不等于代理语义阅读；使用 core_view_read 和 history_read/history_refs 如实声明实际范围。",
-        "- 包 JSON 是规范资产；本提示词只是紧凑导航视图。",
+        "- core JSON 和配对历史 JSONL 共同组成规范资产；本提示词只是紧凑导航视图。",
         "", "## Pending", "", "- 下一步：%s" % pending["next_action"],
         "", "### 阻塞项", "", _markdown_list(pending["blockers"]), "### 风险", "", _markdown_list(pending["risks"]),
     ])
@@ -193,14 +192,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         _run_lifecycle_status(root, args.handoff)
         payload = _payload(root, args.handoff)
         prompt_relative = str(Path(args.handoff).with_name(PROMPT_NAME))
-        if payload["schema_version"] != SCHEMA_VERSION:
-            prompt = root / prompt_relative
-            if prompt.is_symlink() or not prompt.is_file():
-                raise PromptError("历史配对 prompt 不可用；只读审计不能创建它")
-            prompt.read_text(encoding="utf-8")
-            print("历史交接包仅供只读审计，不能准入或继续；原始 JSON 和配对 prompt 保持不变。")
-            print(args.handoff + "\n" + prompt_relative)
-            return 0
         _atomic_prompt(root / prompt_relative, _render_document(root, args.handoff, payload))
         entry = (
             "当前会话位于 %s。先读取 `AGENTS.md` 和 `.trellis/workflow.md`，再使用 "
@@ -210,8 +201,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print("可直接复制到新会话的短提示词：\n\n```text\n%s\n```" % entry)
         return 0
-    except (OSError, PromptError) as exc:
-        print("pennix-session-handoff：%s" % exc, file=sys.stderr)
+    except (OSError, PromptError, UnicodeError, RecursionError, MemoryError, sqlite3.Error) as exc:
+        reason = str(exc) if isinstance(exc, PromptError) else "无法完成本地交接包读取或写入"
+        print("pennix-session-handoff：%s" % reason, file=sys.stderr)
         return 2
 
 
