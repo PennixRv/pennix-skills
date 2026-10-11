@@ -32,4 +32,10 @@ FastCtx 源侧已完成 0.2.24 接入修订的 all-features Rust 测试：217 �
 
 现已在 `replace-staged` 预检阶段通过现有 SiYuan helper 读取并验证私有连接记录，仅识别带 Pennix 所有权标记、字段完全匹配且 helper 命令指向已知旧 Skill 路径的 stanza；只生成 helper 路径变更，不重新提示、不打印或改写令牌。未配置记录或没有受管 stanza 时不创建配置；私有记录无效、stanza 漂移或所有权不明时停止。集合替换事务现在将该配置写入和回读核验纳入现有树、receipt、命令链接事务；写入失败恢复旧值和旧集合，写入前并发变化停止，回滚时遇到第三方新字节则保留该字节并明确报告事务未能完整回滚。
 
-新增迁移规划、未配置、不受管或漂移配置、正常原子更新、写入失败、写入后报错及并发编辑回归；并发改写会保留外部配置字节、恢复旧集合并报告未能完整回滚。定向 SiYuan/集合替换测试 40 项通过；全仓 17 个 Skill Python 测试模块共 234 项、evaluation 离线测试 5 项均通过，`git diff --check` 通过。此修复尚未提交、推送或重装，现场 `discover`/`verify` 和真实 MCP 状态尚未复核。
+新增迁移规划、未配置、不受管或漂移配置、正常原子更新、写入失败、写入后报错及并发编辑回归；并发改写会保留外部配置字节、恢复旧集合并报告未能完整回滚。定向 SiYuan/集合替换测试 40 项通过；全仓 17 个 Skill Python 测试模块共 234 项、evaluation 离线测试 5 项均通过，`git diff --check` 通过。修复提交 `43cdb51beba425631baad9214e94f186adcd8675` 已推送，GitHub Actions run `38144053611` 成功；按该 SHA 重新安装后，Pennix 集合、receipt、Grok/Windsurf 命令链接均 match，`siyuan-connection` 为 configured，Codex 原生 `mcp list/get` 确认已启用且 helper 字段脱敏存在。该证据证明本地托管状态一致，不代表 SiYuan 远端握手成功。
+
+## 收敛阻塞复核
+
+最终安装后 `verify --component pennix-skills --yes` 返回 match、零 failures。完整 verify 仍被旧 lifecycle profile 摘要和 `~/.codex/AGENTS.md` 未知漂移阻塞。按现有原生 reconcile 尝试状态核验，明确返回 `lifecycle profile has an unrelated catalog revision`，没有迁移或改写 profile；静态资产原生 upgrade 此前也拒绝覆盖 drifted 的 AGENTS 文件，没有写入。受管资产边界要求保留这两处现场。
+
+后基线在启动前被评估驱动按合同拒绝：source 文件当前精确 SHA-256 和 Git blob 为 `0ce643aa95c7f530c2a5b2965975d56de77f9973dc865da848a21120d941d1db`，但本记录既有冻结值、私有 budget 与 44 份前测摘要均记为 `f746a75d6729033a6b0b9d9907a712e5c66c12b93587e6a7f0a81683f4072fe1`。`load_cases` 要求精确字节摘要与 budget 一致，因此 after 在第一轮前返回 blocked `ValueError`；budget 仍为 44 次 before、0 次 after，没有新模型轮次。当前仓库与任务落点未找到旧字节副本，不能重写 budget 或伪称对照有效。前测 43 份 `review_needed` 也尚未逐例语义复核；C05 原生执行超时保持不重试。后测和 E01 对照验收因此 blocked，须找回原冻结文件及其真实摘要，或由用户批准新的前后测合同/轮次安排后再继续。
