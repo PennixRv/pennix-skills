@@ -22,10 +22,8 @@ jobs:
             --workdir /workspace \
             archlinux:latest \
             bash -lc '
-              pacman -Syu --noconfirm python python-yaml bash zsh git
-              find skills -path "*/tests/test_*.py" -type f -print0 \
-                | sort -z \
-                | xargs -0 -n1 python3
+              pacman -Syu --noconfirm python python-yaml bash zsh git tmux util-linux
+              runuser -u nobody -- env HOME=/tmp bash -c "cd /workspace && find skills -path \"*/tests/test_*.py\" -type f -print0 | sort -z | xargs -0 -n1 python3 -B"
             '
       - name: Test native evaluation driver offline
         run: |
@@ -34,6 +32,6 @@ jobs:
             --workdir /workspace \
             archlinux:latest \
             bash -lc '
-              pacman -Syu --noconfirm python python-yaml bash zsh git
-              python3 evaluations/test_run_codex_cases.py
+              pacman -Syu --noconfirm python python-yaml bash zsh git tmux util-linux
+              runuser -u nobody -- env HOME=/tmp bash -c "cd /workspace && python3 -B evaluations/test_run_codex_cases.py"
             '
