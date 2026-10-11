@@ -11,6 +11,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from . import codex_static
+
 try:
     import yaml
 except ImportError:
@@ -279,6 +281,7 @@ def replace_collection(
     obsolete_names: set[str] | None = None,
     commands: dict | None = None,
     command_home: Path | None = None,
+    siyuan_config_update: tuple[Path, str, str] | None = None,
 ) -> None:
     """Replace a known collection only after the complete staged tree validates."""
     staging = validate_staged_collection(expected_names, staging)
@@ -326,6 +329,11 @@ def replace_collection(
         raise InstallError("refusing to replace a legacy or drifted Pennix Skills collection")
     if staging == destination:
         return
+
+    if siyuan_config_update is not None:
+        path, before, _ = siyuan_config_update
+        if codex_static.read(path) != before:
+            raise InstallError("SiYuan config changed concurrently")
 
     commands = commands or {}
     if not _is_known_command_map(commands):
@@ -410,7 +418,25 @@ def replace_collection(
         for link, target in command_links:
             link.symlink_to(target)
             installed_links.append(link)
-    except OSError:
+        if siyuan_config_update is not None:
+            path, before, after = siyuan_config_update
+            if codex_static.read(path) != before:
+                raise codex_static.StaticError("SiYuan config changed concurrently")
+            codex_static.write(path, after)
+            if codex_static.read(path) != after:
+                raise codex_static.StaticError("SiYuan config update verification failed")
+    except (OSError, InstallError, codex_static.StaticError) as error:
+        rollback_error = None
+        if siyuan_config_update is not None:
+            path, before, after = siyuan_config_update
+            try:
+                current = codex_static.read(path)
+                if current == after:
+                    codex_static.write(path, before)
+                elif current != before:
+                    raise InstallError("SiYuan config changed during rollback")
+            except (OSError, InstallError, codex_static.StaticError) as failure:
+                rollback_error = failure
         for link in installed_links:
             link.unlink(missing_ok=True)
         for link, target_text in reversed(replaced_links):
@@ -426,6 +452,8 @@ def replace_collection(
             os.replace(receipt_backup, receipt)
         for directory in reversed(created_directories):
             directory.rmdir()
+        if rollback_error is not None:
+            raise InstallError("collection replacement failed and rollback was incomplete") from error
         raise
     finally:
         staged_receipt.unlink(missing_ok=True)

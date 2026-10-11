@@ -25,3 +25,11 @@ E01 前基线已使用固定 fixture 串行完成 44 个逻辑轮次；S01–S04
 FastCtx 源侧已完成 0.2.24 接入修订的 all-features Rust 测试：217 个库测试、4 个 golden、15 个 CLI contract、1 个 v0.1.1 compatibility、1 个 glob、1 个 guarded burst、1 个 URI、6 个 property、13 个 runtime control center、8 个 server contract、11 个 shell contract、3 个 PDF 及其余 doc tests 均通过，1 个既有 ignored 测试保持 ignored。此结果仍未替代 clippy/MSRV/跨平台构建、发布和真实宿主接入门。
 
 名称与 PATH 单元的首次回归发现受管命令实现仍只声明 Grok，且原子替换会遗留已证明链接指向旧目录；已补为有限的 Grok/Windsurf 双命令映射、旧 Grok receipt/旧 target 的证据约束重定向、现有链接重建和事务回滚，并增加旧 receipt 升级回归。修订后 lifecycle 组件测试 144 项通过。生命周期持久化状态目录、静态资产 marker、旧 receipt 路径和 CLI/package/component 标识按设计保持稳定，不因 Skill 目录改名被全局替换。
+
+## Siyuan 受管 helper 迁移补齐
+
+宿主首次安装后，`discover` 显示 Pennix 集合和 Grok/Windsurf PATH 已匹配，但 `siyuan-connection` 为 blocked：现有 MCP stanza 仍引用旧 `pennix-siyuan-memory` 路径。对照封口设计后确认这是源实现缺口：`replace-staged` 原先没有计划或事务化更新该 stanza。
+
+现已在 `replace-staged` 预检阶段通过现有 SiYuan helper 读取并验证私有连接记录，仅识别带 Pennix 所有权标记、字段完全匹配且 helper 命令指向已知旧 Skill 路径的 stanza；只生成 helper 路径变更，不重新提示、不打印或改写令牌。未配置记录或没有受管 stanza 时不创建配置；私有记录无效、stanza 漂移或所有权不明时停止。集合替换事务现在将该配置写入和回读核验纳入现有树、receipt、命令链接事务；写入失败恢复旧值和旧集合，写入前并发变化停止，回滚时遇到第三方新字节则保留该字节并明确报告事务未能完整回滚。
+
+新增迁移规划、未配置、不受管或漂移配置、正常原子更新、写入失败、写入后报错及并发编辑回归；并发改写会保留外部配置字节、恢复旧集合并报告未能完整回滚。定向 SiYuan/集合替换测试 40 项通过；全仓 17 个 Skill Python 测试模块共 234 项、evaluation 离线测试 5 项均通过，`git diff --check` 通过。此修复尚未提交、推送或重装，现场 `discover`/`verify` 和真实 MCP 状态尚未复核。

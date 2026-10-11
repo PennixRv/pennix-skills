@@ -1692,6 +1692,8 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
     try:
         skills_install.validate_staged_collection(collection_skill_names(component), staging)
         prepare_staged_collection(component, staging)
+        from adapters import siyuan
+        siyuan_config_update = siyuan.prepare_collection_update(args.codex_home, staging)
         skills_install.replace_collection(
             collection_skill_names(component),
             staging,
@@ -1701,8 +1703,9 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
             obsolete_names=set(component.get("obsolete_skills", [])),
             commands=collection_commands(component["collection_contract"].get("commands")),
             command_home=Path.home(),
+            siyuan_config_update=siyuan_config_update,
         )
-    except skills_install.InstallError as error:
+    except (skills_install.InstallError, configuration.ConfigurationError) as error:
         raise BootstrapError(str(error)) from error
     print(json.dumps({"operation": "replace-staged", "component": args.component, "status": "changed"}, ensure_ascii=False))
 

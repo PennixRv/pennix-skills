@@ -41,7 +41,13 @@ def _section(codex_home: Path, value: dict, *, headers_helper: str | None = None
     return f'{BEGIN}\n[mcp_servers.siyuan]\nurl = {json.dumps(entry["url"])}\nhttp_headers_helper = {json.dumps(entry["http_headers_helper"])}\nrequired = false\n{END}\n'
 
 
-def merged_config(contents: str, codex_home: Path, value: dict, previous: dict | None = None) -> str:
+def merged_config(
+    contents: str,
+    codex_home: Path,
+    value: dict,
+    previous: dict | None = None,
+    previous_helper: Path | None = None,
+) -> str:
     """Refuse unowned or edited entries and preserve every unrelated byte."""
     try:
         observed = tomllib.loads(contents).get("mcp_servers", {}).get("siyuan")
@@ -53,6 +59,8 @@ def merged_config(contents: str, codex_home: Path, value: dict, previous: dict |
         start = contents.index(BEGIN)
         finish = contents.index(END, start) + len(END)
         expected = _entry(codex_home, previous)
+        if previous_helper is not None:
+            expected["http_headers_helper"] = shlex.join([sys.executable, str(previous_helper)])
         command = observed.get("http_headers_helper") if isinstance(observed, dict) else None
         try:
             argv = shlex.split(command) if isinstance(command, str) else []
@@ -74,6 +82,35 @@ def merged_config(contents: str, codex_home: Path, value: dict, previous: dict |
     if observed is not None:
         raise configuration.ConfigurationError("SiYuan config is user-owned")
     return contents + ("\n" if contents and not contents.endswith("\n") else "") + "\n" + _section(codex_home, value)
+
+
+def prepare_collection_update(codex_home: Path, staging: Path) -> tuple[Path, str, str] | None:
+    """Plan the owned helper-path change without writing host state."""
+    helper = _helper()
+    record = helper.connection_path()
+    if not record.exists() and not record.is_symlink():
+        return None
+    try:
+        value = helper.read_connection()
+    except helper.ConnectionError:
+        raise configuration.ConfigurationError("SiYuan connection invalid or unsafe") from None
+
+    path = codex_home / "config.toml"
+    contents = codex_static.read(path)
+    if BEGIN not in contents and END not in contents:
+        merged_config(contents, codex_home, value, value)
+        return None
+    try:
+        merged_config(contents, codex_home, value, value)
+        return None
+    except configuration.ConfigurationError:
+        legacy_helper = codex_home / "skills/pennix-skills/pennix-siyuan-memory/scripts/mcp_headers.py"
+        updated = merged_config(contents, codex_home, value, value, legacy_helper)
+
+    staged_helper = staging / "pennix-siyuan-knowledge/scripts/mcp_headers.py"
+    if staged_helper.is_symlink() or not staged_helper.is_file():
+        raise configuration.ConfigurationError("staged SiYuan helper unavailable")
+    return path, contents, updated
 
 
 def target_state(codex_home: Path) -> str:

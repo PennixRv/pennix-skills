@@ -14,6 +14,91 @@ from adapters import siyuan, configuration
 
 
 class ConnectionTests(unittest.TestCase):
+    def test_collection_update_migrates_only_the_owned_helper_reference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            home = base / "codex"; home.mkdir()
+            helper = siyuan.helper_path(home); helper.parent.mkdir(parents=True); helper.write_text("fixture")
+            config = home / "config.toml"
+            config.write_text('model = "keep"\n')
+            staging = base / "stage"
+            staged_helper = staging / "pennix-siyuan-knowledge/scripts/mcp_headers.py"
+            staged_helper.parent.mkdir(parents=True); staged_helper.write_text("fixture")
+            values = ["https://notes.example/mcp", "20261004222305-tq7bml3", "fake-token"]
+            with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(base / "config")}), patch.object(configuration, "_read_tty", side_effect=values):
+                self.assertEqual(siyuan.configure(home), "configured")
+                current_command = shlex.join([sys.executable, str(helper)])
+                legacy_helper = home / "skills/pennix-skills/pennix-siyuan-memory/scripts/mcp_headers.py"
+                legacy_command = shlex.join([sys.executable, str(legacy_helper)])
+                config.write_text(config.read_text().replace(json.dumps(current_command), json.dumps(legacy_command)))
+                before = config.read_text()
+                record = base / "config/pennix-siyuan/connection.json"
+                record_bytes = record.read_bytes()
+
+                with patch.object(configuration, "_read_tty") as prompt:
+                    update = siyuan.prepare_collection_update(home, staging)
+                    prompt.assert_not_called()
+
+                self.assertEqual(update, (config, before, before.replace(json.dumps(legacy_command), json.dumps(current_command))))
+                self.assertEqual(config.read_text(), before)
+                self.assertEqual(record.read_bytes(), record_bytes)
+                self.assertNotIn("fake-token", update[2])
+
+    def test_collection_update_refuses_drifted_managed_config_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            home = base / "codex"; home.mkdir()
+            helper = siyuan.helper_path(home); helper.parent.mkdir(parents=True); helper.write_text("fixture")
+            config = home / "config.toml"
+            config.write_text('model = "keep"\n')
+            staging = base / "stage"
+            staged_helper = staging / "pennix-siyuan-knowledge/scripts/mcp_headers.py"
+            staged_helper.parent.mkdir(parents=True); staged_helper.write_text("fixture")
+            values = ["https://notes.example/mcp", "20261004222305-tq7bml3", "fake-token"]
+            with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(base / "config")}), patch.object(configuration, "_read_tty", side_effect=values):
+                siyuan.configure(home)
+                contents = config.read_text()
+                config.write_text(contents.replace("required = false", "required = true"))
+                before = config.read_bytes()
+                record = base / "config/pennix-siyuan/connection.json"
+                record_before = record.read_bytes()
+                with self.assertRaises(configuration.ConfigurationError):
+                    siyuan.prepare_collection_update(home, staging)
+                self.assertEqual(config.read_bytes(), before)
+                self.assertEqual(record.read_bytes(), record_before)
+
+    def test_collection_update_does_not_adopt_unmarked_user_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            home = base / "codex"; home.mkdir()
+            helper = siyuan.helper_path(home); helper.parent.mkdir(parents=True); helper.write_text("fixture")
+            config = home / "config.toml"
+            config.write_text('model = "keep"\n')
+            staging = base / "stage"
+            staged_helper = staging / "pennix-siyuan-knowledge/scripts/mcp_headers.py"
+            staged_helper.parent.mkdir(parents=True); staged_helper.write_text("fixture")
+            values = ["https://notes.example/mcp", "20261004222305-tq7bml3", "fake-token"]
+            with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(base / "config")}), patch.object(configuration, "_read_tty", side_effect=values):
+                siyuan.configure(home)
+                contents = config.read_text()
+                unmarked = contents.replace(siyuan.BEGIN + "\n", "").replace(siyuan.END + "\n", "")
+                config.write_text(unmarked)
+                before = config.read_bytes()
+                record = base / "config/pennix-siyuan/connection.json"
+                record_before = record.read_bytes()
+                with self.assertRaisesRegex(configuration.ConfigurationError, "user-owned"):
+                    siyuan.prepare_collection_update(home, staging)
+                self.assertEqual(config.read_bytes(), before)
+                self.assertEqual(record.read_bytes(), record_before)
+
+    def test_unconfigured_collection_update_does_not_create_connection_or_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            home = base / "codex"; home.mkdir()
+            staging = base / "stage"
+            self.assertIsNone(siyuan.prepare_collection_update(home, staging))
+            self.assertFalse((home / "config.toml").exists())
+
     def test_interpreter_alias_is_ready_without_mutating_records(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)

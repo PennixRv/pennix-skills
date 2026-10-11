@@ -29,7 +29,7 @@ class BootstrapTests(unittest.TestCase):
         self._state_environment.start()
         original = bootstrap.shutil.which
         patcher = patch.object(bootstrap.shutil, "which", side_effect=lambda name, *args, **kwargs:
-            None if name == "grok-search" else original(name, *args, **kwargs))
+            None if name in {"grok-search", "windsurf-code-search"} else original(name, *args, **kwargs))
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -1075,6 +1075,7 @@ class BootstrapTests(unittest.TestCase):
                 yes=True,
                 staging=str(staging),
                 destination=str(destination),
+                codex_home=root / "codex",
             )
 
             with patch.object(bootstrap, "prepare_staged_collection"), patch.object(Path, "home", return_value=root):
@@ -1111,6 +1112,7 @@ class BootstrapTests(unittest.TestCase):
                 yes=True,
                 staging=str(staging),
                 destination=str(destination),
+                codex_home=root / "codex",
             )
 
             with patch.object(bootstrap, "prepare_staged_collection"), patch.object(Path, "home", return_value=root):

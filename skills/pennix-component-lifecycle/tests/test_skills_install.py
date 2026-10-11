@@ -1,6 +1,6 @@
-import importlib.util
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,10 +8,8 @@ from unittest import mock
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "adapters" / "skills_install.py"
-SPEC = importlib.util.spec_from_file_location("pennix_skills_install", SCRIPT)
-MODULE = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(MODULE)
+sys.path.insert(0, str(SCRIPT.parents[1]))
+from adapters import skills_install as MODULE
 
 
 class SkillsCollectionTest(unittest.TestCase):
@@ -251,6 +249,104 @@ class SkillsCollectionTest(unittest.TestCase):
 
             self.assertTrue((destination / "alpha" / "old").is_file())
             self.assertTrue(staging.exists())
+
+    def test_siyuan_config_update_commits_with_the_collection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination, staging = root / "pennix-skills", root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(staging, "alpha")
+            self.make_skill(staging, "beta")
+            config = Path(temporary) / "config.toml"
+            config.write_text("old helper\n", encoding="utf-8")
+
+            MODULE.replace_collection(
+                {"alpha", "beta"}, staging, destination,
+                siyuan_config_update=(config, "old helper\n", "new helper\n"),
+            )
+
+            self.assertEqual(config.read_text(encoding="utf-8"), "new helper\n")
+            self.assertEqual(MODULE.collection_state({"alpha", "beta"}, destination), "match")
+            self.assertEqual(MODULE.collection_receipt_state(destination), "match")
+
+    def test_siyuan_config_write_failure_restores_collection_and_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination, staging = root / "pennix-skills", root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(staging, "alpha")
+            self.make_skill(staging, "beta")
+            config = Path(temporary) / "config.toml"
+            config.write_text("old helper\n", encoding="utf-8")
+
+            with mock.patch.object(MODULE.codex_static, "write", side_effect=OSError("config write failed")):
+                with self.assertRaisesRegex(OSError, "config write failed"):
+                    MODULE.replace_collection(
+                        {"alpha", "beta"}, staging, destination,
+                        siyuan_config_update=(config, "old helper\n", "new helper\n"),
+                    )
+
+            self.assertEqual(config.read_text(encoding="utf-8"), "old helper\n")
+            self.assertEqual(MODULE.collection_state({"alpha", "beta"}, staging), "match")
+            self.assertFalse((destination / "beta").exists())
+
+    def test_siyuan_config_write_that_commits_then_raises_is_restored(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination, staging = root / "pennix-skills", root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(staging, "alpha")
+            self.make_skill(staging, "beta")
+            config = Path(temporary) / "config.toml"
+            config.write_text("old helper\n", encoding="utf-8")
+            original_write = MODULE.codex_static.write
+            writes = 0
+
+            def write_then_fail(path: Path, contents: str) -> None:
+                nonlocal writes
+                writes += 1
+                original_write(path, contents)
+                if writes == 1:
+                    raise OSError("post-write failure")
+
+            with mock.patch.object(MODULE.codex_static, "write", side_effect=write_then_fail):
+                with self.assertRaisesRegex(OSError, "post-write failure"):
+                    MODULE.replace_collection(
+                        {"alpha", "beta"}, staging, destination,
+                        siyuan_config_update=(config, "old helper\n", "new helper\n"),
+                    )
+
+            self.assertEqual(config.read_text(encoding="utf-8"), "old helper\n")
+            self.assertEqual(MODULE.collection_state({"alpha", "beta"}, staging), "match")
+            self.assertFalse((destination / "beta").exists())
+
+    def test_concurrent_siyuan_config_change_is_preserved_and_collection_rolled_back(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skills"
+            destination, staging = root / "pennix-skills", root / ".pennix-stage"
+            self.make_skill(destination, "alpha")
+            self.make_skill(staging, "alpha")
+            self.make_skill(staging, "beta")
+            config = Path(temporary) / "config.toml"
+            config.write_text("old helper\n", encoding="utf-8")
+            original_replace = os.replace
+
+            def replace_with_concurrent_change(source: Path | str, target: Path | str) -> None:
+                if Path(source) == staging:
+                    config.write_text("user concurrent change\n", encoding="utf-8")
+                original_replace(source, target)
+
+            with mock.patch.object(MODULE.os, "replace", side_effect=replace_with_concurrent_change):
+                with self.assertRaisesRegex(MODULE.InstallError, "rollback was incomplete"):
+                    MODULE.replace_collection(
+                        {"alpha", "beta"}, staging, destination,
+                        siyuan_config_update=(config, "old helper\n", "new helper\n"),
+                    )
+
+            self.assertEqual(config.read_text(encoding="utf-8"), "user concurrent change\n")
+            self.assertTrue((destination / "alpha").is_dir())
+            self.assertFalse((destination / "beta").exists())
+            self.assertTrue((staging / "beta").is_dir())
 
     def test_late_receipt_failure_restores_tree_and_receipt(self) -> None:
         for existing in (False, True):
