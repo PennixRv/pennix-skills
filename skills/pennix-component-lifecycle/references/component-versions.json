@@ -121,7 +121,7 @@
     },
     "fastctx": {
       "delivery": "package",
-      "approved_version": "0.2.23",
+      "approved_version": "0.2.24",
       "source": "PennixRv/fastctx npm package",
       "owner": "fastctx",
       "scope": "global",
