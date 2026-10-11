@@ -103,6 +103,37 @@ Questions to answer:
   files and known record shapes before writing, preserves other credentials
   and target selections, verifies writes and reports partial failures closed.
 
+### Profile digest reconciliation
+
+1. **Scope / trigger:** A configuration catalog change may leave a valid current
+   namespace profile stale. Only explicit workflow-state reconciliation refreshes
+   it; component installation and readiness probes do not configure credentials.
+2. **Signature:** `python3 skills/pennix-component-lifecycle/scripts/lifecycle.py
+   reconcile --component pennix-workflow-state --yes` retains the existing CLI.
+3. **Contract:** The private profile has exactly `schema: 1` (integer, not bool),
+   a lowercase 64-hex `catalog_digest`, and a unique string `targets` array.
+   Namespace directories are owned and mode 0700; the profile is owned, regular,
+   mode 0600, and has no symlink ancestor. Every selected ID belongs to the current
+   catalog. Only default-enabled and selected targets are probed, using the same
+   local adapter calls as discovery. All must be `ready` or `configured`.
+   A refresh changes only the digest value, preserving target order and selection.
+4. **Validation / errors:** Safe stale profiles return `refreshed`; current ones
+   return `already-match` without rewriting. Invalid shapes, unknown targets,
+   unsafe paths/modes, and readiness failures return `blocked` without a write.
+   Compare the original bytes before atomic replacement, verify written bytes,
+   and roll back only while the destination still equals this attempt's output.
+   Preserve concurrent external bytes and report `blocked` with
+   `rollback-incomplete` when restoration cannot safely complete.
+5. **Cases:** Good: a renamed catalog member with unchanged target IDs and ready
+   adapters. Base: a current profile needs no write. Bad: a removed target ID or
+   an unready core provider cannot be approved merely by replacing its digest.
+6. **Tests:** `test_lifecycle.py` asserts ordered targets, default/selected probe
+   coverage, no configure/prompt, idempotence, invalid/private-path rejection,
+   pre-replacement comparison, write/readback failures and external-byte survival.
+7. **Wrong / correct:** Do not re-run configure to refresh a digest or overwrite
+   third-party bytes during rollback. Use explicit validated reconcile and keep
+   full host verify separate from profile reconciliation.
+
 ---
 
 ## Testing Requirements

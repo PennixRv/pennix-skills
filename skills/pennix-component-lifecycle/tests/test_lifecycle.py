@@ -642,6 +642,22 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(target.read_text(), original)
             self.assertEqual(list(target.parent.iterdir()), [target])
 
+    def test_agents_upgrade_accepts_published_pre_rename_template_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "AGENTS.md"
+            expected = bootstrap.codex_static.template("AGENTS.md.install")
+            original = expected.replace("$pennix-component-lifecycle；", "$pennix-workflow-lifecycle；")
+            self.assertEqual(bootstrap.codex_static.digest(original),
+                             "a126ddcab9cef58a2fdc70d827d079accf28df3f10ede25df3d5c40e80687a58")
+            target.write_text(original + "personal change\n")
+            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "drifted"):
+                bootstrap.codex_static.apply_template(target)
+            self.assertEqual(target.read_text(), original + "personal change\n")
+            target.write_text(original)
+            self.assertEqual(bootstrap.codex_static.template_state(target), "legacy")
+            bootstrap.codex_static.apply_template(target)
+            self.assertEqual(target.read_text(), expected)
+
     def test_agents_rejects_symlink_and_unsafe_permissions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1285,6 +1301,172 @@ class BootstrapTests(unittest.TestCase):
             value["catalog_digest"] = "c" * 64
             bootstrap.configuration._write_private_json(profile, value)
             self.assertEqual(bootstrap.reconcile_state(args, catalog)["status"], "blocked")
+
+    def stale_profile_fixture(self, root: Path):
+        state_environment = patch.dict(os.environ, {"XDG_STATE_HOME": str(root / "state")})
+        state_environment.start()
+        self.addCleanup(state_environment.stop)
+        home = root / "codex"
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        bootstrap.configuration.ensure_state_directory(home)
+        profile = bootstrap.configuration.profile_path(home)
+        bootstrap.configuration._write_private_json(profile, {
+            "schema": 1, "catalog_digest": "c" * 64,
+            "targets": ["windsurf-credential", "grok-search-provider"],
+        })
+        args = SimpleNamespace(component=bootstrap.STATE_COMPONENT, yes=True, codex_home=home, destination=None)
+        return args, catalog, profile
+
+    def test_profile_digest_refresh_preserves_selection_and_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+            original = json.loads(profile.read_bytes())
+            with (patch.object(bootstrap.configuration, "target_state", return_value="configured") as probe,
+                  patch.object(bootstrap.configuration, "configure_target") as configure,
+                  patch.object(bootstrap.configuration, "_read_tty") as prompt):
+                result = bootstrap.reconcile_state(args, catalog)
+            self.assertEqual(result["status"], "refreshed")
+            original["catalog_digest"] = bootstrap.configuration_digest(catalog)
+            self.assertEqual(json.loads(profile.read_bytes()), original)
+            self.assertEqual(profile.stat().st_mode & 0o777, 0o600)
+            self.assertEqual([call.args[0] for call in probe.call_args_list],
+                             ["codex-provider", "grok-provider", "windsurf-owner"])
+            self.assertEqual(probe.call_args_list[-1].kwargs["collection_member"], "pennix-windsurf-code-search")
+            configure.assert_not_called()
+            prompt.assert_not_called()
+            current = profile.read_bytes()
+            with patch.object(bootstrap, "_write_state_record") as write:
+                self.assertEqual(bootstrap.reconcile_state(args, catalog)["status"], "already-match")
+            write.assert_not_called()
+            self.assertEqual(profile.read_bytes(), current)
+
+    def test_profile_digest_refresh_refuses_invalid_records_without_probe_or_write(self) -> None:
+        variants = [
+            {"targets": ["unknown-target"]}, {"extra": "not-owned"},
+            {"schema": True}, {"schema": 2}, {"catalog_digest": "invalid"},
+            {"targets": ["grok-search-provider", "grok-search-provider"]},
+            {"targets": [True]},
+        ]
+        for variant in variants:
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+                value = json.loads(profile.read_bytes())
+                value.update(variant)
+                bootstrap.configuration._write_private_json(profile, value)
+                original = profile.read_bytes()
+                with patch.object(bootstrap.configuration, "target_state") as probe:
+                    self.assertEqual(bootstrap.reconcile_state(args, catalog)["status"], "blocked")
+                probe.assert_not_called()
+                self.assertEqual(profile.read_bytes(), original)
+
+    def test_profile_digest_refresh_requires_default_and_selected_readiness(self) -> None:
+        for adapter in ("codex-provider", "grok-provider", "windsurf-owner"):
+            for state in ("unknown", "blocked", "not-configured", "drifted"):
+                with self.subTest(adapter=adapter, state=state), tempfile.TemporaryDirectory() as temporary:
+                    args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+                    original = profile.read_bytes()
+                    with patch.object(bootstrap.configuration, "target_state",
+                                      side_effect=lambda name, *a, **k: state if name == adapter else "ready"):
+                        self.assertEqual(bootstrap.reconcile_state(args, catalog)["status"], "blocked")
+                    self.assertEqual(profile.read_bytes(), original)
+
+    def test_profile_digest_refresh_refuses_unsafe_path_and_modes(self) -> None:
+        for drift in ("file-mode", "namespace-mode", "homes-mode", "root-mode", "symlink"):
+            with self.subTest(drift=drift), tempfile.TemporaryDirectory() as temporary:
+                args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+                original = profile.read_bytes()
+                if drift == "symlink":
+                    target = profile.with_name("elsewhere")
+                    profile.rename(target)
+                    profile.symlink_to(target)
+                else:
+                    path = {"file-mode": profile, "namespace-mode": profile.parent,
+                            "homes-mode": profile.parent.parent, "root-mode": profile.parent.parents[1]}[drift]
+                    path.chmod(0o644 if drift == "file-mode" else 0o755)
+                with patch.object(bootstrap.configuration, "target_state", return_value="ready"):
+                    self.assertEqual(bootstrap.reconcile_state(args, catalog)["status"], "blocked")
+                self.assertEqual(profile.read_bytes(), original)
+
+    def test_profile_digest_refresh_preserves_concurrent_prewrite_change(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+            external = profile.read_bytes().replace(b'"c' + b'c' * 63, b'"d' + b'd' * 63)
+            def probe(*a, **k):
+                profile.write_bytes(external)
+                return "ready"
+            with patch.object(bootstrap.configuration, "target_state", side_effect=probe):
+                result = bootstrap.reconcile_state(args, catalog)
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(profile.read_bytes(), external)
+
+    def test_profile_digest_refresh_rolls_back_only_its_own_write(self) -> None:
+        for concurrent in (False, True):
+            with self.subTest(concurrent=concurrent), tempfile.TemporaryDirectory() as temporary:
+                args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+                original = profile.read_bytes()
+                external = b'{"external": true}\n'
+                native_write = bootstrap._write_state_record
+                writes = []
+                def failing_write(path, content, **kwargs):
+                    writes.append(content)
+                    native_write(path, content, **kwargs)
+                    if len(writes) == 1:
+                        if concurrent:
+                            profile.write_bytes(external)
+                        raise OSError("synthetic post-write failure")
+                with (patch.object(bootstrap.configuration, "target_state", return_value="ready"),
+                      patch.object(bootstrap, "_write_state_record", side_effect=failing_write)):
+                    result = bootstrap.reconcile_state(args, catalog)
+                self.assertEqual(result["status"], "blocked")
+                self.assertEqual(profile.read_bytes(), external if concurrent else original)
+                self.assertEqual(len(writes), 1 if concurrent else 2)
+                if concurrent:
+                    self.assertIn("rollback-incomplete", result["reason"])
+
+    def test_profile_digest_refresh_prewrite_failure_keeps_original(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+            original = profile.read_bytes()
+            with (patch.object(bootstrap.configuration, "target_state", return_value="ready"),
+                  patch.object(bootstrap, "_write_state_record", side_effect=OSError("synthetic failure"))):
+                result = bootstrap.reconcile_state(args, catalog)
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(profile.read_bytes(), original)
+
+    def test_profile_digest_refresh_rechecks_after_temporary_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+            external = b'{"external": true}\n'
+            native_fsync = bootstrap.os.fsync
+            def concurrent_fsync(descriptor):
+                profile.write_bytes(external)
+                native_fsync(descriptor)
+            with (patch.object(bootstrap.configuration, "target_state", return_value="ready"),
+                  patch.object(bootstrap.os, "fsync", side_effect=concurrent_fsync)):
+                result = bootstrap.reconcile_state(args, catalog)
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(profile.read_bytes(), external)
+            self.assertEqual(list(profile.parent.glob(".profile.json.*")), [])
+
+    def test_profile_digest_refresh_readback_failure_restores_original(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            args, catalog, profile = self.stale_profile_fixture(Path(temporary))
+            original = profile.read_bytes()
+            native_read = bootstrap._state_file
+            failed = False
+            def failing_read(path):
+                nonlocal failed
+                state, content = native_read(path)
+                if path == profile and content != original and not failed:
+                    failed = True
+                    return "unknown", None
+                return state, content
+            with (patch.object(bootstrap.configuration, "target_state", return_value="ready"),
+                  patch.object(bootstrap, "_state_file", side_effect=failing_read)):
+                result = bootstrap.reconcile_state(args, catalog)
+            self.assertTrue(failed)
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(profile.read_bytes(), original)
 
     def test_path_shadow_is_reported_separately_from_matching_link(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

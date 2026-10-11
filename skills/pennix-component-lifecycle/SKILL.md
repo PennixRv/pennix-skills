@@ -83,9 +83,9 @@ python3 <installed-lifecycle>/scripts/lifecycle.py configure \
 
 组件清单定义 `cch-connection`、`hikari-connection`、`grok-search-provider`、`grok-tavily-extra`、`windsurf-credential` 和 `siyuan-connection`。思源笔记令牌在目标内核的 `设置 → 鉴权 → API token` 中取得；连接 NAS 时从 NAS Web 客户端取得，独立桌面内核有自己的令牌。思源笔记默认生成令牌，应复用现有值，除非有意轮换。它与 Web 登录密码、模型服务商 API 密钥和对象存储凭据不同。可选目标使用隐藏终端输入、私有所有者记录和 Codex 原生请求头辅助程序；本地就绪不证明服务器握手或索引范围。原生运行核验见 `pennix-siyuan-knowledge/references/connection-and-index.md`。CCH 和 Windsurf 交给各自所有者的 configure 命令。Hikari 和 Grok 只从 `/dev/tty` 接收值，隐藏秘密输入，并写入私有所有者记录。Grok 拒绝覆盖缺少其生命周期标记的记录。交付先匹配，集合目标还要求匹配的完整性收据。
 
-生命周期不再公开或配置已经退役的 Firecrawl 目标。明确的 `reconcile` 只能在验证后，从带生命周期标记的 Grok 私有记录移除退役字段、目标选择和精确的旧冷却文件。服务商凭据、Tavily 设置、运行记录和无关缓存保持不动；记录不安全或状态不明时停止。
+生命周期不再公开或配置已经退役的 Firecrawl 目标。Firecrawl 退役协调通过明确的 `reconcile` 在验证后，从带生命周期标记的 Grok 私有记录移除退役字段、目标选择和精确的旧冷却文件。服务商凭据、Tavily 设置、运行记录和无关缓存保持不动；记录不安全或状态不明时停止。
 
-私有档保存在生命周期 XDG 状态命名空间，权限为 `0600`，只含目标 ID 和规范化配置合同摘要，可以安全重建。普通组件版本更新保留它。配置合同变化时，`discover` 标记为 `stale`；再次执行相关 configure 以重新封存。verify 要求核心目标和所有启用的可选目标处于 ready 或 configured 状态，但绝不输出秘密、秘密路径或配置值。
+私有档保存在生命周期 XDG 状态命名空间，权限为 `0600`，只含目标 ID 和规范化配置合同摘要。普通组件版本更新保留它。配置合同变化时，`discover` 标记为 `stale`；使用下方明确的 `reconcile --component pennix-workflow-state --yes` 可刷新安全的现行命名空间 profile。该路径要求字段严格有效、目录和文件安全、所选目标全部属于当前清单，且默认启用及选定目标均为 `ready` 或 `configured`；只更新 `catalog_digest`，保持 `targets` 数组，不提示、不调用 configure 或远端服务、不收集、复制或输出凭据值。本地就绪探针可能读取私有记录以判断状态。写入前重读字节，原子写入后回读；失败仅恢复本次写入，第三方新内容保留并报告 `rollback-incomplete`。当前摘要不改写；未知字段或目标、未就绪、权限或路径异常均阻塞。摘要刷新不替代完整 verify。
 
 对已有的 `CODEX_HOME/pennix-workflow-lifecycle` 树，先运行只读 `discover`。精确允许列表记录安全时，明确确认的迁移是：
 

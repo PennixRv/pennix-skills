@@ -3,7 +3,7 @@
   "name": "skills-audit-gap-remediation",
   "title": "Skills 审查缺口源码修订",
   "description": "承接根任务，复核前序审查并按已批准方案修订 Pennix Skills、脚本、参考和评估资产，发布后由原生安装器消费",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -44,7 +44,10 @@
         "execution_class": "planned",
         "delivery_mode": "change_bearing",
         "sealed_at": "2026-10-11T14:11:57.322545+00:00"
-      }
+      },
+      "approved_revision": 2,
+      "approval_basis": "User explicitly approved sealed revision 2 including N03.",
+      "approved_at": "2026-10-11T14:20:55.810391+00:00"
     }
   }
 }

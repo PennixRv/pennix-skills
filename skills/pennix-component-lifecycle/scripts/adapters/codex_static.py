@@ -17,6 +17,7 @@ ROOT_END = "# pennix-workflow-lifecycle:install-root:end"
 FEATURE_BEGIN = "# pennix-workflow-lifecycle:install-features:begin"
 FEATURE_END = "# pennix-workflow-lifecycle:install-features:end"
 LEGACY_AGENTS_DIGESTS = frozenset({
+    "a126ddcab9cef58a2fdc70d827d079accf28df3f10ede25df3d5c40e80687a58",  # d7bb185 full template
     "96307dbfbc9effe504748080008f8b250e4ae94b5a526325d58b00a8d7e49202",
     "916e8c3fe62a13db6e8731dd1e496240c8446e276900f8e47dd9f7464043cbfb",
     "57eda055881bdd719bd9e72e9d94e009d74b99beac20fc55687b22974689268d",

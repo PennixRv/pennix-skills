@@ -254,6 +254,7 @@ def _valid_profile(content: bytes, expected_digest: str | None) -> str:
     if (
         not isinstance(value, dict)
         or set(value) != {"schema", "catalog_digest", "targets"}
+        or type(value.get("schema")) is not int
         or value.get("schema") != configuration.PROFILE_SCHEMA
         or not isinstance(digest, str)
         or not re.fullmatch(r"[0-9a-f]{64}", digest)
@@ -344,14 +345,16 @@ def _state_record_paths(codex_home: Path, legacy: bool) -> dict[str, Path]:
     return {name: root / relative for name, relative in STATE_RECORDS.items()}
 
 
-def _write_state_record(path: Path, content: bytes) -> None:
+def _write_state_record(path: Path, content: bytes, *, expected_content: bytes | None = None) -> None:
     configuration._assert_no_symlink_ancestor(path)
     path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
     if _state_directory(path.parent, strict=True) != "configured":
         raise BootstrapError("state record directory is unsafe")
-    state, _ = _state_file(path)
+    state, observed = _state_file(path)
     if state not in {"missing", "configured"}:
         raise BootstrapError("state record destination is unsafe")
+    if expected_content is not None and (state != "configured" or observed != expected_content):
+        raise BootstrapError("state record changed before write")
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(temporary_name)
     try:
@@ -360,6 +363,10 @@ def _write_state_record(path: Path, content: bytes) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temporary, 0o600)
+        if expected_content is not None:
+            state, observed = _state_file(path)
+            if state != "configured" or observed != expected_content:
+                raise BootstrapError("state record changed before replacement")
         os.replace(temporary, path)
         try:
             directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
@@ -440,6 +447,7 @@ def _firecrawl_reconcile_plan(codex_home: Path, digest: str, current_targets: se
 
     profile_path = configuration.profile_path(codex_home)
     profile_state, profile_content = _state_file(profile_path)
+    profile_is_current = profile_state != "missing"
     if profile_state == "missing":
         profile_state, profile_content = _state_file(configuration.legacy_profile_path(codex_home))
     if profile_state == "configured" and profile_content is not None:
@@ -449,19 +457,15 @@ def _firecrawl_reconcile_plan(codex_home: Path, digest: str, current_targets: se
         profile = json.loads(profile_content.decode("utf-8"))
         if not set(profile["targets"]) <= current_targets | {"grok-firecrawl-extra"}:
             raise BootstrapError("lifecycle profile contains unknown targets")
-        if profile_state_name == "stale":
-            try:
-                profile = json.loads(profile_content.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                raise BootstrapError("lifecycle profile is invalid") from error
-            if profile.get("catalog_digest") != RETIRED_FIRECRAWL_PROFILE_DIGEST:
-                raise BootstrapError("lifecycle profile has an unrelated catalog revision")
+        if profile_state_name == "stale" and profile["catalog_digest"] == RETIRED_FIRECRAWL_PROFILE_DIGEST:
             targets = set(profile["targets"])
             if not targets <= current_targets | {"grok-firecrawl-extra"}:
                 raise BootstrapError("lifecycle profile contains unknown targets")
             profile["targets"] = sorted(targets - {"grok-firecrawl-extra"})
             profile["catalog_digest"] = digest
             plan["profile"] = (profile_path, profile_content, profile)
+        elif profile_state_name == "stale" and profile_is_current:
+            pass  # Current namespace refresh has its own readiness and rollback checks.
         elif profile_state_name != "match":
             raise BootstrapError("lifecycle profile is unsafe")
     elif profile_state not in {"missing"}:
@@ -503,6 +507,50 @@ def _apply_firecrawl_reconcile_plan(plan: dict[str, Any]) -> list[str]:
         raise
 
 
+def _refresh_profile_digest(args: argparse.Namespace, catalog: dict[str, Any], original: bytes) -> None:
+    path = configuration.profile_path(args.codex_home)
+    namespace = path.parent
+    if any(_state_directory(directory, strict=True) != "configured"
+           for directory in (namespace.parents[1], namespace.parent, namespace)):
+        raise BootstrapError("profile state namespace is unsafe")
+    if stat.S_IMODE(path.lstat().st_mode) != 0o600 or _valid_profile(original, None) != "match":
+        raise BootstrapError("profile record is invalid or unsafe")
+    profile = json.loads(original.decode("utf-8"))
+    selected = set(profile["targets"])
+    targets = configuration_target_map(catalog)
+    if not selected <= targets.keys():
+        raise BootstrapError("profile contains unknown targets")
+    for target in targets.values():
+        if not (target["default_enabled"] or target["id"] in selected):
+            continue
+        state = configuration.target_state(
+            target["adapter"], args.codex_home, target.get("settings"),
+            collection_root=skills_install.resolve_destination(getattr(args, "destination", None))
+            if target.get("collection") else None,
+            collection_member=target.get("member"),
+        )
+        if state not in {"ready", "configured"}:
+            raise BootstrapError(f"profile target is not ready: {target['id']}")
+    profile["catalog_digest"] = configuration_digest(catalog)
+    updated = (json.dumps(profile, sort_keys=True) + "\n").encode("utf-8")
+    try:
+        _write_state_record(path, updated, expected_content=original)
+        state, observed = _state_file(path)
+        if state != "configured" or observed != updated:
+            raise BootstrapError("profile refresh verification failed")
+    except (OSError, BootstrapError, configuration.ConfigurationError):
+        state, observed = _state_file(path)
+        if state == "configured" and observed == updated:
+            try:
+                _write_state_record(path, original, expected_content=updated)
+                state, observed = _state_file(path)
+            except (OSError, BootstrapError, configuration.ConfigurationError):
+                raise BootstrapError("profile refresh failed; rollback-incomplete") from None
+        if state != "configured" or observed != original:
+            raise BootstrapError("profile refresh failed; rollback-incomplete; external record preserved") from None
+        raise BootstrapError("profile refresh failed; original record preserved") from None
+
+
 def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any]:
     if args.component != STATE_COMPONENT or not args.yes:
         raise BootstrapError("reconcile requires --component pennix-workflow-state --yes")
@@ -523,6 +571,12 @@ def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[s
     current_static = configuration.state_namespace(args.codex_home) / "static-assets"
     obsolete_paths = [current_static / name for name in OBSOLETE_STATIC_RECEIPTS if (current_static / name).exists()]
     if legacy["status"] == "missing":
+        if current["status"] == "stale" and retirement_plan["profile"] is None:
+            try:
+                _refresh_profile_digest(args, catalog, current["records"]["profile"])
+            except (OSError, BootstrapError, configuration.ConfigurationError, skills_install.InstallError) as error:
+                return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "blocked", "reason": str(error)}
+            return {"operation": "reconcile", "component": STATE_COMPONENT, "namespace": namespace_id, "status": "refreshed"}
         if current["status"] in {"missing", "match"} or (
             current["status"] == "stale" and retirement_plan["profile"] is not None
         ):

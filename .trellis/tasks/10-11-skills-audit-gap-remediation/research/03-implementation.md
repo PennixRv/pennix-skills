@@ -45,3 +45,13 @@ FastCtx 源侧已完成 0.2.24 接入修订的 all-features Rust 测试：217 �
 完整宿主 `verify` 的失败中，`pennix-workflow-state` stale 与 profile stale 同源：catalog 更新后 profile 保存的 catalog 摘要仍旧。当前 `reconcile` 只允许已知 Firecrawl 退役场景，因此拒绝本次 catalog 修订；拒绝本身保护了未审查的 profile 状态。若坚持完成原计划的完整宿主验收，需判断是否在本任务增加受限的 profile-only reconcile：仅在 profile 结构和私有权限有效、全部启用目标仍存在且当前 readiness 可验证、更新前字节未并发变化时，原子更新 catalog 摘要并回读；保留目标选择和密钥记录，对无效/禁用目标、未知字段漂移、权限异常或并发写入拒绝，并覆盖回滚测试。此为新行为，未包含在已封口实现中。
 
 用户通过原生 grill 选择“纳入当前任务（推荐）”。根 D13 和本任务 decisions.md 已记录答复；两侧均已 native replan。计划限定为复用现有 reconcile、只更改摘要、启用 targets 的 readiness gate、保护并发字节及失败回滚，不提示、不调用 configure/远端服务、不收集或输出凭据值。接下来完成两侧计划修订和 native seal，向用户展示新增范围并取得明确实施批准前，不修改产品代码或测试。该项不能解除 E01 fixture 摘要不匹配或 `~/.codex/AGENTS.md` 未知 drift。
+
+## Revision 2 实施与 N01 落点复核
+
+用户已明确批准包含 N03 的完整 revision 2；两侧原生 approve/start 已通过。此次恢复最初误用 FastCtx 调用了 task.py，返回没有会话身份的降级结果；随后纠正为 Codex 原生 exec_command，current --json 确认两侧均有真实 session_source、正确任务绑定、in_progress，原生 start 均成功。未注入身份或手写 pointer；原先“身份缺失”的判断撤销。
+
+N03 已在现有 reconcile 增加现行命名空间 profile-only 分支：严格字段和 schema 类型、私有目录/文件、安全路径及当前全部 selected ID；只 probe 默认和选定 targets，均 ready/configured 后只刷新 digest，保留 target 数组顺序。复用原子字节 writer，在临时文件写入前及原子替换前比较原字节；回读不符或写入失败时仅恢复本次字节，第三方内容保留并报告 rollback-incomplete。正常分支不调用 configure、提示或远端服务；现有 Firecrawl/legacy 迁移条件独立保留。Skill 操作说明与 backend quality-guidelines 已同步。
+
+新增 9 项 N03 回归。首次测试暴露夹具共用 XDG 目录导致权限污染，已按用例隔离；补充临时写入期间并发变更及回读故障恢复。全仓 17 模块共 243 项与 evaluation 5 项通过。
+
+AGENTS 阻塞进一步按真实源复核：现场 SHA-256 为 a126ddcab9cef58a2fdc70d827d079accf28df3f10ede25df3d5c40e80687a58，逐字节等于已发布 d7bb185 的旧完整模板；不是未知个人编辑。当前模板只把 lifecycle Skill 引用从旧名改为新名，原升级允许列表漏掉最近的已发布模板。按已批准 N01 的完整旧模板受管升级合同，补入该唯一已证实摘要，新增实际旧内容可升级、追加个人内容仍拒绝的回归，不改变未知内容拒绝策略。首次回归重建旧文案时误用 ASCII 分号，核对真实文件后改为中文分号；更新后 lifecycle 80 项通过。最终代码复核时保留 legacy Firecrawl 的既有目标路径语义，避免误把先复制后更新的 destination 改回 legacy source；最终定向检查、提交、安装与实际 verify 仍待完成。
