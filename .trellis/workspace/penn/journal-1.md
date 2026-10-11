@@ -638,3 +638,37 @@ Completed the schema 10 handoff intake contract repair, pushed product and deliv
 ### Next Steps
 
 - No pending action for this task; unrelated active tasks remain untouched.
+
+
+## Session 27: 关闭全部 Trellis 任务
+<!-- trellis-session: v=2 fp=01949f32360545d7 -->
+
+**Date**: 2026-10-12
+**Task**: 关闭全部 Trellis 任务
+**Branch**: `main`
+
+### Summary
+
+按用户明确指令关闭 Pennix Skills 源仓库全部未归档任务；关闭不等同于补齐未执行的目标主机接纳或外部验收。
+
+### Main Changes
+
+- 归档全部 12 个未归档任务，包括历史遗留任务、已完成但未归档任务和当前审查修订任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e4b02f5` | chore(task): archive 10-11-skills-audit-gap-remediation |
+
+### Testing
+
+- [OK] get_context.py --mode record 确认无 active tasks assigned to you，工作区 clean。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 无；任务按用户指令全部关闭。
