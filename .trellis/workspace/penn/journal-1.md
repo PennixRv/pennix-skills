@@ -672,3 +672,26 @@ Completed the schema 10 handoff intake contract repair, pushed product and deliv
 ### Next Steps
 
 - 无；任务按用户指令全部关闭。
+
+
+## Session 28: 用户级 AGENTS 模板优化与安全部署
+<!-- trellis-session: v=2 fp=7c366731abb9852d -->
+
+**Date**: 2026-10-12
+**Task**: 用户级 AGENTS 模板优化与安全部署
+**Branch**: `main`
+
+### Summary
+
+精简全局工具规则，补充及时自然留痕和局部项目范围；同步 catalog、精确旧摘要与迁移夹具，198 项组件测试通过。Git 合入推送后，经系统 installer 和 native lifecycle 完成隔离与本机安装，三项 scoped verify 均 match，新宿主只读加载核验通过，组件任务已归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4624ea6` | refactor(agents): clarify global rules and safe template upgrade |
+| `40c5b9b` | docs: record user AGENTS deployment and acceptance |
+
+### Status
+
+[OK] **Completed**
