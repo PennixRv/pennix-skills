@@ -525,7 +525,7 @@ def _refresh_profile_digest(args: argparse.Namespace, catalog: dict[str, Any], o
             continue
         state = configuration.target_state(
             target["adapter"], args.codex_home, target.get("settings"),
-            collection_root=skills_install.resolve_destination(getattr(args, "destination", None))
+            collection_root=collection_destination(catalog["components"][target["collection"]], args.codex_home, getattr(args, "destination", None))
             if target.get("collection") else None,
             collection_member=target.get("member"),
         )
@@ -661,13 +661,14 @@ def reconcile_state(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[s
     }
 
 
-def staging_candidates(destination: str | None) -> list[str]:
+def staging_candidates(destination: str | None, codex_home: Path | None = None) -> list[str]:
     try:
-        collection = skills_install.resolve_destination(destination)
+        collection = skills_install.resolve_destination(destination, target_codex_home=codex_home)
         root = collection.parent
         if not root.is_dir() or root.is_symlink():
             return []
-        return sorted(entry.name for entry in root.iterdir() if entry.name.startswith(STAGING_PREFIX))
+        prefixes = tuple(f".{name}-stage" for name in skills_install.COLLECTION_NAMES)
+        return sorted(entry.name for entry in root.iterdir() if entry.name.startswith(prefixes))
     except (OSError, skills_install.InstallError):
         return []
 
@@ -716,13 +717,22 @@ def validate_configuration_targets(value: dict[str, Any], components: dict[str, 
 
 
 def load_catalog(path: Path) -> dict[str, Any]:
+    def unique_mapping(pairs):
+        result = {}
+        for key, item in pairs:
+            if key in result:
+                raise BootstrapError(f"catalog contains a duplicate key: {key}")
+            result[key] = item
+        return result
+
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_mapping)
     except (OSError, json.JSONDecodeError) as error:
         raise BootstrapError(f"cannot read catalog: {path}: {error}") from error
     components = value.get("components") if isinstance(value, dict) else None
     if not isinstance(value, dict) or value.get("schema") != 2 or not isinstance(components, dict) or not components:
         raise BootstrapError("catalog must contain schema 2 and non-empty components")
+    collection_names: set[str] = set()
     for key, component in components.items():
         required = ("delivery", "source", "owner", "scope", "verify_key", "actions", "project_init")
         if not isinstance(component, dict) or any(name not in component for name in required):
@@ -776,7 +786,7 @@ def load_catalog(path: Path) -> dict[str, Any]:
             names = contract.get("skills") if isinstance(contract, dict) else None
             bootstrap_skill = contract.get("bootstrap_skill") if isinstance(contract, dict) else None
             source = contract.get("source") if isinstance(contract, dict) else None
-            materialized = contract.get("materialized") if isinstance(contract, dict) else None
+            materialized = contract.get("materialized", {} if component.get("adapter") == "skill-collection" else None) if isinstance(contract, dict) else None
             commands = contract.get("commands") if isinstance(contract, dict) else None
             source_names = collection_source_names(source)
             materialized_names = collection_materialized_names(materialized)
@@ -784,8 +794,7 @@ def load_catalog(path: Path) -> dict[str, Any]:
             if (
                 not isinstance(names, list)
                 or not names
-                or not isinstance(bootstrap_skill, str)
-                or bootstrap_skill not in names
+                or (bootstrap_skill is not None and (not isinstance(bootstrap_skill, str) or bootstrap_skill not in names))
                 or any(not isinstance(name, str) or not skills_install.SKILL_NAME.fullmatch(name) for name in names)
                 or len(names) != len(set(names))
                 or source_names is None
@@ -795,6 +804,33 @@ def load_catalog(path: Path) -> dict[str, Any]:
                 or not materialized_names <= source_names
             ):
                 raise BootstrapError(f"catalog collection contract is invalid: {key}")
+            if key not in skills_install.COLLECTION_NAMES or contract.get("directory", key) != key or collection_names & set(names):
+                raise BootstrapError(f"catalog collection identity or names overlap: {key}")
+            collection_names.update(names)
+            if key == "pennix-skills":
+                if component.get("adapter") != key or bootstrap_skill is None or materialized is None:
+                    raise BootstrapError("catalog native-owner collection contract is invalid")
+            else:
+                expected_actions = {
+                    name: "managed" if name in {"install", "upgrade", "verify", "uninstall"} else "not-applicable"
+                    for name in ACTION_NAMES
+                }
+                if (
+                    component.get("adapter") != "skill-collection"
+                    or contract.get("directory") != key
+                    or bootstrap_skill is not None or materialized or command_map
+                    or actions != expected_actions or component["project_init"] != "not-applicable"
+                    or not isinstance(source, dict) or set(source) != {"repo", "ref", "paths"}
+                    or source["repo"] != "PennixRv/pennix-skills-extra"
+                    or re.fullmatch(r"[0-9a-f]{40}", source["ref"]) is None
+                    or any(
+                        len(Path(item).parts) != 3 or Path(item).parts[0] != "skills"
+                        or Path(item).parts[1] not in {"engineering", "productivity", "in-progress"}
+                        or Path(item).as_posix() != item or "\\" in item
+                        for item in source["paths"]
+                    )
+                ):
+                    raise BootstrapError("catalog managed collection contract is invalid")
         package = component.get("package")
         if package is not None and (
             not isinstance(package, dict)
@@ -879,17 +915,33 @@ def collection_skill_names(component: dict[str, Any]) -> set[str]:
     return set(names)
 
 
-def collection_bootstrap_skill(component: dict[str, Any]) -> str:
+def collection_bootstrap_skill(component: dict[str, Any]) -> str | None:
     contract = component.get("collection_contract")
     if not isinstance(contract, dict):
         raise BootstrapError("catalog collection contract is missing")
     bootstrap_skill = contract.get("bootstrap_skill")
+    if component.get("adapter") == "skill-collection" and bootstrap_skill is None:
+        return None
     source_names = collection_source_names(contract.get("source"))
     materialized_names = collection_materialized_names(contract.get("materialized"))
     all_names = (source_names or set()) | (materialized_names or set())
     if not isinstance(bootstrap_skill, str) or bootstrap_skill not in all_names:
         raise BootstrapError("catalog bootstrap Skill is missing")
     return bootstrap_skill
+
+
+def collection_destination(component: dict[str, Any], codex_home: Path | None, destination: str | None) -> Path:
+    name = component["collection_contract"].get("directory", "pennix-skills")
+    return skills_install.resolve_destination(
+        destination if name == "pennix-skills" else None, name, codex_home,
+    )
+
+
+def collection_source_identity(component: dict[str, Any]) -> dict[str, Any] | None:
+    if component.get("adapter") != "skill-collection":
+        return None
+    source = component["collection_contract"]["source"]
+    return {"repo": source["repo"], "ref": source["ref"], "skills": sorted(collection_skill_names(component))}
 
 
 def parse_package_owner(output: str) -> str | None:
@@ -1069,13 +1121,23 @@ def probe_component(
         state = observed["state"]
         status = {"current": "match", "absent": "missing", "upgrade-available": "drifted"}.get(state, state)
         return status, f"{state}:{observed.get('receipt', 'unknown')}"
-    if adapter == "pennix-skills":
+    if component.get("delivery") == "collection":
         try:
-            destination_path = skills_install.resolve_destination(destination)
+            destination_path = collection_destination(component, codex_home, destination)
             state = skills_install.collection_state(
                 collection_skill_names(component), destination_path, collection_bootstrap_skill(component)
             )
-        except skills_install.InstallError:
+            source = collection_source_identity(component)
+            if source is not None:
+                receipt = skills_install.collection_receipt(destination_path)
+                if state == "missing":
+                    path = skills_install.receipt_path(destination_path)
+                    return ("drifted" if path.exists() or path.is_symlink() else "missing"), None
+                integrity = skills_install.collection_receipt_state(destination_path, {}, source)
+                if state != "match" or integrity not in {"match", "upgrade-available"}:
+                    return "drifted", None
+                return integrity, receipt["source"]["ref"] if receipt is not None else None
+        except (skills_install.InstallError, OSError):
             return "unknown", None
         return state, str(destination_path) if state in {"match", "bootstrap", "partial"} else None
     plugin = component.get("plugin")
@@ -1232,10 +1294,10 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             components[key]["static_state"] = asset.get("state")
             components[key]["static_target"] = asset.get("target")
             static_assets[key] = asset
-        if component.get("adapter") == "pennix-skills":
+        if component.get("delivery") == "collection":
             components[key]["format_readiness"] = skills_install.format_readiness()
             try:
-                destination_path = skills_install.resolve_destination(getattr(args, "destination", None))
+                destination_path = collection_destination(component, args.codex_home, getattr(args, "destination", None))
                 components[key]["missing_skills"] = skills_install.collection_missing_names(
                     collection_skill_names(component), destination_path, collection_bootstrap_skill(component)
                 )
@@ -1243,8 +1305,10 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                     skills_install.collection_receipt_state(
                         destination_path,
                         collection_commands(component["collection_contract"].get("commands")),
-                    ) if status == "match" else "not-applicable"
+                        collection_source_identity(component),
+                    ) if status in {"match", "upgrade-available"} else "not-applicable"
                 )
+                components[key]["collection_source"] = collection_source_identity(component)
                 components[key]["commands"] = inspect_collection_commands(
                     destination_path,
                     collection_commands(component["collection_contract"].get("commands")) or {},
@@ -1266,14 +1330,14 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                 "enabled": enabled,
                 "status": configuration.target_state(
                     target["adapter"], args.codex_home, target.get("settings"),
-                    collection_root=skills_install.resolve_destination(getattr(args, "destination", None))
+                    collection_root=collection_destination(catalog["components"][target["collection"]], args.codex_home, getattr(args, "destination", None))
                     if target.get("collection") else None,
                     collection_member=target.get("member"),
                 ),
                 "readiness": target["readiness"],
             }
         )
-    candidates = staging_candidates(getattr(args, "destination", None))
+    candidates = staging_candidates(getattr(args, "destination", None), args.codex_home)
     return {
         "schema": 2,
         "observed_at": now(),
@@ -1323,9 +1387,9 @@ def verify_inventory(args: argparse.Namespace, catalog: dict[str, Any], inventor
             failures.append(f"{key}: observed status is {observed['status']}")
         if component.get("adapter") == "tmux-config" and observed.get("static_state") != "current":
             failures.append(f"{key}: static state is {observed.get('static_state')}")
-        if component.get("adapter") == "pennix-skills" and observed.get("collection_integrity") != "match":
+        if component.get("delivery") == "collection" and observed.get("collection_integrity") not in {"match", "upgrade-available"}:
             failures.append(f"{key}: collection integrity is {observed.get('collection_integrity')}")
-        if component.get("adapter") == "pennix-skills":
+        if component.get("delivery") == "collection":
             for name, state in observed.get("commands", {}).items():
                 if state.get("status") != "match" or state.get("path_status") != "match":
                     failures.append(f"command {name}: link={state.get('status')} PATH={state.get('path_status')}")
@@ -1391,7 +1455,101 @@ def inspect_for_operation(component: dict[str, Any]) -> None:
         raise BootstrapError(f"upstream inspection blocked the component: {evidence.get('status')}")
 
 
-def static_operation(args: argparse.Namespace, key: str, component: dict[str, Any], operation: str) -> str:
+def host_skill_installer() -> Path:
+    host_home = skills_install.assert_safe_destination(skills_install.codex_home())
+    helper = host_home / "skills" / ".system" / "skill-installer" / "scripts" / "install-skill-from-github.py"
+    try:
+        skills_install.assert_safe_destination(helper.parent)
+        for path in [helper, helper.with_name("github_utils.py"), *helper.parents]:
+            if path == host_home.parent:
+                break
+            metadata = path.lstat()
+            if (
+                metadata.st_uid not in {0, os.getuid()}
+                or metadata.st_mode & 0o022
+                or (path in {helper, helper.with_name("github_utils.py")} and not stat.S_ISREG(metadata.st_mode))
+            ):
+                raise BootstrapError(f"host system installer path is untrusted: {path}")
+    except (OSError, skills_install.InstallError) as error:
+        raise BootstrapError(f"host system installer contract unavailable: {error}") from error
+    return helper
+
+
+def validate_managed_support(staging: Path, names: set[str], available_skills: set[str]) -> None:
+    skills_install.validate_staged_collection(names, staging)
+    skills_install.collection_digest(staging)
+    for name in names:
+        skill = staging / name
+        for required in ("LICENSE", "UPSTREAM.md"):
+            path = skill / required
+            if not path.is_file() or not path.read_bytes().strip():
+                raise BootstrapError(f"managed Skill lacks {required}: {name}")
+        for path in skill.rglob("*.md"):
+            if path.name == "UPSTREAM.md":
+                continue
+            body = path.read_text(encoding="utf-8")
+            for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", body):
+                target = target.split("#", 1)[0]
+                if not target or "://" in target or target.startswith("mailto:"):
+                    continue
+                resolved = (path.parent / target).resolve()
+                if not resolved.is_relative_to(skill.resolve()) or not resolved.is_file():
+                    raise BootstrapError(f"managed Skill support reference is not closed: {name}: {target}")
+            for referenced in re.findall(r"\$([a-z][a-z0-9]*(?:-[a-z0-9]+)*)", body):
+                if referenced not in available_skills:
+                    raise BootstrapError(f"managed Skill references an unregistered Skill: {name}: {referenced}")
+
+
+def managed_collection_operation(
+    args: argparse.Namespace, catalog: dict[str, Any], component: dict[str, Any], operation: str,
+) -> str:
+    if getattr(args, "destination", None) is not None:
+        raise BootstrapError("managed extra collection does not accept --destination overrides")
+    if Path(getattr(args, "catalog", DEFAULT_CATALOG)).resolve() != DEFAULT_CATALOG.resolve():
+        raise BootstrapError("managed extra collection does not accept catalog overrides")
+    destination = collection_destination(component, args.codex_home, None)
+    source = collection_source_identity(component)
+    names = collection_skill_names(component)
+    state, _ = probe_component(component, args.codex_home)
+    try:
+        if operation == "uninstall":
+            return "changed" if skills_install.uninstall_collection(names, destination, source=source) else "no-op"
+        if operation == "install" and state != "missing":
+            raise BootstrapError("managed collection install requires an absent destination")
+        if operation == "upgrade":
+            if state == "match":
+                return "no-op"
+            if state != "upgrade-available":
+                raise BootstrapError(f"managed collection upgrade refuses {state} state")
+        elif operation != "install":
+            raise BootstrapError(f"unsupported managed collection operation: {operation}")
+        helper = host_skill_installer()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f".{destination.name}-stage-", dir=destination.parent) as temporary:
+            staging = Path(temporary)
+            contract_source = component["collection_contract"]["source"]
+            result = subprocess.run(
+                [sys.executable, str(helper), "--repo", contract_source["repo"], "--ref", contract_source["ref"],
+                 "--path", *contract_source["paths"], "--dest", str(staging), "--method", "download"],
+                capture_output=True, text=True, timeout=120, check=False, cwd=helper.parent,
+            )
+            if result.returncode:
+                raise BootstrapError(f"system installer failed ({result.returncode}): {result.stderr.strip()}")
+            available_skills = set().union(*(
+                collection_skill_names(item) for item in catalog["components"].values() if item.get("delivery") == "collection"
+            ))
+            validate_managed_support(staging, names, available_skills)
+            skills_install.replace_collection(names, staging, destination, source=source)
+        if probe_component(component, args.codex_home)[0] != "match":
+            raise BootstrapError("managed collection postcondition failed")
+        return "changed"
+    except (OSError, UnicodeError, subprocess.TimeoutExpired, skills_install.InstallError) as error:
+        raise BootstrapError(f"managed collection operation failed: {error}") from error
+
+
+def static_operation(
+    args: argparse.Namespace, key: str, component: dict[str, Any], operation: str, catalog: dict[str, Any] | None = None,
+) -> str:
     adapter = component["adapter"]
     if adapter == "codex-config":
         path = args.codex_home / "config.toml"
@@ -1431,10 +1589,14 @@ def static_operation(args: argparse.Namespace, key: str, component: dict[str, An
             return "changed"
         raise BootstrapError(f"refusing {state} lifecycle template: {path}")
 
-    if adapter == "pennix-skills":
+    if component.get("delivery") == "collection":
+        if adapter == "skill-collection":
+            if catalog is None:
+                raise BootstrapError("managed collection requires its trusted catalog")
+            return managed_collection_operation(args, catalog, component, operation)
         if operation != "uninstall":
             raise BootstrapError("Pennix Skills installation and upgrade belong to the system $skill-installer")
-        destination = skills_install.resolve_destination(getattr(args, "destination", None))
+        destination = collection_destination(component, args.codex_home, getattr(args, "destination", None))
         try:
             changed = skills_install.uninstall_collection(
                 collection_skill_names(component), destination, collection_bootstrap_skill(component),
@@ -1628,9 +1790,9 @@ def configuration_parent_status(
     if status != "match":
         raise BootstrapError(f"configuration delivery is {status}: {key}")
     if component.get("delivery") == "collection":
-        destination = skills_install.resolve_destination(getattr(args, "destination", None))
+        destination = collection_destination(component, args.codex_home, getattr(args, "destination", None))
         integrity = skills_install.collection_receipt_state(
-            destination, collection_commands(component["collection_contract"].get("commands"))
+            destination, collection_commands(component["collection_contract"].get("commands")), collection_source_identity(component)
         )
         if integrity != "match":
             raise BootstrapError(f"configuration collection integrity is {integrity}")
@@ -1644,7 +1806,7 @@ def configure_configuration_target(
     digest = configuration_digest(catalog)
     state = configuration.configure_target(
         target["adapter"], args.codex_home, target.get("settings"),
-        collection_root=skills_install.resolve_destination(getattr(args, "destination", None))
+        collection_root=collection_destination(catalog["components"][target["collection"]], args.codex_home, getattr(args, "destination", None))
         if target.get("collection") else None,
         collection_member=target.get("member"),
     )
@@ -1690,7 +1852,7 @@ def run_lifecycle(args: argparse.Namespace, catalog: dict[str, Any]) -> str | No
         raise BootstrapError(f"{component} {args.command} is {capability}: {reason}")
     assert_supported_host()
     if metadata["delivery"] in {"static", "collection"}:
-        status = static_operation(args, component, metadata, args.command)
+        status = static_operation(args, component, metadata, args.command, catalog)
     else:
         status = component_operation(args, catalog, component, metadata, args.command)
     print(json.dumps({"operation": args.command, "component": component, "status": status}, ensure_ascii=False))
@@ -1741,7 +1903,7 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
     if component.get("delivery") != "collection":
         raise BootstrapError("replace-staged only supports collections")
     assert_supported_host()
-    destination = skills_install.resolve_destination(getattr(args, "destination", None))
+    destination = collection_destination(component, args.codex_home, getattr(args, "destination", None))
     staging = Path(args.staging).expanduser().absolute()
     try:
         skills_install.validate_staged_collection(collection_skill_names(component), staging)

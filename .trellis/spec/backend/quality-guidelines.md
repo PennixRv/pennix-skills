@@ -113,6 +113,15 @@ Questions to answer:
   files and known record shapes before writing, preserves other credentials
   and target selections, verifies writes and reports partial failures closed.
 
+### Published user-rule revisions
+
+- `codex-agents` upgrades accept only the current complete template or a known
+  published digest, retaining user edits as drift. A template change must update
+  its catalog revision and register the exact previous published digest.
+- Keep previous bytes in a fixed test fixture and assert its published digest;
+  never derive historical bytes from the mutable current template. Verify exact
+  migration and unchanged-byte refusal after a user edit through the real adapter.
+
 ### Profile digest reconciliation
 
 1. **Scope / trigger:** A configuration catalog change may leave a valid current

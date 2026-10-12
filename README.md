@@ -55,9 +55,11 @@ Skill。它先执行只读 `discover`；完整安装或升级时，所有 catalo
 
 `seed-arch.sh` 没有 `--uninstall`，也不会删除 `auth.json`、`openai-codex-bin`、AUR helper、
 构建依赖、Skills、插件或项目资产。凭据文件始终需要用户在轮换或撤销凭据后自行删除。
-完整 collection 的下载仍由系统 `$skill-installer` 拥有；lifecycle 负责发现、staging 完整性验证、
+`pennix-skills` 完整 collection 的下载仍由系统 `$skill-installer` 拥有；lifecycle 负责发现、staging 完整性验证、
 事务替换，以及仅在目录条目和每个 `SKILL.md` 都完全匹配 catalog 时的精确卸载。更新 collection
 时不先删除旧目录；只有新 staging 完整匹配后才替换，失败保留旧安装。
+
+独立精选集合 `pennix-skills-extra` 补充已审核的 Matt Skills 方法，由 lifecycle 管理 install、upgrade、verify 和 uninstall。唯一白名单、来源路径和不可变 SHA 位于同一 catalog；受信宿主 system installer helper 只负责下载，树和独立来源收据由 lifecycle 校验及事务提交。新集合没有 bootstrap、安装后命令、配置或项目初始化动作；其更新或卸载保留另一集合。具体入口和失败边界见 [生命周期 Skill](skills/pennix-component-lifecycle/SKILL.md)，上游精选维护见 [公开 fork](https://github.com/PennixRv/pennix-skills-extra)。
 
 `config.toml.install` 只包含工作流必需的静态策略，排除用户 model、sandbox/approval、TUI、Web、
 history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook hash。静态配置和 Agents 模板的
