@@ -27,3 +27,13 @@
 完整 lifecycle 全量 176 项通过，覆盖原生入口分派、同 SHA 无操作、完整旧 SHA 升级/退回、部分下载、缺失/越界支持和未登记 Skill、receipt 写入/树切换/receipt 切换失败恢复、宿主 helper 信任、私有来源与漂移拒绝、分别卸载时另一集合的字节/模式/所有者/receipt 不变。`python3 -m py_compile` 和 `git diff --check` 均通过。
 
 真实固定 SHA 已在隔离临时目标执行 native install/verify/upgrade/uninstall：install 返回 `changed`，verify 的 `pennix-skills-extra` 为 `match` 且 `failures=[]`，同源同 SHA upgrade 返回 `no-op`，uninstall 返回 `changed`，卸载后目标只保留空的 `skills/` 父目录。此次现场使用实际 Arch WSL2 宿主和实际 system installer helper，但未写入正式 `CODEX_HOME`。组件源仍待提交、推送，并待 Trellis 发布和正式生命周期落点。
+
+## 发布、重装与正式落点
+
+Pennix 源的固定 Trellis 版本已更新为 `0.7.0-beta.46`，提交 `22fe6bd83eda29729a935d53c4a3e1d87db5f99c` 已推送 `main`；远端 Verify Pennix Skills workflow `38246375534` 成功。源仓库按 CI 实际入口运行 19 个测试文件、共 287 个测试，全部通过，其中 1 项按设计跳过；`compileall` 和 `git diff --check` 通过。
+
+正式宿主重装先验证了失败保护：使用 `/tmp` 暂存时因不与活动目录共享父目录被拒绝；同父目录的 `download` 暂存因 `windsurf-code-search` 入口为 `0644` 被拒绝。两次活动集合均保持不变。随后使用宿主真实 system installer 的 `git` 方法保留可执行位，事务 `replace-staged` 成功，`pennix-skills` verify 为 `match`，两个受管命令均为 `match`。
+
+随后使用新入口执行 `pennix-skills-extra install --yes`，返回 `changed`；正式集合 verify 为 `match`，固定来源为 `PennixRv/pennix-skills-extra@c205b3960602902536ba48bbad5b028803fbf7ab`，十项白名单完整，`failures=[]`。`codex-agents upgrade --yes` 返回 `changed`，定向 verify 为 `match`；旧模板内容未被未知覆盖文件替换。失败尝试留下的 `.pennix-skills-stage-kxjRyq` 仅被报告为未知暂存，未被 lifecycle 接管。
+
+Trellis lifecycle `upgrade --component trellis-cli --yes` 返回 `changed`，本机 `trellis --version` 为 `0.7.0-beta.46`，定向 verify 为 `match`。原生 `trellis update --create-new` 将根项目从 beta.45 更新到 beta.46，自动更新 3 个 Trellis Skill，保留 tasks/spec/workspace；再次 `trellis update --dry-run` 报告 `Already up to date`。本任务创建的失败暂存目录已按精确白名单清理。
