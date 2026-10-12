@@ -1,0 +1,53 @@
+{
+  "id": "matt-skills-extra",
+  "name": "matt-skills-extra",
+  "title": "Matt 精选集合与 Pennix 规划路由融合",
+  "description": "实施根任务 revision 3 已批准的 Pennix 范围：宿主工具调用面 P0、决策地图方法、工作流写作差集和 lifecycle 双集合；不增加独立产品决策。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-12",
+  "completedAt": null,
+  "branch": "task/matt-skills-extra",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "matt-skills-extra",
+        "task_name": "10-12-matt-skills-extra",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "40fb2db4d3ee54b7047b77ce8eb828711f211ab21710be1895a4aa6b1e49f503",
+          "design.md": "9ae7748ae579b9a03e643ff8156ff71edce2710f5bf00fb478dabde8e7ac4127",
+          "implement.md": "43f278858697125a04ec89cc54c5991cf5d6814ad693eddee350150a552e1531"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-12T09:05:21.097329+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户明确批准根任务封口 revision 3 的完整组件修订包；本 task 是其中已展示的 Pennix 修改面执行投影，无新增方案取舍",
+      "approved_at": "2026-10-12T09:05:33.941232+00:00"
+    }
+  }
+}

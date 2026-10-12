@@ -30,6 +30,16 @@ class DecisionGrillContractTests(unittest.TestCase):
         for marker in ("原生阻塞式 `request_user_input`", "不因时间默认采用推荐", "保留必要未决项并停止其依赖动作", "可选问题空回执服从更高优先级宿主合同"):
             self.assertIn(marker, self.content)
 
+    def test_native_interaction_is_not_discovered_through_nested_mcp_tools(self) -> None:
+        for marker in (
+            "属于宿主原生交互",
+            "不要求出现在 MCP 或嵌套工具清单中",
+            "不能证明宿主直接工具不存在",
+            "不要用嵌套清单探测或判断交互工具可用性",
+            "不改报为工具缺失",
+        ):
+            self.assertIn(marker, self.content)
+
     def test_material_execution_choice_uses_native_phase_while_small_addition_can_continue(self) -> None:
         for marker in ("立即说明问题、影响与推荐", "先用原生 `task.py replan` 回到 `planning`", "任务已在 `planning` 时更新并重新 `seal`", "不手改 `task.json`", "该请求仅授权精确增量", "不创建第二状态机"):
             self.assertIn(marker, self.content)

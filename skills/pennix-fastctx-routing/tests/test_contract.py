@@ -11,6 +11,20 @@ class FastCtxRoutingContractTest(unittest.TestCase):
         self.assertIn("`functions.exec` 中的嵌套编排器", content)
         self.assertIn("不是宿主原生 MCP 清单", content)
         self.assertIn("调用已暴露工具遇到 schema、权限、传输或", content)
+        self.assertIn("不能从该嵌套调用面调用", content)
+        self.assertIn("不能只查 `ALL_TOOLS` 得出缺失结论", content)
+
+    def test_capacity_and_partial_results_do_not_trigger_fallback(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        for marker in (
+            "Guarded 共享输出池耗尽是容量保护",
+            "Partial 只按结果给出的精确 offset/files 续读",
+            "下一轮调用，不在同轮反复重试",
+            "容量提示不触发 shell fallback",
+            "不关闭 Guarded",
+            "不自动降级",
+        ):
+            self.assertIn(marker, content)
 
     def test_native_workflow_protocols_are_excluded_before_fastctx(self) -> None:
         content = SKILL.read_text(encoding="utf-8")

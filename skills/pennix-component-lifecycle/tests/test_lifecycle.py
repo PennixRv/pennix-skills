@@ -646,7 +646,8 @@ class BootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / "AGENTS.md"
             expected = bootstrap.codex_static.template("AGENTS.md.install")
-            original = expected.replace("$pennix-component-lifecycle；", "$pennix-workflow-lifecycle；")
+            previous = (SKILL_ROOT / "tests" / "fixtures" / "AGENTS.a44dddc.md").read_text(encoding="utf-8")
+            original = previous.replace("$pennix-component-lifecycle；", "$pennix-workflow-lifecycle；")
             self.assertEqual(bootstrap.codex_static.digest(original),
                              "a126ddcab9cef58a2fdc70d827d079accf28df3f10ede25df3d5c40e80687a58")
             target.write_text(original + "personal change\n")
@@ -657,6 +658,22 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(bootstrap.codex_static.template_state(target), "legacy")
             bootstrap.codex_static.apply_template(target)
             self.assertEqual(target.read_text(), expected)
+
+    def test_agents_tool_surface_revision_migrates_only_exact_published_template(self) -> None:
+        original = (SKILL_ROOT / "tests" / "fixtures" / "AGENTS.a44dddc.md").read_text(encoding="utf-8")
+        self.assertEqual(bootstrap.codex_static.digest(original),
+                         "8498d0dc121b483fc8e1f45cdbbfb49edf1f6b750c1bead6a0c252c699ec4191")
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "AGENTS.md"
+            target.write_text(original + "personal change\n", encoding="utf-8")
+            before = target.read_bytes()
+            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "drifted"):
+                bootstrap.codex_static.apply_template(target)
+            self.assertEqual(target.read_bytes(), before)
+            target.write_text(original, encoding="utf-8")
+            self.assertEqual(bootstrap.codex_static.template_state(target), "legacy")
+            bootstrap.codex_static.apply_template(target)
+            self.assertEqual(target.read_text(), bootstrap.codex_static.template("AGENTS.md.install"))
 
     def test_agents_rejects_symlink_and_unsafe_permissions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
