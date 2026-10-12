@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/
 
 完成输出对应当前 Codex 会话的下一轮用户输入，不要求新会话。第一轮只通过系统 `$skill-installer` 安装清单中的 `bootstrap_skill`。安装器会说明新 Skill 在下一轮可用；下一轮仍在同一会话中调用本 Skill。
 
-下一轮先运行只读 `discover`。若 `pennix-skills` 状态为 `bootstrap` 或 `partial`，读取 `references/component-versions.json` 中的 `missing_skills` 和唯一的 `collection_contract`。完整安装或升级时，在 `$CODEX_HOME/skills` 下创建新的相邻暂存目录，用 `$skill-installer` 安装清单列出的全部 Skill 目录；不得直接安装到活动集合。该集合使用安装器的 `--method git` 模式（或保留仓库文件模式的等效模式），因为可执行的 `seed-arch.sh` 在只下载暂存时可能变成 `0644`。安装器调用只能使用清单中定义的源路径；物化条目提供来源和封闭的安装后元数据。
+下一轮先运行只读 `discover`。若 `pennix-skills` 状态为 `bootstrap` 或 `partial`，从发现结果取得 `missing_skills`，并读取 `references/component-versions.json` 中该组件的 `collection_contract`。该集合完整安装或升级时，在 `$CODEX_HOME/skills` 下创建新的相邻暂存目录，用 `$skill-installer` 安装清单列出的全部 Skill 目录；不得直接安装到活动集合。该集合使用安装器的 `--method git` 模式（或保留仓库文件模式的等效模式），因为可执行的 `seed-arch.sh` 在只下载暂存时可能变成 `0644`。安装器调用只能使用清单中定义的源路径；物化条目提供来源和封闭的安装后元数据。
 
 替换前核对暂存树恰好包含清单声明的 Skill 名称、有效 frontmatter 和可执行的 `seed-arch.sh`，然后从已核验的暂存树运行原生入口，使清单和相邻模板属于同一版本；不要把新清单注入旧入口。Skill 接纳要求 PyYAML（Arch 包名为 `python-yaml`）；`discover` 报告解析器就绪状态，不静默安装，也不回退到正则校验。如果 AGENTS 模板有变化，集合替换期间保留旧完整文件，再使用新入口显式执行 `upgrade --component codex-agents --yes`。只有已知的完整旧模板可以迁移；未知本地内容必须停止。
 
@@ -42,7 +42,7 @@ python3 <staged-lifecycle>/scripts/lifecycle.py replace-staged \
 
 `replace-staged` 只运行清单声明的安装后动作 ID，为最终树创建私有完整性收据，并拒绝未知或已漂移的活动内容。明确确认的 `replace-staged --yes` 可以一次性接纳没有收据的精确旧集合；这是一次性的收据建立且仍是事务性操作。自动刷新和卸载拒绝旧的或已漂移的完整集合。暂存校验、准备或替换失败时保留活动内容。缺失或部分清单集合可重入；用户创建的目录从不删除。有限的清单命令映射只有在目标不存在或已由匹配收据证明时才安装到 `~/.local/bin`；无归属文件、链接、其他集合目标或 PATH 遮蔽都会阻塞操作。若 `~/.local/bin` 不在 PATH，`discover` 只报告前置条件，不修改 Shell 启动文件。替换后再次运行 `discover` 和 `verify`。不要在提示或文档中重新抄写并行 Skill 列表。
 
-没有收据的 `.pennix-skills-stage*` 条目不算完成安装，也不算生命周期所有的状态。`discover` 只报告其直接子项名称（已脱敏）和 `unknown` 状态；不读取内容、不推断年龄、PID、进程、会话或来源，也不删除或接管。该提示不阻塞生命周期所有组件的核验；清理必须另行明确授权。
+没有收据的 `.pennix-skills-stage*` 或 `.pennix-skills-extra-stage*` 条目不算完成安装，也不算已证明的生命周期状态。`discover` 只报告其直接子项名称（已脱敏）和 `unknown` 状态；不读取内容、不推断年龄、PID、进程、会话或来源，也不删除或接管。该提示不阻塞生命周期所有组件的核验；清理必须另行明确授权。managed 操作失败只清理本次明确创建的暂存目录。
 
 集合收据不把 Python 可再生的 `__pycache__` 目录和 `.pyc` 文件纳入摘要。这些是运行缓存，不是受管 Skill 内容；其他文件、模式、目录和符号链接检查仍属于完整性合同。
 
@@ -51,6 +51,12 @@ python3 <staged-lifecycle>/scripts/lifecycle.py replace-staged \
 种子完成后，系统安装直接走：`discover` → `install|configure|upgrade|uninstall --component <name> --yes` → 全新 `verify`。`discover` 只读报告清单目标、观察到的版本、实际包所有者和仓库候选，不修改清单也不应用候选。`verify --component <name> --yes` 只核验指定组件及其完整性和上游合同；未知组件报错，不回退到完整核验。`verify --yes` 是完整工作流基线，也核验核心和已启用配置目标。两种形式都返回含 `scope`、`checked_components`、`failures` 和 `advisories` 的 `verification` 结构化对象；只有 `failures` 产生阻塞状态和退出码。可读的已安装版本落后于可读仓库候选时，只对 `repository-latest` 包报告 `upgrade-available` 提示；缺失、未知、所有者不安全、固定版本漂移、静态漂移和必需就绪缺失仍是阻塞。
 
 `pennix-skills` 是安装集合，不是静态组件：安装和升级属于系统 `$skill-installer`；生命周期发现清单声明的精确入口集合、收据状态，并且只卸载与收据匹配的精确集合。`bootstrap` 是精确的单 Skill 初始形状；`partial` 是有效 frontmatter 且明确列出 `missing_skills` 的安全的清单成员子集。二者都按上述同一会话流程继续；无关入口、无效 frontmatter、旧完整集合和未知内容都阻塞，不能自动修复或删除。
+
+`pennix-skills-extra` 是第二个独立集合，其 install/upgrade/verify/uninstall 由 lifecycle 管理。按清单固定的公开 fork、40 位提交和精确路径调用受信宿主 system installer helper；helper 只下载到新暂存，lifecycle 校验完整入口、支持引用、来源及许可文件和登记的 Skill 协作引用，再事务提交树和收据。
+
+其目标为选定 `CODEX_HOME/skills/pennix-skills-extra`，不接受调用者覆盖 catalog、repo/ref/path/name 或 `--destination`；测试可用原生 `--codex-home` 指向临时目标。helper 始终来自实际运行宿主，不能从临时目标执行脚本；新集合无 bootstrap、安装后命令、配置或项目初始化动作。
+
+安装只接受目标与收据都缺失；完整已核验的同源旧 SHA 报告 `upgrade-available`，核验给出提示，升级或退回到已审核 pin 使用同一原生 upgrade。相同 pin 的 upgrade 为无操作；install 不覆盖已有集合。新集合 schema 3 收据记录来源、安装 SHA、精确名称和完整树摘要；缺失、损坏、未知来源、权限异常、部分树或漂移阻断升级和卸载。旧集合继续使用现行 schema 2 合同，不迁移其收据。
 
 `codex-config`、`codex-agents` 和 `tmux-config` 是受支持的静态组件。静态资产独立于敏感配置目标，按各资产合同使用受跟踪模板、受管块、单资产完整性收据和漂移即停止的处理；不读写私有配置档或共享 `.env`。`codex-config` 在所有生命周期值语义存在时接受已有配置为 `compatible`，并保留额外用户值。`codex-agents` 从唯一源模板管理整个用户级 `AGENTS.md`，不使用 begin/end 块或个人扩展区。个人规则变化属于该源模板。仅激活本 Skill 不会写入静态资产。安装只创建缺失文件；显式升级只原子替换已核验的完整旧版本；卸载只删除当前版本或已知旧版本的精确文件。未知内容、不安全所有者、权限或符号链接会被保留并阻塞。物化模板状态与实际生效指令来源分开：非空 `AGENTS.override.md` 会遮蔽 `AGENTS.md`，保留不动，并阻止声称受管规则已生效；空覆盖文件忽略。诊断遵守 `CODEX_HOME`。
 
@@ -110,4 +116,4 @@ Trellis、CodeGraph 和 AOE 二进制可以按目录组件键安装或升级，�
 
 执行直接生命周期命令前，展示组件键、清单来源或引用、目标、风险和预期所有者操作。当前会话有宿主原生 `request_user_input` 时直接使用它。不得替换为 `request_user_input_async`，不得增加 Agent 等待期限，也不得用经过时间推断回答。等待生命周期属于宿主；不要声称可配置不受支持的超时。必须回答而未回答的决策会阻塞依赖操作；更高优先级的宿主规则约束可选问题。重要规划选择使用 `$pennix-decision-grill`。不得通过 `functions.exec`、嵌套 `tools.*`、`ALL_TOOLS`、Shell 或 MCP 探测它。Schema 错误最多修正并重试一次；宿主拒绝、取消、超时或原生交互不可用时退回文本并停止本轮。如果答案在同一原生继续中到达，持久化决策、重新评估依赖门禁并继续当前生命周期流程；不要因为刚提出问题就结束本轮。不得自动选择推荐项。宿主允许时合并同一门禁中相互独立的决策；有依赖的决策分开提问。实施期间复用已封口任务或规范决策；出现重要新选择时记录 `decision-needed`、停止依赖操作，并按当前任务原生重规划合同使用 `$pennix-decision-grill`。同范围、低风险的增量无需重复批准。
 
-所有组件版本、引用、配置目标和封闭安装后动作 ID 都来自 `references/component-versions.json`。不要在本 Skill 或适配器中增加第二张版本表。不得输出秘密值、完整配置、会话、数据库、日志、缓存、锁或运行态。`uninstall` 只通过原生接口移除精确的生命周期文件、精确的 `pennix-skills` 集合或包或插件；漂移内容留存不动。第 0 阶段没有卸载模式，也不移除 `auth.json`、Codex 包、AUR 辅助程序、构建依赖、完整 Skills、插件或项目资产。集合到位后，每次只卸载一个明确的生命周期组件；手动移除 `auth.json` 前先撤销或轮换凭据。
+所有组件版本、引用、配置目标和封闭安装后动作 ID 都来自 `references/component-versions.json`。不要在本 Skill 或适配器中增加第二张版本表。不得输出秘密值、完整配置、会话、数据库、日志、缓存、锁或运行态。`uninstall` 只通过原生接口移除精确的生命周期文件、清单声明且可证明的精确安装集合或包或插件；漂移内容留存不动。第 0 阶段没有卸载模式，也不移除 `auth.json`、Codex 包、AUR 辅助程序、构建依赖、完整 Skills、插件或项目资产。集合到位后，每次只卸载一个明确的生命周期组件；手动移除 `auth.json` 前先撤销或轮换凭据。

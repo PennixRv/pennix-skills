@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify and remove the exact pennix-skills collection installed by Codex."""
+"""Validate and transactionally replace registered Skill collections."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ except ImportError:
 
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+COLLECTION_NAMES = {"pennix-skills", "pennix-skills-extra"}
 MANAGED_COMMANDS = {
     "grok-search": {"target": "pennix-grok-search/bin/grok-search", "link": ".local/bin/grok-search"},
     "windsurf-code-search": {
@@ -40,8 +41,8 @@ def codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser()
 
 
-def default_destination() -> Path:
-    return codex_home() / "skills" / "pennix-skills"
+def default_destination(collection_name: str = "pennix-skills", target_codex_home: Path | None = None) -> Path:
+    return (target_codex_home or codex_home()) / "skills" / collection_name
 
 
 def assert_safe_destination(destination: Path) -> Path:
@@ -58,12 +59,18 @@ def assert_safe_destination(destination: Path) -> Path:
     return destination
 
 
-def resolve_destination(raw_destination: str | None) -> Path:
-    destination = Path(raw_destination).expanduser() if raw_destination else default_destination()
+def resolve_destination(
+    raw_destination: str | None, collection_name: str = "pennix-skills", target_codex_home: Path | None = None,
+) -> Path:
+    if collection_name not in COLLECTION_NAMES:
+        raise InstallError("unknown Skill collection destination")
+    if raw_destination is not None and collection_name != "pennix-skills":
+        raise InstallError("managed extra collection does not accept --destination overrides")
+    destination = Path(raw_destination).expanduser() if raw_destination else default_destination(collection_name, target_codex_home)
     destination = assert_safe_destination(destination)
-    if destination.name != "pennix-skills" or destination.parent.name != "skills":
+    if destination.name != collection_name or destination.parent.name != "skills":
         raise InstallError(
-            "Destination must be a pennix-skills directory directly under a skills directory"
+            f"Destination must be a {collection_name} directory directly under a skills directory"
         )
     return destination
 
@@ -188,6 +195,22 @@ def collection_digest(destination: Path) -> str:
     return digest.hexdigest()
 
 
+def valid_collection_source(source: object) -> bool:
+    if not isinstance(source, dict) or set(source) != {"repo", "ref", "skills"}:
+        return False
+    names = source.get("skills")
+    return (
+        isinstance(source.get("repo"), str)
+        and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", source["repo"]) is not None
+        and isinstance(source.get("ref"), str)
+        and re.fullmatch(r"[0-9a-f]{40}", source["ref"]) is not None
+        and isinstance(names, list)
+        and bool(names)
+        and all(isinstance(name, str) and len(name) <= 64 and SKILL_NAME.fullmatch(name) for name in names)
+        and names == sorted(set(names))
+    )
+
+
 def collection_receipt(destination: Path) -> dict | None:
     receipt = receipt_path(destination)
     if not receipt.exists() and not receipt.is_symlink():
@@ -203,16 +226,48 @@ def collection_receipt(destination: Path) -> dict | None:
             return value if value["digest"] == collection_digest(destination) else None
         if value.get("schema") == 2 and set(value) == {"schema", "destination", "digest", "commands"}:
             return value
+        if (
+            destination.name == "pennix-skills-extra"
+            and value.get("schema") == 3
+            and type(value.get("schema")) is int
+            and set(value) == {"schema", "destination", "digest", "commands", "source"}
+            and value.get("commands") == {}
+            and valid_collection_source(value.get("source"))
+        ):
+            return value
         return None
     except (InstallError, OSError, json.JSONDecodeError):
         return None
 
 
-def collection_receipt_state(destination: Path, expected_commands: dict | None = None) -> str:
+def collection_receipt_state(
+    destination: Path, expected_commands: dict | None = None, expected_source: dict | None = None,
+) -> str:
     value = collection_receipt(destination)
     if value is None:
         receipt = receipt_path(destination)
         return "drifted" if receipt.exists() or receipt.is_symlink() else "legacy"
+    if value.get("schema") == 3:
+        source = value["source"]
+        if expected_commands or (
+            expected_source is not None
+            and (
+                not valid_collection_source(expected_source)
+                or source["repo"] != expected_source["repo"]
+                or source["skills"] != expected_source["skills"]
+            )
+        ):
+            return "drifted"
+        try:
+            if value["digest"] != collection_digest(destination):
+                return "drifted"
+            if expected_source is not None and source["ref"] != expected_source["ref"]:
+                return "upgrade-available"
+            return "match"
+        except (InstallError, OSError):
+            return "drifted"
+    if expected_source is not None or destination.name == "pennix-skills-extra":
+        return "drifted"
     if value.get("schema") == 1:
         return "legacy" if not value.get("commands") else "drifted"
     commands = value.get("commands")
@@ -247,7 +302,14 @@ def _is_known_command_map(commands: dict) -> bool:
     )
 
 
-def _write_receipt(destination: Path, digest: str, commands: dict | None = None) -> Path:
+def _write_receipt(
+    destination: Path, digest: str, commands: dict | None = None, source: dict | None = None,
+) -> Path:
+    value = {"schema": 2, "destination": destination.name, "digest": digest, "commands": commands or {}}
+    if source is not None:
+        if destination.name != "pennix-skills-extra" or commands or not valid_collection_source(source):
+            raise InstallError("managed collection source identity is invalid")
+        value.update(schema=3, source=source)
     receipt = receipt_path(destination)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{receipt.name}.", dir=receipt.parent)
     os.close(descriptor)
@@ -255,7 +317,7 @@ def _write_receipt(destination: Path, digest: str, commands: dict | None = None)
     try:
         os.chmod(temporary, 0o600)
         temporary.write_text(
-            json.dumps({"schema": 2, "destination": destination.name, "digest": digest, "commands": commands or {}}, sort_keys=True) + "\n",
+            json.dumps(value, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         return temporary
@@ -282,6 +344,7 @@ def replace_collection(
     commands: dict | None = None,
     command_home: Path | None = None,
     siyuan_config_update: tuple[Path, str, str] | None = None,
+    source: dict | None = None,
 ) -> None:
     """Replace a known collection only after the complete staged tree validates."""
     staging = validate_staged_collection(expected_names, staging)
@@ -289,6 +352,20 @@ def replace_collection(
     if staging.parent != destination.parent:
         raise InstallError("staging and destination must share a parent for transactional replacement")
     current_state = collection_state(expected_names, destination, bootstrap_name)
+    if destination.name == "pennix-skills-extra" or source is not None:
+        if (
+            destination.name != "pennix-skills-extra"
+            or not valid_collection_source(source)
+            or source["skills"] != sorted(expected_names)
+            or bootstrap_name is not None or allow_legacy or obsolete_names or commands or siyuan_config_update is not None
+        ):
+            raise InstallError("managed collection source identity is invalid")
+        if current_state == "missing":
+            receipt = receipt_path(destination)
+            if receipt.exists() or receipt.is_symlink():
+                raise InstallError("refusing an orphaned managed collection receipt")
+        elif current_state != "match" or collection_receipt_state(destination, {}, source) not in {"match", "upgrade-available"}:
+            raise InstallError("refusing an unknown or drifted managed collection")
     # A catalog may remove entries. The existing private integrity receipt,
     # not a hard-coded retired-product list, proves the managed prior tree.
     prior = collection_receipt(destination)
@@ -377,7 +454,7 @@ def replace_collection(
             else:
                 command_links.append((link, target))
 
-    staged_receipt = _write_receipt(destination, collection_digest(staging), commands)
+    staged_receipt = _write_receipt(destination, collection_digest(staging), commands, source)
 
     backup: Path | None = None
     receipt_backup: Path | None = None
@@ -474,14 +551,21 @@ def _assert_no_symlink_path(path: Path) -> None:
 def uninstall_collection(
     expected_names: set[str], destination: Path, bootstrap_name: str | None = None,
     commands: dict | None = None, command_home: Path | None = None,
+    source: dict | None = None,
 ) -> bool:
     state = collection_state(expected_names, destination, bootstrap_name)
+    if destination.name == "pennix-skills-extra" or source is not None:
+        if destination.name != "pennix-skills-extra" or not valid_collection_source(source) or source["skills"] != sorted(expected_names) or commands or bootstrap_name is not None:
+            raise InstallError("managed collection source identity is invalid")
+        if state == "missing" and (receipt_path(destination).exists() or receipt_path(destination).is_symlink()):
+            raise InstallError("refusing an orphaned managed collection receipt")
     if state == "missing":
         return False
     if state not in {"match", "bootstrap"}:
         raise InstallError("refusing to remove a non-exact Pennix Skills collection")
     commands = commands or {}
-    if state == "match" and collection_receipt_state(destination, commands) != "match":
+    allowed_integrity = {"match", "upgrade-available"} if source is not None else {"match"}
+    if state == "match" and collection_receipt_state(destination, commands, source) not in allowed_integrity:
         raise InstallError("refusing to remove a legacy or drifted Pennix Skills collection")
     for mapping in commands.values():
         link = (command_home or Path.home()) / mapping["link"]

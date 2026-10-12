@@ -35,4 +35,4 @@
 - 按可发现的 Skill 描述加载当前所需入口和引用；职责不清或跨组件时用 $pennix-workflow-routing，不预读整个集合。
 - 本地文件读取、搜索和非交互命令按 $pennix-fastctx-routing 选择工具，并遵守其中明确的操作范围、排除项及不可用时的替代路径。
 - 撰写、改写、校对或审阅中文技术文档时，用 $pennix-chinese-tech-writing 按内容类型加载写作规范。
-- 系统部署用 $pennix-component-lifecycle；项目执行遵守本项目 AGENTS.md 与已选工作流。项目初始化需明确授权和项目根目录，不随系统部署自动执行。
+- 系统部署用 $pennix-component-lifecycle；各安装集合按组件清单声明的动作归属执行。项目执行遵守本项目 AGENTS.md 与已选工作流。项目初始化需明确授权和项目根目录，不随系统部署自动执行。

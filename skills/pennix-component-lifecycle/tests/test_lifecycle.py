@@ -660,20 +660,23 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(target.read_text(), expected)
 
     def test_agents_tool_surface_revision_migrates_only_exact_published_template(self) -> None:
-        original = (SKILL_ROOT / "tests" / "fixtures" / "AGENTS.a44dddc.md").read_text(encoding="utf-8")
-        self.assertEqual(bootstrap.codex_static.digest(original),
-                         "8498d0dc121b483fc8e1f45cdbbfb49edf1f6b750c1bead6a0c252c699ec4191")
-        with tempfile.TemporaryDirectory() as temporary:
-            target = Path(temporary) / "AGENTS.md"
-            target.write_text(original + "personal change\n", encoding="utf-8")
-            before = target.read_bytes()
-            with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "drifted"):
+        for filename, digest in (
+            ("AGENTS.a44dddc.md", "8498d0dc121b483fc8e1f45cdbbfb49edf1f6b750c1bead6a0c252c699ec4191"),
+            ("AGENTS.1ce1713.md", "581dc2a3946e01e3634aa0dde59086c774d0f45d9bf11b65d39771c3a34c8aa4"),
+        ):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
+                original = (SKILL_ROOT / "tests" / "fixtures" / filename).read_text(encoding="utf-8")
+                self.assertEqual(bootstrap.codex_static.digest(original), digest)
+                target = Path(temporary) / "AGENTS.md"
+                target.write_text(original + "personal change\n", encoding="utf-8")
+                before = target.read_bytes()
+                with self.assertRaisesRegex(bootstrap.codex_static.StaticError, "drifted"):
+                    bootstrap.codex_static.apply_template(target)
+                self.assertEqual(target.read_bytes(), before)
+                target.write_text(original, encoding="utf-8")
+                self.assertEqual(bootstrap.codex_static.template_state(target), "legacy")
                 bootstrap.codex_static.apply_template(target)
-            self.assertEqual(target.read_bytes(), before)
-            target.write_text(original, encoding="utf-8")
-            self.assertEqual(bootstrap.codex_static.template_state(target), "legacy")
-            bootstrap.codex_static.apply_template(target)
-            self.assertEqual(target.read_text(), bootstrap.codex_static.template("AGENTS.md.install"))
+                self.assertEqual(target.read_text(), bootstrap.codex_static.template("AGENTS.md.install"))
 
     def test_agents_rejects_symlink_and_unsafe_permissions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
