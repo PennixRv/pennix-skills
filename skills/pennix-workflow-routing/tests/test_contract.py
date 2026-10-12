@@ -58,8 +58,11 @@ class WorkflowRoutingContractTest(unittest.TestCase):
     def test_authoritative_user_template_preserves_surface_and_error_boundaries(self) -> None:
         template = SKILL.parents[1] / "pennix-component-lifecycle" / "templates" / "AGENTS.md.install"
         content = template.read_text(encoding="utf-8")
-        self.assertIn("`ALL_TOOLS` 缺项不能证明宿主直接工具不存在", content)
-        self.assertIn("schema、权限、传输、服务、容量和命令失败", content)
+        self.assertIn("工具可用性以当前宿主实际声明和真实调用结果为准", content)
+        self.assertIn("`functions.exec` 的 `ALL_TOOLS` 仅描述嵌套调用面", content)
+        self.assertIn("缺项不能证明宿主直接工具不存在", content)
+        self.assertIn("调用失败不等于工具缺失；保留原始回执", content)
+        self.assertIn("后续动作遵守负责组件的合同", content)
         self.assertIn("提问用宿主原生阻塞式 request_user_input", content)
 
     def test_trellis_parallel_route_preserves_native_admission_and_acceptance(self) -> None:
