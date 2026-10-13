@@ -94,7 +94,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.47",
+      "approved_version": "0.7.0-beta.48",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -121,7 +121,7 @@
     },
     "fastctx": {
       "delivery": "package",
-      "approved_version": "0.2.24",
+      "approved_version": "0.2.25",
       "source": "PennixRv/fastctx npm package",
       "owner": "fastctx",
       "scope": "global",
@@ -477,7 +477,8 @@
           "pennix-workflow-routing",
           "pennix-tavily-search",
           "pennix-windsurf-code-search",
-          "pennix-trellis-asset-check"
+          "pennix-trellis-asset-check",
+          "pennix-resource-cleanup"
         ],
         "bootstrap_skill": "pennix-component-lifecycle",
         "source": {
@@ -495,14 +496,15 @@
             "skills/pennix-tavily-search",
             "skills/pennix-trellis-asset-check",
             "skills/pennix-grok-search",
-            "skills/pennix-windsurf-code-search"
+            "skills/pennix-windsurf-code-search",
+            "skills/pennix-resource-cleanup"
           ]
         },
         "materialized": {
           "pennix-grok-search": {
             "repo": "PennixRv/grok-search",
-            "ref": "fb1b6a0df58f18e56cf6f43da1baa21739c4b91a",
-            "commit": "fb1b6a0df58f18e56cf6f43da1baa21739c4b91a",
+            "ref": "311e3805594875087abc8ef44ffcd8f54bda90f7",
+            "commit": "311e3805594875087abc8ef44ffcd8f54bda90f7",
             "path": ".",
             "name": "pennix-grok-search",
             "snapshot": "archive",

@@ -42,6 +42,7 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 | 当前外部资料、网页或多来源研究 | 先 `$pennix-grok-search`；一次确认不可用后，单次 `$pennix-tavily-search` 自托管辅助路径 | 外部结果先作为证据候选；核验后才写入任务研究或用户明确指定的持久位置 |
 | 测试、日志、长差异、递归检索、构建/依赖输出或大文件分析 | FastCtx 有界工具或 job | 默认当前请求/显式 job 处理；不要把结果自动写入任务事实 |
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用原生读取或 FastCtx 分页分析 | 不把原始结果重新塞回工具参数 |
+| 工作流缓存、Channel、输出、备份或历史资源的盘点与清理 | `$pennix-resource-cleanup`，再转资源 owner 的原生清理入口 | 默认只读；精确预览和明确授权后才允许 owner 执行 |
 
 无法预判本地文本规模且没有独立协议时，使用 FastCtx 的有界读取、搜索或 job；无法判断一个结构化工具是否有界时，先使用其原协议。工具可用性以当前宿主实际声明和真实调用结果为准；`functions.exec` 的 `ALL_TOOLS` 不是宿主完整工具清单，缺项只说明不能从该嵌套调用面调用，不能据此判断 MCP 或 `request_user_input` 等宿主直接工具不存在。先核对负责组件允许的实际调用面：宿主已声明直接工具就使用该原生入口；只有确认规定的有效入口未暴露或不可用，普通本地 FastCtx 操作才按既有规则降级，不重新引入旧的 `ctx_*` 路径。分别保留调用面未暴露、宿主未绑定、参数校验、权限、传输或服务错误、容量保护及命令失败；执行错误不改写为“工具缺失”，也不自动触发替代路径。FastCtx Guarded 和外层截断按专项 Skill 的有界查询、精确分页及明确续读提示处理。组件规定接口不可用时不允许用 FastCtx 或 shell 模拟。
 
@@ -107,6 +108,7 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 - 已初始化项目的 Trellis 资产更新和已选 workflow 刷新由 `$pennix-trellis-project-update` 负责，必须调用当前 Trellis fork 的原生 `trellis update` / `trellis workflow`；系统级组件部署仍由 `$pennix-component-lifecycle` 负责，`$pennix-trellis-asset-check` 只做只读诊断。
 - `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和确定性 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；正式交接通过本地来源封口和配对包验证记录来源收敛。初始 admission 只在 core、prompt、`$trellis-start` 和当前事实完整核对后记录一次 `reconciled`，不完整消费不写 target reservation；后续 `claim` 必须有新的明确继续授权。
 - 系统组件部署、Skills 物化和 FastCtx 更新由 `$pennix-component-lifecycle` 编排已登记动作；CodeGraph 项目操作归其原生入口，Hook 实现和配置归事件所属组件及宿主的原生入口。普通路由请求不授权这些高影响动作。
+- 工作流资源清理由 `$pennix-resource-cleanup` 负责流程路由；Trellis、Grok、FastCtx、服务、容器、系统和远程主机仍分别拥有自己的资源与清理合同。路由 Skill 不执行全局回收，也不替 owner 删除目录。
 - Hook/config 和拥有该行为的运行时负责必须发生的事件、阻断、信任、生命周期和审计；提示词只能表达决策原则，不能宣称确定性保证。
 
 ## 禁止混淆
