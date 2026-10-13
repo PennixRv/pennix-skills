@@ -1,0 +1,49 @@
+{
+  "id": "resource-cleanup-delivery",
+  "name": "resource-cleanup-delivery",
+  "title": "落实工作流资源清理 Skill",
+  "description": "执行根任务 revision 2 已批准的清理 Skill、资源矩阵、来源快照与生命周期注册，验收安装集合",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-13",
+  "completedAt": null,
+  "branch": "codex/enforce-host-tool-routing",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "direct",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "resource-cleanup-delivery",
+        "task_name": "10-13-resource-cleanup-delivery",
+        "documents": [
+          "prd.md"
+        ],
+        "document_digests": {
+          "prd.md": "b554c2a230b199c45f1182648ea2393a87d4c7d27409f64f97e5bcdb725f3af9"
+        },
+        "execution_class": "direct",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-13T12:46:57.453925+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "继承根任务 revision 2 已明确批准的相同修订包；不新增范围或用户选择",
+      "approved_at": "2026-10-13T12:47:08.411691+00:00"
+    }
+  }
+}
