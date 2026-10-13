@@ -1,0 +1,53 @@
+{
+  "id": "enforce-host-tool-routing",
+  "name": "enforce-host-tool-routing",
+  "title": "明确禁止混淆宿主与嵌套工具清单",
+  "description": "实现根协调任务 10-13-unify-trellis-template-writing 的 Pennix Skills 源仓库部分：调整唯一权威用户级 AGENTS 模板中现有的工具可用性规则，明确禁止将 functions.exec 的 ALL_TOOLS 当作宿主直接工具清单，并要求宿主已声明所需工具时通过原生入口调用；同步调整既有模板合同测试并更新模板 revision。等待根任务方案批准后再启动。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-13",
+  "completedAt": null,
+  "branch": "codex/enforce-host-tool-routing",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "enforce-host-tool-routing",
+        "task_name": "10-13-enforce-host-tool-routing",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "b049ec6233d215772dd1359f09ba889195f0e56d70a403aea54e28443ebd9511",
+          "design.md": "10a765993ac654fab2f44cbcbc7037a85e4a8930d63e4ae6f6809bdd93e052dd",
+          "implement.md": "a3eca156193606e6af067b9846bb40e6b606c0f2b87b5d90160676b2431e02a2"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-13T04:10:02.665318+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户已批准根任务 revision 2 完整修订包，覆盖该 Pennix Skills 组件子任务。",
+      "approved_at": "2026-10-13T04:10:47.687979+00:00"
+    }
+  }
+}
