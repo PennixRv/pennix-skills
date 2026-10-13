@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
-- **Last Active**: 2026-10-12
+- **Total Sessions**: 29
+- **Last Active**: 2026-10-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~697 | Active |
+| `journal-1.md` | ~728 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-10-13 | 工具原生入口规则与中文模板协作收敛 | `67e7037`, `9e74897` | `codex/enforce-host-tool-routing` |
 | 28 | 2026-10-12 | 用户级 AGENTS 模板优化与安全部署 | `4624ea6`, `40c5b9b` | `main` |
 | 27 | 2026-10-12 | 关闭全部 Trellis 任务 | `e4b02f5` | `main` |
 | 26 | 2026-10-10 | Handoff intake contract delivery | `2d54c91802fa69d95436eb7bbaaf3d459c1e8140`, `83535c0` | `main` |

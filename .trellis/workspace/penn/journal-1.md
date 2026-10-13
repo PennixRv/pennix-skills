@@ -695,3 +695,34 @@ Completed the schema 10 handoff intake contract repair, pushed product and deliv
 ### Status
 
 [OK] **Completed**
+
+
+## Session 29: 工具原生入口规则与中文模板协作收敛
+<!-- trellis-session: v=2 fp=e6a7aac6a0b2c3e3 -->
+
+**Date**: 2026-10-13
+**Task**: 工具原生入口规则与中文模板协作收敛
+**Branch**: `codex/enforce-host-tool-routing`
+
+### Summary
+
+已交付并部署严格工具入口规则、中文写作边界及 Trellis beta.47 精确版本；任务已归档。
+
+### Main Changes
+
+- 调整既有权威 AGENTS 规则并安装完整 12 项 Skill；原生升级用户 AGENTS 与 Trellis CLI。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `67e7037` | fix: enforce native tool use and align Chinese template contracts |
+| `9e74897` | docs: record native tool rule deployment and acceptance |
+
+### Testing
+
+- [OK] routing 8、lifecycle 176、中文 linter 22 项通过；三个组件 verify 为 match；AGENTS 摘要与源模板一致且 active。
+
+### Status
+
+[OK] **Completed**
