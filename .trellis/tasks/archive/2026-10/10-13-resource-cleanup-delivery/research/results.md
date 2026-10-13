@@ -6,4 +6,6 @@ Grok 物化文件通过其已提交树的 `git archive` 导出，来源为 `ce76
 
 首批生命周期 176 tests 通过；补齐后再次核验引用/frontmatter、完整 unittest、物化 Grok 离线测试与公开 replace-staged / verify。安装和最终 SHA 的实际证据由根任务记录。
 
+最终 source `9c49745e9e5fd78389a885509f2a957335ee751d` 已推送专用分支与 main；FastCtx 最终 pin 为 0.2.26，Trellis 为 beta49。新 Skill quick_validate 通过，中文检查 error/warning 为 0；4 项引号 style 建议按集合现行约定保留。补齐后 lifecycle 176 tests 与物化 Grok npm test 再次通过。公开集合接纳/精确命令链接核验已通过；已安装 Grok 的隔离 CLI 预览/执行回归通过，不涉及真实输出目录。
+
 此前误写活动安装树并尝试私有 receipt writer，已撤销；从旧来源 `ed09d88` 隔离重建核验旧摘要后恢复原树，公开 replace-staged 成功。最终接纳再次使用原生 system installer 暂存，不直接覆盖活动目录或改收据。
