@@ -1,0 +1,56 @@
+{
+  "id": "fastctx-routing-recovery",
+  "name": "fastctx-routing-recovery",
+  "title": "修正 FastCtx 路由恢复与参数误用根因",
+  "description": "承接根任务 fastctx-output-pool-recovery，修正 pennix-fastctx-routing 对 FastCtx 容量恢复和规范参数的错误约束；不做参数别名兼容，追踪调用域、工具 schema、Skill 说明和实际参数构造的误用根因，更新路由合同测试并按原生生命周期发布物化。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-14",
+  "completedAt": null,
+  "branch": "codex/project-agents-governance",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "scope": "fastctx-routing",
+    "owner": "pennix-skills",
+    "root_task": "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/10-14-fastctx-output-pool-recovery",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "fastctx-routing-recovery",
+        "task_name": "10-14-fastctx-routing-recovery",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "b99a4fd7308c7e17d2f9d684b4c7221b6ac2563b58c66d8f738c1f3b4d8636fe",
+          "design.md": "b5404cfdfe5e238191f09546195cf810abfb364dbdd2dcd31cc70db7e8f36ced",
+          "implement.md": "1513008dda7c205f8d487915a73268c2d0ff8a010ba3d4064acd67db05ed26b4"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-14T12:15:35.027231+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户已明确批准上述三个当前封口版本进入实施，包含 Pennix owner revision 1。",
+      "approved_at": "2026-10-14T12:19:20.881621+00:00"
+    }
+  }
+}

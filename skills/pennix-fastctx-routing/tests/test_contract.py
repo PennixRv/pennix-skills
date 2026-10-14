@@ -17,12 +17,26 @@ class FastCtxRoutingContractTest(unittest.TestCase):
     def test_capacity_and_partial_results_do_not_trigger_fallback(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         for marker in (
-            "Guarded 共享输出池耗尽是容量保护",
-            "Partial 只按结果给出的精确 offset/files 续读",
-            "下一轮调用，不在同轮反复重试",
+            "单次输出预算耗尽、可恢复的分页限制",
+            "也不结束当前工作",
+            "Partial 只按结果给出的精确 offset/files/after_seq 续读",
+            "不等待新的用户轮次",
             "容量提示不触发 shell fallback",
-            "不关闭 Guarded",
+            "不关闭 provider 保护",
             "不自动降级",
+        ):
+            self.assertIn(marker, content)
+
+    def test_fastctx_parameter_names_are_canonical_and_errors_are_routed_to_the_owner(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        for marker in (
+            "只使用 FastCtx `tools/list` 发布的规范字段",
+            "单文件顶层使用 `file_path`",
+            "批量条目使用 `path`",
+            "`grep` 使用必填 `pattern`",
+            "`run` 使用 `command`、`cwd`、`timeout_ms`、`login_shell` 和 `encoding`",
+            "不增加或猜测别名",
+            "failed to deserialize parameters",
         ):
             self.assertIn(marker, content)
 
