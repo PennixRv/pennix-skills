@@ -14,6 +14,13 @@
 - FastCtx fmt、clippy 和全量 cargo test 通过；来源仓库保存其测试证据。
 - 根侧离线集成检查 8 项 passed，failed/blocked 为 0。
 
-## 待交付
+## 发行与来源验收
 
-FastCtx 五平台和七个 npm 包发布验收成功后，更新 lifecycle catalog 固定版本，提交并推送本仓库，按系统安装器暂存与生命周期 replace-staged 更新完整集合，再核对安装副本、收据和实际新 MCP 连接。
+- 路由修复提交 `4651ccd61ef54eef217ea172598c619185373710` 已推送至 main 和当前分支；CI https://github.com/PennixRv/pennix-skills/actions/runs/38582897688 成功。
+- FastCtx 最终 `v0.2.29` 指向 `9d655614a326bf543d81697a747bc230259e0c19`。五平台及 publish-release 全部成功：https://github.com/PennixRv/fastctx/actions/runs/38581885462 。
+- GitHub Release 的五个归档服务器摘要与 SHA256SUMS 一致；七个 scoped npm 包均由官方 registry 读取到 `0.2.29`。发布后短暂的部分 E404 已消失，没有以 CI 状态代替 registry 验收。
+- catalog 的 FastCtx approved_version 已固定为 `0.2.29`；参数段移至独立位置，常规路由步骤继续归入路由规则。
+
+## 安装与最终验收
+
+下一步按系统安装器暂存与生命周期 replace-staged 更新完整集合，核对安装副本与收据；通过原生 package upgrade 和 FastCtx apply 更新稳定入口，再核对新进程、新 MCP 连接和当前宿主生效边界。
