@@ -94,7 +94,7 @@
     },
     "trellis-cli": {
       "delivery": "package",
-      "approved_version": "0.7.0-beta.49",
+      "approved_version": "0.7.0-beta.50",
       "source": "native Trellis installation",
       "owner": "trellis",
       "scope": "global/project",
@@ -150,8 +150,8 @@
     },
     "codegraph-cli": {
       "delivery": "package",
-      "approved_version": "1.6.2",
-      "source": "AUR codegraph-bin package",
+      "approved_version": "1.6.2-pennix.1",
+      "source": "PennixRv/codegraph Linux x64 npm fork",
       "owner": "codegraph",
       "scope": "global/project",
       "verify_key": "codegraph --version",
@@ -169,8 +169,13 @@
         "--version"
       ],
       "package": {
-        "source": "aur",
-        "name": "codegraph-bin"
+        "source": "npm",
+        "name": "@pennixrv/codegraph",
+        "registry": "https://registry.npmjs.org/"
+      },
+      "pacman_replacement": {
+        "name": "codegraph-bin",
+        "version": "1.6.2-1"
       }
     },
     "ponytail-plugin": {
@@ -396,7 +401,7 @@
       "adapter": "codex-agents",
       "template": {
         "name": "AGENTS.md.install",
-        "revision": "sha256:d075aafd70b6a0408672421245fa3feaf03c5a6f358ff6755700733e2e03be91"
+        "revision": "sha256:de0e76afe288803cd794d3119c9a7f5650a2743100bd6b7dc731e8ea477a1f29"
       }
     },
     "pennix-skills-extra": {
@@ -478,7 +483,9 @@
           "pennix-tavily-search",
           "pennix-windsurf-code-search",
           "pennix-trellis-asset-check",
-          "pennix-resource-cleanup"
+          "pennix-resource-cleanup",
+          "pennix-project-agents-governance",
+          "pennix-codegraph-integration"
         ],
         "bootstrap_skill": "pennix-component-lifecycle",
         "source": {
@@ -497,7 +504,9 @@
             "skills/pennix-trellis-asset-check",
             "skills/pennix-grok-search",
             "skills/pennix-windsurf-code-search",
-            "skills/pennix-resource-cleanup"
+            "skills/pennix-resource-cleanup",
+            "skills/pennix-project-agents-governance",
+            "skills/pennix-codegraph-integration"
           ]
         },
         "materialized": {

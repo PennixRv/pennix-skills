@@ -11,6 +11,8 @@
 工作流部署统一从 `pennix-component-lifecycle` 进入；它只编排内部 deployment adapters，
 不接管 Trellis、FastCtx、CodeGraph、Codex Plugin/MCP 或 Hook 的原生所有权。
 
+项目指令文件的来源链、内部手工正文和生成块由 [项目 AGENTS 治理](skills/pennix-project-agents-governance/SKILL.md)统一审查与编排；[CodeGraph 集成](skills/pennix-codegraph-integration/SKILL.md)只提供配置、使用边界和原生手册索引。相关变更触发治理，不给普通 Trellis 开发任务增加频率；系统部署仍归 lifecycle，生成块仍由组件原生入口物化。
+
 当前 lifecycle 的宿主边界是 Linux 上的 Arch Linux，包括原生 Arch Linux 和 WSL2
 中的 Arch Linux。生命周期包操作优先使用已存在的 `yay`，没有时回退到已存在的 `paru`，最后才使用
 `pacman`。Stage 0 的 Codex 最小安装也通过 AUR 的 `openai-codex-bin`：缺少 AUR helper 时会先通过

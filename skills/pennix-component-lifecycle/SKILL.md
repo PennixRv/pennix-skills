@@ -68,6 +68,8 @@ python3 <staged-lifecycle>/scripts/lifecycle.py replace-staged \
 
 FastCtx 不物化或刷新用户 `AGENTS.md`；其 Apply 和 TUI 路径都不触碰该文件。由 `PennixRv/pennix-skills` 维护的 `skills/pennix-component-lifecycle/templates/AGENTS.md.install` 是唯一的工作流用户规则来源，由 `codex-agents` 物化。
 
+CodeGraph 使用清单固定的 Pennix Linux x64 npm 双包。`pacman_replacement` 只允许已核验的 `codegraph-bin 1.6.2-1`；迁移前保存旧包/owner、PATH/MCP 来源以及配置和索引的恢复证据，确认 registry 候选可安装，再通过原生包管理器移除旧包并安装固定 npm 版本。未知 owner、旧版本不符或失败即停止，不自动重试改包、不清理配置/索引、不重建索引。安装后分别核验 shim/平台包、CLI、MCP 启动和原生 upgrade 来源；系统替换不会接入项目或触发 local install。
+
 ### Trellis/CCH 会话计费升级核验
 
 先 discover，并按清单固定版本选择 `trellis-cli` 的 upgrade 或 verify；开始前确认相关 Channel 的已派节点和预留槽位均已排空，不为升级擅自终止工作节点。项目资产逐个绑定明确根目录，由 `$pennix-trellis-project-update` 更新并保留原工作流。

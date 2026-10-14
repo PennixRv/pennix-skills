@@ -871,6 +871,13 @@ def load_catalog(path: Path) -> dict[str, Any]:
             isinstance(name, str) and PACKAGE_NAME.fullmatch(name) for name in replaces
         ):
             raise BootstrapError(f"catalog replacement metadata is invalid: {key}")
+        legacy = component.get("pacman_replacement")
+        if legacy is not None and (
+            key != "codegraph-cli" or legacy != {"name": "codegraph-bin", "version": "1.6.2-1"}
+            or not isinstance(package, dict) or package.get("source") != "npm"
+            or package.get("name") != "@pennixrv/codegraph"
+        ):
+            raise BootstrapError(f"catalog cross-manager replacement is invalid: {key}")
         native_owner_reason = component.get("native_owner_reason")
         if native_owner_reason is not None and (
             not isinstance(native_owner_reason, str) or not native_owner_reason.strip()
@@ -1026,6 +1033,30 @@ def installed_replacements(component: dict[str, Any]) -> list[str]:
         installed = installed_npm_packages()
         return [name for name in replacements if name in installed]
     return [name for name in replacements if installed_pacman_package(name)]
+
+
+def pacman_replacement(component: dict[str, Any]) -> str | None:
+    """Only the catalog's exact CodeGraph AUR baseline may cross managers."""
+    legacy = component.get("pacman_replacement")
+    if legacy is None:
+        return None
+    pacman = shutil.which("pacman")
+    if not pacman:
+        raise BootstrapError("cannot inspect the catalog's pacman replacement")
+    try:
+        result = subprocess.run([pacman, "-Q", legacy["name"]], capture_output=True,
+                                text=True, timeout=10, check=False, env={**os.environ, "LC_ALL": "C"})
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BootstrapError("cannot inspect the catalog's pacman replacement") from error
+    if result.returncode == 1:
+        return None
+    if result.returncode or result.stdout.strip() != f"{legacy['name']} {legacy['version']}":
+        raise BootstrapError("pacman replacement version does not match the catalog")
+    command = shutil.which(str(component["probe"]))
+    if not command or (installed_package_owner(command) != legacy["name"]
+                       and npm_owner_for_command(command) != component["package"]["name"]):
+        raise BootstrapError("pacman replacement command owner is unknown or conflicting")
+    return legacy["name"]
 
 
 def npm_global_root() -> Path | None:
@@ -1255,6 +1286,8 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                         if name in installed:
                             observed_package = name
                             break
+                if observed_package is None and command and component.get("pacman_replacement"):
+                    observed_package = installed_package_owner(command)
             elif command:
                 observed_package = installed_package_owner(command)
             host_info = host.detect_host()
@@ -1669,7 +1702,8 @@ def component_operation(
         return "changed"
 
     replacements = installed_replacements(component)
-    if status == "match" and not replacements:
+    legacy = pacman_replacement(component)
+    if status == "match" and not replacements and not legacy:
         return "no-op"
     if isinstance(plugin, dict):
         if operation == "upgrade":
@@ -1701,7 +1735,7 @@ def component_operation(
                 command_owner = npm_owner_for_command(command)
                 if command_owner not in {None, package_name, *replacements}:
                     raise BootstrapError(f"installed command is owned by unmanaged npm package {command_owner}")
-                if command_owner is None and package_name not in installed_npm_packages() and not replacements:
+                if command_owner is None and package_name not in installed_npm_packages() and not replacements and not legacy:
                     raise BootstrapError("installed command has no verifiable npm owner")
         elif command:
             command_owner = installed_package_owner(command)
@@ -1711,6 +1745,28 @@ def component_operation(
                 raise BootstrapError("installed command has no verifiable package owner")
             if command_owner not in {None, package_name, *replacements}:
                 raise BootstrapError(f"installed command is owned by unmanaged package {command_owner}")
+        expected = component_target_version(component)
+        if status != "match":
+            candidate = package_candidate_version(installer, package_name, registry, metadata.get("tag"))
+            if candidate is None:
+                raise BootstrapError("repository candidate is unavailable")
+            if component_version_policy(component) == "pinned" and candidate != expected:
+                raise BootstrapError("repository candidate does not match catalog")
+        if legacy:
+            removal_installer = current_host["installers"].get("official")
+            if not isinstance(removal_installer, str):
+                raise BootstrapError("no owner available to remove the pacman replacement")
+            # Revalidate immediately before the only cross-manager mutation.
+            if pacman_replacement(component) != legacy:
+                raise BootstrapError("pacman replacement changed during preflight")
+            try:
+                result = subprocess.run(host.package_remove_command(removal_installer, legacy), check=False)
+            except (OSError, ValueError) as error:
+                raise BootstrapError("pacman replacement removal could not start") from error
+            if result.returncode or installed_pacman_package(legacy):
+                raise BootstrapError("pacman replacement removal failed; stop and retain recovery evidence")
+            if status == "match" and not replacements:
+                return "changed"
         if replacements:
             for replacement_owner in replacements:
                 try:
@@ -1726,18 +1782,12 @@ def component_operation(
                 raise BootstrapError("replacement owner removal postcondition failed")
             if status == "match":
                 return "changed"
-        expected = component_target_version(component)
         if (
             metadata.get("source") == "npm"
             and status != "match"
             and normalize_version(installed_npm_version(package_name) or "") == expected
         ):
             raise BootstrapError("installed npm package does not provide an effective matching command")
-        candidate = package_candidate_version(installer, package_name, registry, metadata.get("tag"))
-        if candidate is None:
-            raise BootstrapError("repository candidate is unavailable")
-        if component_version_policy(component) == "pinned" and candidate != expected:
-            raise BootstrapError("repository candidate does not match catalog")
         install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
         try:
             result = subprocess.run(

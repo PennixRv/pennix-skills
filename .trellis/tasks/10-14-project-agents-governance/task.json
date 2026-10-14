@@ -1,0 +1,53 @@
+{
+  "id": "project-agents-governance",
+  "name": "project-agents-governance",
+  "title": "Project AGENTS governance and CodeGraph integration",
+  "description": "Deliver the approved governance and CodeGraph integration Skills, lifecycle catalog, user navigation and controlled AUR migration.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-14",
+  "completedAt": null,
+  "branch": "codex/project-agents-governance",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "project-agents-governance",
+        "task_name": "10-14-project-agents-governance",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "a55be3b35adefdc63fa293e88f06c5652085b18bf86b525d04d9ff2752d606c2",
+          "design.md": "7a8548eff5d5c3285a5e0d2de8fac8e7102a4eeac0996e9ed8e550fc5025e4e0",
+          "implement.md": "570361f12d0378f2f44452a9e7c1ef55a48e9cb57ebac24794dbab50d0b8f9cd"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-14T07:40:16.838196+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户明确批准完整修订包实施并要求完整推进；本组件当前封口范围逐项落实该批准，无新增取舍",
+      "approved_at": "2026-10-14T07:40:16.930445+00:00"
+    }
+  }
+}
