@@ -24,3 +24,11 @@
 ## 安装与最终验收
 
 下一步按系统安装器暂存与生命周期 replace-staged 更新完整集合，核对安装副本与收据；通过原生 package upgrade 和 FastCtx apply 更新稳定入口，再核对新进程、新 MCP 连接和当前宿主生效边界。
+
+## 重启后运行验收
+
+上述待办已完成。最终 Pennix 源提交为 `230844e33217fb0599e4359dca21a5e109acf938`，CI run `38587191602` 的 `verify` 成功；catalog 已将 FastCtx 固定为 `0.2.29`。完整 15 项 Skill 集合按该精确提交经原生 staging/replace-staged 物化，安装副本与源文件逐字节核对通过；组件生命周期核验为 `match`、无 failures/advisories。
+
+2026-10-14 重启当前 Codex 会话后，实际当前 FastCtx 进程为 `/home/penn/.fastctx/bin/fastctx 0.2.29`。当前会话直接调用 `grep`、`glob`、批量读取和精确分页均通过；容量/分页回执沿准确 `offset` 在当前工作链继续到 `Complete`。FastCtx 新进程探针确认同一连接并发大响应、三页连续分页、批量读取、规范字段和参数误用诊断均通过，错误命令未执行。该行为证据由 FastCtx owner 负责，Pennix 只记录路由合同与实际落点，不将文案测试冒充服务端实现验证。
+
+FastCtx 与 Pennix 生命周期 verify 均为 `status=match`；用户级 `AGENTS.md` 摘要保持不变。FastCtx doctor 对 model-side tool surface 的 INFO 仍如实保留；重启后的当前会话直接 MCP 调用证明本入口可用，但不扩张为不可观测的模型侧全量断言。
