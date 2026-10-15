@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 29
-- **Last Active**: 2026-10-13
+- **Total Sessions**: 30
+- **Last Active**: 2026-10-15
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~728 | Active |
+| `journal-1.md` | ~751 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 30 | 2026-10-15 | 同步 CCH 0.1.46 固定版本与安装集合 | `f202fe4`, `08e155f` | `main` |
 | 29 | 2026-10-13 | 工具原生入口规则与中文模板协作收敛 | `67e7037`, `9e74897` | `codex/enforce-host-tool-routing` |
 | 28 | 2026-10-12 | 用户级 AGENTS 模板优化与安全部署 | `4624ea6`, `40c5b9b` | `main` |
 | 27 | 2026-10-12 | 关闭全部 Trellis 任务 | `e4b02f5` | `main` |

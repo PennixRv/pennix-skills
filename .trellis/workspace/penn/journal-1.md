@@ -726,3 +726,26 @@ Completed the schema 10 handoff intake contract repair, pushed product and deliv
 ### Status
 
 [OK] **Completed**
+
+
+## Session 30: 同步 CCH 0.1.46 固定版本与安装集合
+<!-- trellis-session: v=2 fp=e03572310db8e502 -->
+
+**Date**: 2026-10-15
+**Task**: 同步 CCH 0.1.46 固定版本与安装集合
+**Branch**: `main`
+
+### Summary
+
+仅变更 CCH approved_version，125 项既有测试和结构差异检查通过；系统 skill-installer 精确提交暂存 15 个 Skill，原生 replace-staged 与集合/CCH scoped verify 均 match。profile 无需 reconcile；全量 verify 仅受既存 ponytail 5.2.0/5.1.0 漂移阻塞。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f202fe4` | chore: pin CCH turn timer release 0.1.46 |
+| `08e155f` | docs: record CCH catalog deployment verification |
+
+### Status
+
+[OK] **Completed**
