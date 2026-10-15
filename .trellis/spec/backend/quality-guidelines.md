@@ -122,6 +122,22 @@ Questions to answer:
   never derive historical bytes from the mutable current template. Verify exact
   migration and unchanged-byte refusal after a user edit through the real adapter.
 
+### Routing Skill verification
+
+- Static checks verify stable parameter identifiers and resolvable Skill links;
+  do not freeze Chinese sentences or require delegated rules in multiple files.
+  These checks establish document integrity, not model routing behavior.
+- Compare fixed before/after inputs against actual tool calls, including the
+  first Skill read and ordinary reads after a component-native command. A
+  `native_cli` label does not exempt `cat` inside the same shell command.
+- For example, inspect a PRD through FastCtx and query `task.py current` through
+  the native host entry separately. Completing both reads after an initial shell
+  read still fails a first-read criterion.
+- Record source, installed revision and behavioral results separately. Keep raw
+  traces outside Git, enforce the agreed model-call budget, and report failed,
+  blocked or untriggered coverage without converting it to a pass. Installation
+  success alone cannot establish that a routing recurrence is fixed.
+
 ### Profile digest reconciliation
 
 1. **Scope / trigger:** A configuration catalog change may leave a valid current

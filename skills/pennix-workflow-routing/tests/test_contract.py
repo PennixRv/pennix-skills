@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 
@@ -26,7 +27,6 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         content = SKILL.read_text(encoding="utf-8")
         self.assertIn("对应组件或宿主规定的原生接口", content)
         self.assertIn("原生不可用时停止", content)
-        self.assertIn("组件规定接口不可用时不允许用 FastCtx", content)
 
     def test_grok_remains_an_external_retrieval_owner(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
@@ -47,25 +47,12 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("若基础工具按正确原生调用仍不可用，保留原错误并停止", content)
         self.assertIn("FastCtx 可以读取或分析该文件，但不能确认或模拟组件状态", content)
 
-    def test_fastctx_availability_uses_the_host_registry_not_nested_exec_tools(self) -> None:
+    def test_fastctx_details_delegate_to_the_resolvable_specialist_contract(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("`functions.exec` 的 `ALL_TOOLS` 不是宿主完整工具清单", content)
-        self.assertIn("参数校验、权限、传输或服务错误", content)
-        self.assertIn("不能从该嵌套调用面调用", content)
-        self.assertIn("`request_user_input` 等宿主直接工具", content)
-        self.assertIn("执行错误不改写为“工具缺失”", content)
-
-    def test_authoritative_user_template_preserves_surface_and_error_boundaries(self) -> None:
-        template = SKILL.parents[1] / "pennix-component-lifecycle" / "templates" / "AGENTS.md.install"
-        content = template.read_text(encoding="utf-8")
-        self.assertIn("工具可用性以当前宿主实际声明和真实调用结果为准。", content)
-        self.assertIn("严禁将 `functions.exec` 的 `ALL_TOOLS` 当作宿主直接工具清单", content)
-        self.assertIn("它只描述嵌套调用面", content)
-        self.assertIn("缺项不能证明宿主直接工具不存在", content)
-        self.assertIn("宿主已声明所需工具时，必须通过其原生入口调用", content)
-        self.assertIn("调用失败不等于工具缺失；保留原始回执", content)
-        self.assertIn("后续动作遵守负责组件的合同", content)
-        self.assertIn("提问用宿主原生阻塞式 request_user_input", content)
+        links = re.findall(r"\]\(([^)]+)\)", content)
+        specialist = SKILL.parents[1] / "pennix-fastctx-routing" / "SKILL.md"
+        self.assertTrue(specialist.is_file())
+        self.assertIn(specialist.resolve(), [(SKILL.parent / link).resolve() for link in links])
 
     def test_trellis_parallel_route_preserves_native_admission_and_acceptance(self) -> None:
         content = SKILL.read_text(encoding="utf-8")

@@ -665,6 +665,7 @@ class BootstrapTests(unittest.TestCase):
             ("AGENTS.f89b833.md", "c73dd09cb6fd26f2b31b286673a73251eb5a900625bb1e1b07f1ceb51a848326"),
             ("AGENTS.a44dddc.md", "8498d0dc121b483fc8e1f45cdbbfb49edf1f6b750c1bead6a0c252c699ec4191"),
             ("AGENTS.1ce1713.md", "581dc2a3946e01e3634aa0dde59086c774d0f45d9bf11b65d39771c3a34c8aa4"),
+            ("AGENTS.1417191.md", "de0e76afe288803cd794d3119c9a7f5650a2743100bd6b7dc731e8ea477a1f29"),
         ):
             with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
                 original = (SKILL_ROOT / "tests" / "fixtures" / filename).read_text(encoding="utf-8")

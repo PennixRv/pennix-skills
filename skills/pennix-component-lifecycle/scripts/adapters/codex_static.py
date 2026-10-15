@@ -26,6 +26,7 @@ LEGACY_AGENTS_DIGESTS = frozenset({
     "916e8c3fe62a13db6e8731dd1e496240c8446e276900f8e47dd9f7464043cbfb",
     "57eda055881bdd719bd9e72e9d94e009d74b99beac20fc55687b22974689268d",
     "819d4dca89d346d3e8bfb5b8fe26702dee5ddc10ed69cc62293f0b97a5d6a281",  # 5bb372b full template
+    "de0e76afe288803cd794d3119c9a7f5650a2743100bd6b7dc731e8ea477a1f29",  # 1417191 full template
 })
 TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "templates"
 
