@@ -749,3 +749,39 @@ Completed the schema 10 handoff intake contract repair, pushed product and deliv
 ### Status
 
 [OK] **Completed**
+
+
+## Session 31: FastCtx 默认路由与用户规则去重
+<!-- trellis-session: v=2 fp=277f4412a60d74f5 -->
+
+**Date**: 2026-10-15
+**Task**: FastCtx 默认路由与用户规则去重
+**Branch**: `main`
+
+### Summary
+
+完成三份正文分层、精确旧模板兼容、Git 发布及原生重装；用户明确接受首次加载 Skill 的入口瑕疵，按调整后的条件验收并归档。
+
+### Main Changes
+
+- 常驻默认、完整 FastCtx 合同及跨组件分流职责收敛；真实旧版模板固定夹具与升级保护保留。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ec081169f873853ee05153a9fe49f2c00193abd` | fix: clarify FastCtx defaults and per-action routing |
+| `a7c0fc6e7db10ec83c7e1260546fe5454ea71135` | docs: record FastCtx routing deployment and acceptance |
+
+### Testing
+
+- [OK] 本地现有 CI 入口共 281 项，含一项既有跳过，其余通过；两项定向 verify 为 match，根侧离线集成八项通过。
+- [OK] 固定前后各七轮，共十四轮，无重试；后续普通读取、实际 Partial 续页、原生任务调用及跨轮切换符合要求。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 首读偏差保留为用户已接受限制；未验证真实压缩、容量故障和长期稳定性，不据此宣称已修复首读。
