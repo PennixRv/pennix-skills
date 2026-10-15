@@ -1,0 +1,53 @@
+{
+  "id": "cch-turn-timer-version-alignment",
+  "name": "cch-turn-timer-version-alignment",
+  "title": "同步 CCH turn 计时修复的生命周期版本落点",
+  "description": "在 CCH 修复发布验收后，仅更新 cch-status 固定版本并经原生 Skill 暂存与集合替换部署，保留其他组件及用户配置。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-15",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_mode": "change_bearing",
+    "execution_class": "planned",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "cch-turn-timer-version-alignment",
+        "task_name": "10-15-cch-turn-timer-version-alignment",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "90534581ad986e9820d31d0a0c65b7b18338189b4bf1b0dc9b0e6a45cc096acd",
+          "design.md": "ce25e378461cc32e09e9edf1de3cdbf25358afe304627b3ebaf274a256635c9b",
+          "implement.md": "d6fd5626c9be5eafdda562ddbab2161a34da848812ebbfa0761cc0a835e1cde6"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-15T07:53:12.845676+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户明确批准本任务 revision 1 及另外两个关联任务的完整修订包进入实施；依赖 CCH 发布重装验收完成后再启动。",
+      "approved_at": "2026-10-15T07:54:11.703504+00:00"
+    }
+  }
+}

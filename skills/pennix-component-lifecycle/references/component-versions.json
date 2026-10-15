@@ -208,7 +208,7 @@
     },
     "cch-status": {
       "delivery": "native",
-      "approved_version": "0.1.45",
+      "approved_version": "0.1.46",
       "source": "native CCH installation",
       "owner": "cch",
       "scope": "global",
