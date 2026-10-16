@@ -834,3 +834,39 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 状态（Status）
 
 [OK] **已完成（Completed）**
+
+
+## 会话（Session） 34：安装审计遗留统一收敛
+<!-- trellis-session: v=2 fp=6d041385a97a5337 -->
+
+**日期（Date）**: 2026-10-16
+**任务（Task）**: 安装审计遗留统一收敛
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+纳管并迁移 pnpm 10.32.1 至用户 npm prefix，对齐 Ponytail 5.3.1 Marketplace 和 AoE 1.20.0；补齐精确暂存预览与摘要保护丢弃入口，清理已批准 stage。
+
+### 主要变更（Main Changes）
+
+- 最终 Skill 集合从精确提交 34870dd 原生重装；四项实机收敛已验收。
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `bf589b9` | fix(lifecycle): converge installation audit and explicit staging discard |
+| `34870dd` | test(lifecycle): isolate npm owner fixtures and provision CI dependency |
+| `6ce40bb` | docs(task): record verified installation audit convergence |
+
+### 测试（Testing）
+
+- [OK] lifecycle 200 项、CI HOME 条件 90 项通过；GitHub CI 38913898442 success；17 组件完整 verify match，无失败或提示；根集成 8 passed。
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
+
+### 下一步（Next Steps）
+
+- 本任务已达到验收并原生归档，无待实施动作。

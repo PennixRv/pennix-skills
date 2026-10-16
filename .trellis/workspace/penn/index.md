@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **活动文件（Active File）**: `journal-1.md`
-- **会话总数（Total Sessions）**: 33
+- **会话总数（Total Sessions）**: 34
 - **最近活动（Last Active）**: 2026-10-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | 文件（File） | 行数（Lines） | 状态（Status） |
 |------|-------|--------|
-| `journal-1.md` | ~836 | 活动（Active） |
+| `journal-1.md` | ~872 | 活动（Active） |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | 日期（Date） | 标题（Title） | 提交（Commits） | 分支（Branch） |
 |---|------|-------|---------|--------|
+| 34 | 2026-10-16 | 安装审计遗留统一收敛 | `bf589b9`, `34870dd`, `6ce40bb` | `main` |
 | 33 | 2026-10-16 | 完成规划复核流程的 beta.51 安装验收 | `29062ce`, `6f430d34` | `main` |
 | 32 | 2026-10-16 | 用户级 npm 安装治理与默认 prefix 交付 | `9e8ada1`, `1d29b5b`, `5af71d6`, `949760e`, `6ac5b3d` | `main` |
 | 31 | 2026-10-15 | FastCtx 默认路由与用户规则去重 | `6ec081169f873853ee05153a9fe49f2c00193abd`, `a7c0fc6e7db10ec83c7e1260546fe5454ea71135` | `main` |
