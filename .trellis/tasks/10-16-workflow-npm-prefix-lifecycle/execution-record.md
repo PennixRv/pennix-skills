@@ -26,3 +26,10 @@
 - 完整 lifecycle unittest：188 项通过。随后将原生 npm 测试的 cache 也放入临时目录，并重新运行 `test_lifecycle.py` 全部用例通过；测试只改临时 npm 配置与缓存，验证原生 npm 保留无关 registry/fund 键及重复执行不改文件时间。
 - `py_compile` 与 `git diff --check` 通过。中文 Skill 检查 error=0、warning=0；两项既有中文引号样式建议按当前写作 Skill 的常用中文引号约定保留。
 - 本轮主会话已按 trellis-check 复核受影响入口、包匹配时的配置路径、前置检查顺序、错误传播及旧包延后清理；未扩展到其他组件源码。真实活动集合和用户 prefix 验收由根任务继续执行，完成后再归档组件任务。
+
+## 真实交付接纳
+
+- 最终产品提交 `949760ea56ab2bdebccf48aa7b17e0b0ce0d6a45` 已推送 `origin/main`。根任务通过 system skill-installer 从该精确提交暂存，并用暂存树原生 `replace-staged` 接纳成功；活动脚本和 Skill 与源字节一致。
+- 活动集合 `verify --component pennix-skills --yes` 为 `match`，failures 为空；旧未知暂存目录仅有 advisory，未接管。真实 `upgrade --component trellis-cli --yes` 返回 `no-op`，当前用户默认 npm prefix 为 `/home/penn/.local`。
+- 根任务确认五个目标用户级包和入口 owner 均为 `penn`、旧 prefix 无目标副本；Paseo 客户端已恢复，CCH doctor 和双侧真实 render 通过。组件任务的 catalog/行为/测试/发布/安装接纳验收已完成。
+- 完整基线仅剩原有 Ponytail/AoE 固定版本漂移，根任务已记录后续；未登记的系统级 pnpm 也由根侧后续审计任务承接，不在本组件任务自动扩展治理范围。
