@@ -1685,7 +1685,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_default_catalog_declares_user_npm_contract_and_paseo(self) -> None:
         catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
-        for key in ("trellis-cli", "fastctx", "codegraph-cli", "paseo-cli"):
+        for key in ("trellis-cli", "pnpm", "fastctx", "codegraph-cli", "paseo-cli"):
             package = catalog["components"][key]["package"]
             self.assertEqual(package["prefix"], "$HOME/.local")
             self.assertEqual(package["install_owner"], "user")
@@ -1708,7 +1708,7 @@ class BootstrapTests(unittest.TestCase):
             with patch.object(bootstrap, "npm_known_roots", return_value=[old.parent.parent, target.parent.parent]):
                 locations = bootstrap.npm_package_locations({"@example/fastctx"})
             self.assertEqual({item["version"] for item in locations}, {"1.0.0", "2.0.0"})
-            self.assertEqual({item["owner"] for item in locations}, {bootstrap.filesystem_owner(Path.home())})
+            self.assertEqual({item["owner"] for item in locations}, {bootstrap.filesystem_owner(root)})
 
     def test_npm_probe_blocks_entry_owner_drift(self) -> None:
         component = {
@@ -1727,6 +1727,7 @@ class BootstrapTests(unittest.TestCase):
             patch.object(bootstrap.shutil, "which", return_value="/tmp/.local/bin/fastctx"),
             patch.object(bootstrap, "npm_owner_for_command", return_value="@example/fastctx"),
             patch.object(bootstrap, "npm_entry_owner_for_command", return_value="root"),
+            patch.object(bootstrap, "filesystem_owner", return_value="fixture-user"),
             patch.object(
                 bootstrap.subprocess,
                 "run",

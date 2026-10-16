@@ -14,3 +14,20 @@
 - 两个受影响 Skill 的 system quick_validate 均通过；中文检查 error=0、warning=0，6 条引号样式建议涉及既有正文，按本集合保留中文弯引号的约定不改写。
 - 主会话按 trellis-check 复核 CLI → adapter → 原生删除及 catalog → 既有 npm 迁移的调用链，确认默认预览不调用全局 discover、不创建收据；活动集合完整性摘要合同不变。核验与删除的非事务限制已保留在源码及说明。
 - `git diff --check` 通过；没有新增依赖或未解决的实施范围问题。准备提交推送源码，再安装该精确提交并进行实机验收。
+
+## 安装与实机结果
+
+- 源码 bf589b9 已推送；系统 skill-installer 以精确 SHA／git 模式暂存 16 个 Skill，frontmatter 与 seed 执行位通过，从新暂存原生 replace 成功，集合 scoped verify 为 match。
+- pnpm 原生 upgrade 成功：10.32.1 安装到 `/home/penn/.local`，包和 pnpm／pnpx 由 penn 持有，`/usr` 原包及两个入口已移除；默认 prefix 保持用户目录。TTY 中的 zsh 回读无错误、两个入口均为用户目录。非 TTY 的首次交互 zsh 探测出现 monitor／gitstatus 初始化提示，改由宿主 TTY 正常核验，未改 Shell 配置。
+- Trellis 的 `CI=true pnpm install --frozen-lockfile --offline --ignore-scripts` 成功，锁文件及工作树无变化。额外 compiler 探测起初在无该直接依赖的根包调用失败，核对 package.json 后改用两个真实子包的 `pnpm --filter ... exec tsc --version`，均为 5.9.3；未修改产品或工具链 pin。
+- Ponytail 原生 Marketplace remove／add --ref 成功，HEAD 精确为 6f1c2bfff0c837d268929a7c4e490918eb4fab29，插件仍 installed/enabled 5.3.1，无需补装；已安装的 27 个相关资产与发布提交一致。
+- 精确 stage 原生 preview 为 8 条目、23,901 文件字节；以同一摘要执行回执 executed，目标不存在，活动集合摘要、收据 SHA-256 与命令链接前后相等。此数不表示物理块释放量。
+- pnpm、Ponytail、AoE、pennix-skills 四个 scoped verify 全部 match，无 failures／advisories；AoE 原有 upstream hash 仍 match。根侧离线集成 8 passed。
+
+## CI 修正
+
+源码提交的 GitHub CI run 38913098678 报告三个已有 npm 测试失败：重复包夹具将当前临时目录 owner 错比 HOME=/tmp 的 root owner；漂移夹具把 root 当作必定不同的 owner；真实 npm prefix 测试在未安装 npm 的容器中运行。新增暂存 12 项在远端已通过。
+
+这些失败位于本次复用的 npm 迁移验证链，按同组件、低风险测试修正继续：owner 从实际临时目录取值，漂移期望明确隔离，CI 测试容器补齐已有真实配置测试需要的 npm。未改生产所有权逻辑、删除边界或封口范围。本地完整 200 项再次通过；与 CI 同样使用 HOME=/tmp 的 test_lifecycle.py 90 项通过。待修订 CI 通过后再归档。
+
+完整原生 `verify --yes` 已为 match：17 个组件、核心／已启用配置核验通过，failures=[]、advisories=[]，staging 为 none。无需刷新 profile 摘要或变更任何配置选择。
