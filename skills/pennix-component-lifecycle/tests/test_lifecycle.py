@@ -1525,6 +1525,10 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["ponytail-plugin"]["plugin"]["id"], "ponytail@ponytail")
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["name"], "@pennixrv/trellis")
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["tag"], "beta")
+        pnpm = catalog["components"]["pnpm"]
+        self.assertEqual(pnpm["package"]["tag"], pnpm["approved_version"])
+        self.assertEqual(pnpm["package"]["prefix"], "$HOME/.local")
+        self.assertEqual(pnpm["package"]["install_owner"], "user")
 
     def test_npm_replacement_is_removed_after_install(self) -> None:
         component = {

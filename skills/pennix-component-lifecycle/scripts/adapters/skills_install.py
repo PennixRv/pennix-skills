@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import hashlib
 import json
+import stat
 from pathlib import Path
 
 from . import codex_static
@@ -332,6 +333,80 @@ def validate_staged_collection(expected_names: set[str], staging: Path) -> Path:
     if collection_state(expected_names, staging) != "match":
         raise InstallError("native installer staging is not an exact Pennix Skills collection")
     return staging
+
+
+def _staging_identity(metadata: os.stat_result) -> tuple:
+    return (metadata.st_dev, metadata.st_ino, metadata.st_mode, metadata.st_uid,
+            metadata.st_gid, metadata.st_size, metadata.st_mtime_ns, metadata.st_ctime_ns)
+
+
+def _staging_snapshot(staging: Path) -> dict:
+    digest = hashlib.sha256()
+    entries = 0
+    file_bytes = 0
+    for path in [staging, *sorted(staging.rglob("*"))]:
+        before = path.lstat()
+        if before.st_uid != os.getuid():
+            raise InstallError(f"staging entry owner is unsafe: {path}")
+        if not (stat.S_ISDIR(before.st_mode) or stat.S_ISREG(before.st_mode)):
+            raise InstallError(f"staging contains a symbolic link or non-regular entry: {path}")
+        identity = _staging_identity(before)
+        digest.update(json.dumps([path.relative_to(staging).as_posix(), identity]).encode())
+        digest.update(b"\0")
+        if stat.S_ISREG(before.st_mode):
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, "rb") as handle:
+                if _staging_identity(os.fstat(handle.fileno())) != identity:
+                    raise InstallError("staging changed during preview")
+                for chunk in iter(lambda: handle.read(64 * 1024), b""):
+                    digest.update(chunk)
+                if _staging_identity(os.fstat(handle.fileno())) != identity:
+                    raise InstallError("staging changed during preview")
+            file_bytes += before.st_size
+        if _staging_identity(path.lstat()) != identity:
+            raise InstallError("staging changed during preview")
+        digest.update(b"\0")
+        entries += 1
+    return {"digest": digest.hexdigest(), "entries": entries - 1, "file_bytes": file_bytes}
+
+
+def discard_staged_collection(
+    expected_names: set[str], staging: Path, target_codex_home: Path,
+    *, execute: bool = False, expected_digest: str | None = None,
+) -> dict:
+    """Preview or explicitly discard one safe, selected Pennix Skills staging tree."""
+    try:
+        staging = assert_safe_destination(staging)
+        skills_root = assert_safe_destination(target_codex_home / "skills")
+        if (staging.parent != skills_root or staging != staging.resolve(strict=True)
+                or not re.fullmatch(r"\.pennix-skills-stage(?:-[A-Za-z0-9_-]+)?", staging.name)):
+            raise InstallError("staging must be an exact Pennix Skills staging directory under the selected Codex home")
+        snapshot = _staging_snapshot(staging)
+        if collection_state(expected_names, staging) not in {"match", "partial"}:
+            raise InstallError("staging is not a valid Pennix Skills collection or member subset")
+        if _staging_snapshot(staging) != snapshot:
+            raise InstallError("staging changed during preview")
+        result = {"status": "candidate", "staging": str(staging), **snapshot,
+                  "skills": sorted(entry.name for entry in staging.iterdir())}
+        if not execute:
+            return result
+        if not expected_digest or expected_digest != snapshot["digest"]:
+            raise InstallError("staging preview digest is missing or does not match; nothing deleted")
+        if not shutil.rmtree.avoids_symlink_attacks:
+            raise InstallError("host cannot safely delete a staging tree")
+        parent = os.open(skills_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            # shortcut: validation and deletion are not a transaction; coordinate owners if concurrent writers are supported.
+            if _staging_snapshot(staging) != snapshot:
+                raise InstallError("staging changed before deletion; nothing deleted")
+            shutil.rmtree(staging.name, dir_fd=parent)
+        finally:
+            os.close(parent)
+        if staging.exists() or staging.is_symlink():
+            raise InstallError("staging deletion postcondition failed; inspect the remaining target")
+        return {**result, "status": "executed", "deleted_file_bytes": snapshot["file_bytes"]}
+    except OSError as error:
+        raise InstallError(f"staging operation failed; inspect the remaining target {staging}: {error}") from error
 
 
 def replace_collection(

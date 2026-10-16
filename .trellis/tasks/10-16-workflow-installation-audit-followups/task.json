@@ -1,0 +1,54 @@
+{
+  "id": "workflow-installation-audit-followups",
+  "name": "workflow-installation-audit-followups",
+  "title": "统一收敛安装审计遗留与精确暂存清理",
+  "description": "承接根任务的 pnpm 用户级 npm 纳管、Ponytail/AoE 来源及版本 pin 对齐，并为显式选定的 Skill 暂存补齐原生预览与丢弃入口；当前仅规划。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-16",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "work_domain": "workflow-governance",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "workflow-installation-audit-followups",
+        "task_name": "10-16-workflow-installation-audit-followups",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "cae33012b9c35c1e1af14f7e758b588cb535b6f0447d37898ec5e82b619f7b84",
+          "design.md": "61fb8546ced1fcef367ee1afb143053403f31899a3b9eb4d63d8847b5ad3bbee",
+          "implement.md": "9fb60de03b536d43c4237aed8d2ea41dcb160029cc4994f6f65bad6983c6100a"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-16T14:01:42.819472+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户对根侧完整展示的同一四项收敛修订包明确答复：批准；包括本组件源码、测试、推送、集合安装及精确 stage 丢弃。",
+      "approved_at": "2026-10-16T14:01:52.133501+00:00"
+    }
+  }
+}

@@ -121,6 +121,35 @@
         "install_owner": "user"
       }
     },
+    "pnpm": {
+      "delivery": "package",
+      "approved_version": "10.32.1",
+      "source": "official pnpm npm package pinned to the Trellis toolchain",
+      "owner": "pnpm",
+      "scope": "global",
+      "verify_key": "pnpm --version",
+      "actions": {
+        "install": "managed",
+        "configure": "not-applicable",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
+      "project_init": "not-applicable",
+      "probe": "pnpm",
+      "version_args": [
+        "--version"
+      ],
+      "package": {
+        "source": "npm",
+        "name": "pnpm",
+        "registry": "https://registry.npmjs.org/",
+        "tag": "10.32.1",
+        "prefix": "$HOME/.local",
+        "install_owner": "user"
+      }
+    },
     "fastctx": {
       "delivery": "package",
       "approved_version": "0.2.29",
@@ -221,7 +250,7 @@
     },
     "ponytail-plugin": {
       "delivery": "plugin",
-      "approved_version": "5.1.0",
+      "approved_version": "5.3.1",
       "source": "Codex native plugin from pinned Ponytail marketplace",
       "owner": "codex",
       "scope": "global",
@@ -242,7 +271,7 @@
         "marketplace": {
           "name": "ponytail",
           "source": "https://github.com/DietrichGebert/ponytail.git",
-          "ref": "v5.1.0",
+          "ref": "6f1c2bfff0c837d268929a7c4e490918eb4fab29",
           "sparse": []
         }
       }
@@ -334,7 +363,7 @@
     },
     "aoe": {
       "delivery": "package",
-      "approved_version": "1.19.0",
+      "approved_version": "1.20.0",
       "source": "AUR agent-of-empires-bin package; upstream installer inspected as evidence",
       "owner": "aoe",
       "scope": "global/project",

@@ -2241,13 +2241,29 @@ def replace_staged_collection(args: argparse.Namespace, catalog: dict[str, Any])
     print(json.dumps({"operation": "replace-staged", "component": args.component, "status": "changed"}, ensure_ascii=False))
 
 
+def discard_staged_collection(args: argparse.Namespace, catalog: dict[str, Any]) -> None:
+    if args.component != "pennix-skills" or not args.staging or args.destination:
+        raise BootstrapError("discard-staged requires --component pennix-skills --staging PATH without --destination")
+    assert_supported_host()
+    try:
+        result = skills_install.discard_staged_collection(
+            collection_skill_names(catalog["components"][args.component]),
+            Path(args.staging).expanduser().absolute(), args.codex_home,
+            execute=args.yes, expected_digest=args.expected_digest,
+        )
+    except skills_install.InstallError as error:
+        raise BootstrapError(str(error)) from error
+    print(json.dumps({"operation": "discard-staged", "component": args.component, **result}, ensure_ascii=False))
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("discover", "replace-staged", *ACTION_NAMES))
+    parser.add_argument("command", choices=("discover", "replace-staged", "discard-staged", *ACTION_NAMES))
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--destination")
     parser.add_argument("--staging")
+    parser.add_argument("--expected-digest")
     parser.add_argument("--component")
     parser.add_argument("--yes", action="store_true")
     return parser.parse_args(argv)
@@ -2260,6 +2276,9 @@ def main(argv: list[str]) -> int:
         # Preserve symlink information so codex_static can reject unsafe targets.
         args.codex_home = args.codex_home.expanduser().absolute()
         catalog = load_catalog(args.catalog)
+        if args.command == "discard-staged":
+            discard_staged_collection(args, catalog)
+            return 0
         inventory = discover(args, catalog)
         if args.command == "discover":
             print(json.dumps(inventory, ensure_ascii=False, indent=2))

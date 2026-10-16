@@ -1,6 +1,6 @@
 ---
 name: pennix-component-lifecycle
-description: 用户明确要求发现、安装、升级、卸载、配置或核验已登记的工作流组件，协调已知旧状态，或接纳暂存 Skill 集合时使用；全新 Arch 环境提供 seed 引导。项目初始化由各组件原生入口负责。
+description: 用户明确要求发现、安装、升级、卸载、配置或核验已登记的工作流组件，协调已知旧状态，或接纳暂存 Skill 集合、丢弃明确选定的 pennix-skills 暂存时使用；全新 Arch 环境提供 seed 引导。项目初始化由各组件原生入口负责。
 metadata:
   short-description: 安全管理工作流生命周期
 ---
@@ -43,6 +43,10 @@ python3 <staged-lifecycle>/scripts/lifecycle.py replace-staged \
 `replace-staged` 只运行清单声明的安装后动作 ID，为最终树创建私有完整性收据，并拒绝未知或已漂移的活动内容。明确确认的 `replace-staged --yes` 可以一次性接纳没有收据的精确旧集合；这是一次性的收据建立且仍是事务性操作。自动刷新和卸载拒绝旧的或已漂移的完整集合。暂存校验、准备或替换失败时保留活动内容。缺失或部分清单集合可重入；用户创建的目录从不删除。有限的清单命令映射只有在目标不存在或已由匹配收据证明时才安装到 `~/.local/bin`；无归属文件、链接、其他集合目标或 PATH 遮蔽都会阻塞操作。若 `~/.local/bin` 不在 PATH，`discover` 只报告前置条件，不修改 Shell 启动文件。替换后再次运行 `discover` 和 `verify`。不要在提示或文档中重新抄写并行 Skill 列表。
 
 没有收据的 `.pennix-skills-stage*` 或 `.pennix-skills-extra-stage*` 条目不算完成安装，也不算已证明的生命周期状态。`discover` 只报告其直接子项名称（已脱敏）和 `unknown` 状态；不读取内容、不推断年龄、PID、进程、会话或来源，也不删除或接管。该提示不阻塞生命周期所有组件的核验；清理必须另行明确授权。managed 操作失败只清理本次明确创建的暂存目录。
+
+明确要求丢弃某个 `pennix-skills` 暂存时，使用 `discard-staged --component pennix-skills --staging <精确路径>`，默认只预览。目标必须是所选 `CODEX_HOME/skills` 的直接子目录，名称为 `.pennix-skills-stage` 或其带安全后缀的暂存名，且全部条目由当前用户持有、无符号链接或特殊文件、顶层为有效清单成员子集。该显式检查会读取内容以验证集合并计算摘要，不能据此证明来源或没有活动写入者；`discover` 仍只报告未知目录名称。
+
+获得该精确目标的丢弃授权后，在同一命令添加 `--yes --expected-digest <预览摘要>`。摘要覆盖根目录身份和所有待删内容，包括 Python 缓存；缺失、失配或检测到变化时不删。成功回执为 `executed`，`deleted_file_bytes` 只表示删除的普通文件字节。核验与删除非文件系统事务，删除失败可能留下部分目录，须保留错误并检查剩余现场；不自动重试、恢复或扩大范围。活动集合、收据及命令映射不属于候选，其他集合没有此丢弃入口。
 
 集合收据不把 Python 可再生的 `__pycache__` 目录和 `.pyc` 文件纳入摘要。这些是运行缓存，不是受管 Skill 内容；其他文件、模式、目录和符号链接检查仍属于完整性合同。
 
