@@ -106,7 +106,7 @@ class HostTests(unittest.TestCase):
                 "--allow-scripts=esbuild,node-pty",
                 "--include=optional",
                 "--prefix",
-                "$HOME/.local",
+                str(Path.home() / ".local"),
                 "--registry",
                 "https://registry.npmjs.org/",
                 "@getpaseo/cli@0.11.4",

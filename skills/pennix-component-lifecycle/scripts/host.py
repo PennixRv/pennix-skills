@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 from pathlib import Path
@@ -13,6 +14,10 @@ WSL2_PATTERN = re.compile(r"(?:wsl2|microsoft-standard-wsl2)", re.IGNORECASE)
 PACKAGE_MANAGERS = ("pacman", "paru", "yay", "npm")
 PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:/-]+$")
 PACKAGE_TAG = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def expand_path(value: str) -> str:
+    return os.path.expanduser(os.path.expandvars(value))
 
 
 def read_os_release(path: Path = Path("/etc/os-release")) -> dict[str, str]:
@@ -105,7 +110,7 @@ def package_install_command(
         )
         command = [installer, "install", "--global", script_option, "--include=optional"]
         if prefix is not None:
-            command += ["--prefix", prefix]
+            command += ["--prefix", expand_path(prefix)]
         return command + (["--registry", registry] if registry else []) + [package]
     if installer == "pacman":
         return ["sudo", installer, "-S", "--needed", "--noconfirm", package]
@@ -118,7 +123,7 @@ def package_remove_command(installer: str, package: str, prefix: str | None = No
     if installer == "npm":
         command = [installer, "uninstall", "--global"]
         if prefix is not None:
-            command += ["--prefix", prefix]
+            command += ["--prefix", expand_path(prefix)]
         return command + [package]
     if installer == "pacman":
         return ["sudo", installer, "-R", "--noconfirm", package]
