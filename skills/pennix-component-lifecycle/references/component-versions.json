@@ -515,6 +515,7 @@
           "pennix-grok-search",
           "pennix-chinese-tech-writing",
           "pennix-decision-grill",
+          "pennix-agent-output-quality",
           "pennix-fastctx-routing",
           "pennix-session-handoff",
           "pennix-siyuan-knowledge",
@@ -535,6 +536,7 @@
           "paths": [
             "skills/pennix-chinese-tech-writing",
             "skills/pennix-decision-grill",
+            "skills/pennix-agent-output-quality",
             "skills/pennix-fastctx-routing",
             "skills/pennix-session-handoff",
             "skills/pennix-siyuan-knowledge",

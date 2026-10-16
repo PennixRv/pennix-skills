@@ -35,6 +35,7 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 | Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 对应检索工具的命令、MCP 或 API | FastCtx 不承担检索启动、凭据或降级协议 |
 | 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过 FastCtx 或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
 | 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
+| 日常答复、复杂交付或批准前方案展示需要检查覆盖、详略、重点、结构或图表关系 | `$pennix-agent-output-quality`；中文技术内容再组合 `$pennix-chinese-tech-writing` | 输出质量 Skill 负责内容组织和语义复核，语言 Skill 负责中文表达与保真；简单事实走短路径，不改变任务状态、批准或安装 owner |
 | 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | FastCtx，按 `$pennix-fastctx-routing` | 排除上表的专门调用；机械替换先预览并限定次数，不自动持久化结果 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |

@@ -51,6 +51,21 @@ class DecisionGrillContractTests(unittest.TestCase):
         for marker in ("封口并批准推进", "补充／修改方案", "不要求固定口令", "用户只同意封口", "空回执、取消", "不重复索取同一实施批准", "展示后有实质变化", "不盲目重做已成功的 seal"):
             self.assertIn(marker, review)
 
+    def test_plan_review_gate_precedes_final_plan_display(self) -> None:
+        gate = self.content.split("## 方案审查闸门", 1)[1].split("## 最终方案复核", 1)[0]
+        for marker in (
+            "方案和任务材料形成后",
+            "实际修改目标与 owner",
+            "证据或合同问题",
+            "用户取舍问题",
+            "已知限制",
+            "重复审查",
+            "未通过时不得请求“封口并批准推进”",
+            "不新增 Trellis 状态",
+        ):
+            self.assertIn(marker, gate)
+        self.assertIn("先运行一轮独立的方案审查", gate)
+
     def test_approval_research_and_continue_keep_their_distinct_boundaries(self) -> None:
         for marker in ("设计回答不授予实施权", "`analysis_only` 完成证据不要求实施批准", "专门批准", "普通继续或充分压缩断点复用已知决定", "模型行为的确定性保证"):
             self.assertIn(marker, self.content)

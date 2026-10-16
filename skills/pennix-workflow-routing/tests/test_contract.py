@@ -47,6 +47,17 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("若基础工具按正确原生调用仍不可用，保留原错误并停止", content)
         self.assertIn("FastCtx 可以读取或分析该文件，但不能确认或模拟组件状态", content)
 
+    def test_output_quality_route_preserves_language_and_lifecycle_boundaries(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        for marker in (
+            "`$pennix-agent-output-quality`",
+            "复杂交付或批准前方案展示",
+            "中文技术内容再组合 `$pennix-chinese-tech-writing`",
+            "简单事实走短路径",
+            "不改变任务状态、批准或安装 owner",
+        ):
+            self.assertIn(marker, content)
+
     def test_fastctx_details_delegate_to_the_resolvable_specialist_contract(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         links = re.findall(r"\]\(([^)]+)\)", content)
