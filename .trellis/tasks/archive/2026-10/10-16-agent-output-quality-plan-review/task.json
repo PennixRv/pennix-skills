@@ -1,0 +1,54 @@
+{
+  "id": "agent-output-quality-plan-review",
+  "name": "agent-output-quality-plan-review",
+  "title": "Agent 输出质量与批准前方案审查",
+  "description": "实现输出质量 Skill 与独立的批准前方案审查闸门，保持既有生命周期和语言 Skill 边界。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-16",
+  "completedAt": "2026-10-16",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "work_domain": "workflow-governance",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "agent-output-quality-plan-review",
+        "task_name": "10-16-agent-output-quality-plan-review",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "a0316e2313f1b892ac794ed0ca9abfbac0d0d6ec1d27ec6d4e04d657b94f978b",
+          "design.md": "96c8e3ef7f5ce6f4a485b94127fcfb1da8fc5975d7351ad743fbe16052c495f7",
+          "implement.md": "0bbfe9cae748baa0f20a3556aff467367a2df29cdbbc402e8af7c7d84b600c60"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-16T11:29:07.541285+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "根任务已展示的完整方案获用户批准，按同一范围实施",
+      "approved_at": "2026-10-16T11:29:20.064471+00:00"
+    }
+  }
+}
