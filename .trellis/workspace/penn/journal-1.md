@@ -785,3 +785,29 @@ Completed the schema 10 handoff intake contract repair, pushed product and deliv
 ### Next Steps
 
 - 首读偏差保留为用户已接受限制；未验证真实压缩、容量故障和长期稳定性，不据此宣称已修复首读。
+
+
+## Session 32: 用户级 npm 安装治理与默认 prefix 交付
+<!-- trellis-session: v=2 fp=38f37507a1e473d9 -->
+
+**Date**: 2026-10-16
+**Task**: 用户级 npm 安装治理与默认 prefix 交付
+**Branch**: `main`
+
+### Summary
+
+完成 catalog 用户 npm prefix/owner、迁移顺序与默认 prefix 原生设置；188 项 lifecycle 测试通过，精确源码提交已推送并经系统安装器暂存及原生接纳，真实 upgrade no-op 与 scoped verify 通过。组件任务验收归档，根侧保留既有漂移及未登记 pnpm 后续边界。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9e8ada1` | feat(lifecycle): govern user npm prefixes |
+| `1d29b5b` | fix(lifecycle): scope npm migration preflight |
+| `5af71d6` | fix(lifecycle): expand npm prefix paths |
+| `949760e` | feat(lifecycle): configure user npm prefix on package install |
+| `6ac5b3d` | docs: record npm prefix deployment acceptance |
+
+### Status
+
+[OK] **Completed**
