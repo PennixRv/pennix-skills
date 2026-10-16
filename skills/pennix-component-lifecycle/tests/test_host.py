@@ -91,6 +91,31 @@ class HostTests(unittest.TestCase):
             host.package_remove_command("npm", "@example/fixture"),
             ["npm", "uninstall", "--global", "@example/fixture"],
         )
+        self.assertEqual(
+            host.package_install_command(
+                "npm",
+                "@getpaseo/cli@0.11.4",
+                "https://registry.npmjs.org/",
+                "$HOME/.local",
+                ["esbuild", "node-pty"],
+            ),
+            [
+                "npm",
+                "install",
+                "--global",
+                "--allow-scripts=esbuild,node-pty",
+                "--include=optional",
+                "--prefix",
+                "$HOME/.local",
+                "--registry",
+                "https://registry.npmjs.org/",
+                "@getpaseo/cli@0.11.4",
+            ],
+        )
+        self.assertEqual(
+            host.package_remove_command("npm", "fastctx", "/usr"),
+            ["npm", "uninstall", "--global", "--prefix", "/usr", "fastctx"],
+        )
 
     def test_non_arch_and_unknown_wsl_are_blocked(self) -> None:
         non_arch = self.detect("ID=ubuntu\n", "6.1.0-generic\n")

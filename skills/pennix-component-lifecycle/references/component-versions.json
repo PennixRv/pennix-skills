@@ -116,7 +116,9 @@
         "source": "npm",
         "name": "@pennixrv/trellis",
         "registry": "https://registry.npmjs.org/",
-        "tag": "beta"
+        "tag": "beta",
+        "prefix": "$HOME/.local",
+        "install_owner": "user"
       }
     },
     "fastctx": {
@@ -145,7 +147,9 @@
       "package": {
         "source": "npm",
         "name": "@pennixrv/fastctx",
-        "registry": "https://registry.npmjs.org/"
+        "registry": "https://registry.npmjs.org/",
+        "prefix": "$HOME/.local",
+        "install_owner": "user"
       }
     },
     "codegraph-cli": {
@@ -171,11 +175,48 @@
       "package": {
         "source": "npm",
         "name": "@pennixrv/codegraph",
-        "registry": "https://registry.npmjs.org/"
+        "registry": "https://registry.npmjs.org/",
+        "prefix": "$HOME/.local",
+        "install_owner": "user"
       },
       "pacman_replacement": {
         "name": "codegraph-bin",
         "version": "1.6.2-1"
+      }
+    },
+    "paseo-cli": {
+      "delivery": "package",
+      "approved_version": "0.11.4",
+      "source": "official Paseo npm CLI",
+      "owner": "paseo",
+      "scope": "global",
+      "verify_key": "paseo --version",
+      "actions": {
+        "install": "managed",
+        "configure": "native-owner",
+        "upgrade": "managed",
+        "uninstall": "managed",
+        "verify": "managed",
+        "reconcile": "not-applicable"
+      },
+      "project_init": "not-applicable",
+      "conflicts": [],
+      "replaces": [],
+      "probe": "paseo",
+      "version_args": [
+        "--version"
+      ],
+      "package": {
+        "source": "npm",
+        "name": "@getpaseo/cli",
+        "registry": "https://registry.npmjs.org/",
+        "prefix": "$HOME/.local",
+        "install_owner": "user",
+        "allow_scripts": [
+          "esbuild",
+          "node-pty",
+          "msgpackr-extract"
+        ]
       }
     },
     "ponytail-plugin": {

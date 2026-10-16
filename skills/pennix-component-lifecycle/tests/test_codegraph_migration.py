@@ -10,7 +10,7 @@ import lifecycle
 
 COMPONENT = {
     "approved_version": "1.6.2-pennix.1", "probe": "codegraph", "version_args": ["--version"],
-    "package": {"source": "npm", "name": "@pennixrv/codegraph", "registry": "https://registry.npmjs.org/"},
+    "package": {"source": "npm", "name": "@pennixrv/codegraph", "registry": "https://registry.npmjs.org/", "prefix": "$HOME/.local", "install_owner": "user"},
     "pacman_replacement": {"name": "codegraph-bin", "version": "1.6.2-1"},
 }
 
@@ -37,12 +37,13 @@ class CodeGraphMigrationTests(TestCase):
              patch.object(lifecycle, "probe_component", side_effect=[("drifted", "1.6.2"), ("match", "1.6.2-pennix.1")]), \
              patch.object(lifecycle, "pacman_replacement", return_value="codegraph-bin"), \
              patch.object(lifecycle, "installed_pacman_package", return_value=False), \
+             patch.object(lifecycle, "npm_previous_locations", return_value=[]), \
              patch.object(lifecycle, "installed_npm_packages", return_value={}), \
              patch.object(lifecycle, "npm_global_root", return_value=None), \
              patch.object(lifecycle, "npm_owner_for_command", return_value=None), \
              patch.object(lifecycle.shutil, "which", return_value="/usr/bin/codegraph"), \
              patch.object(lifecycle, "package_candidate_version", return_value=candidate), \
-             patch.object(lifecycle.subprocess, "run", side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=install_exit)]) as run:
+             patch.object(lifecycle.subprocess, "run", side_effect=[SimpleNamespace(returncode=install_exit), SimpleNamespace(returncode=0)]) as run:
             if candidate != COMPONENT["approved_version"] or install_exit:
                 with self.assertRaises(lifecycle.BootstrapError):
                     lifecycle.component_operation(args, {}, "codegraph-cli", COMPONENT, "upgrade")
@@ -58,7 +59,11 @@ class CodeGraphMigrationTests(TestCase):
         expected_remove = ["sudo", "pacman", "-R", "--noconfirm", "codegraph-bin"]
         for exit_code in (0, 1):
             calls = self.operation(COMPONENT["approved_version"], exit_code)
-            self.assertEqual(len(calls), 2)
-            self.assertEqual(calls[0], expected_remove)
-            self.assertEqual(calls[1][-1], "@pennixrv/codegraph@1.6.2-pennix.1")
-            self.assertIn("--ignore-scripts", calls[1])
+            if exit_code:
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(calls[0][-1], "@pennixrv/codegraph@1.6.2-pennix.1")
+                self.assertIn("--ignore-scripts", calls[0])
+            else:
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(calls[0][-1], "@pennixrv/codegraph@1.6.2-pennix.1")
+                self.assertEqual(calls[1], expected_remove)

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import pwd
 import re
 import shutil
 import subprocess
@@ -31,6 +32,7 @@ PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9-]*@[a-z0-9][a-z0-9-]*$")
 PLUGIN_REF = re.compile(r"^[A-Za-z0-9._-]+$")
 GITHUB_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NPM_TAG = re.compile(r"^[A-Za-z0-9._-]+$")
+NPM_USER_PREFIX = "$HOME/.local"
 
 
 class BootstrapError(RuntimeError):
@@ -842,6 +844,23 @@ def load_catalog(path: Path) -> dict[str, Any]:
             or (package.get("source") != "npm" and "registry" in package)
         ):
             raise BootstrapError(f"catalog package metadata is invalid: {key}")
+        if isinstance(package, dict) and package.get("source") == "npm":
+            allow_scripts = package.get("allow_scripts", [])
+            if (
+                package.get("prefix") != NPM_USER_PREFIX
+                or package.get("install_owner") != "user"
+                or not isinstance(allow_scripts, list)
+            ):
+                raise BootstrapError(f"catalog npm installation contract is invalid: {key}")
+            if (
+                not all(isinstance(name, str) and PACKAGE_NAME.fullmatch(name) for name in allow_scripts)
+                or len(allow_scripts) != len(set(allow_scripts))
+            ):
+                raise BootstrapError(f"catalog npm script allowlist is invalid: {key}")
+        elif isinstance(package, dict) and any(
+            field in package for field in ("prefix", "install_owner", "allow_scripts")
+        ):
+            raise BootstrapError(f"catalog non-npm installation contract is invalid: {key}")
         if package is not None and (
             "tag" in package
             and (
@@ -1030,8 +1049,7 @@ def installed_replacements(component: dict[str, Any]) -> list[str]:
         return []
     replacements = component.get("replaces", [])
     if metadata.get("source") == "npm":
-        installed = installed_npm_packages()
-        return [name for name in replacements if name in installed]
+        return sorted({item["name"] for item in npm_replacement_locations(component)})
     return [name for name in replacements if installed_pacman_package(name)]
 
 
@@ -1059,7 +1077,20 @@ def pacman_replacement(component: dict[str, Any]) -> str | None:
     return legacy["name"]
 
 
-def npm_global_root() -> Path | None:
+def npm_prefix_path(prefix: str | None) -> Path | None:
+    if prefix is None:
+        return None
+    if prefix == NPM_USER_PREFIX:
+        return (Path.home() / ".local").resolve()
+    if prefix.startswith("/"):
+        return Path(prefix).resolve()
+    raise BootstrapError(f"unsupported npm prefix: {prefix}")
+
+
+def npm_global_root(prefix: str | None = None) -> Path | None:
+    if prefix is not None:
+        target = npm_prefix_path(prefix)
+        return target / "lib" / "node_modules" if target is not None else None
     npm = shutil.which("npm")
     if not npm:
         return None
@@ -1079,22 +1110,105 @@ def npm_global_root() -> Path | None:
     return Path(root).resolve() if root else None
 
 
-def npm_owner_for_command(command: str) -> str | None:
-    root = npm_global_root()
-    if root is None:
+def npm_prefix_for_root(root: Path) -> Path | None:
+    root = root.resolve()
+    if root.name != "node_modules" or root.parent.name != "lib":
         return None
+    return root.parent.parent
+
+
+def npm_known_roots() -> list[Path]:
+    candidates = [
+        npm_global_root(),
+        npm_global_root(NPM_USER_PREFIX),
+        Path.home() / ".npm-global" / "lib" / "node_modules",
+        Path("/usr/local/lib/node_modules"),
+        Path("/usr/lib/node_modules"),
+    ]
+    roots: list[Path] = []
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        resolved = candidate.resolve()
+        if resolved not in roots:
+            roots.append(resolved)
+    return roots
+
+
+def filesystem_owner(path: Path) -> str | None:
     try:
-        relative = Path(command).resolve().relative_to(root)
-    except (OSError, ValueError):
+        uid = path.resolve().stat().st_uid
+        try:
+            return pwd.getpwuid(uid).pw_name
+        except KeyError:
+            return str(uid)
+    except OSError:
         return None
-    parts = relative.parts
-    if not parts:
+
+
+def npm_package_locations(names: set[str] | None = None) -> list[dict[str, Any]]:
+    locations: list[dict[str, Any]] = []
+    for root in npm_known_roots():
+        try:
+            entries = list(root.iterdir())
+        except OSError:
+            continue
+        package_roots: list[Path] = []
+        for entry in entries:
+            if entry.name.startswith("@") and entry.is_dir():
+                try:
+                    package_roots.extend(child for child in entry.iterdir() if child.is_dir())
+                except OSError:
+                    continue
+            elif entry.is_dir():
+                package_roots.append(entry)
+        for package_root in package_roots:
+            try:
+                metadata = json.loads((package_root / "package.json").read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            name = metadata.get("name")
+            version = metadata.get("version")
+            if not isinstance(name, str) or not isinstance(version, str) or (names is not None and name not in names):
+                continue
+            locations.append(
+                {
+                    "name": name,
+                    "version": version,
+                    "root": str(root),
+                    "package_root": str(package_root.resolve()),
+                    "prefix": str(npm_prefix_for_root(root)) if npm_prefix_for_root(root) else None,
+                    "owner": filesystem_owner(package_root),
+                }
+            )
+    return locations
+
+
+def npm_package_root_for_command(command: str) -> Path | None:
+    try:
+        resolved = Path(command).resolve()
+    except OSError:
         return None
-    package_root = root / parts[0]
-    if parts[0].startswith("@"):
-        if len(parts) < 2:
+    for parent in (resolved, *resolved.parents):
+        if parent.name != "node_modules":
+            continue
+        relative = resolved.relative_to(parent)
+        parts = relative.parts
+        if not parts:
             return None
-        package_root = root / parts[0] / parts[1]
+        package_root = parent / parts[0]
+        if parts[0].startswith("@"):
+            if len(parts) < 2:
+                return None
+            package_root = parent / parts[0] / parts[1]
+        return package_root
+    return None
+
+
+def npm_owner_for_command(command: str) -> str | None:
+    package_root = npm_package_root_for_command(command)
+    if package_root is None:
+        return None
     try:
         metadata = json.loads((package_root / "package.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -1103,11 +1217,68 @@ def npm_owner_for_command(command: str) -> str | None:
     return name if isinstance(name, str) and PACKAGE_NAME.fullmatch(name) else None
 
 
-def package_command(component: dict[str, Any], command: list[str]) -> list[str]:
+def npm_entry_owner_for_command(command: str) -> str | None:
+    return filesystem_owner(Path(command))
+
+
+def npm_component_command(component: dict[str, Any]) -> str | None:
+    probe = component.get("probe")
+    if not isinstance(probe, str):
+        return None
+    package = component.get("package")
+    if isinstance(package, dict) and package.get("source") == "npm" and package.get("prefix"):
+        prefix = npm_prefix_path(package["prefix"])
+        return shutil.which(probe, path=str(prefix / "bin")) if prefix is not None else None
+    return shutil.which(probe)
+
+
+def npm_replacement_locations(component: dict[str, Any]) -> list[dict[str, Any]]:
+    replacements = component.get("replaces", [])
+    if not isinstance(replacements, list) or not replacements:
+        return []
+    names = {name for name in replacements if isinstance(name, str)}
+    return [item for item in npm_package_locations(names) if item["name"] in names]
+
+
+def npm_previous_locations(component: dict[str, Any]) -> list[dict[str, Any]]:
+    metadata = component.get("package")
+    if not isinstance(metadata, dict) or metadata.get("source") != "npm":
+        return []
+    names = {metadata.get("name"), *component.get("replaces", [])}
+    names = {name for name in names if isinstance(name, str)}
+    locations = npm_package_locations(names)
+    target_prefix = metadata.get("prefix")
+    if not target_prefix:
+        return [item for item in locations if item["name"] in set(component.get("replaces", []))]
+    target = npm_prefix_path(target_prefix)
+    target_value = str(target) if target is not None else None
+    return [item for item in locations if item.get("prefix") != target_value]
+
+
+def command_version(component: dict[str, Any], command: str) -> str | None:
+    try:
+        result = subprocess.run(
+            [command, *[str(arg) for arg in component.get("version_args", [])]],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode:
+        return None
+    return normalize_version((result.stdout or result.stderr).strip())
+
+
+def package_command(
+    component: dict[str, Any], command: list[str], prefix: str | None = None
+) -> list[str]:
     package = component.get("package", component)
     if package.get("source") != "npm":
         return command
-    root = npm_global_root()
+    configured_prefix = prefix if prefix is not None else package.get("prefix")
+    root = npm_global_root(configured_prefix) if configured_prefix else npm_global_root()
     if root is None:
         return command
     probe = root if root.exists() else root.parent
@@ -1203,33 +1374,24 @@ def probe_component(
     if not probe:
         package = component.get("package")
         if isinstance(package, dict) and package.get("source") == "npm":
-            observed = installed_npm_version(package["name"])
+            locations = npm_package_locations({package["name"]})
+            observed = locations[0]["version"] if locations else installed_npm_version(package["name"])
             if observed is None:
                 return "missing", None
             expected = component_target_version(component)
             return ("match" if expected is not None and normalize_version(observed) == expected else "drifted"), observed
         return "unknown", None
-    command = shutil.which(str(probe))
+    package = component.get("package")
+    command = npm_component_command(component) if isinstance(package, dict) and package.get("source") == "npm" else shutil.which(str(probe))
     if not command:
         return "missing", None
-    try:
-        result = subprocess.run(
-            [command, *[str(arg) for arg in component.get("version_args", [])]],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return "unknown", None
-    observed = normalize_version((result.stdout or result.stderr).strip())
-    if result.returncode or observed is None:
+    observed = command_version(component, command)
+    if observed is None:
         return "unknown", observed
     expected = component_target_version(component)
     if expected is None:
         return "unknown", observed
     comparable_expected = expected
-    package = component.get("package")
     if (
         component_version_policy(component) == "repository-latest"
         and isinstance(package, dict)
@@ -1243,14 +1405,17 @@ def probe_component(
     else:
         status = "drifted"
     if status in {"match", "upgrade-available"} and isinstance(package, dict):
-        owner = (
-            npm_owner_for_command(command)
-            if package.get("source") == "npm"
-            else installed_package_owner(command)
-        )
-        if owner is None and package.get("source") == "npm":
-            status = "unknown"
-        elif owner != package["name"]:
+        if package.get("source") == "npm":
+            owner = npm_owner_for_command(command)
+            if owner is None:
+                status = "unknown"
+            elif owner != package["name"]:
+                status = "drifted"
+            elif package.get("install_owner") == "user":
+                expected_owner = filesystem_owner(Path.home())
+                if npm_entry_owner_for_command(command) != expected_owner:
+                    status = "drifted"
+        elif installed_package_owner(command) != package["name"]:
             status = "drifted"
     return status, observed
 
@@ -1271,6 +1436,15 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             )
         package = component.get("package")
         command = shutil.which(str(component["probe"])) if component.get("probe") else None
+        target_command = npm_component_command(component) if isinstance(package, dict) and package.get("source") == "npm" else command
+        actual_observed = observed
+        if (
+            command
+            and target_command != command
+            and isinstance(package, dict)
+            and package.get("source") == "npm"
+        ):
+            actual_observed = command_version(component, command)
         observed_package = None
         candidate_version = None
         target_package = None
@@ -1298,7 +1472,7 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
                 )
         components[key] = {
             "status": status,
-            "observed_version": observed,
+            "observed_version": actual_observed,
             "catalog_version": component.get("approved_version"),
             "version_policy": component_version_policy(component),
             "candidate_version": candidate_version,
@@ -1311,7 +1485,14 @@ def discover(args: argparse.Namespace, catalog: dict[str, Any]) -> dict[str, Any
             "observed_package": observed_package,
             "target_package": target_package,
             "candidate_owner": candidate_owner,
+            "command_path": command,
+            "target_command_path": target_command,
+            "target_prefix": package.get("prefix") if isinstance(package, dict) else None,
         }
+        if isinstance(package, dict) and package.get("source") == "npm":
+            target_names = {package["name"], *component.get("replaces", [])}
+            components[key]["npm_locations"] = npm_package_locations(target_names)
+            components[key]["entry_owner"] = npm_entry_owner_for_command(command) if command else None
         if component.get("adapter") == "tmux-config":
             template = component.get("template")
             revision = template.get("revision") if isinstance(template, dict) else None
@@ -1682,15 +1863,25 @@ def component_operation(
         package_name = metadata.get("name")
         if not isinstance(installer, str) or not isinstance(package_name, str):
             raise BootstrapError(f"{key} has no supported package uninstall")
-        command = shutil.which(str(component["probe"])) if component.get("probe") else None
+        command = (
+            npm_component_command(component)
+            if metadata.get("source") == "npm"
+            else shutil.which(str(component["probe"]))
+            if component.get("probe")
+            else None
+        )
         if metadata.get("source") != "npm":
             if command and installed_package_owner(command) != package_name:
                 raise BootstrapError(f"{key} is not owned by {package_name}")
-        elif package_name not in installed_npm_packages():
+        elif not command or npm_owner_for_command(command) != package_name:
             raise BootstrapError(f"{key} is not owned by {package_name}")
         try:
             result = subprocess.run(
-                package_command(metadata, host.package_remove_command(installer, package_name)),
+                package_command(
+                    metadata,
+                    host.package_remove_command(installer, package_name, metadata.get("prefix")),
+                    metadata.get("prefix"),
+                ),
                 check=False,
             )
         except (OSError, ValueError) as error:
@@ -1701,9 +1892,16 @@ def component_operation(
             raise BootstrapError("package uninstall postcondition failed")
         return "changed"
 
-    replacements = installed_replacements(component)
+    previous_locations = npm_previous_locations(component)
+    package_metadata = component.get("package")
+    if not isinstance(package_metadata, dict) or package_metadata.get("source") != "npm":
+        previous_locations = [
+            {"name": name, "prefix": None}
+            for name in installed_replacements(component)
+        ]
+    replacements = [item["name"] for item in previous_locations]
     legacy = pacman_replacement(component)
-    if status == "match" and not replacements and not legacy:
+    if status == "match" and not previous_locations and not legacy:
         return "no-op"
     if isinstance(plugin, dict):
         if operation == "upgrade":
@@ -1752,54 +1950,73 @@ def component_operation(
                 raise BootstrapError("repository candidate is unavailable")
             if component_version_policy(component) == "pinned" and candidate != expected:
                 raise BootstrapError("repository candidate does not match catalog")
-        if legacy:
-            removal_installer = current_host["installers"].get("official")
-            if not isinstance(removal_installer, str):
-                raise BootstrapError("no owner available to remove the pacman replacement")
-            # Revalidate immediately before the only cross-manager mutation.
-            if pacman_replacement(component) != legacy:
-                raise BootstrapError("pacman replacement changed during preflight")
-            try:
-                result = subprocess.run(host.package_remove_command(removal_installer, legacy), check=False)
-            except (OSError, ValueError) as error:
-                raise BootstrapError("pacman replacement removal could not start") from error
-            if result.returncode or installed_pacman_package(legacy):
-                raise BootstrapError("pacman replacement removal failed; stop and retain recovery evidence")
-            if status == "match" and not replacements:
-                return "changed"
-        if replacements:
-            for replacement_owner in replacements:
-                try:
-                    result = subprocess.run(
-                        package_command(metadata, host.package_remove_command(installer, replacement_owner)),
-                        check=False,
-                    )
-                except (OSError, ValueError) as error:
-                    raise BootstrapError(f"package manager could not remove replacement owner: {error}") from error
-                if result.returncode:
-                    raise BootstrapError(f"replacement owner removal failed ({result.returncode})")
-            if installed_replacements(component):
-                raise BootstrapError("replacement owner removal postcondition failed")
-            if status == "match":
-                return "changed"
         if (
             metadata.get("source") == "npm"
             and status != "match"
             and normalize_version(installed_npm_version(package_name) or "") == expected
         ):
             raise BootstrapError("installed npm package does not provide an effective matching command")
-        install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
-        try:
-            result = subprocess.run(
-                package_command(metadata, host.package_install_command(installer, install_name, registry)),
-                check=False,
-            )
-        except (OSError, ValueError) as error:
-            raise BootstrapError(f"package manager could not start: {error}") from error
-        if result.returncode:
-            raise BootstrapError(f"package manager failed ({result.returncode})")
+        if status != "match":
+            install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
+            try:
+                result = subprocess.run(
+                    package_command(
+                        metadata,
+                        host.package_install_command(
+                            installer,
+                            install_name,
+                            registry,
+                            metadata.get("prefix"),
+                            metadata.get("allow_scripts"),
+                        ),
+                    ),
+                    check=False,
+                )
+            except (OSError, ValueError) as error:
+                raise BootstrapError(f"package manager could not start: {error}") from error
+            if result.returncode:
+                raise BootstrapError(f"package manager failed ({result.returncode})")
+
     if probe_component(component, args.codex_home, getattr(args, "destination", None))[0] != "match":
         raise BootstrapError(f"{operation} postcondition failed: {key} does not match catalog")
+
+    if legacy:
+        removal_installer = current_host["installers"].get("official")
+        if not isinstance(removal_installer, str):
+            raise BootstrapError("no owner available to remove the pacman replacement")
+        # Revalidate immediately before the only cross-manager mutation.
+        if pacman_replacement(component) != legacy:
+            raise BootstrapError("pacman replacement changed during preflight")
+        try:
+            result = subprocess.run(host.package_remove_command(removal_installer, legacy), check=False)
+        except (OSError, ValueError) as error:
+            raise BootstrapError("pacman replacement removal could not start") from error
+        if result.returncode or installed_pacman_package(legacy):
+            raise BootstrapError("pacman replacement removal failed; stop and retain recovery evidence")
+
+    if previous_locations:
+        for previous in previous_locations:
+            previous_prefix = previous.get("prefix")
+            try:
+                result = subprocess.run(
+                    package_command(
+                        metadata,
+                        host.package_remove_command(installer, previous["name"], previous_prefix),
+                        previous_prefix,
+                    ),
+                    check=False,
+                )
+            except (OSError, ValueError) as error:
+                raise BootstrapError(f"package manager could not remove previous npm owner: {error}") from error
+            if result.returncode:
+                raise BootstrapError(f"previous npm owner removal failed ({result.returncode})")
+        remaining = (
+            npm_previous_locations(component)
+            if isinstance(metadata, dict) and metadata.get("source") == "npm"
+            else installed_replacements(component)
+        )
+        if remaining:
+            raise BootstrapError("previous npm owner removal postcondition failed")
     return "changed"
 
 

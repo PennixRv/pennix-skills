@@ -1535,11 +1535,13 @@ class BootstrapTests(unittest.TestCase):
             "replaces": ["fastctx"],
         }
         args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        previous = [{"name": "fastctx", "prefix": "/usr"}]
         host_state = {"supported": True, "installers": {"npm": "npm"}}
         with (
             patch.object(bootstrap.host, "detect_host", return_value=host_state),
             patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("match", "2.0.0")]),
-            patch.object(bootstrap, "installed_npm_packages", side_effect=[{"fastctx": "1.0.0"}, {}, {}]),
+            patch.object(bootstrap, "npm_previous_locations", side_effect=[previous, []]),
+            patch.object(bootstrap, "installed_npm_packages", return_value={}),
             patch.object(bootstrap, "npm_global_root", return_value=None),
             patch.object(bootstrap, "npm_owner_for_command", return_value="fastctx"),
             patch.object(bootstrap, "package_candidate_version", return_value="2.0.0"),
@@ -1550,8 +1552,8 @@ class BootstrapTests(unittest.TestCase):
                 bootstrap.component_operation(args, {"components": {}}, "fastctx", component, "upgrade"),
                 "changed",
             )
-        self.assertEqual(run.call_args_list[0].args[0], ["npm", "uninstall", "--global", "fastctx"])
-        self.assertEqual(run.call_args_list[1].args[0][-1], "@example/fastctx@2.0.0")
+        self.assertEqual(run.call_args_list[0].args[0][-1], "@example/fastctx@2.0.0")
+        self.assertEqual(run.call_args_list[1].args[0], ["npm", "uninstall", "--global", "--prefix", "/usr", "fastctx"])
 
     def test_match_cleans_catalogued_npm_replacement(self) -> None:
         component = {
@@ -1562,16 +1564,19 @@ class BootstrapTests(unittest.TestCase):
             "replaces": ["fastctx"],
         }
         args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        previous = [{"name": "fastctx", "prefix": "/usr"}]
         with (
             patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"npm": "npm"}}),
             patch.object(bootstrap, "probe_component", return_value=("match", "2.0.0")),
-            patch.object(bootstrap, "installed_npm_packages", side_effect=[{"fastctx": "1.0.0"}, {}]),
+            patch.object(bootstrap, "npm_previous_locations", side_effect=[previous, []]),
             patch.object(bootstrap, "npm_global_root", return_value=None),
             patch.object(bootstrap, "npm_owner_for_command", return_value="@example/fastctx"),
             patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
         ):
             self.assertEqual(bootstrap.component_operation(args, {"components": {}}, "fastctx", component, "upgrade"), "changed")
-        run.assert_called_once_with(["npm", "uninstall", "--global", "fastctx"], check=False)
+        run.assert_called_once_with(
+            ["npm", "uninstall", "--global", "--prefix", "/usr", "fastctx"], check=False
+        )
 
     def test_pacman_package_queries_require_an_exact_name(self) -> None:
         with patch.object(bootstrap.shutil, "which", return_value="/usr/bin/pacman"):
@@ -1673,6 +1678,58 @@ class BootstrapTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("unrecognized arguments: --project-root", result.stderr)
+
+    def test_default_catalog_declares_user_npm_contract_and_paseo(self) -> None:
+        catalog = bootstrap.load_catalog(bootstrap.DEFAULT_CATALOG)
+        for key in ("trellis-cli", "fastctx", "codegraph-cli", "paseo-cli"):
+            package = catalog["components"][key]["package"]
+            self.assertEqual(package["prefix"], "$HOME/.local")
+            self.assertEqual(package["install_owner"], "user")
+        self.assertEqual(catalog["components"]["paseo-cli"]["approved_version"], "0.11.4")
+        self.assertEqual(
+            catalog["components"]["paseo-cli"]["package"]["allow_scripts"],
+            ["esbuild", "node-pty", "msgpackr-extract"],
+        )
+
+    def test_npm_locations_report_duplicate_roots_without_reading_runtime_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            old = root / "old" / "lib" / "node_modules" / "@example" / "fastctx"
+            target = root / "target" / "lib" / "node_modules" / "@example" / "fastctx"
+            for package_root, version in ((old, "1.0.0"), (target, "2.0.0")):
+                package_root.mkdir(parents=True)
+                (package_root / "package.json").write_text(
+                    json.dumps({"name": "@example/fastctx", "version": version}), encoding="utf-8"
+                )
+            with patch.object(bootstrap, "npm_known_roots", return_value=[old.parent.parent, target.parent.parent]):
+                locations = bootstrap.npm_package_locations({"@example/fastctx"})
+            self.assertEqual({item["version"] for item in locations}, {"1.0.0", "2.0.0"})
+            self.assertEqual({item["owner"] for item in locations}, {bootstrap.filesystem_owner(Path.home())})
+
+    def test_npm_probe_blocks_entry_owner_drift(self) -> None:
+        component = {
+            "approved_version": "2.0.0",
+            "probe": "fastctx",
+            "version_args": ["--version"],
+            "package": {
+                "source": "npm",
+                "name": "@example/fastctx",
+                "registry": "https://registry.npmjs.org/",
+                "prefix": "$HOME/.local",
+                "install_owner": "user",
+            },
+        }
+        with (
+            patch.object(bootstrap.shutil, "which", return_value="/tmp/.local/bin/fastctx"),
+            patch.object(bootstrap, "npm_owner_for_command", return_value="@example/fastctx"),
+            patch.object(bootstrap, "npm_entry_owner_for_command", return_value="root"),
+            patch.object(
+                bootstrap.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="fastctx 2.0.0", stderr=""),
+            ),
+        ):
+            self.assertEqual(bootstrap.probe_component(component), ("drifted", "2.0.0"))
 
 
 if __name__ == "__main__":

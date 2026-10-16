@@ -88,22 +88,38 @@ def package_info_command(
     return [installer, "-Si", package]
 
 
-def package_install_command(installer: str, package: str, registry: str | None = None) -> list[str]:
+def package_install_command(
+    installer: str,
+    package: str,
+    registry: str | None = None,
+    prefix: str | None = None,
+    allow_scripts: list[str] | None = None,
+) -> list[str]:
     if installer not in PACKAGE_MANAGERS or not PACKAGE_NAME.fullmatch(package):
         raise ValueError("invalid package installer or package name")
     if installer == "npm":
-        command = [installer, "install", "--global", "--ignore-scripts", "--include=optional"]
+        script_option = (
+            f"--allow-scripts={','.join(allow_scripts)}"
+            if allow_scripts
+            else "--ignore-scripts"
+        )
+        command = [installer, "install", "--global", script_option, "--include=optional"]
+        if prefix is not None:
+            command += ["--prefix", prefix]
         return command + (["--registry", registry] if registry else []) + [package]
     if installer == "pacman":
         return ["sudo", installer, "-S", "--needed", "--noconfirm", package]
     return [installer, "-S", "--needed", "--noconfirm", package]
 
 
-def package_remove_command(installer: str, package: str) -> list[str]:
+def package_remove_command(installer: str, package: str, prefix: str | None = None) -> list[str]:
     if installer not in PACKAGE_MANAGERS or not PACKAGE_NAME.fullmatch(package):
         raise ValueError("invalid package installer or package name")
     if installer == "npm":
-        return [installer, "uninstall", "--global", package]
+        command = [installer, "uninstall", "--global"]
+        if prefix is not None:
+            command += ["--prefix", prefix]
+        return command + [package]
     if installer == "pacman":
         return ["sudo", installer, "-R", "--noconfirm", package]
     return [installer, "-R", "--noconfirm", package]
