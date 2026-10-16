@@ -999,6 +999,19 @@ def installed_npm_version(package: str) -> str | None:
     return installed_npm_packages().get(package)
 
 
+def installed_npm_version_at_prefix(package: str, prefix: str | None) -> str | None:
+    if prefix is None:
+        return installed_npm_version(package)
+    target = npm_prefix_path(prefix)
+    target_value = str(target) if target is not None else None
+    versions = [
+        item["version"]
+        for item in npm_package_locations({package})
+        if item.get("prefix") == target_value
+    ]
+    return versions[0] if versions else None
+
+
 def installed_npm_packages() -> dict[str, str]:
     npm = shutil.which("npm")
     if not npm:
@@ -1953,7 +1966,9 @@ def component_operation(
         if (
             metadata.get("source") == "npm"
             and status != "match"
-            and normalize_version(installed_npm_version(package_name) or "") == expected
+            and normalize_version(
+                installed_npm_version_at_prefix(package_name, metadata.get("prefix")) or ""
+            ) == expected
         ):
             raise BootstrapError("installed npm package does not provide an effective matching command")
         if status != "match":
