@@ -31,3 +31,13 @@
 这些失败位于本次复用的 npm 迁移验证链，按同组件、低风险测试修正继续：owner 从实际临时目录取值，漂移期望明确隔离，CI 测试容器补齐已有真实配置测试需要的 npm。未改生产所有权逻辑、删除边界或封口范围。本地完整 200 项再次通过；与 CI 同样使用 HOME=/tmp 的 test_lifecycle.py 90 项通过。待修订 CI 通过后再归档。
 
 完整原生 `verify --yes` 已为 match：17 个组件、核心／已启用配置核验通过，failures=[]、advisories=[]，staging 为 none。无需刷新 profile 摘要或变更任何配置选择。
+
+## 最终验收
+
+修订 `34870dde8c51fe205bb1ec34f4e5f7a7eda19993` 的 [GitHub CI run 38913898442](https://github.com/PennixRv/pennix-skills/actions/runs/38913898442) 为 success，Python Skill 测试及 native evaluation driver offline 步骤均成功。系统 skill-installer 以此精确 SHA 重新暂存完整 16 Skill，frontmatter／seed 执行位通过，原生 replace 成功；8 个本轮受影响安装文件与来源逐字节相同。
+
+最终重装后的完整 verify 仍为 match，17 个组件、核心／已启用配置通过，failures=[]、advisories=[]，staging=none；根侧重新运行离线集成，8 passed、其余计数全为 0。
+
+PRD 的 C1—C5 和四项验收均已有真实证据，达到源码推送、集合安装、pnpm 迁移、原生插件来源对齐、AoE 核验、精确 stage 清理和组合验收的完成点。后续仅提交本记录、原生归档和日志；这类任务／工作区记录不改变已安装的 Skill 内容树，无需再装同一内容。
+
+保留限制：Ponytail 上游插件 manifest 仍为 main；已核验 Marketplace 固定提交及实装发布资产，未宣称插件下载提交天然不可变。stage 核验和删除非事务、已丢弃内容不可自动恢复，23,901 字节不表示物理块变化。未执行新主机 seed bootstrap、付费节点或无关服务／项目升级；这些不属于本轮验收。
