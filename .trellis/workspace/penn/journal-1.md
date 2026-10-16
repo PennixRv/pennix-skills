@@ -811,3 +811,26 @@ Completed the schema 10 handoff intake contract repair, pushed product and deliv
 ### Status
 
 [OK] **Completed**
+
+
+## 会话（Session） 33：完成规划复核流程的 beta.51 安装验收
+<!-- trellis-session: v=2 fp=7f40f2793c98d19c -->
+
+**日期（Date）**: 2026-10-16
+**任务（Task）**: 完成规划复核流程的 beta.51 安装验收
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原生更新至 beta.51 并核验 native 来源与生成摘要，grill/routing 19 项合同检查通过，两个组件 scoped verify 均为 match。已按原生生命周期归档本任务；未知 stage advisory 留给既有安装审计任务。
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `29062ce` | chore(trellis): accept beta.51 project assets |
+| `6f430d34` | fix(grill): confirm final plans before seal and implementation |
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
