@@ -1,0 +1,53 @@
+{
+  "id": "planning-preseal-review",
+  "name": "planning-preseal-review",
+  "title": "grill 最终方案复核与合并推进确认",
+  "description": "落实根任务 planning-preseal-review 已展示并明确批准的 Skill 修订范围：先展示完整方案再询问封口并批准推进或补充，同步路由授权判定与生命周期 catalog 发布落点。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-16",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "planning-preseal-review",
+        "task_name": "10-16-planning-preseal-review",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "ca2d6a9fe14756234555578958d11e9ad732971ffb3b0a2588d2467111697e20",
+          "design.md": "c3ef0327f4e97b5119ad0d594515b51129fe6861eb8e13c30a15a5400bbeea4c",
+          "implement.md": "b9488795404079a472d04addc79bd0ee043060ce840347c0071aac544366d305"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-16T08:24:47.943328+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户已明确批准完整修订包及其中列明的本组件修改、验证、发布与安装范围；本任务只承接该已展示且范围一致的具体组件交付。",
+      "approved_at": "2026-10-16T08:24:48.030808+00:00"
+    }
+  }
+}
