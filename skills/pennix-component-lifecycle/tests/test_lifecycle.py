@@ -1526,7 +1526,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["name"], "@pennixrv/trellis")
         self.assertEqual(catalog["components"]["trellis-cli"]["package"]["tag"], "beta")
 
-    def test_npm_replacement_is_removed_before_install(self) -> None:
+    def test_npm_replacement_is_removed_after_install(self) -> None:
         component = {
             "approved_version": "2.0.0",
             "probe": "fastctx",
@@ -1730,6 +1730,149 @@ class BootstrapTests(unittest.TestCase):
             ),
         ):
             self.assertEqual(bootstrap.probe_component(component), ("drifted", "2.0.0"))
+
+    def test_user_npm_prefix_preserves_native_configuration_and_is_idempotent(self) -> None:
+        metadata = {"source": "npm", "prefix": "$HOME/.local", "install_owner": "user"}
+        with tempfile.TemporaryDirectory() as temporary:
+            config = Path(temporary) / ".npmrc"
+            config.write_text("prefix=/tmp/previous-prefix\nregistry=https://registry.example.test/\nfund=false\n")
+            with patch.dict(os.environ, {
+                "NPM_CONFIG_USERCONFIG": str(config),
+                "NPM_CONFIG_CACHE": str(Path(temporary) / "cache"),
+            }):
+                self.assertTrue(bootstrap.ensure_npm_user_prefix(metadata))
+                contents = config.read_bytes()
+                modified = config.stat().st_mtime_ns
+                self.assertIn(b"registry=https://registry.example.test/", contents)
+                self.assertIn(b"fund=false", contents)
+                self.assertIn(f"prefix={Path.home() / '.local'}".encode(), contents)
+                self.assertFalse(bootstrap.ensure_npm_user_prefix(metadata))
+                self.assertEqual(config.read_bytes(), contents)
+                self.assertEqual(config.stat().st_mtime_ns, modified)
+
+    def test_matching_npm_install_and_upgrade_still_configure_default_prefix(self) -> None:
+        component = {"package": {"source": "npm", "prefix": "$HOME/.local", "install_owner": "user"}}
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        for operation in ("install", "upgrade"):
+            for changed in (True, False):
+                with (
+                    self.subTest(operation=operation, changed=changed),
+                    patch.object(bootstrap.host, "detect_host", return_value={"supported": True}),
+                    patch.object(bootstrap, "probe_component", return_value=("match", "2.0.0")),
+                    patch.object(bootstrap, "npm_previous_locations", return_value=[]),
+                    patch.object(bootstrap, "pacman_replacement", return_value=None),
+                    patch.object(bootstrap, "ensure_npm_user_prefix", return_value=changed) as configure,
+                    patch.object(bootstrap.subprocess, "run") as run,
+                ):
+                    result = bootstrap.component_operation(args, {}, "fixture", component, operation)
+                    self.assertEqual(result, "changed" if changed else "no-op")
+                    configure.assert_called_once_with(component["package"])
+                    run.assert_not_called()
+
+    def test_npm_prefix_failures_stop_before_install_and_old_package_removal(self) -> None:
+        component = {
+            "approved_version": "2.0.0", "probe": "fixture",
+            "package": {"source": "npm", "name": "fixture", "prefix": "$HOME/.local", "install_owner": "user"},
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        ok = SimpleNamespace(returncode=0, stdout="/wrong-prefix\n")
+        failed = SimpleNamespace(returncode=1, stdout="")
+        cases = ((failed,), (ok, failed), (ok, ok, failed), (ok, ok, ok), (OSError("unavailable"),))
+        for status in ("missing", "match"):
+            for responses in cases:
+                with (
+                    self.subTest(status=status, steps=len(responses)),
+                    patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"npm": "npm"}}),
+                    patch.object(bootstrap, "probe_component", return_value=(status, "2.0.0")),
+                    patch.object(bootstrap, "npm_previous_locations", return_value=[{"name": "fixture", "prefix": "/usr"}]),
+                    patch.object(bootstrap, "pacman_replacement", return_value=None),
+                    patch.object(bootstrap, "npm_owner_for_command", return_value="fixture"),
+                    patch.object(bootstrap, "package_candidate_version", return_value="2.0.0"),
+                    patch.object(bootstrap, "installed_npm_version_at_prefix", return_value=None),
+                    patch.object(bootstrap.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"),
+                    patch.object(bootstrap.subprocess, "run", side_effect=responses) as run,
+                ):
+                    with self.assertRaisesRegex(bootstrap.BootstrapError, "npm user prefix configuration"):
+                        bootstrap.component_operation(args, {}, "fixture", component, "upgrade")
+                    self.assertTrue(all(call.args[0][1] == "config" for call in run.call_args_list))
+
+    def test_npm_prefix_configuration_follows_package_preflight(self) -> None:
+        component = {
+            "approved_version": "2.0.0", "probe": "fixture",
+            "package": {"source": "npm", "name": "fixture", "prefix": "$HOME/.local", "install_owner": "user"},
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"npm": "npm"}}),
+            patch.object(bootstrap, "probe_component", return_value=("missing", None)),
+            patch.object(bootstrap, "npm_previous_locations", return_value=[]),
+            patch.object(bootstrap, "pacman_replacement", return_value=None),
+            patch.object(bootstrap.shutil, "which", return_value=None),
+            patch.object(bootstrap, "package_candidate_version", return_value=None),
+            patch.object(bootstrap, "ensure_npm_user_prefix") as configure,
+        ):
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "repository candidate is unavailable"):
+                bootstrap.component_operation(args, {}, "fixture", component, "install")
+            configure.assert_not_called()
+
+    def test_npm_prefix_is_set_before_install_and_retained_after_install_failure(self) -> None:
+        component = {
+            "approved_version": "2.0.0", "probe": "fixture",
+            "package": {"source": "npm", "name": "fixture", "prefix": "$HOME/.local", "install_owner": "user"},
+        }
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        target = str(Path.home() / ".local")
+        for install_exit in (0, 1):
+            responses = [
+                SimpleNamespace(returncode=0, stdout="/usr\n"),
+                SimpleNamespace(returncode=0, stdout=""),
+                SimpleNamespace(returncode=0, stdout=target + "\n"),
+                SimpleNamespace(returncode=install_exit),
+                SimpleNamespace(returncode=0),
+            ]
+            with (
+                self.subTest(install_exit=install_exit),
+                patch.object(bootstrap.host, "detect_host", return_value={"supported": True, "installers": {"npm": "npm"}}),
+                patch.object(bootstrap, "probe_component", side_effect=[("drifted", "1.0.0"), ("match", "2.0.0")]),
+                patch.object(bootstrap, "npm_previous_locations", side_effect=[[{"name": "fixture", "prefix": "/usr"}], []]),
+                patch.object(bootstrap, "pacman_replacement", return_value=None),
+                patch.object(bootstrap, "npm_owner_for_command", return_value="fixture"),
+                patch.object(bootstrap, "package_candidate_version", return_value="2.0.0"),
+                patch.object(bootstrap, "installed_npm_version_at_prefix", return_value=None),
+                patch.object(bootstrap, "npm_global_root", return_value=None),
+                patch.object(bootstrap.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"),
+                patch.object(bootstrap.subprocess, "run", side_effect=responses) as run,
+            ):
+                if install_exit:
+                    with self.assertRaisesRegex(bootstrap.BootstrapError, "package manager failed"):
+                        bootstrap.component_operation(args, {}, "fixture", component, "upgrade")
+                else:
+                    self.assertEqual(bootstrap.component_operation(args, {}, "fixture", component, "upgrade"), "changed")
+                calls = [call.args[0] for call in run.call_args_list]
+                self.assertEqual(calls[:3], [
+                    ["/usr/bin/npm", "config", "get", "prefix", "--location=user"],
+                    ["/usr/bin/npm", "config", "set", "prefix", target, "--location=user"],
+                    ["/usr/bin/npm", "config", "get", "prefix", "--location=user"],
+                ])
+                self.assertEqual(calls[3][1], "install")
+                self.assertEqual(len(calls), 4 if install_exit else 5)
+                if not install_exit:
+                    self.assertEqual(calls[4], ["npm", "uninstall", "--global", "--prefix", "/usr", "fixture"])
+
+    def test_non_user_npm_configuration_and_uninstall_do_not_set_prefix(self) -> None:
+        with patch.object(bootstrap.subprocess, "run") as run:
+            for metadata in (None, {"source": "aur"}, {"source": "npm"}, {"source": "npm", "install_owner": "system"}):
+                self.assertFalse(bootstrap.ensure_npm_user_prefix(metadata))
+            run.assert_not_called()
+        component = {"package": {"source": "npm", "prefix": "$HOME/.local", "install_owner": "user"}}
+        args = SimpleNamespace(codex_home=Path("/tmp/codex"), destination=None)
+        with (
+            patch.object(bootstrap.host, "detect_host", return_value={"supported": True}),
+            patch.object(bootstrap, "probe_component", return_value=("missing", None)),
+            patch.object(bootstrap, "ensure_npm_user_prefix") as configure,
+        ):
+            self.assertEqual(bootstrap.component_operation(args, {}, "fixture", component, "uninstall"), "no-op")
+            configure.assert_not_called()
 
 
 if __name__ == "__main__":

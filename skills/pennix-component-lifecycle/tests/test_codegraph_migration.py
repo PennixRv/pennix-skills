@@ -43,6 +43,7 @@ class CodeGraphMigrationTests(TestCase):
              patch.object(lifecycle, "npm_owner_for_command", return_value=None), \
              patch.object(lifecycle.shutil, "which", return_value="/usr/bin/codegraph"), \
              patch.object(lifecycle, "package_candidate_version", return_value=candidate), \
+             patch.object(lifecycle, "ensure_npm_user_prefix", return_value=False), \
              patch.object(lifecycle.subprocess, "run", side_effect=[SimpleNamespace(returncode=install_exit), SimpleNamespace(returncode=0)]) as run:
             if candidate != COMPONENT["approved_version"] or install_exit:
                 with self.assertRaises(lifecycle.BootstrapError):

@@ -1846,6 +1846,38 @@ def static_operation(
     raise BootstrapError(f"unsupported static adapter: {adapter}")
 
 
+def ensure_npm_user_prefix(metadata: Any) -> bool:
+    if (
+        not isinstance(metadata, dict)
+        or metadata.get("source") != "npm"
+        or metadata.get("install_owner") != "user"
+    ):
+        return False
+    target = str(npm_prefix_path(metadata["prefix"]))
+    npm = shutil.which("npm")
+    if not npm:
+        raise BootstrapError("npm is unavailable for user prefix configuration")
+
+    def configure(*arguments: str) -> str:
+        try:
+            result = subprocess.run(
+                [npm, "config", *arguments, "--location=user"],
+                capture_output=True, text=True, timeout=10, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise BootstrapError("npm user prefix configuration could not complete") from error
+        if result.returncode:
+            raise BootstrapError(f"npm user prefix configuration failed ({result.returncode})")
+        return result.stdout.strip()
+
+    if configure("get", "prefix") == target:
+        return False
+    configure("set", "prefix", target)
+    if configure("get", "prefix") != target:
+        raise BootstrapError("npm user prefix configuration postcondition failed")
+    return True
+
+
 def component_operation(
     args: argparse.Namespace, catalog: dict[str, Any], key: str, component: dict[str, Any], operation: str
 ) -> str:
@@ -1915,7 +1947,7 @@ def component_operation(
     replacements = [item["name"] for item in previous_locations]
     legacy = pacman_replacement(component)
     if status == "match" and not previous_locations and not legacy:
-        return "no-op"
+        return "changed" if ensure_npm_user_prefix(package_metadata) else "no-op"
     if isinstance(plugin, dict):
         if operation == "upgrade":
             raise BootstrapError(f"{key} plugin upgrade belongs to the native Codex plugin owner")
@@ -1971,6 +2003,7 @@ def component_operation(
             ) == expected
         ):
             raise BootstrapError("installed npm package does not provide an effective matching command")
+        ensure_npm_user_prefix(metadata)
         if status != "match":
             install_name = f"{package_name}@{expected}" if metadata.get("source") == "npm" else package_name
             try:

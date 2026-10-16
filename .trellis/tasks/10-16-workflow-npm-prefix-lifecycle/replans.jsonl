@@ -1,0 +1,1 @@
+{"timestamp": "2026-10-16T04:05:34.115366Z", "task": ".trellis/tasks/10-16-workflow-npm-prefix-lifecycle", "from_status": "in_progress", "reason": "用户提出由 lifecycle 正式管理用户级 npm 默认 prefix，需要增加显式配置合同与测试", "branch": "main", "session": "codex_01a13fba-0228-7f50-ac50-bbf9b701b8c6"}

@@ -62,6 +62,8 @@ python3 <staged-lifecycle>/scripts/lifecycle.py replace-staged \
 
 工作流层全局 npm CLI 使用 catalog 声明的 `$HOME/.local` 用户 prefix，由当前用户安装和持有；组件的 npm `prefix`、`install_owner` 和可选 `allow_scripts` 是安装合同的一部分。`discover` 同时报告系统 npm root、`/usr/local`、既有用户 prefix 与目标 prefix 的重复包和 PATH 遮蔽；目标入口、包元数据和文件 owner 未匹配时，`verify` 阻塞。迁移遵循“目标路径安装并验证、切换调用方、再清理旧路径”，不保留 `/usr/local/bin` shim。AUR/Arch 包继续由 pacman/yay 管理，项目本地 `node_modules` 继续由项目包管理器管理，native-owner 组件不被伪装成 npm 包。
 
+用户级 npm 组件的 `install`/`upgrade` 同时通过原生 `npm config --location=user` 将当前用户默认 prefix 规范为 catalog 目标；组件已安装匹配时也检查，默认值已匹配则不重复写入。只管理 `prefix`，保留其他 npm 键及系统、项目配置，不读取或输出完整 `.npmrc`。配置或回读失败时停止后续安装和旧包清理；成功设置的默认值不因后续包安装失败而自动恢复。包安装仍显式传入 prefix；`discover`、`verify`、卸载和非用户级 npm 操作不写该配置。
+
 `tmux-config` 是明确的组件操作，只管理 `HOME/.tmux.conf` 中的 Pennix 块。基线包括 `default-terminal`、真彩色 `terminal-overrides` 和成对的 tmux 窗口前景或背景样式。它不管理 CCH 块、CCH 运行态文件、状态栏布局、Shell 启动文件、用户快捷键或项目资产。安装或集合替换不会隐式写入该块；使用 `discover` 和 `verify` 分别查看静态资产状态和包安装或配置就绪状态。
 
 组件清单还包含 `pennix-workflow-state`，这是只管理状态的组件，唯一动作是明确的旧状态协调。它把生命周期私有档和静态收据放在 `${XDG_STATE_HOME:-~/.local/state}/pennix-workflow-lifecycle/homes/<sha256(CODEX_HOME)>` 下；解析后的 `CODEX_HOME` 只以命名空间摘要表示。活动 Skill 集合收据位于活动集合旁；原生安装器暂存目录和凭据仍由各自所有者负责。静态记录与敏感配置记录是分离合同，不合并到共享 `.env`。
