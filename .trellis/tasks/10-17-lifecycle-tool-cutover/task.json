@@ -1,0 +1,53 @@
+{
+  "id": "lifecycle-tool-cutover",
+  "name": "lifecycle-tool-cutover",
+  "title": "切换到独立 Pennix Lifecycle 工具",
+  "description": "删除旧生命周期执行器、种子和重复清单，将 Skill 收敛为新 pennix 工具的入口与边界说明。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-17",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "lifecycle-tool-cutover",
+        "task_name": "10-17-lifecycle-tool-cutover",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "a7a6f066bb42b14f3f2e49bee9863d9ff8637fac3544e5a4f5599297a34178c6",
+          "design.md": "f6de6a8a6a00eb6285897874187d4ddf7793f1f2568c49cf25430b9cb37d81c3",
+          "implement.md": "8d4dee47350eb8f88aa4150ee1903772bf0d9931faea6cc5003621ce9d70de91"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-17T05:17:34.087845+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "父任务已批准独立生命周期工具切换，当前 owner 任务仅落实 Skill 入口与旧资产退役",
+      "approved_at": "2026-10-17T05:17:48.273574+00:00"
+    }
+  }
+}

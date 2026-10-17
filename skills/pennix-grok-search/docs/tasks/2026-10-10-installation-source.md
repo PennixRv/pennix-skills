@@ -2,7 +2,7 @@
 
 This direct documentation task implements the `grok-search` change in the approved root task `consumer-update-agents-recheck` revision 4.
 
-The Skill previously referred to an unspecified “Pennix installer”. Name `pennix-workflow-lifecycle`, its catalog-defined `replace-staged` operation, and the managed `~/.local/bin` command link instead. Preserve native Grok invocation, provider configuration, and all runtime behavior.
+The Skill now refers to the independent `pennix` lifecycle tool and its `apply` operation. The fixed lifecycle catalog owns the managed `~/.local/bin` command link. Preserve native Grok invocation, provider configuration, and all runtime behavior.
 
 Scope: `SKILL.md` and this record. Verify the text against the lifecycle collection contract, run `git diff --check`, commit and push the source change, then update the exact source commit in the `pennix-skills` collection catalog and snapshot. No runtime release is needed for this wording change.
 

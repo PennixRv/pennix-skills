@@ -1,91 +1,40 @@
 # pennix-skills
 
-用户自维护的 Codex 工作流 Skills 源码。
+这是用户维护的 Codex 工作流 Skills 源码仓库。每个 Skill 只维护自身的
+`SKILL.md`、引用资料、测试和必要的元数据；组件生命周期的 catalog、模板、owner
+动作和发行物由独立的 `PennixRv/pennix-lifecycle` 仓库维护。
 
-通用 Trellis Skill 随 Trellis 组件交付；本仓库只维护用户工作流策略、确定性辅助脚本和
-对应测试。`skills/pennix-windsurf-code-search` 和 `skills/pennix-grok-search` 是发布集合中的普通目录；其上游
-仓库、ref、精确提交和安装后动作由唯一 lifecycle catalog 记录。目标机只接收物化 Skill 集合，
-不创建 submodule 或源码 checkout。其可发现名称为 `pennix-windsurf-code-search` 和 `pennix-grok-search`，
-不要与 `fastctx` 本地操作运行时混用。
+## 工作流部署
 
-工作流部署统一从 `pennix-component-lifecycle` 进入；它只编排内部 deployment adapters，
-不接管 Trellis、FastCtx、CodeGraph、Codex Plugin/MCP 或 Hook 的原生所有权。
-
-项目指令文件的来源链、内部手工正文和生成块由 [项目 AGENTS 治理](skills/pennix-project-agents-governance/SKILL.md)统一审查与编排；[CodeGraph 集成](skills/pennix-codegraph-integration/SKILL.md)只提供配置、使用边界和原生手册索引。相关变更触发治理，不给普通 Trellis 开发任务增加频率；系统部署仍归 lifecycle，生成块仍由组件原生入口物化。
-
-当前 lifecycle 的宿主边界是 Linux 上的 Arch Linux，包括原生 Arch Linux 和 WSL2
-中的 Arch Linux。生命周期包操作优先使用已存在的 `yay`，没有时回退到已存在的 `paru`，最后才使用
-`pacman`。Stage 0 的 Codex 最小安装也通过 AUR 的 `openai-codex-bin`：缺少 AUR helper 时会先通过
-`pacman` 安装构建前置并 bootstrap `yay`。非 Arch、WSL1 或无法确认 WSL 版本的环境不允许生命周期写入。
-
-## 系统安装：全新 Arch 环境
-
-新环境的首选入口是不预下载源码的远程 seed：
+新机先运行独立生命周期工具发行物提供的基础准备脚本，再使用 Kconfig 配置和执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PennixRv/pennix-skills/main/skills/pennix-component-lifecycle/scripts/seed-arch.sh | bash
+bash bootstrap.sh
+pennix config init
+pennix config edit
+pennix plan
+pennix apply
 ```
 
-远程命令执行指定的 `seed-arch.sh`。缺少任一 seed 文件时，脚本下载同一 `main` 上的两个静态模板，并从 `/dev/tty` 读取所需输入；没有控制终端时，在包或配置写入前失败。两份文件均已存在时不需要模板或终端。缺少 AUR helper 时，脚本检出并构建 `yay` 的 AUR package；它不检出整个 `PennixRv/pennix-skills` 仓库，也不调用完整的 `scripts/lifecycle.py` 入口。
+`workflow.config` 是带格式主版本的 Kconfiglib `.config` 文件。`config edit` 和无
+TTY 的配置式执行使用同一模型；`pennix secrets edit` 打开权限为 `0600` 的私有
+`secrets.toml`，秘密不进入任务、输出、JSON 或 Git。永久取消组件通过编辑配置后
+`pennix apply` 完成；一次性 `pennix uninstall` 不修改配置。
 
-seed 脚本在源码仓库中的明确位置是：
+本集合不复制 lifecycle catalog、执行器、模板、暂存、receipt 或组件适配器，也不
+通过多轮 Agent 对话引导安装。安装后的 Skill 只描述正确入口和 owner 边界，不在
+安装副本形成第二个源码权威。Trellis 任务、Channel、交接、Codex 原生登录、插件、
+Hook/MCP/TUI、项目初始化和外部检索继续使用各自原生入口。
 
-`skills/pennix-component-lifecycle/scripts/seed-arch.sh`
+`pennix` 支持 Linux Arch 和 Arch WSL2；不受支持或无法证明能力的环境只报告阻断。
+服务、自启动、远端 relay、真实网络/付费测试均由配置显式选择；relay 反代策略只依
+赖 paseo-relay 仓库文档，Android 配对由用户按 Paseo 原生输出完成。
 
-维护和测试本地 checkout 时必须连同相邻模板目录一起使用。在本仓库根目录中可直接复制执行：
+## Skill 维护
 
-```bash
-bash ./skills/pennix-component-lifecycle/scripts/seed-arch.sh
-```
+`pennix-windsurf-code-search` 和 `pennix-grok-search` 是发布集合中的物化目录；其
+上游源码由各自仓库维护，版本和来源固定在生命周期工具的 catalog。项目 AGENTS
+治理、CodeGraph 集成、中文技术写作、FastCtx 路由和知识操作继续由对应 Skill 负责。
 
-该可执行脚本可从 `bash` 或 `zsh` 启动；脚本通过 Bash shebang 使用所需解释器，
-应直接执行，不要使用 `source` 将它加载进调用者 shell。若要复制到其他位置，
-请复制整个 `skills/pennix-component-lifecycle/` 目录，以保留 `templates/`。
-
-它从官方仓库安装 `npm`、从 AUR 安装当前 `openai-codex-bin`，交互式收集缺失的 `base_url`
-或隐藏 API key，根据 `templates/config.toml.seed`、`templates/auth.json.seed` 只物化 seed 阶段字段。已有
-`~/.codex/config.toml` 和 `~/.codex/auth.json` 会原样保留；两者都存在时可以无交互重入。
-若已安装 catalog 明确登记的旧 `openai-codex` 包，seed 会先通过已选 AUR helper 将其迁移为
-`openai-codex-bin`；其他未登记的包不会被猜测或删除。
-
-完成时，seed 会给出当前 Codex 会话的两轮确定提示，不要求新建会话。第一轮仅通过系统
-`$skill-installer` 将 catalog 的 `bootstrap_skill` 安装到最终的
-`$CODEX_HOME/skills/pennix-skills` 目录；安装器确认成功后不结束该会话，下一轮直接使用该
-Skill。它先执行只读 `discover`；完整安装或升级时，所有 catalog 路径先写入同级 staging，
-完成校验后由 `replace-staged` 替换正式 collection。重复执行不会把已存在的 Skill 混入安装器，
-也不会创建本地仓库副本。
-
-`seed-arch.sh` 没有 `--uninstall`，也不会删除 `auth.json`、`openai-codex-bin`、AUR helper、
-构建依赖、Skills、插件或项目资产。凭据文件始终需要用户在轮换或撤销凭据后自行删除。
-`pennix-skills` 完整 collection 的下载仍由系统 `$skill-installer` 拥有；lifecycle 负责发现、staging 完整性验证、
-事务替换，以及仅在目录条目和每个 `SKILL.md` 都完全匹配 catalog 时的精确卸载。更新 collection
-时不先删除旧目录；只有新 staging 完整匹配后才替换，失败保留旧安装。
-
-独立精选集合 `pennix-skills-extra` 补充已审核的 Matt Skills 方法，由 lifecycle 管理 install、upgrade、verify 和 uninstall。唯一白名单、来源路径和不可变 SHA 位于同一 catalog；受信宿主 system installer helper 只负责下载，树和独立来源收据由 lifecycle 校验及事务提交。新集合没有 bootstrap、安装后命令、配置或项目初始化动作；其更新或卸载保留另一集合。具体入口和失败边界见 [生命周期 Skill](skills/pennix-component-lifecycle/SKILL.md)，上游精选维护见 [公开 fork](https://github.com/PennixRv/pennix-skills-extra)。
-
-`config.toml.install` 只包含工作流必需的静态策略，排除用户 model、sandbox/approval、TUI、Web、
-history、主机路径、项目 trust、MCP/插件/marketplace 状态和 hook hash。静态配置和 Agents 模板的
-安装、升级、卸载仍由 lifecycle 按单一 component 执行；它不会拼接重复字段或接管其他用户资产。
-
-上游 inspection 只对 catalog 明确登记的 URL 自动执行，发现新的控制面或参数变化会阻断该组件；lifecycle
-不会降级为远端脚本执行。安装、升级和卸载都要求明确的单一 component，不生成第二份计划或状态文件。
-
-## 项目初始化
-
-Trellis、CodeGraph 和 AOE 的 CLI 可以由系统生命周期动作部署或升级，但它们的初始化必须在目标项目中
-单独执行。lifecycle 不创建 `.trellis/`、`codegraph.json`、索引或项目工作流资产；项目初始化继续使用
-各组件的原生命令。卸载全局组件也不会删除项目资产。
-
-## 人工知识与经验
-
-`pennix-siyuan-knowledge` 按用户意图通过思源原生 MCP 检索、引用、整理、导入和显式保存知识。
-它不捕获会话，不替代 Trellis task、正式交接或本地 `trellis mem` 历史；当前源码/任务/spec
-仍是工程事实权威。完整晋升方向在 workflow-routing 的 `references/knowledge-promotion.md`，
-包括人工经验、项目合同、源码 Skill 和有明确适用范围的全局规则，不要求逐级经过所有库。
-
-连接是可选的 `siyuan-connection` target：先 lifecycle discover，再从操作者自己的终端 configure
-该单一目标。从目标思源内核的“设置 → 鉴权 → API token”取得已有值；连接 NAS 时在 NAS 网页中查看，不使用另一独立客户端的 Token。它区别于网页登录密码、模型 API Key 和 S3 密钥，仅在 lifecycle 终端隐藏录入私有文件；原生 header helper 无数据代理逻辑。索引作用域、模型配置和其他客户端同步由思源内核管理，配置成功不能代替原生工具和语义质量验收。
-
-## 中文技术写作
-
-`pennix-chinese-tech-writing` 在本仓库内维护适配版，固定来源和 MIT 许可见该 Skill 的 `UPSTREAM.md` 与 `LICENSE`。它适用于所有新写或修改的中文技术内容，包括用户规则、Skill、Trellis 任务与规范、思源技术笔记；按内容类型加载参考，保留事实、条件、风险和确定程度。只读检查器提供校对建议，不建立样式门禁，也不授权文件修改、任务状态转换或知识保存。
+`pennix-siyuan-knowledge` 只在用户明确要求时通过思源原生 MCP 检索、整理、导入或
+保存知识；它不替代 Trellis task、正式交接或 `trellis mem` 历史。

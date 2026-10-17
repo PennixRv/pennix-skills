@@ -18,7 +18,7 @@
 | Hikari / Tavily / NAS | 服务数据库、爬取结果、日志与缓存 | 客户端机制不能证明 NAS 配置或物理回收 | 先只读取实际部署版本、有效策略、owner、占用和触发入口；逻辑 TTL 不等于数据库/磁盘已释放 |
 | SiYuan | 用户知识、历史、资源、派生索引 | 内核策略与用户配置为准；知识不是缓存 | 原生知识/内核接口及明确意图；禁止直接 SQL、资源目录删除或跨 NAS 清理 |
 | tmux | 会话、pane 历史与服务进程 | 当前 tmux 选项；会话保留不等于缓存 GC | 原生会话管理，需精确会话授权；不能因无活动客户端就推断会话可删 |
-| Pennix lifecycle / 两套 Skill 集合 | 安装树、收据、静态配置与暂存 | 权威安装状态；正常事务清理，不适用 LRU | `pennix-component-lifecycle` 发现/核验/集合替换；显式选定的 pennix-skills 暂存用 `discard-staged` 默认预览，精确授权后按完整摘要执行；unknown staging 不自动接管或批量删除，私有收据不可手改 |
+| Pennix lifecycle / 两套 Skill 集合 | 安装树、静态配置与工具自有状态 | 权威安装状态；正常事务清理，不适用 LRU | `pennix status|check|uninstall`；漂移、未知 owner 和外部维护内容保留，不直接删除目录或状态文件 |
 | Docker / 系统包管理器 | 镜像、volume、日志、包缓存 | 对应 owner 有效策略；volume 可能含权威数据 | 原生 owner 入口与精确对象授权；先取得部署/日志/磁盘证据，禁止 system-wide prune |
 
 ## 计划与结果

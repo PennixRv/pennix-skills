@@ -8,7 +8,7 @@ metadata:
 
 输出目录维护使用同一 owner 的 `grok-search prune`，不通过 shell 删除输出文件。
 
-普通调用使用已安装的 `grok-search` 命令（`grok-search search`、`grok-search fetch` 或 `grok-search map`）。`$pennix-component-lifecycle` 的 `replace-staged` 流程会安装本地生产依赖，并通过 `~/.local/bin` 提供受管命令；不要使用全局 `npm` 安装或创建服务商包装器。在受管链接建立前，只在安装诊断中从 Skill 根目录或绝对路径调用可执行文件。
+普通调用使用已安装的 `grok-search` 命令（`grok-search search`、`grok-search fetch` 或 `grok-search map`）。由 `pennix apply` 按固定 lifecycle catalog 物化本地生产依赖，并通过用户级 `~/.local/bin` 提供命令；不要使用全局 `npm` 安装或创建服务商包装器。在受管链接建立前，只在安装诊断中从 Skill 根目录或绝对路径调用可执行文件。
 
 该可执行文件属于 `grok-search`，必须通过宿主原生直接命令路径启动。不要用 `mcp__fastctx.run`、FastCtx 任务、`replace`、Shell HTTP 或通用包装器启动；FastCtx 不是 Grok 传输、服务商、凭据或后备入口。Grok 调用完成后，FastCtx 可以读取已批准的普通结果文件做限定分析，但不得据此重试、轮询或改变 Grok 状态。
 

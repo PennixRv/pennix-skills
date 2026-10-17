@@ -23,7 +23,7 @@ description: 用户要求盘点、预览或清理 Pennix 工作流组件产生�
 - Grok Search 输出：使用 owner 的 `grok-search prune`；默认预览，确认后才带 `--yes`。遵守 TTL、总字节数、文件数和活动写入保护。
 - FastCtx 作业历史：使用 FastCtx 自己提供的历史维护或配置入口；不得通过 `run`、普通 shell、`rm` 或直接删除 job 目录代替 owner 操作。运行中作业和待启动 reservation 必须保留。
 - 其他服务、Docker、系统包管理器、思源笔记、Hikari、NAS 或远程主机：只有在该 owner 已提供并被当前任务允许的原生清理入口时才继续；否则只报告证据门，不猜测或代为删除。
-- `pennix-skills`、`pennix-skills-extra` 及其他工作流组件的安装集合：使用 `$pennix-component-lifecycle`。明确选定的 `pennix-skills` 暂存由其 `discard-staged` 预览并按摘要执行；未知目录的发现不授予丢弃权限，其他集合仍遵守自身入口。
+- `pennix-skills`、`pennix-skills-extra` 及其他工作流组件的安装集合：使用 `pennix status|check|uninstall`。未知目录、漂移集合和无法证明 owner 的内容不授予删除权限，其他集合仍遵守自身入口。
 
 ## 禁止事项
 
