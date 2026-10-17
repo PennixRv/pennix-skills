@@ -3,8 +3,7 @@
 这是用户自维护工作流 Skill 的源码仓库。
 
 - 每个 Skill 只维护自身的 `SKILL.md`、脚本、引用资料、测试和必要的界面元数据。
-- `skills/pennix-windsurf-code-search` 和 `skills/pennix-grok-search` 是本集合中的物化 Skill 快照；上游仓库、ref
-  和精确提交由唯一 lifecycle catalog 记录，并随集合快照一起更新。
+- `collection.json` 是本集合唯一交付清单，拥有成员路径、许可、命令和物化来源；集合验证与同步读取它。lifecycle 只固定本仓库提交并独立验证该清单，不复制成员白名单。
 - Trellis 通用 runtime 和 bundled Skill 由 Trellis 组件仓库维护，不在此复制。
 - 工作流部署由独立 `PennixRv/pennix-lifecycle` 工具编排；Trellis 项目初始化仍由原生 `trellis init` / `trellis workflow` 完成。本集合不复制生命周期执行器、组件适配器或运行时协议。
 - lifecycle catalog 由独立 `PennixRv/pennix-lifecycle` 仓库声明配置目标、组件入口、状态探针和精确来源；本集合只保存 Skill 内容，禁止共享 `.env`、复制凭据或把组件协议交给 FastCtx。

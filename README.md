@@ -1,22 +1,24 @@
 # pennix-skills
 
-这是用户维护的 Codex 工作流 Skills 源码仓库。每个 Skill 只维护自身的
-`SKILL.md`、引用资料、测试和必要的元数据；组件生命周期的 catalog、模板、owner
-动作和发行物由独立的 `PennixRv/pennix-lifecycle` 仓库维护。
+这是用户维护的 Codex 工作流 Skills 源码仓库。`collection.json` 是本集合唯一交付
+清单，拥有成员路径、许可、命令和物化来源；lifecycle 只固定本仓库提交并验证清单，
+不复制成员白名单。组件模板、owner 动作和发行物由独立的
+`PennixRv/pennix-lifecycle` 仓库维护。
 
 ## 工作流部署
 
 新机先运行独立生命周期工具发行物提供的基础准备脚本，再使用 Kconfig 配置和执行：
 
 ```bash
-bash bootstrap.sh
+curl -fsSLo /tmp/pennix-bootstrap.sh https://raw.githubusercontent.com/PennixRv/pennix-lifecycle/v0.1.7/bootstrap.sh
+bash /tmp/pennix-bootstrap.sh install
 pennix config init
 pennix config edit
 pennix plan
 pennix apply
 ```
 
-`workflow.config` 是带格式主版本的 Kconfiglib `.config` 文件。`config edit` 和无
+`workflow.config` 是带格式主版本的 Linux Kconfig 文件。`config edit` 和无
 TTY 的配置式执行使用同一模型；`pennix secrets edit` 打开权限为 `0600` 的私有
 `secrets.toml`，秘密不进入任务、输出、JSON 或 Git。永久取消组件通过编辑配置后
 `pennix apply` 完成；一次性 `pennix uninstall` 不修改配置。
@@ -33,7 +35,7 @@ Hook/MCP/TUI、项目初始化和外部检索继续使用各自原生入口。
 ## Skill 维护
 
 `pennix-windsurf-code-search` 和 `pennix-grok-search` 是发布集合中的物化目录；其
-上游源码由各自仓库维护，版本和来源固定在生命周期工具的 catalog。项目 AGENTS
+上游源码和固定提交由 `collection.json` 声明。项目 AGENTS
 治理、CodeGraph 集成、中文技术写作、FastCtx 路由和知识操作继续由对应 Skill 负责。
 
 `pennix-siyuan-knowledge` 只在用户明确要求时通过思源原生 MCP 检索、整理、导入或

@@ -21,54 +21,50 @@ jobs:
         with:
           node-version: 22
 
-      - name: Materialize catalog sources
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Read collection-owned sources
+        run: python3 -c 'import json; print(json.dumps(json.load(open("collection.json"))["materialized"]))' > "$RUNNER_TEMP/sources.json"
+
+      - name: Materialize fixed source commits
         run: |
           set -euo pipefail
-          source_file="$RUNNER_TEMP/pennix-skill-sources.tsv"
-          : > "$source_file"
-          python3 - "$source_file" <<'PY'
-          import json
-          import sys
-
-          catalog = json.load(open("skills/pennix-component-lifecycle/references/component-versions.json", encoding="utf-8"))
-          contract = catalog["components"]["pennix-skills"]["collection_contract"]
-          with open(sys.argv[1], "a", encoding="utf-8") as output:
-              for name, source in contract["materialized"].items():
-                  print("\t".join((name, source["repo"], source["commit"], source["snapshot"])), file=output)
-          PY
-
           while IFS=$'\t' read -r name repo commit snapshot; do
-            test "${#commit}" -eq 40
-            temporary="$RUNNER_TEMP/pennix-$name"
-            git clone --quiet --no-checkout "https://github.com/$repo.git" "$temporary"
-            git -C "$temporary" fetch --quiet --depth 1 origin "$commit"
-            git -C "$temporary" checkout --quiet --detach "$commit"
-            test "$(git -C "$temporary" rev-parse HEAD)" = "$commit"
+            [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+            source="$RUNNER_TEMP/source-$name"
+            git init -q "$source"
+            git -C "$source" remote add origin "https://github.com/$repo.git"
+            git -C "$source" fetch -q --depth 1 origin "$commit"
+            git -C "$source" checkout -q --detach FETCH_HEAD
+            test "$(git -C "$source" rev-parse HEAD)" = "$commit"
             rm -rf -- "skills/$name"
             mkdir -p "skills/$name"
-            if [[ "$snapshot" == "archive" ]]; then
-              git -C "$temporary" archive HEAD | tar -x -C "skills/$name"
-            elif [[ "$snapshot" == "npm-pack" ]]; then
+            if [[ "$snapshot" == archive ]]; then
+              git -C "$source" archive "$commit" | tar -x -C "skills/$name"
+            elif [[ "$snapshot" == npm-pack ]]; then
               (
-                cd "$temporary"
-                npm pack --dry-run --json --ignore-scripts > "$RUNNER_TEMP/pennix-$name-pack.json"
-                node -e 'const pack = Object.values(require(process.argv[1]))[0]; for (const file of pack.files) process.stdout.write(`${file.path}\\0`)' "$RUNNER_TEMP/pennix-$name-pack.json" \
-                  | tar --null --files-from=- -cf - \
-                  | tar -xf - -C "$GITHUB_WORKSPACE/skills/$name"
+                cd "$source"
+                npm pack --ignore-scripts --json > "$RUNNER_TEMP/$name-pack.json"
+                tarball="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[0]["filename"])' "$RUNNER_TEMP/$name-pack.json")"
+                tar -xzf "$tarball" --strip-components=1 -C "$GITHUB_WORKSPACE/skills/$name"
               )
             else
               echo "unsupported snapshot mode: $snapshot" >&2
               exit 1
             fi
-          done < "$source_file"
+          done < <(python3 - "$RUNNER_TEMP/sources.json" <<'PY'
+          import json, sys
+          for name, source in sorted(json.load(open(sys.argv[1])).items()):
+              print("\t".join((name, source["repo"], source["commit"], source["snapshot"])))
+          PY
+          )
 
-      - name: Validate collection
+      - name: Verify manifest and Skills
         run: |
-          python3 -m unittest discover -s skills/pennix-component-lifecycle/tests -p 'test_*.py'
-          python3 -m json.tool skills/pennix-component-lifecycle/references/component-versions.json >/dev/null
+          python3 -m pip install --user pyyaml
+          python3 scripts/collection.py verify
+          python3 -B -m unittest discover -s tests -v
+          while IFS= read -r test_dir; do
+            python3 -B -m unittest discover -s "$test_dir" -p 'test_*.py'
+          done < <(find skills -type f -path '*/tests/test_*.py' -printf '%h\n' | sort -u)
           (cd skills/pennix-grok-search && npm ci --omit=dev --ignore-scripts)
 
       - name: Open or update synchronization PR
@@ -77,7 +73,7 @@ jobs:
           token: ${{ github.token }}
           commit-message: "chore: sync materialized Skills"
           title: "chore: sync materialized Skills"
-          body: "Automated catalog-driven synchronization of independent Skill source snapshots."
+          body: "Materialize sources declared by collection.json, then validate the complete collection before review."
           branch: automation/sync-materialized-skills
           delete-branch: true
           base: main

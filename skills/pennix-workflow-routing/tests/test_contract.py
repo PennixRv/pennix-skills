@@ -28,6 +28,18 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("对应组件或宿主规定的原生接口", content)
         self.assertIn("原生不可用时停止", content)
 
+    def test_skill_identity_does_not_flatten_collection_paths(self) -> None:
+        content = SKILL.read_text(encoding="utf-8")
+        for marker in (
+            "Skill 名称用于选择逻辑入口，物理路径必须来自宿主声明",
+            "保留宿主声明的全部集合层级",
+            "不把它重写为 `$CODEX_HOME/skills/<skill-name>/SKILL.md`",
+            "相对引用以实际加载文件所在目录为基准",
+            "保留原始回执并停止",
+            "不通过平铺路径重试",
+        ):
+            self.assertIn(marker, content)
+
     def test_grok_remains_an_external_retrieval_owner(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         self.assertIn("`$pennix-grok-search` 负责外部检索", content)

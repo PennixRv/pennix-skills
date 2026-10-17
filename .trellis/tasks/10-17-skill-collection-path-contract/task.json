@@ -1,0 +1,32 @@
+{
+  "id": "skill-collection-path-contract",
+  "name": "skill-collection-path-contract",
+  "title": "修正 Skill 集合路径合同",
+  "description": "补强嵌套 Skill 集合路径解析、生命周期入口说明与卸载残留边界，避免把集合 Skill 猜成平铺目录。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-17",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 3
+    }
+  }
+}
