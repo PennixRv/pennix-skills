@@ -35,8 +35,9 @@ Skill 名称用于选择逻辑入口，物理路径必须来自宿主声明或�
 
 | 调用语义 | 首选路径 | 事实与持久化边界 |
 | --- | --- | --- |
-| Trellis 任务/阶段、组件 CLI 与系统部署 | 对应组件规定的命令；满足 integration 条件时可经 context-mode 执行 | 保留身份、授权、完整状态与退出码；原生不可用时停止，不模拟协议 |
+| Trellis 任务/阶段、组件 CLI 与系统部署 | 对应 owner 规定的原生命令；回执取得后可经 context-mode 分析 | Context Mode 不接管 owner 协议、状态写入或授权；原生不可用时停止，不模拟协议 |
 | Channel continuation、Codex 交互/Hook、原生 MCP/TUI | 对应宿主或组件原生入口 | 保留实时状态与排他等待，不包装宿主总线 |
+| 宿主工具面与 Hook 路由核验 | 分别检查宿主 MCP、`functions` 内嵌工具、Context Mode `tools/list` 和 `PreToolUse` matcher/decision | 逐层记录声明、发现、可调用和回执；不以任一层推断其他层 |
 | Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 对应检索工具的命令、MCP 或 API | 载体不接管来源、凭据或降级；候选持久化边界按负责 Skill |
 | 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过执行器或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
 | 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
@@ -51,7 +52,7 @@ Skill 名称用于选择逻辑入口，物理路径必须来自宿主声明或�
 | 工作流缓存、Channel、输出、备份或历史资源的盘点与清理 | `$pennix-resource-cleanup`，再转资源 owner 的原生清理入口 | 默认只读；精确预览和明确授权后才允许 owner 执行 |
 | 项目 AGENTS 来源、内部生成块、内容职责或冲突 | `$pennix-project-agents-governance` | 默认只读，手工正文按请求编辑，生成块委托原生 owner |
 
-工具参数、完整读取、输出与数据边界遵守 [`pennix-context-mode-integration`](../pennix-context-mode-integration/SKILL.md)。普通 CLI 可选择该载体，但仍实际调用组件入口，完整保留回执；不能用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
+工具参数、完整读取、输出与数据边界遵守 [`pennix-context-mode-integration`](../pennix-context-mode-integration/SKILL.md)。普通 CLI 只有在 owner 明确允许且身份、参数、状态和回执可等价保留时才能选择 Context Mode 作为载体；不能用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
 
 Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unbound_task|unbound_ambiguous` 表示尚未绑定任务，两者分别判断。有身份时按用户明确意图原生 `select`，再遵守任务阶段。载体无法核验身份时使用宿主原生 shell；禁止复制环境身份、借用其他会话 pointer 或制造 shell ticket。
 
