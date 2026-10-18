@@ -3,7 +3,7 @@
   "name": "skill-collection-path-contract",
   "title": "修正 Skill 集合路径合同",
   "description": "补强嵌套 Skill 集合路径解析、生命周期入口说明与卸载残留边界，避免把集合 Skill 猜成平铺目录。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -26,7 +26,28 @@
     "execution_class": "planned",
     "delivery_mode": "change_bearing",
     "planning": {
-      "revision": 3
+      "revision": 4,
+      "seal": {
+        "revision": 4,
+        "task_id": "skill-collection-path-contract",
+        "task_name": "10-17-skill-collection-path-contract",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "27cf7eb124c0d8c98690b2f5068737bf610c2ef16ded6117ec7ac7b13905c407",
+          "design.md": "755447480cde4385a50c50df84ef7a9a814df327f0fc3a97041b0eaacd207354",
+          "implement.md": "ce0ddd311ef06c85fe56c8b3d37b60db5712c1bfecb99726ab17d00aa4e1d34a"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-18T12:59:59.039757+00:00"
+      },
+      "approved_revision": 4,
+      "approval_basis": "沿用用户现在按照方案完整推进到全部结束的批准；本修订纠正此前组件计划的归属表述，严格落实已批准根任务 revision 8 的 Skill 私有记录/helper 与 lifecycle MCP 配置职责，不扩大授权。",
+      "approved_at": "2026-10-18T13:00:10.111775+00:00"
     }
   }
 }

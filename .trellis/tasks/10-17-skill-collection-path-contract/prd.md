@@ -11,6 +11,7 @@
 - 通用首次加载规则属于用户 AGENTS 来源模板；workflow-routing 只解释跨组件的 Skill 身份/物理路径及别名映射、相对引用，不让 lifecycle Skill 承担首次加载前的规则。
 - 修改评估使“尝试路径”“读取失败”“成功读取”分开；结构测试覆盖主/extra 集合及相对引用，不冻结中文句子，不把文字存在当作模型行为证明。
 - README、AGENTS 手工正文、活动 spec、清理导航、同步/验证消费者一起收敛；归档历史不追溯改写，第三方物化快照只从真实来源同步。
+- 按根任务 revision 8 补齐思源本机连接记录与 header helper 的安全合同，支持核实相同配置后的显式接管；Codex HTTP MCP 注册由 lifecycle 管理，保留额外字段和外围配置。Hikari Skill 只管理本机连接文件，NAS 服务不属于成员。
 
 ## 验收标准（Acceptance Criteria）
 

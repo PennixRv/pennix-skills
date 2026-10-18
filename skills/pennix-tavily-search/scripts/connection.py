@@ -217,12 +217,17 @@ def inspect(input_value: dict | None = None) -> dict[str, object]:
         return {"state": "invalid", "owned": False, "detail": "Hikari local connection is invalid"}
     if config_content is None and receipt_value is None:
         return {"state": "absent", "owned": False, "detail": "Hikari local connection is absent"}
-    if config_content is None or receipt_value is None:
+    if config_content is None:
         return {"state": "external", "owned": False, "detail": "Hikari local connection is not lifecycle-owned"}
     try:
-        _validate_config(json.loads(config_content))
+        existing = _validate_config(json.loads(config_content))
     except (ConnectionError, ValueError, UnicodeError):
         return {"state": "invalid", "owned": False, "detail": "Hikari local connection is invalid"}
+    if receipt_value is None:
+        matches = (input_value or {}).get("desired_digest") == desired_digest(
+            "hikari", {"base_url": existing["baseUrl"]}, {"token": existing["token"]})
+        return {"state": "adoptable" if matches else "external", "owned": False,
+                "detail": "Hikari local connection is not lifecycle-owned"}
     receipt_data = receipt_value[0]
     if receipt_data["config_digest"] != _digest(config_content):
         return {"state": "external", "owned": False, "detail": "Hikari local connection drifted outside lifecycle ownership"}
@@ -248,13 +253,15 @@ def configure(input_value: dict) -> dict[str, object]:
     before = inspect(input_value)
     if before["state"] == "current":
         return before
-    if before["state"] in {"external", "invalid", "environment-override"}:
+    if before["state"] in {"external", "invalid", "environment-override"} or before["state"] == "adoptable" and input_value.get("adopt_existing") is not True:
         raise ConnectionError(f"Hikari owner state {before['state']} cannot be taken over")
     path = config_path()
     receipt = receipt_path(path)
     before_config = _read_private(path)
     before_receipt = _read_private(receipt)
     config = json.dumps({"baseUrl": base_url, "token": token}, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8") + b"\n"
+    if before["state"] == "adoptable":
+        config = before_config
     receipt_value = {
         "schema": 1,
         "owner": "pennix-tavily-search",

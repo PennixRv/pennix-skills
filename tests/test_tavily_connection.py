@@ -82,6 +82,24 @@ class HikariConnectionTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertTrue(config.exists())
 
+    def test_adoption_preserves_identical_existing_configuration_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = self.payload()
+            payload["values"]["base_url"] = payload["values"]["base_url"].rstrip("/")
+            canonical = {key: payload[key] for key in ("target", "values", "secrets")}
+            payload["desired_digest"] = hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            config = root / "config/tavily-hikari-cli/config.json"
+            config.parent.mkdir(parents=True, mode=0o700)
+            config.write_text(json.dumps({"baseUrl": payload["values"]["base_url"], "token": TOKEN}, indent=4) + "\n")
+            config.chmod(0o600)
+            before = config.read_bytes()
+            self.assertNotEqual(self.run_owner(root, "configure", payload).returncode, 0)
+            payload["adopt_existing"] = True
+            result = self.run_owner(root, "configure", payload)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(config.read_bytes(), before)
+
     def test_drift_is_not_removed_and_environment_override_is_blocked(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

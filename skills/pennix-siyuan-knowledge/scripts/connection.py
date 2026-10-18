@@ -107,7 +107,13 @@ def inspect(input_value: dict | None = None) -> dict:
         return {"state": "invalid", "owned": False, "detail": "SiYuan connection is invalid"}
     receipt = read_receipt()
     if receipt is None:
-        return {"state": "external", "owned": False, "detail": "SiYuan connection exists without lifecycle ownership"}
+        canonical = json.dumps({"target": "siyuan", "values": {"url": value["url"], "default_notebook": value["default_notebook"]},
+                                "secrets": {"api_token": value["api_token"]}}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        same = input_value.get("desired_digest") == hashlib.sha256(canonical).hexdigest()
+        return {"state": "adoptable" if same else "external", "owned": False,
+                "detail": "SiYuan connection exists without lifecycle ownership"}
+    if receipt["digest"] != digest(path):
+        return {"state": "invalid", "owned": True, "detail": "SiYuan connection changed outside lifecycle ownership"}
     current = receipt["digest"] == digest(path) and (
         not input_value.get("desired_digest") or receipt["desired_digest"] == input_value["desired_digest"]
     )
@@ -119,10 +125,14 @@ def configure(input_value: dict) -> dict:
         raise ConnectionError("SiYuan lifecycle input is invalid")
     if not isinstance(input_value.get("desired_digest"), str):
         raise ConnectionError("SiYuan lifecycle input is incomplete")
+    canonical = json.dumps({key: input_value[key] for key in ("target", "values", "secrets")},
+                           ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    if hashlib.sha256(canonical).hexdigest() != input_value["desired_digest"]:
+        raise ConnectionError("SiYuan lifecycle desired digest is invalid")
     before = inspect(input_value)
     if before["state"] == "current":
         return before
-    if before["state"] in {"external", "invalid"}:
+    if before["state"] in {"external", "invalid"} or before["state"] == "adoptable" and input_value.get("adopt_existing") is not True:
         raise ConnectionError(f"SiYuan owner state {before['state']} cannot be taken over")
     values, secrets = input_value["values"], input_value["secrets"]
     record = {"schema": 1, "url": values.get("url"), "api_token": secrets.get("api_token"), "default_notebook": values.get("default_notebook")}
@@ -133,7 +143,8 @@ def configure(input_value: dict) -> dict:
     before_connection = path.read_bytes() if path.exists() else None
     before_receipt = receipt_path().read_bytes() if receipt_path().exists() else None
     try:
-        write_private(path, record)
+        if before["state"] != "adoptable":
+            write_private(path, record)
         write_private(receipt_path(), {"schema": 2, "owner": "pennix-siyuan-knowledge", "digest": digest(path), "desired_digest": input_value["desired_digest"]})
     except BaseException as error:
         try:
