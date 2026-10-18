@@ -5,7 +5,7 @@
 | 组件 / owner | 对象、可重建性 | 默认保留 / 容量边界 | 原生入口与保护 / 所需证据 |
 | --- | --- | --- | --- |
 | Grok Search | 完整结果、运行输出；可重新请求但可能有成本 | 30 天、1 GiB、4096 文件；单次维护最多 8192 条目 / 5 秒 | `grok-search prune` 默认预览，授权后 `--yes`；临时文件、符号链接、活动 grace 保护；回执核对候选、失败和实际文件字节 |
-| FastCtx | 终态 job 日志可淘汰；运行进程与 pending reservation 为活动态 | 默认总预算 1 GiB、每运行 job 256 MiB reservation；终态 oldest-first | 复用 owner 原生 job 生命周期与配置维护；没有独立公开 purge 时不自造命令；不能杀运行 job 来释放容量，不把输出 token 池当磁盘预算 |
+| Context Mode | 本地会话派生事件、恢复材料及明确主动索引；原始 Codex 历史归宿主 | 自动会话派生数据按最近活动保留 30 天，当前会话受保护；普通主动索引保留 | `ctx_purge` 要求 `confirm: true` 及 `scope: session/project`；session 仅当前核验线程；无原生预览时只读盘点，普通卸载保留数据；不扫描旧根或其他 owner |
 | Trellis Channel | 临时频道与 worker；最小会话关系记录是权威历史 | 原生 age/candidate 选择，不以目录名证明可删 | `trellis channel prune` 默认预览，授权后 `--yes`；事件、PID、身份和 admission 锁未知均保留；频道清理不删除关系历史 |
 | Trellis backup | 项目更新恢复快照；不可凭空重建旧定制 | 最近至少 3 个完整备份；无自动 TTL 删除 | `trellis backup list` / `prune --keep 3`；授权后 `--yes`；更新事务、未知与不完整状态整批阻断 |
 | Trellis mem / task | 原始对话、任务事实与索引；原始历史不可重建 | 按原生历史/归档合同，不作为通用缓存淘汰 | 使用项目原生归档、索引入口；索引可重建不授权删除源历史 |

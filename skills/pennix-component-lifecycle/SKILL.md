@@ -14,14 +14,14 @@ metadata:
 新机先运行基础准备脚本。它只准备受支持的 Arch Linux/WSL2 环境、用户级 Python/Kconfiglib/tomlkit、npm 和 `~/.local/bin`，并把 `pennix` 发行物安装到用户目录：
 
 ```bash
-curl -fsSLo /tmp/pennix-bootstrap.sh https://raw.githubusercontent.com/PennixRv/pennix-lifecycle/v0.1.7/bootstrap.sh
+curl --proto '=https' --tlsv1.2 -fsSLo /tmp/pennix-bootstrap.sh https://github.com/PennixRv/pennix-lifecycle/releases/latest/download/bootstrap.sh
 bash /tmp/pennix-bootstrap.sh install
 ```
 
 准备完成后，所有工作流配置和组件动作由同一个工具处理：
 
 ```bash
-pennix config init --defconfig "$HOME/.local/share/pennix-lifecycle/releases/0.1.7/references/defconfig-wsl"
+pennix config init
 pennix config edit       # 有 TTY 时使用中文全屏菜单
 pennix config check      # 无 TTY 或 CI 使用已保存配置
 pennix plan              # 只读生成动作计划
@@ -32,7 +32,7 @@ pennix check
 
 `config edit` 和配置文件执行共用 Linux Kconfig 模型。`workflow.config` 是带格式主版本标记的 Kconfig 值文件；选项使用 bool/choice，ID、URL 和路径等数据使用 string，容量使用有范围的 int。未知、重复、互斥冲突、非法值、格式主版本不兼容和依赖未满足必须拒绝并保留原文件。无 TTY 部署可直接编辑该文件，无需运行 `config edit`。
 
-新机可以用发行物中的 `references/defconfig-wsl` 生成公开默认配置；主机专属普通值仍在目标机的
+新机可以用发行物唯一的 `config/defconfig-wsl` 经 `config init --defconfig <路径>` 生成公开默认配置；主机专属普通值仍在目标机的
 `workflow.config` 中填写。交互菜单读取文件值作为默认并允许覆盖，非交互部署直接使用文件值。
 
 没有 TTY 时不要让 Agent 代替交互填写。先在受信主机生成或编辑 `workflow.config`，再执行 `pennix plan`、`pennix apply`；缺少必填输入应快速失败。
@@ -43,14 +43,13 @@ pennix check
 
 ```bash
 pennix secrets edit
-pennix secrets set codex.api_key
-pennix secrets import-ssh office-wsl-via-nas codex.api_key siyuan.api_token
-pennix secrets check --json
+pennix secrets --help
+pennix secrets import-ssh --help
 ```
 
-该命令打开用户私有的 `secrets.toml`，以可见文本编辑，保存前由操作者核对。文件权限为 `0600`；秘密不能出现在命令参数、环境变量、任务材料、JSON、差异、日志或回答中。秘密文件只保存凭据，URL、ID 和路径属于 `workflow.config`。Codex provider 使用自定义 Responses API URL 与静态 API Key；当前实现由 Codex `auth.command` 在调用时执行 `pennix secrets get codex.api_key` 读取私有 Key，不调用 `codex login`，不启动浏览器或要求 ChatGPT 登录。其他组件凭据也由各自 owner 接收。OAuth、会话数据库和 daemon 身份继续由原生 owner 管理。
+`secrets edit` 打开用户私有的 `secrets.toml`，以可见文本编辑，保存前由操作者核对。文件权限为 `0600`；秘密不进入任务材料、差异、日志或回答。秘密文件只保存凭据，URL、ID 和路径属于 `workflow.config`。Codex provider 使用自定义 Responses API URL 与静态 API Key；运行时由生成的 `auth.command` 按工具原生合同读取私有 Key，不调用 `codex login` 或要求 ChatGPT 登录。其他组件凭据由各自 owner 接收。OAuth、会话数据库和 daemon 身份继续由原生 owner 管理。
 
-已有可信 SSH alias 时，可以用 `pennix secrets import-ssh ALIAS FIELD...` 选择性导入受支持的固定 owner 凭据文件。该命令只读取登记的凭据字段，不复制整份认证、不带入 URL/ID/路径，也不执行任意远端命令；手工填写秘密文件仍是等价路径。
+已有可信 SSH alias 时，按 `pennix secrets import-ssh --help` 选择服务，导入固定 owner 凭据字段。它不复制整份认证、不带入 URL/ID/路径，也不执行任意远端命令；手工填写秘密文件仍是等价路径。参数以当前原生 help 为准，Skill 不复制秘密子命令协议。
 
 组件的原生入口优先于生命周期包装：
 

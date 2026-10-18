@@ -30,7 +30,7 @@ class EvaluationDriverTests(unittest.TestCase):
         events = [
             {"type": "item.completed", "item": {"type": "agent_message", "text": "synthetic-secret"}},
             {"type": "item.completed", "item": {"type": "command_execution", "command": "cat /tmp/skills/pennix-grill/SKILL.md synthetic-secret", "exit_code": 0}},
-            {"type": "item.completed", "item": {"type": "mcp_tool_call", "server": "fastctx", "tool": "grep", "arguments": {"pattern": "synthetic-secret"}, "status": "completed"}},
+            {"type": "item.completed", "item": {"type": "mcp_tool_call", "server": "context-mode", "tool": "ctx_search", "arguments": {"queries": ["synthetic-secret"]}, "status": "completed"}},
             {"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 3}},
         ]
         with tempfile.TemporaryDirectory() as directory:

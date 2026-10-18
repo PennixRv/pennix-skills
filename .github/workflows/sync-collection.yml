@@ -42,8 +42,8 @@ jobs:
             elif [[ "$snapshot" == npm-pack ]]; then
               (
                 cd "$source"
-                npm pack --ignore-scripts --json > "$RUNNER_TEMP/$name-pack.json"
-                tarball="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[0]["filename"])' "$RUNNER_TEMP/$name-pack.json")"
+                tarball="$(npm pack --ignore-scripts --silent)"
+                test -f "$tarball"
                 tar -xzf "$tarball" --strip-components=1 -C "$GITHUB_WORKSPACE/skills/$name"
               )
             else

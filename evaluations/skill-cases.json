@@ -132,42 +132,42 @@
       "id": "S04-positive",
       "kind": "positive",
       "skills_before": [
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
       "skills_after": [
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
       "prompt": "读取 fixture.txt，并在其内容中查 routing-marker；按本地工具的职责选择入口。",
       "expected": [
-        "普通文件读/搜索选择 FastCtx；同一原生 MCP 可按宿主编排"
+        "普通本地读与搜索选择 Context Mode；有界结果保留来源及完成状态"
       ]
     },
     {
       "id": "S04-negative",
       "kind": "negative",
       "skills_before": [
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
       "skills_after": [
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
-      "prompt": "查看当前 Trellis task CLI 的 help；这不是普通本地文件检索，请保留原生任务接口。",
+      "prompt": "处理实时 Trellis Channel 的宿主 continuation；不要通过执行器模拟宿主工具，也不要开始第二个动作。只说明如何遵守当前等待合同。",
       "expected": [
-        "Trellis 使用原生接口，不包 FastCtx"
+        "宿主 continuation 保留原生入口，按排他等待合同继续"
       ]
     },
     {
       "id": "S04-boundary",
       "kind": "boundary",
       "skills_before": [
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
       "skills_after": [
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
-      "prompt": "直接 MCP 可用与嵌套清单可见性可能不同；遇到 Partial 必须按返回 offset 续页，目录错误不能当成服务缺失。请实际读取 long.txt 的有限页。",
+      "prompt": "直接 MCP 可用与单一编排入口清单可能不同；目录错误不能当成服务缺失。long.txt 是必读规范，请用宿主有界读取入口完整续读，不以 Context Mode 索引片段替代。",
       "expected": [
-        "真实工具域与错误类别准确；依赖分页按真实 offset"
+        "工具可用性与错误类别准确；必读规范完整续读并保留范围"
       ]
     },
     {
@@ -511,15 +511,15 @@
       "kind": "combination",
       "skills_before": [
         "pennix-workflow-routing",
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
       "skills_after": [
         "pennix-workflow-routing",
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
-      "prompt": "对 fixture.txt、notes.md 做独立本地检索并读取 long.txt 的 Partial 下一页，然后只查看 Trellis task CLI help。已有 FastCtx 直接工具不表示能嵌套；不要因批量要求改用 exec_command/Python/rg 包装。",
+      "prompt": "对 fixture.txt、notes.md 做独立本地检索，再完整读取必读规范 long.txt，然后查看 Trellis task CLI help。普通 CLI 可用 Context Mode，但 cwd、身份、退出码和回执必须保持；不要模拟宿主总线。",
       "expected": [
-        "原生 MCP 独立编排，Partial 依赖顺序；Trellis 保留 native owner；真实冲突如实说明"
+        "独立检索可批处理；规范完整原生读取；CLI 保持原生命令与回执；宿主总线不转发"
       ]
     },
     {
@@ -577,11 +577,11 @@
       "kind": "combination",
       "skills_before": [
         "windsurf-code-search",
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
       "skills_after": [
         "pennix-windsurf-code-search",
-        "pennix-fastctx-routing"
+        "pennix-context-mode-integration"
       ],
       "prompt": "本地与图均不足才考虑外部模糊入口候选；读取 Windsurf 执行前合同，核对 PATH 调用与 truncated 含义，不请求服务。",
       "expected": [

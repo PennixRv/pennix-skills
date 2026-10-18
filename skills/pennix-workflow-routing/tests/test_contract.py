@@ -25,7 +25,8 @@ class WorkflowRoutingContractTest(unittest.TestCase):
 
     def test_owner_first_rule_covers_workflow_native_protocols(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("对应组件或宿主规定的原生接口", content)
+        self.assertIn("对应组件规定的命令", content)
+        self.assertIn("对应宿主或组件原生入口", content)
         self.assertIn("原生不可用时停止", content)
 
     def test_skill_identity_does_not_flatten_collection_paths(self) -> None:
@@ -51,13 +52,13 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("原生 `trellis update` / `trellis workflow`", content)
         self.assertIn("`$pennix-trellis-asset-check` 只做只读诊断", content)
 
-    def test_owner_transport_and_fastctx_default_are_both_explicit(self) -> None:
+    def test_owner_and_execution_carrier_are_separate(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         self.assertIn("先判断请求和交付范围，再选择工具", content)
         self.assertIn("普通本地文件、非交互命令", content)
-        self.assertIn("不能通过 FastCtx `run`", content)
+        self.assertIn("执行载体不改变负责组件", content)
         self.assertIn("若基础工具按正确原生调用仍不可用，保留原错误并停止", content)
-        self.assertIn("FastCtx 可以读取或分析该文件，但不能确认或模拟组件状态", content)
+        self.assertIn("完整保留回执", content)
 
     def test_output_quality_route_preserves_language_and_lifecycle_boundaries(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
@@ -70,10 +71,10 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         ):
             self.assertIn(marker, content)
 
-    def test_fastctx_details_delegate_to_the_resolvable_specialist_contract(self) -> None:
+    def test_execution_details_delegate_to_the_resolvable_integration_contract(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
         links = re.findall(r"\]\(([^)]+)\)", content)
-        specialist = SKILL.parents[1] / "pennix-fastctx-routing" / "SKILL.md"
+        specialist = SKILL.parents[1] / "pennix-context-mode-integration" / "SKILL.md"
         self.assertTrue(specialist.is_file())
         self.assertIn(specialist.resolve(), [(SKILL.parent / link).resolve() for link in links])
 
@@ -90,7 +91,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
             "动态解析模型与 reasoning effort",
             "一个原生终态 wait",
             "协调者核验报告完整性",
-            "不得由 FastCtx 包装",
+            "宿主 continuation 保留原生入口",
         ):
             self.assertIn(invariant, route)
 

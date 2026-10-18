@@ -9,7 +9,7 @@ description: "通过当前原生 Trellis CLI 安全更新已管理项目的生�
 - 全局组件安装、配置、集合替换或核验使用 `$pennix-component-lifecycle`。
 - 只读本地诊断使用 `pennix-trellis-asset-check`。
 - 已有项目的 Trellis 更新和选定工作流刷新使用本 Skill。不要从 Trellis 检出目录复制文件，也不要创建第二个更新器。
-- Trellis 任务、Channel、交接、Hook 和平台原生协议保留各自原生归属。不要用脚本或 FastCtx 状态机模拟它们。
+- Trellis 任务、Channel、交接、Hook 和平台原生协议保留各自原生归属；执行载体不模拟或接管状态机。
 
 ## 预检
 

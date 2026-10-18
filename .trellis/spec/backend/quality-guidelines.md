@@ -115,12 +115,13 @@ Questions to answer:
 
 ### Published user-rule revisions
 
-- `codex-agents` upgrades accept only the current complete template or a known
-  published digest, retaining user edits as drift. A template change must update
-  its catalog revision and register the exact previous published digest.
-- Keep previous bytes in a fixed test fixture and assert its published digest;
-  never derive historical bytes from the mutable current template. Verify exact
-  migration and unchanged-byte refusal after a user edit through the real adapter.
+- `codex-agents` upgrades accept the current complete template or unchanged bytes
+  covered by the owner's digest receipt. An explicitly reviewed full-file SHA-256
+  may authorize one exact migration; do not add a force overwrite. Update the
+  catalog revision whenever the template changes.
+- Verify exact migration, rejection of an incorrect digest, and refusal after a
+  user edit through the real adapter. Do not derive reviewed bytes from a mutable
+  current template or silently claim ownership of drifted content.
 
 ### Routing Skill verification
 
@@ -130,9 +131,9 @@ Questions to answer:
 - Compare fixed before/after inputs against actual tool calls, including the
   first Skill read and ordinary reads after a component-native command. A
   `native_cli` label does not exempt `cat` inside the same shell command.
-- For example, inspect a PRD through FastCtx and query `task.py current` through
-  the native host entry separately. Completing both reads after an initial shell
-  read still fails a first-read criterion.
+- For example, read a mandatory PRD fully through the host's bounded file entry;
+  ordinary `task.py current` may use Context Mode if cwd, native identity, exit
+  code and complete receipt are preserved. Do not route host continuations there.
 - Record source, installed revision and behavioral results separately. Keep raw
   traces outside Git, enforce the agreed model-call budget, and report failed,
   blocked or untriggered coverage without converting it to a pass. Installation

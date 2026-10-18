@@ -7,7 +7,7 @@
     "pennix-codegraph-integration": {"path": "skills/pennix-codegraph-integration", "license": null},
     "pennix-component-lifecycle": {"path": "skills/pennix-component-lifecycle", "license": null},
     "pennix-decision-grill": {"path": "skills/pennix-decision-grill", "license": null},
-    "pennix-fastctx-routing": {"path": "skills/pennix-fastctx-routing", "license": null},
+    "pennix-context-mode-integration": {"path": "skills/pennix-context-mode-integration", "license": null},
     "pennix-grok-search": {"path": "skills/pennix-grok-search", "license": "LICENSE"},
     "pennix-project-agents-governance": {"path": "skills/pennix-project-agents-governance", "license": null},
     "pennix-resource-cleanup": {"path": "skills/pennix-resource-cleanup", "license": null},
@@ -26,16 +26,16 @@
   "materialized": {
     "pennix-grok-search": {
       "repo": "PennixRv/grok-search",
-      "ref": "ce76b2a78e9fb416eff0b7edb6de6db75c94ffda",
-      "commit": "ce76b2a78e9fb416eff0b7edb6de6db75c94ffda",
+      "ref": "fd53a27937bada5fbb0de1afe73024acc2cbf6f8",
+      "commit": "fd53a27937bada5fbb0de1afe73024acc2cbf6f8",
       "name": "pennix-grok-search",
       "snapshot": "archive",
       "post_install": ["grok-search-runtime"]
     },
     "pennix-windsurf-code-search": {
       "repo": "PennixRv/windsurf-code-search",
-      "ref": "ab19335810b1152fb40f53235ddefb8ca90d7550",
-      "commit": "ab19335810b1152fb40f53235ddefb8ca90d7550",
+      "ref": "377d8489cbad7bcc2c14930edb875d87bb5e3ebd",
+      "commit": "377d8489cbad7bcc2c14930edb875d87bb5e3ebd",
       "name": "pennix-windsurf-code-search",
       "snapshot": "npm-pack",
       "post_install": []

@@ -10,7 +10,7 @@
 新机先运行独立生命周期工具发行物提供的基础准备脚本，再使用 Kconfig 配置和执行：
 
 ```bash
-curl -fsSLo /tmp/pennix-bootstrap.sh https://raw.githubusercontent.com/PennixRv/pennix-lifecycle/v0.1.7/bootstrap.sh
+curl --proto '=https' --tlsv1.2 -fsSLo /tmp/pennix-bootstrap.sh https://github.com/PennixRv/pennix-lifecycle/releases/latest/download/bootstrap.sh
 bash /tmp/pennix-bootstrap.sh install
 pennix config init
 pennix config edit
@@ -36,7 +36,7 @@ Hook/MCP/TUI、项目初始化和外部检索继续使用各自原生入口。
 
 `pennix-windsurf-code-search` 和 `pennix-grok-search` 是发布集合中的物化目录；其
 上游源码和固定提交由 `collection.json` 声明。项目 AGENTS
-治理、CodeGraph 集成、中文技术写作、FastCtx 路由和知识操作继续由对应 Skill 负责。
+治理、CodeGraph 集成、中文技术写作、Context Mode 集成和知识操作继续由对应 Skill 负责。
 
 `pennix-siyuan-knowledge` 只在用户明确要求时通过思源原生 MCP 检索、整理、导入或
 保存知识；它不替代 Trellis task、正式交接或 `trellis mem` 历史。

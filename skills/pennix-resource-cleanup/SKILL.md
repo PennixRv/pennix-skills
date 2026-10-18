@@ -21,7 +21,7 @@ description: 用户要求盘点、预览或清理 Pennix 工作流组件产生�
 - Trellis Channel：使用原生 `trellis channel prune`；默认预览，确认后才带 `--yes`。活动 worker、不可读或损坏的 `events.jsonl`、无效 PID 和无法验证的进程身份必须闭锁。
 - Trellis update 备份：使用原生 `trellis backup list` 查看，使用 `trellis backup prune --keep 3` 预览，确认后才带 `--yes`。未知或未完成备份阻止整批删除。
 - Grok Search 输出：使用 owner 的 `grok-search prune`；默认预览，确认后才带 `--yes`。遵守 TTL、总字节数、文件数和活动写入保护。
-- FastCtx 作业历史：使用 FastCtx 自己提供的历史维护或配置入口；不得通过 `run`、普通 shell、`rm` 或直接删除 job 目录代替 owner 操作。运行中作业和待启动 reservation 必须保留。
+- Context Mode：使用 `ctx_purge` 明确声明 session/project 范围与确认；只清当前核验数据根，普通卸载保留数据。自动派生会话数据遵守组件的 30 天活动保留合同，不直接删数据库或目录。
 - 其他服务、Docker、系统包管理器、思源笔记、Hikari、NAS 或远程主机：只有在该 owner 已提供并被当前任务允许的原生清理入口时才继续；否则只报告证据门，不猜测或代为删除。
 - `pennix-skills`、`pennix-skills-extra` 及其他工作流组件的安装集合：使用 `pennix status|check|uninstall`。未知目录、漂移集合和无法证明 owner 的内容不授予删除权限，其他集合仍遵守自身入口。
 
