@@ -13,8 +13,13 @@
 
 ## 验收标准（Acceptance Criteria）
 
-- [ ] collection verify、必要合同测试和根组合门禁通过。
-- [ ] 活动集合不含 FastCtx 入口或历史兼容别名。
+- [x] collection verify、必要合同测试和根组合门禁通过。
+- [x] 活动集合不含 FastCtx 入口或历史兼容别名。
+
+## 验收结果
+
+- 2026-10-18 根仓库 full-local 集成门禁通过：15 项通过、0 项失败或阻塞；门禁包含集合校验、必要合同测试和组件组合验收。
+- 主集合清单及活动 Skill 内容定向扫描未发现 FastCtx 路由入口或兼容别名。
 
 ## 备注（Notes）
 
