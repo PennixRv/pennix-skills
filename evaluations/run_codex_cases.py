@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import signal
 import subprocess
 import tempfile
@@ -16,7 +17,7 @@ CASES = Path(__file__).with_name("skill-cases.json")
 MAX_TRACE_BYTES = 8 * 1024 * 1024
 TIMEOUT_SECONDS = 300
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.:/-]{1,100}$")
-SKILL_PATH = re.compile(r"skills/(?:pennix-skills/)?([a-z0-9-]+)/SKILL\.md")
+SKILL_PATH = re.compile(r"(?<![\w./~-])((?:~/|/)?(?:[\w.-]+/)+SKILL\.md)(?![\w.-])")
 SAFETY = """这是已授权的只读 Skill 行为测试，不是实现或检查 worker。
 使用实际已安装 Skill 和真正可用工具；不要伪造工具、结果、用户答复或会话身份。
 仅允许读取 Skill/必要 reference、读取当前 fixture 和查询 CLI help。
@@ -124,9 +125,47 @@ def collect(case, workspace, stdout, stderr):
             raise
 
 
+def skill_observations(item, event_number):
+    # shortcut: attribute only single-file cat; extend when a real trace needs another reader.
+    tool = item.get("type")
+    text = item.get("command", "") if tool == "command_execution" else json.dumps(item.get("arguments", {}))
+    if not isinstance(text, str):
+        return []
+    paths = list(dict.fromkeys(SKILL_PATH.findall(text)))
+    outcome = "unknown"
+    if tool == "command_execution":
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        try:
+            argv = list(lexer)
+        except ValueError:
+            argv = []
+        if len(argv) == 3 and Path(argv[0]).name in ("bash", "zsh", "sh") and argv[1] in ("-lc", "-c"):
+            lexer = shlex.shlex(argv[2], posix=True, punctuation_chars=True)
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            try:
+                argv = list(lexer)
+            except ValueError:
+                argv = []
+        if argv[:2] == ["cat", "--"]:
+            argv = ["cat", *argv[2:]]
+        if len(argv) == 2 and argv[0] == "cat" and paths == [argv[1]]:
+            exit_code = item.get("exit_code")
+            if type(exit_code) is int and exit_code != 0:
+                outcome = "failed"
+            elif (type(exit_code) is int and exit_code == 0
+                  and isinstance(item.get("aggregated_output"), str) and item["aggregated_output"]):
+                outcome = "read"
+    return [{"event": event_number, "path": value, "skill": Path(value).parent.name,
+             "tool": tool, "outcome": outcome} for value in paths]
+
+
 def summarize(path, native_status):
     result = {"native_status": native_status, "verdict": "review_needed",
               "events": 0, "tool_actions": [], "skill_read_candidates": [],
+              "skill_path_observations": [],
               "actual_model": None, "usage": None}
     skills = set()
     with path.open("rb") as stream:
@@ -154,9 +193,17 @@ def summarize(path, native_status):
             if event.get("type") != "item.completed":
                 continue
             item = event.get("item", {})
+            if not isinstance(item, dict):
+                result["verdict"] = "blocked_invalid_event"
+                continue
+            if item.get("type") in ("command_execution", "mcp_tool_call"):
+                observations = skill_observations(item, result["events"])
+                result["skill_path_observations"].extend(observations)
+                skills.update(x["skill"] for x in observations)
             if item.get("type") == "command_execution":
                 text = item.get("command", "")
-                skills.update(SKILL_PATH.findall(text))
+                if not isinstance(text, str):
+                    text = ""
                 owner = "native_cli" if any(x in text for x in ("task.py", "trellis ", "grok-search", "tvly-hikari", "windsurf-code-search")) else "host_shell"
                 result["tool_actions"].append({"type": "command_execution", "owner": owner,
                                                "exit_code": item.get("exit_code")})
@@ -165,7 +212,6 @@ def summarize(path, native_status):
                 if isinstance(server, str) and isinstance(tool, str) and SAFE_NAME.fullmatch(server) and SAFE_NAME.fullmatch(tool):
                     result["tool_actions"].append({"type": "mcp_tool_call", "server": server, "tool": tool,
                                                    "status": item.get("status")})
-                skills.update(SKILL_PATH.findall(json.dumps(item.get("arguments", {}))))
     result["skill_read_candidates"] = sorted(skills)
     if native_status != "completed":
         result["verdict"] = "blocked_native_execution"

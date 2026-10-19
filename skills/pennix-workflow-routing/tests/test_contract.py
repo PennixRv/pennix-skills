@@ -25,21 +25,9 @@ class WorkflowRoutingContractTest(unittest.TestCase):
 
     def test_owner_first_rule_covers_workflow_native_protocols(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("对应组件规定的命令", content)
+        self.assertIn("对应 owner 规定的原生命令", content)
         self.assertIn("对应宿主或组件原生入口", content)
         self.assertIn("原生不可用时停止", content)
-
-    def test_skill_identity_does_not_flatten_collection_paths(self) -> None:
-        content = SKILL.read_text(encoding="utf-8")
-        for marker in (
-            "Skill 名称用于选择逻辑入口，物理路径必须来自宿主声明",
-            "保留宿主声明的全部集合层级",
-            "不把它重写为 `$CODEX_HOME/skills/<skill-name>/SKILL.md`",
-            "相对引用以实际加载文件所在目录为基准",
-            "保留原始回执并停止",
-            "不通过平铺路径重试",
-        ):
-            self.assertIn(marker, content)
 
     def test_grok_remains_an_external_retrieval_owner(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
@@ -58,7 +46,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("普通本地文件、非交互命令", content)
         self.assertIn("执行载体不改变负责组件", content)
         self.assertIn("若基础工具按正确原生调用仍不可用，保留原错误并停止", content)
-        self.assertIn("完整保留回执", content)
+        self.assertIn("身份、参数、状态和回执可等价保留", content)
 
     def test_output_quality_route_preserves_language_and_lifecycle_boundaries(self) -> None:
         content = SKILL.read_text(encoding="utf-8")

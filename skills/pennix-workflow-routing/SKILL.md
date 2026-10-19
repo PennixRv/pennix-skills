@@ -11,7 +11,7 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 
 ## Skill 身份与路径
 
-Skill 名称用于选择逻辑入口，物理路径必须来自宿主声明或已核验的实际 `SKILL.md` 路径。集合安装可能是嵌套目录，例如 `${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills/<skill-name>/SKILL.md`；保留宿主声明的全部集合层级，不把它重写为 `$CODEX_HOME/skills/<skill-name>/SKILL.md`。Skill 的相对引用以实际加载文件所在目录为基准。宿主只给短别名时按宿主映射展开；若无法确认实际路径，保留原始回执并停止，不通过平铺路径重试，也不因路径猜测失败判定 Skill 或宿主工具不存在。
+加载 Skill 前，先从当前宿主清单找到对应逻辑入口，取得该项的声明路径；短路径只按宿主映射展开根别名，保留剩余目录层级并原样读取，不从 Skill 名称反推目录。项目 Skill 可能位于 `.agents/skills/<skill-name>/SKILL.md`，用户级主集合和 extra 可能分别位于 `skills/pennix-skills/<skill-name>/SKILL.md` 与 `skills/pennix-skills-extra/<skill-name>/SKILL.md`；这些例子不替代本轮声明，也不是依次重试的候选表。Skill 的相对引用以实际加载文件所在目录为基准。若无法确认实际路径，保留原始回执并停止，不通过平铺路径重试，也不因路径猜测失败判定 Skill 或宿主工具不存在。
 
 ## 调用前判定
 

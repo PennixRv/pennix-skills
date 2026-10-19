@@ -7,6 +7,64 @@ import run_codex_cases as runner
 
 
 class EvaluationDriverTests(unittest.TestCase):
+    def summarize_items(self, *items):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "trace.jsonl"
+            path.write_text("\n".join(json.dumps({"type": "item.completed", "item": item})
+                                      for item in items))
+            return runner.summarize(path, "completed")
+
+    def test_first_failure_survives_a_successful_retry(self):
+        wrong = "/home/test/.codex/skills/pennix-grok-search/SKILL.md"
+        correct = "/home/test/.codex/skills/pennix-skills/pennix-grok-search/SKILL.md"
+        summary = self.summarize_items(
+            {"type": "command_execution", "command": f"cat {wrong}", "exit_code": 1,
+             "aggregated_output": "No such file"},
+            {"type": "command_execution", "command": f"cat {correct}", "exit_code": 0,
+             "aggregated_output": "---\nname: pennix-grok-search\n---\n# Search"},
+        )
+        observations = summary["skill_path_observations"]
+        self.assertEqual([wrong, correct], [x["path"] for x in observations])
+        self.assertEqual(["failed", "read"], [x["outcome"] for x in observations])
+        self.assertLess(observations[0]["event"], observations[1]["event"])
+        self.assertEqual(["pennix-grok-search"], summary["skill_read_candidates"])
+
+    def test_project_extra_expanded_alias_and_relative_paths_keep_all_levels(self):
+        paths = [".agents/skills/trellis-before-dev/SKILL.md",
+                 "/home/test/.codex/skills/pennix-skills-extra/diagnosing-bugs/SKILL.md",
+                 "/declared/r0/pennix-skills/pennix-grok-search/SKILL.md",
+                 "../pennix-context-mode-integration/SKILL.md"]
+        for path in paths:
+            with self.subTest(path=path):
+                summary = self.summarize_items({
+                    "type": "command_execution", "command": f"/bin/zsh -lc 'cat {path}'",
+                    "exit_code": 0, "aggregated_output": "# Skill content\n"})
+                observation, = summary["skill_path_observations"]
+                self.assertEqual(path, observation["path"])
+                self.assertEqual(Path(path).parent.name, observation["skill"])
+                self.assertEqual("read", observation["outcome"])
+
+    def test_mentions_compound_commands_and_missing_output_stay_unknown(self):
+        path = "/tmp/skills/pennix-routing/SKILL.md"
+        items = [
+            {"type": "command_execution", "command": f"echo {path}", "exit_code": 0,
+             "aggregated_output": path},
+            {"type": "command_execution", "command": f"cat {path}; true", "exit_code": 0,
+             "aggregated_output": "No such file"},
+            {"type": "command_execution", "command": f"cat {path}", "exit_code": 0},
+            {"type": "command_execution", "command": f"cat {path}", "exit_code": None,
+             "aggregated_output": "partial output"},
+            {"type": "command_execution", "command": f"cat {path}", "exit_code": 0,
+             "aggregated_output": {"invalid": "output"}},
+            {"type": "mcp_tool_call", "server": "context-mode", "tool": "ctx_execute",
+             "arguments": {"code": f"read({path})"}, "status": "completed"},
+        ]
+        summary = self.summarize_items(*items)
+        self.assertEqual(["unknown"] * len(items),
+                         [x["outcome"] for x in summary["skill_path_observations"]])
+        self.assertEqual([path] * len(items),
+                         [x["path"] for x in summary["skill_path_observations"]])
+
     def test_frozen_coverage_and_name_mapping(self):
         data, digest = runner.load_cases()
         self.assertEqual(64, len(digest))

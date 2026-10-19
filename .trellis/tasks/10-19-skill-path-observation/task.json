@@ -1,0 +1,53 @@
+{
+  "id": "skill-path-observation",
+  "name": "skill-path-observation",
+  "title": "收敛 Skill 路径加载与行为采集",
+  "description": "落实根任务 skill-path-resolution-recurrence 已批准方案中的 routing 原段落、评估路径事件与专项回归；不增加 Hook、目录迁移或新安装体系。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-19",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "seal": {
+        "revision": 1,
+        "task_id": "skill-path-observation",
+        "task_name": "10-19-skill-path-observation",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "82c0449ef437d787ed135e0df8ec375b1750a4e8967b1f487752fd5652b58780",
+          "design.md": "86b476b079174d45081be39bcebd5b9d5811bed9b9a296403a0ab6950f10aa68",
+          "implement.md": "bfebcce9bd87489cd977f0668e7ec14833b4f51c86689f61ec70dab2620f4160"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "sealed_at": "2026-10-19T06:28:40.501295+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户明确批准已展示根方案完整推进到停止点；本工作项严格对应已展示的 pennix-skills 路由与评估器目标，不借用旧任务批准。",
+      "approved_at": "2026-10-19T06:28:40.747654+00:00"
+    }
+  }
+}
