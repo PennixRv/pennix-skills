@@ -11,17 +11,27 @@ description: 为本地检索、非交互命令和大输出分析选择 Context M
 
 核验工具可用性时分别记录宿主外层 MCP 工具面、`functions` 内嵌工具面、Context Mode server `tools/list` 和 `PreToolUse` matcher/decision 四层证据。每层只报告已声明、已发现、可调用或收到回执的事实；一层未暴露或失败时，其余层仍保持未知，不据此推断工具不存在或路由未发生。
 
+## 调用前判定
+
+Context Mode 按“需要从数据派生的结果”或“多个独立命令的批次”承载工作单元，不是每个宿主工具调用的透明包装层。按以下顺序选择入口：
+
+1. 先判定 owner、路径和硬边界。Trellis、lifecycle、CodeGraph、Channel、宿主 MCP、Hook、交互、长任务、后台任务、视觉输入、request_user_input、凭据、敏感内容和项目外路径保留各自原生入口；`ctx_execute*` 不得用来绕过项目根边界、权限或授权。
+2. 再判定是否需要原文。需要逐字完整内容来匹配编辑、核对规范、读取交接必读视图或保留证据时，使用宿主原生有界读取并按原生 offset 续读；只需要筛选、计数、解析、比较、聚合或摘要时才使用 Context Mode。
+3. 最后判定调用粒度。单个短固定回执直接走宿主工具；两个或更多独立非交互命令合并为一次 `ctx_batch_execute`；多个文件的同类派生合并为一次 `ctx_execute`；单文件派生使用一次 `ctx_execute_file`；已有索引的多个问题合并为一次 `ctx_search`。
+4. 不为每个 `cat`、`rg`、`git`、Read 或其他原生调用再套一层 `ctx_*`，也不先原生执行再用 Context Mode 重复执行同一工作。Hook 的 `deny`、`ask`、`modify`、`context` 和透传是安全与指导机制，不表示所有宿主调用都会自动改写。
+
 ## 选择载体
 
 | 操作 | 入口与边界 |
 | --- | --- |
-| 本地文件处理、检索、非交互命令 | `ctx_execute`、`ctx_execute_file`；代码只返回需要的结果，保留路径与范围 |
-| 多个独立命令的大输出检索 | `ctx_batch_execute`；输出会建立索引，仅用于允许持久化的内容 |
+| 项目根内需要派生结果的文件处理、检索或非交互命令 | `ctx_execute`、`ctx_execute_file`；代码只返回需要的结果，保留路径与范围 |
+| 两个或更多独立命令的大输出检索 | 一次 `ctx_batch_execute`；输出会建立索引，仅用于允许持久化的内容 |
+| 单个短固定回执、导航或状态写入 | 宿主或 owner 原生入口；不为节省上下文增加一层 `ctx_*` |
 | 明确来源的主动索引与检索 | `ctx_index`、`ctx_search`；保留来源，命中与摘要不表示已读全文 |
 | Skill、AGENTS、规范、交接必读视图及精确编辑依据 | 宿主原生有界读取，按该入口续页直至完整；不以摘要、搜索片段或索引替代全文 |
 | 语义编辑、宿主 MCP、图像/PDF 视觉、request_user_input、实时 continuation | 各自原生入口；不通过执行器模拟或转发宿主总线 |
 | 长任务、交互和跨轮后台执行 | 宿主原生执行会话；Codex 的 ctx background 不是持久 Job，不能据此承诺重启后续接 |
-| 凭据读写/导入、Windsurf 未核验候选等禁止持久化内容 | 原生入口并遵守对应 owner；不进入自动索引、Hook 正文采集或恢复材料 |
+| 项目外路径、凭据读写/导入、Windsurf 未核验候选等禁止持久化内容 | 原生入口并遵守对应 owner；不进入自动索引、Hook 正文采集或恢复材料 |
 
 组件命令的职责和协议归 owner；Context Mode 仅可作为符合 owner 合约的本地非交互执行载体，或对已取得的回执做筛选、聚合和摘要。必须保持 cwd、原生线程身份、参数、退出码、授权、状态和来源；不能用 echo 或自造 JSON 替代调用。Trellis、lifecycle、CodeGraph、其他 MCP、Channel continuation、部署发布和长任务仍走各自原生入口。短机器回执完整保留；身份无法核验、期限或权限无法等价承载时改走宿主入口，不复制或猜造其他会话身份。
 
@@ -30,6 +40,9 @@ Trellis Channel 的宿主 continuation 按当前项目的排他等待合同执�
 ## 结果与数据
 
 - 区分进程退出、工具 envelope、业务状态、timeout、取消和部分输出；外层成功不代表命令成功。输出被截断时收窄范围，或沿原生入口的实际 offset 续读，不重复无界调用。
+- `ctx_batch_execute` 的输出会建立索引；`ctx_execute`、`ctx_execute_file` 在带 `intent` 的大输出或超大输出时也可能写入索引。未明确允许持久化时不使用这些路径，尤其不要把凭据、用户级配置、日志或未核验候选交给自动索引。
+- 执行器不是文件写入安全沙箱；子进程可能访问项目工作目录并产生宿主文件副作用。语义编辑、任务资产和受保护文件必须使用原生编辑或 owner 入口，不把 `ctx_execute*` 当作写入接口。
+- Context Mode 的 Hook 可能阻断、询问、有限改写、注入指导或透传；Hook 指导不等于确定性接管。工具不可用时可回到宿主原生入口，但必须保留 owner、参数、身份、状态和授权，不重复执行同一工作。
 - `ctx_fetch_and_index` 会持久化网页；它不是 Grok、官方文档或其他来源合同的替代入口。网络检索仍按对应 Skill 选择来源、凭据和后备。
 - 自动恢复材料属于历史证据，不覆盖当前指令、用户授权及 Trellis/Git 事实。Context Mode 不读取 Codex 独立长期 memory，也不是工作流记忆权威。
 - 默认组件数据根为 `${CODEX_HOME:-$HOME/.codex}/context-mode`；显式 `CONTEXT_MODE_DIR` 须为绝对路径。不扫旧目录、不搬迁其他 owner 数据。有限字段处理不保证任意文本脱敏。

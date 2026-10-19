@@ -42,7 +42,7 @@ Skill 名称用于选择逻辑入口，物理路径必须来自宿主声明或�
 | 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过执行器或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
 | 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
 | 日常答复、复杂交付或批准前方案展示需要检查覆盖、详略、重点、结构或图表关系 | `$pennix-agent-output-quality`；中文技术内容再组合 `$pennix-chinese-tech-writing` | 输出质量 Skill 负责内容组织和语义复核，语言 Skill 负责中文表达与保真；简单事实走短路径，不改变任务状态、批准或安装 owner |
-| 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | context-mode，按 `$pennix-context-mode-integration` | 完整指令页、精确编辑依据与禁止持久化内容按 integration 分流 |
+| 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | 先按 `$pennix-context-mode-integration` 的硬边界和调用粒度选择 Context Mode 或原生入口 | 完整指令页、短固定回执、精确编辑依据、owner 状态与禁止持久化内容按 integration 分流；独立命令批量，不逐个包裹原生调用 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |
 | 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `$pennix-windsurf-code-search` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
@@ -53,6 +53,8 @@ Skill 名称用于选择逻辑入口，物理路径必须来自宿主声明或�
 | 项目 AGENTS 来源、内部生成块、内容职责或冲突 | `$pennix-project-agents-governance` | 默认只读，手工正文按请求编辑，生成块委托原生 owner |
 
 工具参数、完整读取、输出与数据边界遵守 [`pennix-context-mode-integration`](../pennix-context-mode-integration/SKILL.md)。普通 CLI 只有在 owner 明确允许且身份、参数、状态和回执可等价保留时才能选择 Context Mode 作为载体；不能用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
+
+“优先使用 Context Mode”表示对适合派生或聚合的工作单元优先选择 Context Mode，不表示每个原生工具调用都要嵌套一层 `ctx_*`。短回执、状态写入、精确全文、语义编辑、交互/长任务、敏感内容和项目外路径保持原生；多个独立命令使用一次批量调用，跨文件分析使用一次派生调用。Hook 的指导、有限重写和透传不改变 owner，也不产生自动接管全部宿主工具的保证。
 
 Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unbound_task|unbound_ambiguous` 表示尚未绑定任务，两者分别判断。有身份时按用户明确意图原生 `select`，再遵守任务阶段。载体无法核验身份时使用宿主原生 shell；禁止复制环境身份、借用其他会话 pointer 或制造 shell ticket。
 
