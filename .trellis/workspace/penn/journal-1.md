@@ -870,3 +870,40 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 下一步（Next Steps）
 
 - 本任务已达到验收并原生归档，无待实施动作。
+
+
+## 会话（Session） 35：Complete Skill path resolution and installation verification
+<!-- trellis-session: v=2 fp=574fb8b15db78835 -->
+
+**日期（Date）**: 2026-10-19
+**任务（Task）**: Complete Skill path resolution and installation verification
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+修正 Skill 路径采集与 routing 取值步骤；验证并发布来源，完成当前宿主四类安装后行为验收。基线四次因 ephemeral 模式无读取证据，未计为通过；长会话与压缩后行为未覆盖。
+
+### 主要变更（Main Changes）
+
+- 新增按事件保留路径、读取结果的评估摘要及专项回归
+- 通过 lifecycle v0.2.18 固定发行与当前宿主精确安装，四类后测均首次读取正确
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `c092a018c81e52c01d671a2fe1ecb1a4c71a66fe` | fix: preserve Skill path read evidence |
+| `8ac6b83a342cdc4bc9fd7dc549e491fab07f2b90` | docs: record Skill path installation acceptance |
+
+### 测试（Testing）
+
+- [OK] 评估器专项 8 项、全部 10 个 Skill 测试文件、集合验证及原生校验通过
+- [OK] 生产来源 CI 成功；安装后项目、主集合、extra、相对引用 5 次文件读取退出码为 0 且正文匹配
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
+
+### 下一步（Next Steps）
+
+- 无；本工作项已按正常停止点完成并归档
