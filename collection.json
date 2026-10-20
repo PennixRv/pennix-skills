@@ -26,8 +26,8 @@
   "materialized": {
     "pennix-grok-search": {
       "repo": "PennixRv/grok-search",
-      "ref": "8540bff9e853fd4c5bb4da6d936286b89eb146f9",
-      "commit": "8540bff9e853fd4c5bb4da6d936286b89eb146f9",
+      "ref": "c1a28f2e421bb9f1c99e3080c2f1b86050fdfa53",
+      "commit": "c1a28f2e421bb9f1c99e3080c2f1b86050fdfa53",
       "name": "pennix-grok-search",
       "snapshot": "archive",
       "post_install": ["grok-search-runtime"]

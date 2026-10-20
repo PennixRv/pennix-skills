@@ -70,8 +70,6 @@ INLINE_LINK_RE = re.compile(r"(!?\[[^\]]*]\()([^)]+)(\))")
 
 FORBIDDEN_QUOTES = {
     '"': "ASCII 双引号",
-    "“": "中文弯引号",
-    "”": "中文弯引号",
 }
 
 NON_WORD_CHARS = r"\u4e00-\u9fffA-Za-z0-9_"
@@ -343,7 +341,7 @@ def scan_markdown(path: Path) -> list[Violation]:
                         col=match.start() + 1,
                         severity="style",
                         kind="quote",
-                        message=f"可见正文包含{label}，确认是否应改为直角引号「」",
+                        message=f"可见正文包含{label}，中文正文通常使用中文弯引号“”",
                         snippet=raw.strip(),
                     )
                 )

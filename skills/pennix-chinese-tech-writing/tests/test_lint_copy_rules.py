@@ -50,6 +50,13 @@ class CopyLintRulesTest(unittest.TestCase):
         self.assertTrue(any("OpenAI API" in message for message in messages))
         self.assertTrue(any("fine-tuning" in message for message in messages))
 
+    def test_allows_chinese_curly_quotes_and_advises_on_ascii_quotes(self):
+        self.assertFalse(any(item.kind == "quote" for item in self.scan("点击“保存”。")))
+        findings = self.scan('点击"保存"。')
+        quotes = [item for item in findings if item.kind == "quote"]
+        self.assertEqual(len(quotes), 2)
+        self.assertTrue(all("中文弯引号“”" in item.message for item in quotes))
+
     def test_masks_single_segment_api_path(self):
         findings = self.scan("调用 /api 返回 json。")
         messages = [item.message for item in findings]
