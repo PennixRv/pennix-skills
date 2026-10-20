@@ -25,9 +25,9 @@ class WorkflowRoutingContractTest(unittest.TestCase):
 
     def test_owner_first_rule_covers_workflow_native_protocols(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("对应 owner 规定的原生命令", content)
+        self.assertIn("使用 owner 的真实命令和接口", content)
         self.assertIn("对应宿主或组件原生入口", content)
-        self.assertIn("原生不可用时停止", content)
+        self.assertIn("若基础工具按正确原生调用仍不可用", content)
 
     def test_grok_remains_an_external_retrieval_owner(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
@@ -46,7 +46,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("普通本地文件、非交互命令", content)
         self.assertIn("执行载体不改变负责组件", content)
         self.assertIn("若基础工具按正确原生调用仍不可用，保留原错误并停止", content)
-        self.assertIn("身份、参数、状态和回执可等价保留", content)
+        self.assertIn("本次所需身份、参数、退出码与回执均可保留", content)
 
     def test_output_quality_route_preserves_language_and_lifecycle_boundaries(self) -> None:
         content = SKILL.read_text(encoding="utf-8")

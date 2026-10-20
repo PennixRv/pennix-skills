@@ -35,26 +35,26 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 
 | 调用语义 | 首选路径 | 事实与持久化边界 |
 | --- | --- | --- |
-| Trellis 任务/阶段、组件 CLI 与系统部署 | 对应 owner 规定的原生命令；回执取得后可经 context-mode 分析 | Context Mode 不接管 owner 协议、状态写入或授权；原生不可用时停止，不模拟协议 |
+| Trellis 任务/阶段、组件 CLI 与系统部署 | 使用 owner 的真实命令和接口；符合当前调用语义时可由 Context Mode 执行并分析回执 | Context Mode 不接管 owner 协议、状态写入或授权；不以 shell 模拟专属协议 |
 | Channel continuation、Codex 交互/Hook、原生 MCP/TUI | 对应宿主或组件原生入口 | 保留实时状态与排他等待，不包装宿主总线 |
 | 宿主工具面与 Hook 路由核验 | 分别检查宿主 MCP、`functions` 内嵌工具、Context Mode `tools/list` 和 `PreToolUse` matcher/decision | 逐层记录声明、发现、可调用和回执；不以任一层推断其他层 |
-| Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 对应检索工具的命令、MCP 或 API | 载体不接管来源、凭据或降级；候选持久化边界按负责 Skill |
+| Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 按来源 Skill 使用发现工具；返回资料可由 Context Mode 处理或按来源合同索引 | 载体不接管来源、凭据、认证输出或降级；未核验候选保留来源和状态 |
 | 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过执行器或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
 | 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
 | 日常答复、复杂交付或批准前方案展示需要检查覆盖、详略、重点、结构或图表关系 | `$pennix-agent-output-quality`；中文技术内容再组合 `$pennix-chinese-tech-writing` | 输出质量 Skill 负责内容组织和语义复核，语言 Skill 负责中文表达与保真；简单事实走短路径，不改变任务状态、批准或安装 owner |
-| 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | 先按 `$pennix-context-mode-integration` 的硬边界和调用粒度选择 Context Mode 或原生入口 | 完整指令页、短固定回执、精确编辑依据、owner 状态与禁止持久化内容按 integration 分流；独立命令批量，不逐个包裹原生调用 |
+| 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | 默认按 `$pennix-context-mode-integration` 在 Context Mode 内完成本地数据处理，并按其有限负面边界选载体 | 完整读取必须实际取得全文；索引不证明内容已读或已核验；无固定命令数门槛 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | CodeGraph | 关键结论回到当前文件核验；未批准项目不得自动启用索引 |
-| 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `$pennix-windsurf-code-search` | 只产生候选；必须在当前项目本地核验，默认不持久化 |
-| 当前外部资料、网页或多来源研究 | 先 `$pennix-grok-search`；一次确认不可用后，单次 `$pennix-tavily-search` 自托管辅助路径 | 外部结果先作为证据候选；核验后才写入任务研究或用户明确指定的持久位置 |
-| 长任务或跨轮后台执行 | 宿主原生执行会话 | context-mode 的 Codex background 不作为持久 Job |
+| 本地检索和 CodeGraph 都无法定位的模糊业务、历史或遗留代码位置 | `$pennix-windsurf-code-search` | 搜索只产生候选；可由 Context Mode 带来源和“未核验”状态处理或索引，作为事实使用前核验当前源码 |
+| 当前外部资料、网页或多来源研究 | 先 `$pennix-grok-search`；一次确认不可用后，单次 `$pennix-tavily-search` 自托管辅助路径 | 来源 owner 保留发现和认证合同；已取得资料可由 Context Mode 按来源合同处理/索引，写入任务事实前仍核验 |
+| 长任务或跨轮后台执行 | 按需选择可保留所需运行语义的真实执行接口 | 任务时长本身不排除 Context Mode；需要宿主交互或当前接口无法续接时走对应宿主入口 |
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用 context-mode 限定分析或原生分页读取 | 不把原始结果重新塞回工具参数，分析结果不自动晋升为任务事实 |
 | 工作流缓存、Channel、输出、备份或历史资源的盘点与清理 | `$pennix-resource-cleanup`，再转资源 owner 的原生清理入口 | 默认只读；精确预览和明确授权后才允许 owner 执行 |
 | 项目 AGENTS 来源、内部生成块、内容职责或冲突 | `$pennix-project-agents-governance` | 默认只读，手工正文按请求编辑，生成块委托原生 owner |
 
-工具参数、完整读取、输出与数据边界遵守 [`pennix-context-mode-integration`](../pennix-context-mode-integration/SKILL.md)。普通 CLI 只有在 owner 明确允许且身份、参数、状态和回执可等价保留时才能选择 Context Mode 作为载体；不能用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
+工具参数、完整读取、输出与数据边界遵守 [`pennix-context-mode-integration`](../pennix-context-mode-integration/SKILL.md)。owner 决定操作语义、权限和状态；其真实非交互命令可由 Context Mode 承载，前提是本次所需身份、参数、退出码与回执均可保留。不得用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
 
-“优先使用 Context Mode”表示对适合派生或聚合的工作单元优先选择 Context Mode，不表示每个原生工具调用都要嵌套一层 `ctx_*`。短回执、状态写入、精确全文、语义编辑、交互/长任务、敏感内容和项目外路径保持原生；多个独立命令使用一次批量调用，跨文件分析使用一次派生调用。Hook 的指导、有限重写和透传不改变 owner，也不产生自动接管全部宿主工具的保证。
+只有两类情形要求改用真实宿主接口：调用本身必须使用宿主专属协议（例如 `apply_patch`、用户审批、宿主 MCP、视觉渲染或实时 continuation）；或证据表明当前 Context Mode 接口无法保留本次实际需要的身份、交互、取消或续接语义。权限拒绝必须遵守，不能换载体绕过。发现错误、未测试、一次失败、文件名、敏感标签、项目外路径、命令副作用、Git、任务时长和候选未核验状态都不单独构成排除理由。短回执可直接读，也可由 Context Mode 承载；不设固定批次数。Hook 指导、有限重写和透传不改变 owner，也不保证接管全部宿主工具。
 
 Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unbound_task|unbound_ambiguous` 表示尚未绑定任务，两者分别判断。有身份时按用户明确意图原生 `select`，再遵守任务阶段。载体无法核验身份时使用宿主原生 shell；禁止复制环境身份、借用其他会话 pointer 或制造 shell ticket。
 
@@ -73,7 +73,7 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 
 ## 本地证据优先
 
-- 涉及当前机器、当前项目、工作树、源码、配置、日志或已存在资源时，先使用本地文件工具、宿主原生工具和已批准的 CodeGraph；本地检索到足以回答问题的证据后，不启动 `$pennix-grok-search`、`$pennix-tavily-search` 或 `$pennix-windsurf-code-search`。
+- 涉及当前机器、当前项目、工作树、源码、配置、日志或已存在资源时，本地检索和派生默认使用 Context Mode，并可结合已批准的 CodeGraph；本地证据已足以回答时，不启动 `$pennix-grok-search`、`$pennix-tavily-search` 或 `$pennix-windsurf-code-search`。
 - 本地存在目标源码但问题要求当前上游状态、公开资料、跨项目比较或外部事实时，才进入外部检索；外部检索结果仅补充或对照本地证据，不能替代本地事实核验。
 - 本地检索结果为空、过时、无法解释，或用户明确要求外部来源时，按上表进入对应外部路径；用户明确指定的来源优先于本默认顺序，但仍不改变任务和凭据边界。
 - `$pennix-grok-search` 的可发现性不构成自动调用理由；调用前必须先判断问题是否确实需要外部资料。
@@ -113,12 +113,12 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 
 ## 禁止混淆
 
-- context-mode 的索引、摘要和恢复材料不自动成为 task、Issue、授权或配置事实；关键结论回到当前权威文件核验。
+- Context Mode 的索引、摘要和恢复材料不自动成为 task、Issue、授权或配置事实；关键结论回到当前权威来源核验。
 - 不用执行器重实现 Trellis channel watcher、事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
 - `$pennix-grok-search` 负责外部检索，载体不接管其网络调用、凭据读取、备用供应商或错误协议。
 - `openai-docs` 负责其允许的 OpenAI/Codex/API/ChatGPT 官方资料路径；它与 Grok 优先的外部检索各自遵守规定接口。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
-- 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选写入 Git 或持久索引。
+- 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选提交到 Git；Context Mode 本地索引按集成 Skill、用户指令和来源 owner 合同处理，可保存带来源及未核验状态的候选。
 
 ## 输出
 
