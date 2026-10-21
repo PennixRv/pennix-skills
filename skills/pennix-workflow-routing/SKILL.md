@@ -59,6 +59,8 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 
 Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unbound_task|unbound_ambiguous` 表示尚未绑定任务，两者分别判断。有身份时按用户明确意图原生 `select`，再遵守任务阶段。载体无法核验身份时使用宿主原生 shell；禁止复制环境身份、借用其他会话 pointer 或制造 shell ticket。
 
+Trellis 方案从 idea 到闭合及封口后的变化，路由至宿主当前声明的 `trellis-idea-to-closed-plan`：它负责详细有序步骤、唯一可观察停止点、阶段推进、审查与批准；`pennix-decision-grill` 只接受重要用户取舍和交互方法委托。模型按项目入口判断独立请求、终态后续、minor/major 与最早受影响阶段；minor 记 `execution.md` 后保持当前阶段，major 调用原生 replan 后重新审查和批准。此处不复制 stage 表、schema 或封口命令参数；旧项目按实际版本合同处理，不能假设仅 `in_progress` 可重开，也不因新增查漏补缺要求自动 replan。
+
 ## 代码检索：先选来源，再选载体
 
 有效代码锚点是可直接查询的路径、文件名、字面量、符号或模块名；只知道项目范围不算。按当前问题选择一个足以推进的来源，不按工具调用量验收：
