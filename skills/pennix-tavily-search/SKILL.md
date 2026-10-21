@@ -14,7 +14,7 @@ metadata:
 - Hikari 访问令牌以 `th-` 开头，不是 Tavily API 密钥。正常 Skill 使用不得索取、输出、复制、提交或重配令牌；不得读取 Hikari 配置文件；只有用户要求进行掩码诊断时才允许 `tvly-hikari config show`。生命周期 owner 脚本只在 lifecycle 通过 stdin 调用时读写本机连接文件，且不把令牌放入 argv、回执或日志。
 - 本 Skill 不安装或升级 `tvly`，不部署、升级或管理 NAS 上的 Hikari 服务，不启用 MCP，不添加 Hook，也不启动其他外部服务商。它只为 lifecycle 提供本机连接文件的归属、配置和撤回合同。不得切换到公共 Hikari、Firecrawl 或 Codex 原生网络检索。
 - Hikari 是第三方服务。搜索查询、目标 URL 和配置的访问令牌会发送到其端点。查询和目标必须与用户请求相关；不得提交秘密、本地路径、私有文档或无关个人数据。不要自动设置 `--client-name`，因为它可能泄露用户、项目或 Agent 身份。
-- 不用于本地文件、字面量、日志、仓库历史、符号、任务状态或含义不明的旧代码位置候选。后一类在本地检索和 CodeGraph 不足后仍走现有且更窄的 Windsurf Code Search 入口。
+- 不用于本地文件、字面量、日志、仓库历史、符号、任务状态或旧代码位置候选。代码定位按 `$pennix-workflow-routing` 分流：精确文本由 Context Mode 处理，结构问题优先 CodeGraph，含义与范围明确但无有效代码锚点时由 Windsurf Code Search 发现候选。
 
 ## 选择操作
 
