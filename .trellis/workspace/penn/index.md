@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **活动文件（Active File）**: `journal-1.md`
-- **会话总数（Total Sessions）**: 35
-- **最近活动（Last Active）**: 2026-10-19
+- **会话总数（Total Sessions）**: 36
+- **最近活动（Last Active）**: 2026-10-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | 文件（File） | 行数（Lines） | 状态（Status） |
 |------|-------|--------|
-| `journal-1.md` | ~909 | 活动（Active） |
+| `journal-1.md` | ~943 | 活动（Active） |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | 日期（Date） | 标题（Title） | 提交（Commits） | 分支（Branch） |
 |---|------|-------|---------|--------|
+| 36 | 2026-10-21 | Code search routing Skills owner delivery | `4b5810121845abd57c887f1b1b5067b9f62dd9e9` | `main` |
 | 35 | 2026-10-19 | Complete Skill path resolution and installation verification | `c092a018c81e52c01d671a2fe1ecb1a4c71a66fe`, `8ac6b83a342cdc4bc9fd7dc549e491fab07f2b90` | `main` |
 | 34 | 2026-10-16 | 安装审计遗留统一收敛 | `bf589b9`, `34870dd`, `6ce40bb` | `main` |
 | 33 | 2026-10-16 | 完成规划复核流程的 beta.51 安装验收 | `29062ce`, `6f430d34` | `main` |

@@ -907,3 +907,37 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 下一步（Next Steps）
 
 - 无；本工作项已按正常停止点完成并归档
+
+
+## 会话（Session） 36：Code search routing Skills owner delivery
+<!-- trellis-session: v=2 fp=036ce3e7458ef7bb -->
+
+**日期（Date）**: 2026-10-21
+**任务（Task）**: Code search routing Skills owner delivery
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+完成 Skills owner 收敛：静态路由合同、集合验证和官方验证已通过；Lifecycle 已物化不可变集合提交；重载后的真实宿主 Context Mode/CodeGraph 行为由根集成任务实测记录；owner task 已归档。
+
+### 主要变更（Main Changes）
+
+- 补录宿主重载后 Context Mode MCP/CLI .12 与 CodeGraph 实际结构查询证据，并归档 owner task。
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `4b5810121845abd57c887f1b1b5067b9f62dd9e9` | fix(routing): separate code evidence sources from execution transport |
+
+### 测试（Testing）
+
+- [OK] task.py validate 通过；git diff --check 通过；集合 verify 与六项 Skill quick_validate、CI 风格检查及官方 run 39525575153 已通过。
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
+
+### 下一步（Next Steps）
+
+- 根仓库固定最终 owner gitlink，执行 runner、offline 和 full-local 组合验收并归档根任务。
