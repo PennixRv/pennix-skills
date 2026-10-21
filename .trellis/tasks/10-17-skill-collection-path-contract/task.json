@@ -26,9 +26,9 @@
     "execution_class": "planned",
     "delivery_mode": "change_bearing",
     "planning": {
-      "revision": 4,
+      "revision": 5,
       "seal": {
-        "revision": 4,
+        "revision": 5,
         "task_id": "skill-collection-path-contract",
         "task_name": "10-17-skill-collection-path-contract",
         "documents": [
@@ -37,17 +37,17 @@
           "implement.md"
         ],
         "document_digests": {
-          "prd.md": "27cf7eb124c0d8c98690b2f5068737bf610c2ef16ded6117ec7ac7b13905c407",
-          "design.md": "755447480cde4385a50c50df84ef7a9a814df327f0fc3a97041b0eaacd207354",
-          "implement.md": "ce0ddd311ef06c85fe56c8b3d37b60db5712c1bfecb99726ab17d00aa4e1d34a"
+          "prd.md": "3714d571ad6cf787a139ebffe54d864f91d6c8b2750bbd4e57dba1a7dddd52ad",
+          "design.md": "3a3dbae54cf55d198518b18afd7adba009372f6ba39c1c51bd45042edf094988",
+          "implement.md": "307732022187f5312e53b430c4d453fc1aa64bdf125ac21f059a37597ad2fbc9"
         },
         "execution_class": "planned",
         "delivery_mode": "change_bearing",
-        "sealed_at": "2026-10-18T12:59:59.039757+00:00"
+        "sealed_at": "2026-10-21T12:37:34.368414+00:00"
       },
-      "approved_revision": 4,
-      "approval_basis": "沿用用户现在按照方案完整推进到全部结束的批准；本修订纠正此前组件计划的归属表述，严格落实已批准根任务 revision 8 的 Skill 私有记录/helper 与 lifecycle MCP 配置职责，不扩大授权。",
-      "approved_at": "2026-10-18T13:00:10.111775+00:00"
+      "approved_revision": 5,
+      "approval_basis": "User explicitly approved Pennix Skills path owner plan revision 5 in the current session",
+      "approved_at": "2026-10-21T12:40:48.079504+00:00"
     }
   }
 }

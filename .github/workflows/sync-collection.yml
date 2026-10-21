@@ -21,8 +21,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install collection validation dependency
+        run: python3 -m pip install --user pyyaml
+
       - name: Read collection-owned sources
-        run: python3 -c 'import json; print(json.dumps(json.load(open("collection.json"))["materialized"]))' > "$RUNNER_TEMP/sources.json"
+        run: python3 scripts/collection.py sources > "$RUNNER_TEMP/sources.json"
 
       - name: Materialize fixed source commits
         run: |
@@ -59,9 +62,9 @@ jobs:
 
       - name: Verify manifest and Skills
         run: |
-          python3 -m pip install --user pyyaml
           python3 scripts/collection.py verify
           python3 -B -m unittest discover -s tests -v
+          python3 -B -m unittest discover -s evaluations -v
           while IFS= read -r test_dir; do
             python3 -B -m unittest discover -s "$test_dir" -p 'test_*.py'
           done < <(find skills -type f -path '*/tests/test_*.py' -printf '%h\n' | sort -u)

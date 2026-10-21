@@ -62,7 +62,7 @@ Changes to `evaluations/run_codex_cases.py` must preserve the distinction betwee
 
 ### Contracts
 
-`skill_path_observations` is ordered and contains `event`, `path`, `skill`, `tool`, and `outcome` (`read`, `failed`, `unknown`). Preserve project, collection and relative path levels. `skill_read_candidates` remains a compatibility list of names, not proof of reading. Do not persist raw commands, messages, output bodies, credentials or session files in summaries or Git.
+`skill_path_observations` is ordered and contains `event`, `path`, `skill`, `tool`, and `outcome` (`read`, `failed`, `unknown`). Preserve project, collection and relative path levels. `skill_read_counts` counts these outcomes separately per observed path; `skill_read_candidates` remains a compatibility list of names, not proof of reading. Neither a `read` receipt nor a count proves complete output or agent consumption. Do not persist raw commands, messages, output bodies, credentials or session files in summaries or Git.
 
 ### Validation & Error Matrix
 

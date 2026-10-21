@@ -11,11 +11,11 @@ metadata:
 
 ## 两阶段部署
 
-新机先运行基础准备脚本。它只准备受支持的 Arch Linux/WSL2 环境、用户级 Python/Kconfiglib/tomlkit、npm 和 `~/.local/bin`，并把 `pennix` 发行物安装到用户目录：
+新机使用已核验的固定发行。以下 `v0.2.28` bootstrap 准备受支持的 Arch Linux/WSL2 环境和工具运行依赖，把 `pennix` 安装到用户目录；组件安装由后续工具动作负责：
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSLo /tmp/pennix-bootstrap.sh https://github.com/PennixRv/pennix-lifecycle/releases/latest/download/bootstrap.sh
-bash /tmp/pennix-bootstrap.sh install
+curl --proto '=https' --tlsv1.2 -fsSLo /tmp/pennix-bootstrap.sh https://github.com/PennixRv/pennix-lifecycle/releases/download/v0.2.28/bootstrap.sh
+bash /tmp/pennix-bootstrap.sh install --release v0.2.28
 ```
 
 准备完成后，所有工作流配置和组件动作由同一个工具处理：
@@ -60,7 +60,7 @@ pennix secrets import-ssh --help
 
 ## 声明式动作和卸载
 
-`plan` 只读。`apply` 才改变已实现的组件、受管模板、npm 用户 prefix、PATH、Paseo user unit 或明确选择的 owner 输入。漂移、未知所有权、符号链接和不安全权限默认停止；使用 `pennix repair <component-id>` 表达显式修复意图。当前未实现原生写入接口的连接目标会阻断 `apply`，不能把输入齐全当成连接已配置。
+`plan` 只读。`apply` 按 `components.lock.json` 中的已核验目标改变已选择组件和 owner 输入，普通 `apply` 不升级已有锁；明确升级使用 `pennix update <component-id>`，由原生入口展示精确候选和影响并确认。漂移、未知所有权、符号链接和不安全权限默认停止；使用 `pennix repair <component-id>` 表达显式修复意图，参数以当前 help 为准。当前未实现原生写入接口的连接目标会阻断 `apply`，不能把输入齐全当成连接已配置。
 
 一次性卸载不改变声明式配置：
 
@@ -72,6 +72,8 @@ pennix uninstall --all --confirm-all ALL
 卸载后配置仍选择的组件会显示为“已选择但未部署”，再次 `apply` 会重新部署。要永久取消组件，先在 `pennix config edit` 中取消选择，再运行 `pennix apply`。反向依赖、受管 relay 条目无法远端撤回、漂移或归属不明时阻塞，不隐式级联。
 
 `--all` 只表示移除当前工具能证明属于自己的已部署工作流目标，不清空 `workflow.config`，不删除用户数据、认证、项目、未知文件或外部维护的远端登记。
+
+生命周期工具自身卸载使用其 bootstrap 的 `uninstall` 操作；这与工作流组件卸载是不同入口，均须保留原生归属与数据保护检查。
 
 `pennix-skills` 和 `pennix-skills-extra` 各自维护 `collection.json`，声明成员路径、许可、命令和物化来源。`pennix-lifecycle` 固定集合仓库提交并独立验证 manifest；Skill 集合不复制 lifecycle catalog。receipt、集合树和命令链接必须一起切换，升级失败恢复旧树；损坏、未知或不受支持的 receipt 一律阻塞，不读取历史格式。
 
@@ -89,4 +91,4 @@ Paseo 自启动在配置中明确选择“关闭 / 登录启动 / 无登录常�
 
 ## 组件边界
 
-`pennix` 是工作流生命周期工具，不是集合源码、组件运行时、NAS 部署器、密钥管理器或 Codex/Trellis 协议模拟器。所有版本、模板、集合来源和动作归属以独立 `pennix-lifecycle` catalog 为准；Skill 不维护第二份成员清单，也不通过多轮 Agent 对话引导安装。
+`pennix` 是工作流生命周期工具，不是集合源码、组件运行时、NAS 部署器、密钥管理器或 Codex/Trellis 协议模拟器。组件动作、模板和集合仓库由独立 `pennix-lifecycle` catalog 声明，动态安装目标由原生锁和回执固定；集合内部成员和物化来源由各自 manifest 声明。Skill 不维护第二份成员清单，也不通过多轮 Agent 对话引导安装。

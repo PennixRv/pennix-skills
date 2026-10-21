@@ -8,7 +8,7 @@ metadata:
 
 输出目录维护使用同一 owner 的 `grok-search prune`，不通过 shell 删除输出文件。
 
-普通调用使用已安装的 `grok-search` 命令（`grok-search search`、`grok-search fetch` 或 `grok-search map`）。`$pennix-component-lifecycle` 的 `replace-staged` 流程会安装本地生产依赖，并通过 `~/.local/bin` 提供受管命令；不要使用全局 `npm` 安装或创建服务商包装器。在受管链接建立前，只在安装诊断中从 Skill 根目录或绝对路径调用可执行文件。
+普通调用使用已安装的 `grok-search` 命令（`grok-search search`、`grok-search fetch` 或 `grok-search map`）。安装或升级交给 `$pennix-component-lifecycle`，由独立 Lifecycle 工具管理 `pennix-skills` 集合、本地生产依赖和 `~/.local/bin` 受管命令；不要使用全局 `npm` 安装或创建服务商包装器。在受管链接建立前，只在安装诊断中从 Skill 根目录或绝对路径调用可执行文件。
 
 该可执行文件属于 `grok-search`。可由宿主直接命令入口或 context-mode 执行同一 CLI；载体必须保留 cwd、参数、退出码、完整 JSON 状态和来源，超时、失败及部分结果不能因摘要而丢失。context-mode 不负责服务商、凭据、重试或后备；不要用 Shell HTTP 或另造包装器替代 CLI。秘密配置与导入保留原生入口，凭据不进入索引；普通结果文件可按需做限定分析。
 
@@ -67,8 +67,7 @@ grok-search map https://docs.example.com --limit 20
 
 - `error` 核对 `error.message`、`error.code` 和 `diagnostics.provider_attempts`。`DEADLINE_EXCEEDED` 表示命令用尽时间预算（默认 240 秒，可用 `--deadline N`）。CLI 内部受控尝试不授权代理重起命令、切换模型或服务商；只有整条 Grok 命令不可用后，才按 `$pennix-tavily-search` 的入口执行最多一次自托管 Hikari 后备。指定工具、来源、隐私或更高优先级约束仍须满足；后备失败即停止，不再重试或切第三服务商。
 - `diagnostics.warnings` 和 `diagnostics.provider_attempts` 说明跳过、失败或提供内容的服务商，以及中继是否实际使用了不同模型。
-- search 只有在没有 `error`、`diagnostics.responses_tool_calls.total` 大于 0，且 `sources.items` 至少包含一个带 `http` 或 `https` URL 的 `citation` 或 `searched` 来源时，才算产生可核验的搜索证据。只有文本答案、零工具调用或零可用来源都应按失败处理，报告证据不足并停止，不根据模型文本补猜，也不把这类结果当作成功搜索。
-- 读取成功结果时检查 `answer.text` 和 `sources.items`（合并后最多 12 条）。`source_type` 为 `citation` 表示用于答案，`searched` 表示只列出；`opened: true` 表示 Grok 读取了页面。`sources.raw_path` 在启用运行记录时指向运行记录（完整来源、答案和工具调用）；只在 card 不足时分块读取。检查 `diagnostics.degraded`、`cost_usd` 和 `search_budget`，后者是建议预算而非实际调用上限。
+- search 读取 `answer.text` 和 `sources.items`（合并后最多 12 条）。`source_type` 为 `citation` 表示用于答案，`searched` 表示只列出；`opened: true` 表示 Grok 读取了页面。`sources.raw_path` 在启用运行记录时指向记录文件（完整来源、答案和工具调用）；只在 card 不足时分块读取。检查 `diagnostics.degraded`、`cost_usd` 和 `search_budget`，后者是建议预算而非实际调用上限。
 - fetch 读取 `content.text`；`content.truncated` 为真时按需分块读取 `content.full_path`，保留真实续页，不为读取已有全文重发网络命令。`metadata` 在服务商提供时包含标题、作者和发布时间。`diagnostics.run_path` 是运行记录。
 - map 读取 `urls`，再抓取确需的少量 URL。
 

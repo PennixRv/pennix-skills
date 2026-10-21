@@ -28,6 +28,15 @@ class EvaluationDriverTests(unittest.TestCase):
         self.assertEqual(["failed", "read"], [x["outcome"] for x in observations])
         self.assertLess(observations[0]["event"], observations[1]["event"])
         self.assertEqual(["pennix-grok-search"], summary["skill_read_candidates"])
+        self.assertEqual({"read": 1, "failed": 1, "unknown": 0}, summary["skill_read_counts"])
+
+    def test_failed_read_is_a_candidate_without_a_success(self):
+        summary = self.summarize_items({
+            "type": "command_execution", "command": "cat ../missing-skill/SKILL.md",
+            "exit_code": 1, "aggregated_output": "No such file",
+        })
+        self.assertEqual(["missing-skill"], summary["skill_read_candidates"])
+        self.assertEqual({"read": 0, "failed": 1, "unknown": 0}, summary["skill_read_counts"])
 
     def test_project_extra_expanded_alias_and_relative_paths_keep_all_levels(self):
         paths = [".agents/skills/trellis-before-dev/SKILL.md",
@@ -64,6 +73,7 @@ class EvaluationDriverTests(unittest.TestCase):
                          [x["outcome"] for x in summary["skill_path_observations"]])
         self.assertEqual([path] * len(items),
                          [x["path"] for x in summary["skill_path_observations"]])
+        self.assertEqual({"read": 0, "failed": 0, "unknown": len(items)}, summary["skill_read_counts"])
 
     def test_frozen_coverage_and_name_mapping(self):
         data, digest = runner.load_cases()

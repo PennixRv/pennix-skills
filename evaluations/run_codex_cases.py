@@ -213,6 +213,10 @@ def summarize(path, native_status):
                     result["tool_actions"].append({"type": "mcp_tool_call", "server": server, "tool": tool,
                                                    "status": item.get("status")})
     result["skill_read_candidates"] = sorted(skills)
+    result["skill_read_counts"] = {
+        outcome: sum(item["outcome"] == outcome for item in result["skill_path_observations"])
+        for outcome in ("read", "failed", "unknown")
+    }
     if native_status != "completed":
         result["verdict"] = "blocked_native_execution"
     return result

@@ -28,24 +28,31 @@ Questions to answer:
 
 ---
 
-## Lifecycle Verification Contract
+## Collection Manifest Contract
 
-- `verify --component <key>` validates only the selected catalog component and
-  fails closed for an unknown key. It must not evaluate unrelated components,
-  static assets, or configuration targets.
-- Full `verify` checks every catalog component and the core/enabled
-  configuration targets. Its result distinguishes `scope`, `failures`, and
-  `advisories`; only failures make the status `blocked`.
-- A readable installed version below a readable `repository-latest` candidate
-  is `upgrade-available` and is advisory. Missing, unknown, unsafe-owner,
-  pinned-drift, static/collection integrity failure, upstream failure, and
-  required configuration readiness failure remain blocking.
-- For AUR packages, compare the CLI-reported version with the repository
-  version without the trailing Arch `pkgrel` (for example, `0.156.1-1` versus
-  `0.156.1`), while retaining the complete candidate version in inventory.
-- Tests must cover scoped isolation, unknown selectors, repository candidate
-  advisories, candidate-unavailable blocking, pinned drift, and full
-  configuration checks.
+- `collection.json` is the only maintained member, license, command and
+  materialized-source declaration. `scripts/collection.py verify` checks it
+  without importing Lifecycle code or fetching a mutable catalog.
+- Source members live at `skills/<name>`; installed commands use
+  `<name>/<relative-command-path>`. Require exact membership, valid unique
+  JSON/YAML keys, matching Skill identity, nonempty declared licenses and
+  executable commands. Reject symbolic links in member trees.
+- Materialized sources use a full Git commit for both `ref` and `commit`, a
+  declared `archive` or `npm-pack` snapshot mode, and only supported
+  `post_install` identifiers. Malformed types and unsupported source fields
+  fail with a controlled contract error before synchronization.
+- Synchronization first runs `collection.py sources`, materializes those fixed
+  sources, then revalidates the collection and runs root, Skill and evaluation
+  tests. `sources` validates the manifest before member trees exist; full tree
+  checks belong to `verify`. Fix and publish the real source before regenerating
+  its snapshot. Compare the complete generated file set and bytes against the
+  fixed archive or package; a correct manifest alone does not prove that a
+  checked-in snapshot matches its source or preserves the intended rules.
+- Lifecycle independently validates the delivered manifest as untrusted data.
+  Its catalog pins the collection repository and manifest location; its native
+  lock and receipt bind the installed revision. Do not copy a member table,
+  execute a staged collection's verifier during installation, or add a
+  collection-CI dependency on Lifecycle's mutable catalog.
 
 ---
 
@@ -84,44 +91,32 @@ Questions to answer:
 
 - The repository checkout is the source of truth. The installed collection is
   a replaceable delivery copy and must not become an edit location.
-- `pennix-skills-install` defaults to
-  `${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills`, but callers may pass an
-  explicit `--dest` ending in `skills/pennix-skills` for a host-selected
-  discovery root. `PENNIX_SKILLS_ROOT` is a caller convention for reusing that
-  selected collection root in direct Skill commands; the installer does not
-  scan for roots or persist host-wide discovery state.
-- Changes to this boundary require tests for the unchanged default, an
-  explicit host-selected root, invalid destinations, and atomic replacement.
+- Lifecycle owns installation, replacement, command links and receipts through
+  its native `pennix` entry. This repository owns source content and validation.
+- Skill identity is logical. Use the host-declared physical path, expand only
+  its declared root alias, preserve collection levels, and resolve references
+  from the actual loaded `SKILL.md` directory. Do not guess a flattened path.
+- Static path checks cover main, extra, project and relative paths. Native
+  evaluation receipts retain failed attempts; only attributable successful
+  reads count as `read`, without claiming full agent consumption.
 
 ### Collection commands and configuration owners
 
-- Schema 2 receipts bind the tree digest and the finite catalog command map.
-  Explicit `replace-staged` may migrate a verified schema 1 tree; it may not
-  overwrite an invalid or drifted receipt. Collection, receipt and newly
-  created command links roll back together on replacement failure.
-- A user command link must be absent or match the existing receipt and exact
-  collection target. Unowned paths and other `CODEX_HOME` targets are conflicts;
-  PATH shadowing is reported independently of the link's state.
-- Windsurf readiness and configuration resolve its native executable from the
-  receipted collection. They never select an arbitrary same-name PATH command.
-- SiYuan owned helper commands may use a different absolute interpreter path
-  only when filesystem samefile proves the expected executable and the two-item
-  argv keeps the exact installed helper path. Other fields and owned stanza
-  bytes remain strict; readiness never rewrites configuration or credentials.
-  Unverifiable paths, changed scripts or interpreters, and extra argv fail closed.
-- Retired configuration migration uses explicit `reconcile`, validates private
-  files and known record shapes before writing, preserves other credentials
-  and target selections, verifies writes and reports partial failures closed.
-
-### Published user-rule revisions
-
-- `codex-agents` upgrades accept the current complete template or unchanged bytes
-  covered by the owner's digest receipt. An explicitly reviewed full-file SHA-256
-  may authorize one exact migration; do not add a force overwrite. Update the
-  catalog revision whenever the template changes.
-- Verify exact migration, rejection of an incorrect digest, and refusal after a
-  user edit through the real adapter. Do not derive reviewed bytes from a mutable
-  current template or silently claim ownership of drifted content.
+- The manifest owns the command map. Lifecycle owns deployment and verifies
+  the exact receipted executable before invoking a connection owner; an
+  arbitrary same-name PATH command is not an equivalent source.
+- SiYuan's Skill owns its private connection record and header helper.
+  Lifecycle owns Codex MCP registration and preserves unowned configuration.
+  Do not introduce a second Codex TOML writer in the Skill.
+- Explicit takeover of an existing private connection requires an exact
+  same-content match and valid ownership evidence. Different content or
+  external drift blocks writes. Failed writes restore only this attempt's
+  output, preserving concurrent external bytes and reporting incomplete
+  rollback. Tests use isolated private paths and synthetic credentials.
+- Global user-rule templates, installation receipts and configuration
+  migrations are contracts of the independent `pennix-lifecycle` repository.
+  Keep only entry navigation here; do not revive the removed embedded executor
+  or its profile reconciliation protocol.
 
 ### Routing Skill verification
 
@@ -138,37 +133,6 @@ Questions to answer:
   traces outside Git, enforce the agreed model-call budget, and report failed,
   blocked or untriggered coverage without converting it to a pass. Installation
   success alone cannot establish that a routing recurrence is fixed.
-
-### Profile digest reconciliation
-
-1. **Scope / trigger:** A configuration catalog change may leave a valid current
-   namespace profile stale. Only explicit workflow-state reconciliation refreshes
-   it; component installation and readiness probes do not configure credentials.
-2. **Signature:** `python3 skills/pennix-component-lifecycle/scripts/lifecycle.py
-   reconcile --component pennix-workflow-state --yes` retains the existing CLI.
-3. **Contract:** The private profile has exactly `schema: 1` (integer, not bool),
-   a lowercase 64-hex `catalog_digest`, and a unique string `targets` array.
-   Namespace directories are owned and mode 0700; the profile is owned, regular,
-   mode 0600, and has no symlink ancestor. Every selected ID belongs to the current
-   catalog. Only default-enabled and selected targets are probed, using the same
-   local adapter calls as discovery. All must be `ready` or `configured`.
-   A refresh changes only the digest value, preserving target order and selection.
-4. **Validation / errors:** Safe stale profiles return `refreshed`; current ones
-   return `already-match` without rewriting. Invalid shapes, unknown targets,
-   unsafe paths/modes, and readiness failures return `blocked` without a write.
-   Compare the original bytes before atomic replacement, verify written bytes,
-   and roll back only while the destination still equals this attempt's output.
-   Preserve concurrent external bytes and report `blocked` with
-   `rollback-incomplete` when restoration cannot safely complete.
-5. **Cases:** Good: a renamed catalog member with unchanged target IDs and ready
-   adapters. Base: a current profile needs no write. Bad: a removed target ID or
-   an unready core provider cannot be approved merely by replacing its digest.
-6. **Tests:** `test_lifecycle.py` asserts ordered targets, default/selected probe
-   coverage, no configure/prompt, idempotence, invalid/private-path rejection,
-   pre-replacement comparison, write/readback failures and external-byte survival.
-7. **Wrong / correct:** Do not re-run configure to refresh a digest or overwrite
-   third-party bytes during rollback. Use explicit validated reconcile and keep
-   full host verify separate from profile reconciliation.
 
 ---
 

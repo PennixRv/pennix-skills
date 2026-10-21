@@ -23,6 +23,7 @@ jobs:
             archlinux:latest \
             bash -lc '
               pacman -Syu --noconfirm python python-yaml bash zsh git tmux util-linux npm
+              runuser -u nobody -- env HOME=/tmp bash -c "cd /workspace && python3 -B scripts/collection.py verify && python3 -B -m unittest discover -s tests -v"
               runuser -u nobody -- env HOME=/tmp bash -c "cd /workspace && find skills -path \"*/tests/test_*.py\" -type f -print0 | sort -z | xargs -0 -n1 python3 -B"
             '
       - name: Test native evaluation driver offline

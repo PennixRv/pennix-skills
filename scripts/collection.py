@@ -48,9 +48,10 @@ def relative(value):
 def load_manifest():
     path = ROOT / "collection.json"
     value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json)
-    if (set(value) != {"schema", "name", "skills", "commands", "materialized"}
+    if (not isinstance(value, dict) or set(value) != {"schema", "name", "skills", "commands", "materialized"}
             or type(value["schema"]) is not int or value["schema"] != 1
-            or value["name"] != "pennix-skills" or not isinstance(value["skills"], dict)):
+            or value["name"] != "pennix-skills" or not isinstance(value["skills"], dict)
+            or not value["skills"]):
         raise ContractError("collection.json header is invalid")
     names = set(value["skills"])
     if len(names) != len(value["skills"]) or any(not NAME.fullmatch(name) for name in names):
@@ -61,12 +62,12 @@ def load_manifest():
         if not isinstance(entry, dict) or set(entry) != expected:
             raise ContractError(f"invalid manifest entry: {name}")
         path = relative(entry["path"])
-        if path.name != name or path in paths:
+        if path != PurePosixPath("skills", name) or path in paths:
             raise ContractError(f"member path mismatch: {name}")
         paths.add(path)
         if entry["license"] is not None:
             relative(entry["license"])
-    if value["commands"] is None or value["materialized"] is None:
+    if not isinstance(value["commands"], dict) or not isinstance(value["materialized"], dict):
         raise ContractError("commands and materialized must be mappings")
     for name, target in value["commands"].items():
         path = relative(target)
@@ -76,12 +77,14 @@ def load_manifest():
             raise ContractError(f"invalid command mapping: {name}")
     for name, source in value["materialized"].items():
         if (name not in names or not isinstance(source, dict) or source.get("name") != name
-                or not REPO.fullmatch(source.get("repo", "")) or not SHA.fullmatch(source.get("ref", ""))
+                or not {"repo", "ref", "commit", "name", "snapshot"} <= set(source)
+                or set(source) - {"repo", "ref", "commit", "name", "snapshot", "post_install"}
+                or not isinstance(source["repo"], str) or not REPO.fullmatch(source["repo"])
+                or not isinstance(source["ref"], str) or not SHA.fullmatch(source["ref"])
                 or source.get("commit") != source.get("ref")
-                or source.get("snapshot") not in {"archive", "npm-pack"}):
+                or source.get("snapshot") not in ("archive", "npm-pack")
+                or source.get("post_install", []) not in ([], ["grok-search-runtime"])):
             raise ContractError(f"invalid materialized source: {name}")
-    if set(value["materialized"]) - names:
-        raise ContractError("materialized source references unknown Skill")
     return value
 
 
@@ -96,11 +99,13 @@ def _unique_json(pairs):
 
 def verify():
     manifest = load_manifest()
-    root_members = {item.name for item in (ROOT / "skills").iterdir() if item.is_dir()}
+    root_members = {item.name for item in (ROOT / "skills").iterdir()}
     if root_members != set(manifest["skills"]):
         raise ContractError("top-level skill directories differ from collection manifest")
     for name, entry in manifest["skills"].items():
         directory = ROOT / relative(entry["path"])
+        if directory.is_symlink() or any(path.is_symlink() for path in directory.rglob("*")):
+            raise ContractError(f"member contains a symbolic link: {name}")
         file = directory / "SKILL.md"
         text = file.read_text(encoding="utf-8")
         match = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)", text, re.S)
@@ -109,7 +114,7 @@ def verify():
                 or not isinstance(metadata.get("description"), str) or not metadata["description"].strip()):
             raise ContractError(f"invalid Skill frontmatter: {name}")
         license_path = directory / entry["license"] if entry["license"] else None
-        if license_path is not None and not license_path.is_file():
+        if license_path is not None and (not license_path.is_file() or not license_path.read_bytes()):
             raise ContractError(f"manifest license is missing: {name}")
     for name, target in manifest["commands"].items():
         parts = relative(target).parts
@@ -124,10 +129,11 @@ def main():
         print("usage: collection.py verify|sources", file=sys.stderr)
         return 2
     try:
-        value = verify()
         if sys.argv[1] == "sources":
+            value = load_manifest()
             print(json.dumps(value["materialized"], sort_keys=True))
         else:
+            value = verify()
             print(f"verified {len(value['skills'])} Skills, {len(value['commands'])} commands")
         return 0
     except (OSError, UnicodeError, ValueError, yaml.YAMLError) as error:

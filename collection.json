@@ -26,16 +26,16 @@
   "materialized": {
     "pennix-grok-search": {
       "repo": "PennixRv/grok-search",
-      "ref": "c1a28f2e421bb9f1c99e3080c2f1b86050fdfa53",
-      "commit": "c1a28f2e421bb9f1c99e3080c2f1b86050fdfa53",
+      "ref": "940ae516d4522c41800baeee20f1734df4a95dd5",
+      "commit": "940ae516d4522c41800baeee20f1734df4a95dd5",
       "name": "pennix-grok-search",
       "snapshot": "archive",
       "post_install": ["grok-search-runtime"]
     },
     "pennix-windsurf-code-search": {
       "repo": "PennixRv/windsurf-code-search",
-      "ref": "c6f9ef0c04768ae9d980fe999d6ab2da13d8d072",
-      "commit": "c6f9ef0c04768ae9d980fe999d6ab2da13d8d072",
+      "ref": "934e52739579118536be8bf7750e814b4e76c03e",
+      "commit": "934e52739579118536be8bf7750e814b4e76c03e",
       "name": "pennix-windsurf-code-search",
       "snapshot": "npm-pack",
       "post_install": []
