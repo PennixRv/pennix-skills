@@ -26,7 +26,7 @@ from workflow_contracts import (  # noqa: E402
 )
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 KIND = "pennix-session-handoff"
 PARSER_VERSION = "codex-jsonl-local-v1"
 HANDOFFS = ".trellis/session-handoffs"
@@ -110,7 +110,7 @@ def _task_snapshot_at(root: Path, raw_path: str, expected: Optional[Dict[str, An
     return {"id": task_id, "path": raw_path, "status": status}
 
 
-def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
+def _task_snapshot(root: Path) -> Optional[Dict[str, Any]]:
     current = _task_current(root)
     selected = current["current_task"]
     if selected is None:
@@ -124,7 +124,47 @@ def _task_snapshot(root: Path) -> Optional[Dict[str, str]]:
     snapshot = _task_snapshot_at(root, raw_path, selected)
     if snapshot["id"] != _text(selected.get("id"), "task.id") or snapshot["status"] != _text(selected.get("status"), "task.status"):
         raise ContractError("active task changed while being captured")
+    snapshot["continuity"] = _continuity_snapshot(root, snapshot)
     return snapshot
+
+
+def _continuity_call(root: Path, action: str, *arguments: str) -> Dict[str, Any]:
+    script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
+    result = subprocess.run(
+        [sys.executable, str(script), "continuity", action, *arguments], cwd=root,
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        timeout=20, check=False,
+    )
+    try:
+        value = json.loads(result.stdout.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ContractError("Trellis continuity returned invalid JSON") from exc
+    if not isinstance(value, dict) or contains_secret(value):
+        raise ContractError("Trellis continuity returned unsafe data")
+    if result.returncode:
+        reason = _text(value.get("reason"), "continuity failure") if value.get("reason") else "unknown failure"
+        raise ContractError("Trellis continuity %s withheld: %s" % (action, reason))
+    return value
+
+
+def _continuity_snapshot(root: Path, task: Dict[str, str]) -> Dict[str, Any]:
+    observed = _continuity_call(root, "show")
+    if observed.get("status") in {"absent", "stale"}:
+        expected = "absent" if observed["status"] == "absent" else observed.get("captured_source_digest")
+        if not isinstance(expected, str):
+            raise ContractError("Trellis continuity capture has no compare-and-set digest")
+        observed = _continuity_call(root, "capture", "--expected-source-digest", expected)
+    if observed.get("status") != "ready" or not isinstance(observed.get("current"), dict):
+        raise ContractError("current Trellis continuity is not ready")
+    digest = _text(observed.get("source_digest"), "continuity.source_digest")
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ContractError("Trellis continuity digest is invalid")
+    current_task = observed["current"].get("task")
+    if not isinstance(current_task, dict) or any(
+        current_task.get(key) != task[key] for key in ("id", "path", "status")
+    ):
+        raise ContractError("active task changed while capturing continuity")
+    return {"source_digest": digest, "current": observed["current"]}
 
 
 def _git_snapshot(root: Path) -> Dict[str, Any]:
@@ -694,12 +734,17 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
         raise ContractError("handoff work context is invalid")
     task = context["task"]
     if task is not None:
-        _fields(task, {"id", "path", "status"}, "handoff task")
-        for key in task:
+        _fields(task, {"id", "path", "status", "continuity"}, "handoff task")
+        for key in ("id", "path", "status"):
             _text(task[key], "task." + key)
         if not task["path"].startswith(".trellis/tasks/"):
             raise ContractError("handoff task path is unsafe")
         _project_file(root, task["path"], "task path")
+        continuity = _fields(task["continuity"], {"source_digest", "current"}, "task continuity")
+        if not re.fullmatch(r"[0-9a-f]{64}", _text(continuity["source_digest"], "continuity.source_digest")):
+            raise ContractError("task continuity digest is invalid")
+        if not isinstance(continuity["current"], dict) or continuity["current"].get("task") != {"id": task["id"], "path": task["path"], "status": task["status"]}:
+            raise ContractError("task continuity projection does not match task snapshot")
     source = payload["source"]
     if not isinstance(source, dict) or set(source) != {"session_label", "git", "evidence", "rollout"}:
         raise ContractError("handoff source is invalid")
@@ -1204,13 +1249,18 @@ def _direct_session_id(root: Path) -> str:
     return safe_id(source.removeprefix("session:"), "direct session id")
 
 
-def _ownership_call(root: Path, operation: str, task_id: str, handoff_id: str, core_digest: str, extra: list[str], *, explicit: bool) -> dict[str, Any]:
+def _ownership_call(
+    root: Path, operation: str, task_id: str, task_path: str, handoff_id: str,
+    package_digest: str, expected_generation: Optional[int], *, explicit: bool,
+) -> dict[str, Any]:
     script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
     command = [
-        sys.executable, str(script), "ownership", operation,
-        "--task-id", task_id, "--handoff-id", handoff_id, "--core-digest", core_digest,
-        *extra,
+        sys.executable, str(script), "transfer", operation,
+        "--task-id", task_id, "--task-path", task_path,
+        "--package-id", handoff_id, "--package-digest", package_digest,
     ]
+    if expected_generation is not None:
+        command += ["--expected-generation", str(expected_generation)]
     if explicit:
         command.append("--explicit-user-request")
     result = subprocess.run(
@@ -1220,14 +1270,15 @@ def _ownership_call(root: Path, operation: str, task_id: str, handoff_id: str, c
     try:
         value = json.loads(result.stdout.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError) as exc:
-        raise ContractError("Trellis ownership returned invalid JSON") from exc
+        raise ContractError("Trellis task transfer returned invalid JSON") from exc
     if not isinstance(value, dict):
-        raise ContractError("Trellis ownership returned invalid JSON")
+        raise ContractError("Trellis task transfer returned invalid JSON")
     if contains_secret(value):
-        raise ContractError("Trellis ownership returned unsafe data")
+        raise ContractError("Trellis task transfer returned unsafe data")
     if result.returncode:
-        reason = _text(value.get("reason"), "ownership failure") if value.get("reason") else "unknown failure"
-        raise ContractError("Trellis ownership %s withheld: %s" % (operation, reason))
+        reason = _text(value.get("reason"), "transfer failure") if value.get("reason") else "unknown failure"
+        code = _text(value.get("code"), "transfer failure code") if value.get("code") else "unknown"
+        raise ContractError("Trellis task transfer %s withheld (%s): %s" % (operation, code, reason))
     return value
 
 
@@ -1256,34 +1307,34 @@ def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: O
 
 def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
     handoff_id, core, payload = _core(root, handoff_path, mutable=operation != "status")
-    core_digest = _ownership_core_digest(core)
     task_id, task_path = _ownership_task(payload)
+    package_digest = _ownership_core_digest(core).removeprefix("sha256:")
     if operation == "status":
-        result = _ownership_call(root, operation, task_id, handoff_id, core_digest, ["--json"], explicit=False)
+        result = _ownership_call(root, operation, task_id, task_path, handoff_id, package_digest, None, explicit=False)
         return {"handoff_id": handoff_id, "ownership": result}
     if not explicit:
         raise ContractError("ownership writes require --explicit-user-request")
-    extra: list[str] = []
+    if operation not in {"quiesce", "seal", "retire", "claim", "consume", "release"}:
+        raise ContractError("task transfer operation is unsupported")
+    generation = 0 if operation == "quiesce" and expected_generation is None else expected_generation
+    if generation is None:
+        raise ContractError("expected ownership generation is required")
+    if operation in {"quiesce", "seal", "retire", "consume"}:
+        continuity = _continuity_call(root, "show")
+        captured = payload["work_context"]["task"]["continuity"]["source_digest"]
+        if continuity.get("status") != "ready" or continuity.get("source_digest") != captured:
+            raise ContractError("current Trellis continuity differs from the package snapshot")
     if operation == "quiesce":
         current = _task_current(root).get("current_task")
         if not isinstance(current, dict) or current.get("id") != task_id or current.get("dir") != task_path:
             raise ContractError("source task is not the direct current task")
-        extra += ["--task", task_path, "--source-session-id", _direct_session_id(root)]
-    elif operation == "retire-handoff":
+        _direct_session_id(root)
+    if operation == "retire":
         events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
-        _ownership_gate(root, _prepared_mode(events), _state(events), archive_observation or "observed")
-    else:
-        if expected_generation is None:
-            raise ContractError("expected ownership generation is required")
-        extra += ["--expected-generation", str(expected_generation)]
-        if operation == "claim":
-            extra += ["--task", task_path]
-        if operation == "retire":
-            observation = archive_observation or "not_required"
-            events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
-            _ownership_gate(root, _prepared_mode(events), _state(events), observation)
-            extra += ["--archive-observation", observation]
-    result = _ownership_call(root, operation, task_id, handoff_id, core_digest, extra, explicit=True)
+        _ownership_gate(root, _prepared_mode(events), _state(events), archive_observation or "not_required")
+    result = _ownership_call(root, operation, task_id, task_path, handoff_id, package_digest, generation, explicit=True)
+    if operation != "release" and result.get("generation") != generation + 1:
+        raise ContractError("Trellis task transfer returned an unexpected generation")
     receipt = _ownership_event(root, handoff_id, operation, result)
     if operation == "seal" and result.get("status") == "sealed":
         state = _state(_read_events(_lifecycle_path(root, handoff_id), handoff_id))
@@ -1605,8 +1656,16 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     if payload is not None and payload["work_context"]["task"] is not None:
         task_id, _ = _ownership_task(payload)
         core = destination if destination.exists() else _archive_path(root, handoff_id) / HANDOFF_NAME
-        ownership = _ownership_call(root, "status", task_id, handoff_id, _ownership_core_digest(core), ["--json"], explicit=False)
-        source_ready = source_ready and ownership.get("status") == "ready"
+        task = payload["work_context"]["task"]
+        ownership = _ownership_call(
+            root, "status", task_id, task["path"], handoff_id,
+            _ownership_core_digest(core).removeprefix("sha256:"), None, explicit=False,
+        )
+        source_ready = (
+            source_ready
+            and ownership.get("status") in {"sealed", "ready", "claiming", "claimed", "consumed"}
+            and ownership.get("continuity_digest") == task["continuity"]["source_digest"]
+        )
     return {"status": "ready" if source_ready else "pending", "handoff_id": handoff_id, "mode": mode, "state": state, **({"ownership": ownership} if ownership is not None else {})}
 
 
@@ -1648,12 +1707,12 @@ def main() -> int:
     status.add_argument("--handoff", required=True)
     ownership = sub.add_parser("ownership")
     ownership_sub = ownership.add_subparsers(dest="ownership_command", required=True)
-    for name in ("quiesce", "seal", "retire", "retire-handoff", "claim", "consume", "archive", "status"):
+    for name in ("quiesce", "seal", "retire", "claim", "consume", "release", "status"):
         command = ownership_sub.add_parser(name)
         command.add_argument("--handoff", required=True)
         if name == "retire":
             command.add_argument("--archive-observation", choices=("not_required", "observed"), default="not_required")
-        if name in {"seal", "retire", "claim", "consume", "archive"}:
+        if name in {"seal", "retire", "claim", "consume", "release"}:
             command.add_argument("--expected-generation", required=True, type=int)
         if name != "status":
             command.add_argument("--explicit-user-request", action="store_true")

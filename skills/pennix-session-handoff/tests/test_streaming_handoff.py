@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package, memory and secret-boundary regressions for schema 11."""
+"""Package, memory and secret-boundary regressions for schema 12."""
 
 import json
 import copy
@@ -33,7 +33,7 @@ class StreamingHandoffTests(unittest.TestCase):
 
     def test_history_is_bound_and_not_embedded_in_core(self):
         payload = self.write()
-        self.assertEqual(payload["schema_version"], 11)
+        self.assertEqual(payload["schema_version"], 12)
         self.assertNotIn("conversation", payload)
         history = self.core.with_name("session-handoff-history.jsonl")
         self.assertTrue(history.is_file())
@@ -340,12 +340,12 @@ class StreamingHandoffTests(unittest.TestCase):
             (task / "task.json").write_text(json.dumps({"id": "resource-task", "status": "in_progress"}))
             task_script = self.root / ".trellis/scripts/task.py"
             original_script = task_script.read_text()
-            task_script.write_text("import json,sys\nif 'ownership' in sys.argv:\n print(json.dumps({'status':'ready','core_digest':sys.argv[sys.argv.index('--core-digest')+1]}))\nelse:\n print(json.dumps({'current_task':{'id':'resource-task','dir':'.trellis/tasks/resource','status':'in_progress'},'source':'direct','session_source':'session:source'}))\n")
+            task_script.write_text("import json,sys\na=sys.argv[1:]\nif a[:2] == ['continuity','show']:\n print(json.dumps({'status':'ready','source_digest':'" + "c" * 64 + "','captured_source_digest':'" + "c" * 64 + "','current':{'task':{'id':'resource-task','path':'.trellis/tasks/resource','status':'in_progress'},'phase':{'current_phase_id':None,'task_route_revision':None,'input_revision':None,'phases':[]},'evidence_digest':'" + "0" * 64 + "','git':{'head':'" + "1" * 40 + "','branch':'main','clean':True,'status_digest':'" + "2" * 64 + "'}}}))\nelif a[:2] == ['transfer','status']:\n print(json.dumps({'status':'ready','generation':3,'package_digest':a[a.index('--package-digest')+1],'continuity_digest':'" + "c" * 64 + "'}))\nelse:\n print(json.dumps({'current_task':{'id':'resource-task','dir':'.trellis/tasks/resource','status':'in_progress'},'source':'session:source','session_source':'session:source'}))\n")
             try:
                 task_written = run(fixtures.SCRIPT, "write", "--request", str(request), "--explicit-user-request")
                 ownership = run(fixtures.SCRIPT, "ownership", "status", "--handoff", task_written["handoff_path"])
                 self.assertEqual(ownership["ownership"]["status"], "ready")
-                self.assertEqual(ownership["ownership"]["core_digest"], handoff._ownership_core_digest(self.root / task_written["handoff_path"]))
+                self.assertEqual(ownership["ownership"]["package_digest"], handoff._ownership_core_digest(self.root / task_written["handoff_path"]).removeprefix("sha256:"))
             finally:
                 task_script.write_text(original_script)
             total = sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file())

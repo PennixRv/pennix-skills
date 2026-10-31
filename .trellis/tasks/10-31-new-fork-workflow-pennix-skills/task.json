@@ -1,0 +1,57 @@
+{
+  "id": "new-fork-workflow-pennix-skills",
+  "name": "new-fork-workflow-pennix-skills",
+  "title": "新 fork 工作流：Pennix Skills 主线路由与正式会话交接适配",
+  "description": "跨仓父任务 new-fork-workflow-master-plan-v2 的 Pennix Skills owner task。主线工作更新 pennix-workflow-routing 与 pennix-decision-grill；formal session handoff package 作为独立、较低优先级 work package 单独验收，不进入主线路由或发布准入。两个工作包的源码与本地验证已完成，等待根任务分别接纳；不在本任务发布、安装或更新根仓 gitlink。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-10-31",
+  "completedAt": null,
+  "branch": "pennix/new-fork-workflow-skills",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "root_parent_task_id": "new-fork-workflow-master-plan-v2",
+    "planning": {
+      "revision": 5,
+      "stage": "plan_closed",
+      "review_digest": "sha256:6f52cbd60c300b7c0e2004ccb0709e98f8e22ed6978def24755ff09651373ede",
+      "seal": {
+        "revision": 5,
+        "task_id": "new-fork-workflow-pennix-skills",
+        "task_name": "10-31-new-fork-workflow-pennix-skills",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "e93e2632a67c33ef84cdfd2b0c1bd50489e27fa575d18df7f6d38f7b45e37796",
+          "design.md": "e8d05677739dd01f402ef9fd8fd50fbc7b84b19333ea649b08cbf8d0e4eab637",
+          "implement.md": "16000dcef29a4a2a17fea597344a7e03ce932b2661403d58991420ab8353cc12"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "plan_digest": "sha256:6f52cbd60c300b7c0e2004ccb0709e98f8e22ed6978def24755ff09651373ede",
+        "sealed_at": "2026-10-31T11:53:12.921669+00:00"
+      },
+      "approved_revision": 5,
+      "approval_basis": "用户明确批准子任务持续推进，并授权按已确定方案执行",
+      "approved_at": "2026-10-31T11:53:20.864910+00:00"
+    },
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing"
+  }
+}

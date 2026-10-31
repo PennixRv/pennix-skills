@@ -31,7 +31,24 @@ class HandoffTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp(prefix="pennix-session-handoff-"))
         (root / ".trellis/scripts").mkdir(parents=True)
         selected = "None" if task_dir is None else repr({"id": "fixture-task", "dir": task_dir, "status": "in_progress"})
-        (root / ".trellis/scripts/task.py").write_text("import json, os\nprint(json.dumps({'current_task': " + selected + ", 'source': 'none', 'session_source': 'session:' + os.environ.get('FIXTURE_TARGET', 'source')}))\n", encoding="utf-8")
+        (root / ".trellis/scripts/task.py").write_text(
+            "import json, os, sys\n"
+            "args = sys.argv[1:]\n"
+            "task = " + selected + "\n"
+            "session = os.environ.get('FIXTURE_TARGET', 'source')\n"
+            "source = 'none' if task is None else 'session:' + session\n"
+            "if args and args[0] == 'continuity':\n"
+            "    current = {'task': {'id': 'fixture-task', 'path': " + repr(task_dir) + ", 'status': 'in_progress'}, 'phase': {'current_phase_id': None, 'task_route_revision': None, 'input_revision': None, 'phases': []}, 'evidence_digest': '" + "0" * 64 + "', 'git': {'head': '" + "1" * 40 + "', 'branch': 'main', 'clean': True, 'status_digest': '" + "2" * 64 + "'}}\n"
+            "    print(json.dumps({'status': 'ready', 'source_digest': '" + "c" * 64 + "', 'captured_source_digest': '" + "c" * 64 + "', 'current': current}))\n"
+            "elif args and args[0] == 'transfer':\n"
+            "    op = args[1]\n"
+            "    states = {'status': ('ready', 3), 'quiesce': ('quiescing', 1), 'seal': ('sealed', 2), 'retire': ('ready', 3), 'claim': ('claimed', 4), 'consume': ('consumed', 5), 'release': ('released', 1)}\n"
+            "    status, generation = states[op]\n"
+            "    print(json.dumps({'status': status, 'generation': generation, 'continuity_digest': '" + "c" * 64 + "'}))\n"
+            "else:\n"
+            "    print(json.dumps({'current_task': task, 'source': source, 'session_source': 'session:' + session}))\n",
+            encoding="utf-8",
+        )
         return root
 
     def make_git_root(self, *, with_task: bool = False) -> Path:
@@ -136,7 +153,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(destination.parent.stat().st_mode), 0o700)
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        self.assertEqual(payload["schema_version"], 11)
+        self.assertEqual(payload["schema_version"], 12)
         self.assertEqual(set(payload["source"]["rollout"]), {"path", "session_id", "capture_end", "record_count", "parser_version"})
         records = self.history_records(destination)
         timeline = [record["value"] for record in records if record["type"] == "timeline"]
@@ -847,16 +864,24 @@ class HandoffTests(unittest.TestCase):
             "task = None if target else {'id': 'fixture-task', 'dir': '.trellis/tasks/demo', 'status': 'in_progress'}\n"
             "if args == ['current', '--json']:\n"
             "    print(json.dumps({'current_task': task, 'source': 'session:' + ('target' if target else 'source'), 'session_source': 'session:' + ('target' if target else 'source')}))\n"
-            "elif args and args[0] == 'ownership':\n"
+            "elif args and args[0] == 'continuity':\n"
+            "    current = {'task': {'id': 'fixture-task', 'path': '.trellis/tasks/demo', 'status': 'in_progress'}, 'phase': {'current_phase_id': None, 'task_route_revision': None, 'input_revision': None, 'phases': []}, 'evidence_digest': '" + "0" * 64 + "', 'git': {'head': '" + "1" * 40 + "', 'branch': 'main', 'clean': True, 'status_digest': '" + "2" * 64 + "'}}\n"
+            "    print(json.dumps({'status': 'ready', 'source_digest': '" + "c" * 64 + "', 'captured_source_digest': '" + "c" * 64 + "', 'current': current}))\n"
+            "elif args and args[0] == 'transfer':\n"
             "    op = args[1]\n"
             "    with open('.trellis/.runtime/ownership-args.jsonl', 'a', encoding='utf-8') as handle:\n"
             "        handle.write(json.dumps(args) + '\\n')\n"
             "    if op == 'status':\n"
-            "        print(json.dumps({'status': 'ready', 'generation': 3, 'record_digest': 'sha256:' + 'a' * 64}))\n"
+            "        try:\n"
+            "            status = open('.trellis/.runtime/ownership-status').read()\n"
+            "        except FileNotFoundError:\n"
+            "            status = 'ready'\n"
+            "        print(json.dumps({'status': status, 'generation': 5 if status == 'consumed' else 3, 'package_digest': args[args.index('--package-digest') + 1], 'continuity_digest': '" + "c" * 64 + "'}))\n"
             "        raise SystemExit(0)\n"
-            "    generations = {'quiesce': 0, 'seal': 1, 'retire': 3, 'retire-handoff': 3, 'claim': 5, 'consume': 6, 'archive': 7}\n"
-            "    statuses = {'quiesce': 'quiescing', 'seal': 'sealed', 'retire': 'ready', 'retire-handoff': 'ready', 'claim': 'claimed', 'consume': 'consumed', 'archive': 'archived'}\n"
-            "    print(json.dumps({'status': statuses[op], 'generation': generations.get(op, 5), 'record_digest': 'sha256:' + 'a' * 64}))\n"
+            "    generations = {'quiesce': 1, 'seal': 2, 'retire': 3, 'claim': 4, 'consume': 5, 'release': 1}\n"
+            "    statuses = {'quiesce': 'quiescing', 'seal': 'sealed', 'retire': 'ready', 'claim': 'claimed', 'consume': 'consumed', 'release': 'released'}\n"
+            "    open('.trellis/.runtime/ownership-status', 'w').write(statuses[op])\n"
+            "    print(json.dumps({'status': statuses[op], 'generation': generations[op], 'package_digest': args[args.index('--package-digest') + 1], 'continuity_digest': '" + "c" * 64 + "'}))\n"
             "else:\n"
             "    raise SystemExit(2)\n",
             encoding="utf-8",
@@ -885,19 +910,19 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(self.run_cli(root, "finalize", "--handoff", relative, "--observation", str(observation.relative_to(root))).returncode, 0)
         self.assertNotEqual(self.run_cli(root, "status", "--handoff", relative).returncode, 0)
         self.assertEqual(handoff.ownership_operation(root, "quiesce", relative, explicit=True)["ownership"]["status"], "quiescing")
-        self.assertEqual(handoff.ownership_operation(root, "seal", relative, explicit=True, expected_generation=0)["ownership"]["status"], "sealed")
+        self.assertEqual(handoff.ownership_operation(root, "seal", relative, explicit=True, expected_generation=1)["ownership"]["status"], "sealed")
         self.assertEqual(self.run_cli(root, "status", "--handoff", relative).returncode, 0)
-        self.assertEqual(handoff.ownership_operation(root, "retire-handoff", relative, explicit=True)["ownership"]["generation"], 3)
+        self.assertEqual(handoff.ownership_operation(root, "retire", relative, explicit=True, expected_generation=2)["ownership"]["generation"], 3)
 
         os.environ["TRELLIS_CONTEXT_ID"] = "target"
         self.addCleanup(os.environ.pop, "TRELLIS_CONTEXT_ID", None)
         claimed = handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3)
-        repeated = handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3)
         self.assertEqual(claimed["ownership"]["status"], "claimed")
-        self.assertEqual(repeated["lifecycle"]["status"], "idempotent")
-        self.assertEqual(handoff.ownership_operation(root, "consume", relative, explicit=True, expected_generation=5)["ownership"]["status"], "consumed")
-        self.assertEqual(handoff.ownership_operation(root, "archive", relative, explicit=True, expected_generation=6)["ownership"]["status"], "archived")
-        self.assertEqual(handoff.ownership_operation(root, "status", relative, explicit=False)["ownership"]["status"], "ready")
+        with self.assertRaises(handoff.ContractError):
+            handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=2)
+        self.assertEqual(handoff.ownership_operation(root, "consume", relative, explicit=True, expected_generation=4)["ownership"]["status"], "consumed")
+        self.assertEqual(handoff.ownership_operation(root, "status", relative, explicit=False)["ownership"]["status"], "consumed")
+        self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
         self.assertEqual((root / relative).read_bytes(), before)
         events = (root / handoff.LIFECYCLE_RUNTIME / (handoff_id + ".jsonl")).read_text(encoding="utf-8").splitlines()
         self.assertEqual(sum('"event_type": "ownership_claim"' in line for line in events), 1)

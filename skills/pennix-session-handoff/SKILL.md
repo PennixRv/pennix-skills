@@ -63,7 +63,7 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 
 `validate` 返回 `ready` 只证明 core/history 结构与绑定有效。生命周期就绪还要求观察到源边界；接纳另行核验配对 prompt，包含任务的包还要求原生 Trellis quiesce 与 seal 收据及当前归属状态。目标必须协调当前任务、Git、证据和 rollout；目标 attestation 不能绕过源门禁。本 Skill 不直接改变任务状态、不控制工作节点，也不复制凭据、缓存或运行台账。
 
-新包使用 schema 11。当前入口只接受该合同；旧包不迁移、不准入，也不使用旧版分页或生命周期语义。历史旧文件可用普通只读文件工具审阅；继续正式交接要从当前事实创建新三文件包。
+新包使用 schema 12。当前入口只接受该合同；旧包不迁移、不准入，也不使用旧版分页或生命周期语义。历史旧文件可用普通只读文件工具审阅；继续正式交接要从当前事实创建新三文件包。
 
 ## 必读核心与历史阅读
 
@@ -135,7 +135,7 @@ write -> validate -> render -> prepare(core_only)
 
 `admit` 的目标 attestation 始终按固定顺序累计：完整读取核心视图、完整读取配对 prompt、完成 `$trellis-start` 所需上下文、协调当前事实。已有明确上下文时不重复启动检查。未完成的前缀只报告进度，不创建目标预约，也不标记消费；只有完整四步前缀才记录 `reconciled` 这一逻辑消费标记。相同目标可在中断后重试，其他目标不能消费。源仍 pending 时返回 `pending`，保持可重试且不声明消费。`target_source` 必须精确等于当前 Trellis 直接 `session_source` 的 `session:<target-key>`；规范源、源 rollout ID 和 rollout 会话 ID 不能冒充目标身份。
 
-接纳从不执行 `pending.next_action`，不启动任务，不改变任务指针，也不关闭任务。后续继续必须另行获得授权，先执行归属 `claim`，再依据当前任务分类和阶段使用 `$trellis-continue`。只读 `analysis_only` 研究保持 planning，不运行 `task.py start`；变更任务只有在当前原生 seal 和批准存在时才 start，已经运行的工作恢复已有检查点。完成任务按原生 Trellis `finish` 或 `archive` 使用精确任务路径，不制造会话指针。
+接纳从不执行 `pending.next_action`，不启动任务，不改变任务指针，也不关闭任务。后续继续必须另行获得授权，依次执行归属 `claim` 和 `consume`，再依据当前任务分类和阶段使用 `$trellis-continue`；两项归属操作不推进任务阶段。只读 `analysis_only` 研究保持 planning，不运行 `task.py start`；变更任务只有在当前原生 seal 和批准存在时才 start，已经运行的工作恢复已有检查点。完成任务按原生 Trellis `finish` 或 `archive` 使用精确任务路径，不制造会话指针。
 
 协调接纳后，`retention archive` 核验整包与 prompt，再原子复制 core/history/prompt 三文件；恢复也按整包核验和目录事务进行。重试归档是幂等的；失败归档仍可再次归档，不重复 intake。`restore`、`reopen` 和 `purge` 都要求同一交接 ID。`purge` 在归档核验后通过目录切换移除规范三文件，收据写入失败时恢复原目录；发现未知资产则拒绝清理。它不删除任务、rollout、会话、记忆、资源、watch、日志或远程数据。收据按 JSONL 逐记录处理，保留为审计证据。`status --handoff <core.json>` 用于查看选定生命周期模式是否 ready；渲染器拒绝 pending 高保证模式。
 
@@ -156,25 +156,32 @@ write -> validate -> render -> prepare(core_only)
 
 ## 任务归属转移
 
-包含任务时先渲染 prompt，再按以下顺序推进包生命周期和 Trellis 任务归属。这些编排命令调用项目原生 `.trellis/scripts/task.py ownership`；本 Skill 不直接修改任务指针：
+包含任务时先渲染 prompt，再按以下顺序推进包生命周期和 Trellis 任务归属。适配器只调用项目原生 `.trellis/scripts/task.py continuity` 与 `task.py transfer`，不直接修改任务指针：
 
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.json> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> --expected-generation <n> --explicit-user-request
 ```
 
-归属是原生任务屏障；需要时本地 `finalize` 记录额外边界证据，证据缺失保持 pending。
+`quiesce`、`seal`、`retire` 按连续代数执行：初始代数为 0，依次写入 1、2、3。每一步都核对包中捕获的 CR 摘要；来源任务发生变化时停止，必要时在转出前用 `release` 恢复来源归属并重新准备包。归属屏障由 Trellis 写入；需要时本地 `finalize` 记录额外边界证据，证据缺失保持 pending。
+
+来源尚未完成 `retire` 时，可以在来源会话用当前代数释放转移并恢复原任务指针：
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . ownership release --handoff <core.json> --expected-generation <n> --explicit-user-request
+```
 
 新会话完成只读接纳且用户明确授权继续后，才可以 claim 并关闭归属：
 
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . ownership claim --handoff <core.json> --expected-generation <n> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . ownership consume --handoff <core.json> --expected-generation <n> --explicit-user-request
-python3 "$PENNIX_HANDOFF" --project-root . ownership archive --handoff <core.json> --expected-generation <n> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . ownership status --handoff <core.json>
 ```
 
-目标必须有自己的直接 `session:<key>` 身份且没有当前任务；不继承源指针。`claim`、`consume` 和归属 `archive` 是分开的、按 generation 核验、可幂等恢复的状态。归属 archive 是本地收据，与复制不可变 core 或 prompt 的交接 retention archive 不同。任何一种操作都不执行 pending.next_action，不关闭 Trellis 任务，不写入未批准状态，也不删除会话、记忆、资源、watch、rollout 或日志。
+目标必须有自己的直接 `session:<key>` 身份；Trellis `claim` 在授权后设置目标任务指针，之后 `consume` 用下一代数确认归属。目标不继承来源指针。来源转出前可用 `ownership release` 解除屏障；转出后只能由记录的目标会话恢复。任务归属的 `claim` 与 `consume` 和包的 `retention archive` 是彼此独立的操作。目标会话消费归属后，handoff lifecycle status 仍按包收据与来源边界判断，不把归属状态当作任务阶段。任何一种操作都不执行 pending.next_action，不关闭 Trellis 任务，不写入未批准状态，也不删除会话、记忆、资源、watch、rollout 或日志。
+
+Trellis 的只读 `continuity show` 返回当前 CR 状态和来源摘要；`continuity capture --expected-source-digest <digest|absent>` 用比较并交换捕获当前投影。写入包时，适配器确保任务包中保存的 CR 与任务、阶段、路线和 Git 投影相符。包状态 `ready` 仅代表包自身生命周期满足条件，不代表 CR 新鲜、任务可继续或用户已授权。
 
 需要新会话入口 prompt 时，在精确 `validate` 返回 `ready` 后执行一次：
 
