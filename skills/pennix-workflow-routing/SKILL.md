@@ -61,6 +61,20 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 
 Trellis 方案从 idea 到闭合及封口后的变化，路由至宿主当前声明的 `trellis-idea-to-closed-plan`：它负责详细有序步骤、唯一可观察停止点、阶段推进、审查与批准；`pennix-decision-grill` 只接受重要用户取舍和交互方法委托。模型按项目入口判断独立请求、终态后续、minor/major 与最早受影响阶段；minor 记 `execution.md` 后保持当前阶段，major 调用原生 replan 后重新审查和批准。此处不复制 stage 表、schema 或封口命令参数；旧项目按实际版本合同处理，不能假设仅 `in_progress` 可重开，也不因新增查漏补缺要求自动 replan。
 
+## 五个阶段中的组件路由
+
+目标 Trellis fork 的 bundled workflow 和五个独立阶段 Skill 决定各阶段的工作顺序与转换。下表只说明跨组件路由；组件按当前需要参与，不是每个阶段的必备清单。阶段状态、路线、授权和接受结果由 Trellis CLI 写入。
+
+| 阶段 | 路由重点 | 可能参与的组件与边界 |
+| --- | --- | --- |
+| 阶段 1：目标探索与需求核对 | 建立目标、范围、验收目标和约束的当前基线，并取得用户确认 | 阶段 1 Skill 与 `trellis-idea-to-closed-plan` 负责阶段工作；按问题选择本地代码、外部资料或用户维护知识来源。`pennix-decision-grill` 只处理会改变基线的重要用户取舍。 |
+| 阶段 2：决策空间构造与归并 | 识别并整理实质选项；只有选项依赖、条件分支会改变后续决策时才展开决策树 | 阶段 2 Skill 与 `trellis-idea-to-closed-plan` 负责决策空间；按需使用外部检索核验相关先例，或让 `trellis-teamwork` 提供只读证据。需用户决定的实质取舍交给 `pennix-decision-grill`。 |
+| 阶段 3：解决方案设计与收敛 | 解决保留的用户决定，形成并核对完整方案及适用的实施合同 | 阶段 3 Skill 与规划入口负责收敛；触发 prior-art review 时，在接受正式方案前核验相关开源实现或公开提案。`pennix-decision-grill` 负责必要的同步用户取舍；Trellis CLI 接受阶段结果。 |
+| 阶段 4：任务实施 | 按已接受且获授权的合同实施、集成和验证 | 阶段 4 Skill、源码 owner 仓库规范、`trellis-before-dev` 与 `trellis-check` 负责对应工作。CodeGraph、Context Mode 或语义代码搜索按问题选择；`trellis-teamwork` 只提供只读协作，只有明确授权写入型委派时才由 Paseo 管理 Git worktree。组件部署和项目资产更新仍分别交 Lifecycle 与 Trellis 原生入口。 |
+| 阶段 5：交付审查与收尾 | 核对当前交付及合同内必需工作，处置缺口或允许保留的遗留 | 阶段 5 Skill 与 `trellis-check` 按实际风险审查；必要时调用资源 owner 的清理入口。`trellis-finish-work` 只负责会话收尾，不代替阶段接受或 Trellis CLI 的任务完成操作。 |
+
+formal session handoff package 是用户明确请求时才执行的独立附加操作，不是阶段转换、实施或任务完成的前置条件，也不改变以上路由。
+
 ## 代码检索：先选来源，再选载体
 
 有效代码锚点是可直接查询的路径、文件名、字面量、符号或模块名；只知道项目范围不算。按当前问题选择一个足以推进的来源，不按工具调用量验收：
