@@ -100,3 +100,9 @@
 - 主线路由与 `pennix-decision-grill`、`pennix-grok-search`、`pennix-tavily-search` 的审查差异已在隔离主线工作树形成提交 `6bcb3f1`。路由和决策支持保持条件参与与用户取舍边界；一般外部检索优先 Tavily，Grok 仅用于操作适用或用户/路线明确选择的情况，并保留各自失败合同。
 - 主线验证通过：workflow-routing 合同测试 5 项、decision-grill 合同测试 12 项、Pennix 全套测试 12 项、集合校验 16 个 Skill/2 个 command、四个受影响 Skill 的格式校验和中文写作检查、`git diff --check`。根侧核心模型与参与审计的中文写作检查、相对链接和阶段序号术语扫描均通过。
 - 独立 formal session handoff adapter 验证通过 45 项（跳过 1 项按平台/环境条件测试）；Pennix owner task 原生 `validate` 通过。该适配不进入主线路由，最终组合分支仍需复验。
+
+## 2026-11-02：主线与附加适配组合验收
+
+- 按 owner 计划从主线路由提交 `6bcb3f1` 建立 `pennix/new-fork-workflow-skills-session-handoff-final`，依次接入既有 handoff 提交 `967d18c` 和适配修订 `0026b9d`；最终组合实现提交为 `9b87c01`。既有提交未改写，主线路由提交仍可单独接纳。
+- 最终组合分支验证通过：Pennix 核心测试 12 项、workflow-routing 合同测试 5 项、decision-grill 合同测试 12 项、session-handoff 测试 45 项（跳过 1 项环境条件测试）；`collection.py verify` 确认 16 个 Skill 和 2 个 command。五个受影响 Skill 的格式校验和中文文案检查通过，owner task 原生 `validate` 与历史差异 `git diff --check` 通过。
+- 本 worktree 未绑定当前任务指针，因此 `task.py current --json` 返回 `current_task: null`；显式路径的原生 task 校验通过，任务记录仍为 `in_progress`，等待根任务分别接纳主线路由与附加适配，不据此写入完成状态。
