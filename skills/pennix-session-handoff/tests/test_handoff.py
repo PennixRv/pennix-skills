@@ -38,8 +38,18 @@ class HandoffTests(unittest.TestCase):
             "session = os.environ.get('FIXTURE_TARGET', 'source')\n"
             "source = 'none' if task is None else 'session:' + session\n"
             "if args and args[0] == 'continuity':\n"
+            "    if args[1] == 'capture':\n"
+            "        raise SystemExit(97)\n"
+            "    status = os.environ.get('FIXTURE_CR_STATUS', 'ready')\n"
+            "    if status == 'unavailable':\n"
+            "        print('continuity command unavailable')\n"
+            "        raise SystemExit(2)\n"
+            "    if status == 'withheld':\n"
+            "        print(json.dumps({'status': 'withheld', 'code': 'TASK_CONTINUITY_WITHHELD', 'reason': 'fixture withholding'}))\n"
+            "        raise SystemExit(1)\n"
             "    current = {'task': {'id': 'fixture-task', 'path': " + repr(task_dir) + ", 'status': 'in_progress'}, 'phase': {'current_phase_id': None, 'task_route_revision': None, 'input_revision': None, 'phases': []}, 'evidence_digest': '" + "0" * 64 + "', 'git': {'head': '" + "1" * 40 + "', 'branch': 'main', 'clean': True, 'status_digest': '" + "2" * 64 + "'}}\n"
-            "    print(json.dumps({'status': 'ready', 'source_digest': '" + "c" * 64 + "', 'captured_source_digest': '" + "c" * 64 + "', 'current': current}))\n"
+            "    value = {'status': status, 'source_digest': '" + "c" * 64 + "', 'captured_source_digest': '" + "d" * 64 + "', 'current': current}\n"
+            "    print(json.dumps(value))\n"
             "elif args and args[0] == 'transfer':\n"
             "    op = args[1]\n"
             "    states = {'status': ('ready', 3), 'quiesce': ('quiescing', 1), 'seal': ('sealed', 2), 'retire': ('ready', 3), 'claim': ('claimed', 4), 'consume': ('consumed', 5), 'release': ('released', 1)}\n"
@@ -330,7 +340,9 @@ class HandoffTests(unittest.TestCase):
         payload = json.loads((root / relative).read_text())
         size = handoff.read_view(root, relative, "history", 0, 1)["total_chars"]
         candidate_size = handoff.read_view(root, relative, "history", 0, 1, 1)["total_chars"]
-        base = {"target_source": "session:target", "core_view_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent", "history_read": "none", "history_refs": []}
+        base = {"target_source": "session:target", "core_view_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "history_read": "none", "history_refs": []}
+        with self.assertRaises(handoff.ContractError):
+            handoff.validate_attestation({**base, "continuation_status": "absent"})
         def check(value: dict) -> None:
             handoff._validate_history_reading(root, payload, handoff.validate_attestation(value))
         for change in ({"history_read": "partial"}, {"history_refs": [{"event_index": None, "offset": 0, "next_offset": 1}]}, {"history_read": "full", "history_refs": [{"event_index": 1, "offset": 0, "next_offset": candidate_size}]}, {"history_read": "full", "history_refs": [{"event_index": None, "offset": 1, "next_offset": size}]}, {"history_read": "partial", "history_refs": [{"event_index": True, "offset": 0, "next_offset": 1}]}, {"history_read": "partial", "history_refs": [{"event_index": 999, "offset": 0, "next_offset": 1}]}, {"history_read": "partial", "history_refs": [{"event_index": None, "offset": 0, "next_offset": size + 1}]}, {"history_read": "partial", "history_refs": [{"event_index": None, "offset": 1, "next_offset": 1}]}):
@@ -386,7 +398,7 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         with mock.patch.dict(os.environ, {"FIXTURE_TARGET": "target"}):
             blocked = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
@@ -435,7 +447,7 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         os.environ["FIXTURE_TARGET"] = "target"
         self.addCleanup(os.environ.pop, "FIXTURE_TARGET", None)
@@ -445,7 +457,7 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:other", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         os.environ["FIXTURE_TARGET"] = "other"
         self.addCleanup(os.environ.pop, "FIXTURE_TARGET", None)
@@ -456,7 +468,7 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         repeated = handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
         self.assertEqual(repeated[1]["status"], "idempotent")
@@ -493,8 +505,10 @@ class HandoffTests(unittest.TestCase):
         self.assertIn("sha256", payload["history"])
         self.assertEqual(json.loads(self.run_cli(root, "validate", "--handoff", relative).stdout)["status"], "ready")
         self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
-        receipt = (root / handoff.LIFECYCLE_RUNTIME / (Path(relative).parts[-2] + ".jsonl")).read_text(encoding="utf-8")
-        self.assertNotIn("digest", receipt)
+        receipt = json.loads((root / handoff.LIFECYCLE_RUNTIME / (Path(relative).parts[-2] + ".jsonl")).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["cr_source_digest"], "c" * 64)
+        self.assertNotIn("integrity", receipt)
+        self.assertNotIn("package_digest", receipt)
 
     def test_legacy_schema_is_rejected(self) -> None:
         root = self.make_git_root()
@@ -530,7 +544,7 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_view_read": False, "history_read": "none", "history_refs": [], "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         with self.assertRaisesRegex(handoff.ContractError, "paired handoff prompt"):
             handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
@@ -556,19 +570,19 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["status"], "incomplete")
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_view_read": False, "history_read": "none", "history_refs": [], "prompt_read": False,
             "trellis_started": False, "facts_reconciled": False, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["status"], "incomplete")
         attestation.write_text(json.dumps({
             "target_source": "session:target", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         self.assertEqual(handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))[1]["status"], "recorded")
         self.assertEqual(sum(event["target_status"] == "reconciled" for event in handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)), 1)
@@ -666,7 +680,7 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:target-session", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         (package / "session-handoff-prompt.md").write_text("handoff prompt\n", encoding="utf-8")
         os.environ["FIXTURE_TARGET"] = "target-session"
@@ -737,7 +751,7 @@ class HandoffTests(unittest.TestCase):
         attestation.write_text(json.dumps({
             "target_source": "session:fixture-session", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True,
             "trellis_started": True, "facts_reconciled": True, "action_authorized": False,
-            "task_disposition": "none", "task_path": None, "continuation_status": "absent",
+            "task_disposition": "none", "task_path": None,
         }), encoding="utf-8")
         with self.assertRaisesRegex(handoff.ContractError, "source session id"):
             handoff.lifecycle_admit(root, relative, str(attestation.relative_to(root)))
@@ -781,7 +795,7 @@ class HandoffTests(unittest.TestCase):
         handoff.lifecycle_seal(root, relative, explicit=True)
         self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
         attestation = root / "attestation.json"
-        payload = {"target_source": "session:source", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent"}
+        payload = {"target_source": "session:source", "core_view_read": True, "history_read": "none", "history_refs": [], "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None}
         attestation.write_text(json.dumps(payload))
         with self.assertRaisesRegex(handoff.ContractError, "prepared source session"):
             handoff.lifecycle_admit(root, relative, "attestation.json")
@@ -852,6 +866,42 @@ class HandoffTests(unittest.TestCase):
             (root / ".trellis/scripts/task.py").write_text("import json\nprint(" + repr(json.dumps(value)) + ")\n")
             with self.assertRaises(handoff.ContractError):
                 handoff._task_snapshot(root)
+
+    def test_cr_observation_does_not_gate_package_readiness_or_write_a_record(self) -> None:
+        observations = {
+            "ready": ("ready", "ready", "c" * 64),
+            "absent": ("absent", "absent", "c" * 64),
+            "stale": ("stale", "stale", "c" * 64),
+            "withheld": ("withheld", "withheld", None),
+            "unavailable": (None, "unavailable", None),
+        }
+        for observed_status, (receipt_status, observation_state, digest) in observations.items():
+            with self.subTest(status=observed_status):
+                root = self.make_git_root(with_task=True)
+                self.addCleanup(shutil.rmtree, root)
+                with mock.patch.dict(os.environ, {"FIXTURE_CR_STATUS": observed_status}):
+                    written = self.run_cli(
+                        root, "write", "--request", str(self.make_request(root)), "--explicit-user-request",
+                    )
+                    self.assertEqual(written.returncode, 0, written.stderr)
+                    relative = self.handoff_path_from(written.stdout)
+                    payload = json.loads((root / relative).read_text(encoding="utf-8"))
+                    continuity = payload["work_context"]["task"]["continuity"]
+                    self.assertEqual(continuity["source_digest"], digest)
+                    self.assertEqual(continuity["current"] is not None, digest is not None)
+
+                    prepared = self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only")
+                    self.assertEqual(prepared.returncode, 0, prepared.stderr)
+                    receipt = handoff._read_events(handoff._lifecycle_path(root, payload["handoff_id"]), payload["handoff_id"])
+                    prepare = next(event for event in receipt if event["event_type"] == "prepare")
+                    self.assertEqual(prepare["cr_status"], receipt_status)
+                    self.assertEqual(prepare["cr_source_digest"], digest)
+                    self.assertEqual(prepare["cr_observation_state"], observation_state)
+                    self.assertEqual(handoff.lifecycle_status(root, relative)["cr_observation_state"], observation_state)
+
+                    handoff.ownership_operation(root, "quiesce", relative, explicit=True)
+                    handoff.ownership_operation(root, "seal", relative, explicit=True, expected_generation=1)
+                    self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
 
     def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:
         root = self.make_git_root(with_task=True)

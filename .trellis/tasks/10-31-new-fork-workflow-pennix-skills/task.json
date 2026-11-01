@@ -1,8 +1,8 @@
 {
   "id": "new-fork-workflow-pennix-skills",
   "name": "new-fork-workflow-pennix-skills",
-  "title": "新 fork 工作流：Pennix Skills 主线路由与正式会话交接适配",
-  "description": "跨仓父任务 new-fork-workflow-master-plan-v2 的 Pennix Skills owner task。主线工作更新 pennix-workflow-routing 与 pennix-decision-grill；formal session handoff package 作为独立、较低优先级 work package 单独验收，不进入主线路由或发布准入。两个工作包的源码与本地验证已完成，等待根任务分别接纳；不在本任务发布、安装或更新根仓 gitlink。",
+  "title": "新 fork 工作流：Pennix Skills 审查、主线路由与正式会话交接适配",
+  "description": "跨仓父任务 new-fork-workflow-master-plan-v2 的 Pennix Skills owner task。审查正式集合 16 项 Skill，并按证据修复工作流相关问题；会话交接适配为优先级较低、独立实施与验收的附加 work package，不进入主线路由或主线准入。既有主线与附加适配提交保留，新增差异需按根任务接纳顺序分离；不在本任务发布、安装或更新根仓 gitlink。",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -25,11 +25,11 @@
   "meta": {
     "root_parent_task_id": "new-fork-workflow-master-plan-v2",
     "planning": {
-      "revision": 5,
+      "revision": 7,
       "stage": "plan_closed",
-      "review_digest": "sha256:6f52cbd60c300b7c0e2004ccb0709e98f8e22ed6978def24755ff09651373ede",
+      "review_digest": "sha256:f7a94f1b8fe7018ea3675c7c8cc3cbd2333e02d1a02ae7384a5100fb3d60f2fc",
       "seal": {
-        "revision": 5,
+        "revision": 7,
         "task_id": "new-fork-workflow-pennix-skills",
         "task_name": "10-31-new-fork-workflow-pennix-skills",
         "documents": [
@@ -38,18 +38,18 @@
           "implement.md"
         ],
         "document_digests": {
-          "prd.md": "e93e2632a67c33ef84cdfd2b0c1bd50489e27fa575d18df7f6d38f7b45e37796",
-          "design.md": "e8d05677739dd01f402ef9fd8fd50fbc7b84b19333ea649b08cbf8d0e4eab637",
-          "implement.md": "16000dcef29a4a2a17fea597344a7e03ce932b2661403d58991420ab8353cc12"
+          "prd.md": "779ee21337a6d16031434faaf845d36d78e66153b52b369ccd983b0b36e60e38",
+          "design.md": "e8748cec959fdc6f668fc583e4e907b5986cef7e456f6a5f573dbd103ff5a907",
+          "implement.md": "06bd837e639a51bcaccfb44f6fabf1cc7ddf68fcfc70591c2212a5203a98652e"
         },
         "execution_class": "planned",
         "delivery_mode": "change_bearing",
-        "plan_digest": "sha256:6f52cbd60c300b7c0e2004ccb0709e98f8e22ed6978def24755ff09651373ede",
-        "sealed_at": "2026-10-31T11:53:12.921669+00:00"
+        "plan_digest": "sha256:f7a94f1b8fe7018ea3675c7c8cc3cbd2333e02d1a02ae7384a5100fb3d60f2fc",
+        "sealed_at": "2026-11-01T16:31:39.636422+00:00"
       },
-      "approved_revision": 5,
-      "approval_basis": "用户明确批准子任务持续推进，并授权按已确定方案执行",
-      "approved_at": "2026-10-31T11:53:20.864910+00:00"
+      "approved_revision": 7,
+      "approval_basis": "用户已明确批准子任务直接推进；执行范围受父任务 revision 7 与本 owner 方案约束",
+      "approved_at": "2026-11-01T16:31:39.691848+00:00"
     },
     "execution_class": "planned",
     "delivery_mode": "change_bearing"

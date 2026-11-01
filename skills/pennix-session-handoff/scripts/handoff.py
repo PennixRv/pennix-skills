@@ -40,9 +40,10 @@ AUTHORIZATION = {
 }
 LIFECYCLE_RUNTIME = ".trellis/.runtime/handoff-lifecycle"
 ARCHIVE_RUNTIME = ".trellis/.runtime/handoff-archive"
-LIFECYCLE_SCHEMA_VERSION = 2
+LIFECYCLE_SCHEMA_VERSION = 3
 LIFECYCLE_EVENT_KIND = "pennix-handoff-lifecycle-event"
 CONSUMPTION_STEPS = ("core_view_read", "prompt_read", "trellis_started", "facts_reconciled")
+CR_OBSERVATION_STATES = {"ready", "absent", "stale", "withheld", "unavailable"}
 SOURCE_STATES = {"unprepared", "prepared", "boundary_sealed", "pending", "unavailable", "unsupported", "failed", "expired"}
 TARGET_STATES = {"not_admitted", "admitted", "reconciled", "blocked", "disposed"}
 RETENTION_STATES = {"none", "archive_eligible", "archived", "retained", "restored", "reopened", "purged"}
@@ -141,30 +142,62 @@ def _continuity_call(root: Path, action: str, *arguments: str) -> Dict[str, Any]
         raise ContractError("Trellis continuity returned invalid JSON") from exc
     if not isinstance(value, dict) or contains_secret(value):
         raise ContractError("Trellis continuity returned unsafe data")
-    if result.returncode:
+    if result.returncode and value.get("status") != "withheld":
         reason = _text(value.get("reason"), "continuity failure") if value.get("reason") else "unknown failure"
         raise ContractError("Trellis continuity %s withheld: %s" % (action, reason))
     return value
 
 
+def _continuity_observation(root: Path, task: Optional[Dict[str, str]]) -> Dict[str, Any]:
+    observed_at = datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    if task is None:
+        return {"cr_status": "absent", "cr_source_digest": None, "cr_observed_at": observed_at, "cr_observation_state": "absent", "current": None}
+    try:
+        observed = _continuity_call(root, "show")
+    except (OSError, subprocess.TimeoutExpired, ContractError):
+        return {"cr_status": None, "cr_source_digest": None, "cr_observed_at": observed_at, "cr_observation_state": "unavailable", "current": None}
+
+    status = observed.get("status")
+    if status not in {"ready", "absent", "stale", "withheld"}:
+        status = None
+        state = "unavailable"
+        digest = None
+        current = None
+    elif status == "withheld":
+        state = "withheld"
+        digest = observed.get("source_digest")
+        current = observed.get("current")
+    else:
+        state = status
+        digest = observed.get("source_digest")
+        current = observed.get("current")
+        current_task = current.get("task") if isinstance(current, dict) else None
+        if (
+            not isinstance(digest, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", digest)
+            or not isinstance(current_task, dict)
+            or any(current_task.get(key) != task[key] for key in ("id", "path", "status"))
+        ):
+            state = "withheld"
+
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        digest = None
+    if not isinstance(current, dict):
+        current = None
+    return {
+        "cr_status": status,
+        "cr_source_digest": digest,
+        "cr_observed_at": observed_at,
+        "cr_observation_state": state,
+        "current": current,
+    }
+
+
 def _continuity_snapshot(root: Path, task: Dict[str, str]) -> Dict[str, Any]:
-    observed = _continuity_call(root, "show")
-    if observed.get("status") in {"absent", "stale"}:
-        expected = "absent" if observed["status"] == "absent" else observed.get("captured_source_digest")
-        if not isinstance(expected, str):
-            raise ContractError("Trellis continuity capture has no compare-and-set digest")
-        observed = _continuity_call(root, "capture", "--expected-source-digest", expected)
-    if observed.get("status") != "ready" or not isinstance(observed.get("current"), dict):
-        raise ContractError("current Trellis continuity is not ready")
-    digest = _text(observed.get("source_digest"), "continuity.source_digest")
-    if not re.fullmatch(r"[0-9a-f]{64}", digest):
-        raise ContractError("Trellis continuity digest is invalid")
-    current_task = observed["current"].get("task")
-    if not isinstance(current_task, dict) or any(
-        current_task.get(key) != task[key] for key in ("id", "path", "status")
-    ):
-        raise ContractError("active task changed while capturing continuity")
-    return {"source_digest": digest, "current": observed["current"]}
+    observation = _continuity_observation(root, task)
+    if observation["cr_observation_state"] not in {"ready", "absent", "stale"}:
+        return {"source_digest": None, "current": None}
+    return {"source_digest": observation["cr_source_digest"], "current": observation["current"]}
 
 
 def _git_snapshot(root: Path) -> Dict[str, Any]:
@@ -741,9 +774,15 @@ def _validate_payload_shape(root: Path, payload: Dict[str, Any], handoff_id: str
             raise ContractError("handoff task path is unsafe")
         _project_file(root, task["path"], "task path")
         continuity = _fields(task["continuity"], {"source_digest", "current"}, "task continuity")
-        if not re.fullmatch(r"[0-9a-f]{64}", _text(continuity["source_digest"], "continuity.source_digest")):
-            raise ContractError("task continuity digest is invalid")
-        if not isinstance(continuity["current"], dict) or continuity["current"].get("task") != {"id": task["id"], "path": task["path"], "status": task["status"]}:
+        digest, current = continuity["source_digest"], continuity["current"]
+        if digest is None and current is None:
+            pass
+        elif (
+            not isinstance(digest, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", digest)
+            or not isinstance(current, dict)
+            or current.get("task") != {"id": task["id"], "path": task["path"], "status": task["status"]}
+        ):
             raise ContractError("task continuity projection does not match task snapshot")
     source = payload["source"]
     if not isinstance(source, dict) or set(source) != {"session_label", "git", "evidence", "rollout"}:
@@ -969,15 +1008,21 @@ def _read_paired_prompt(root: Path, handoff_path: str) -> None:
 def _event_shape(event: Any, handoff_id: str) -> Dict[str, Any]:
     if not isinstance(event, dict):
         raise ContractError("lifecycle event schema is invalid")
-    expected = {
+    base_fields = {
         "schema_version", "kind", "handoff_id", "event_type", "source_status", "target_status",
         "retention_status", "observed_at", "actor", "evidence_refs",
     }
-    if set(event) != expected or type(event["schema_version"]) is not int or event["schema_version"] != LIFECYCLE_SCHEMA_VERSION:
+    cr_fields = {"cr_status", "cr_source_digest", "cr_observed_at", "cr_observation_state"}
+    schema_version = event.get("schema_version")
+    event_type = event.get("event_type")
+    expected = base_fields | (cr_fields if schema_version == LIFECYCLE_SCHEMA_VERSION and event_type == "prepare" else set())
+    if set(event) != expected or type(schema_version) is not int or schema_version not in {2, LIFECYCLE_SCHEMA_VERSION}:
         raise ContractError("lifecycle event schema is invalid")
+    if schema_version == 2 and set(event) != base_fields:
+        raise ContractError("legacy lifecycle event schema is invalid")
     if event["kind"] != LIFECYCLE_EVENT_KIND or event["handoff_id"] != handoff_id:
         raise ContractError("lifecycle event identity is invalid")
-    _text(event["event_type"], "event.event_type")
+    _text(event_type, "event.event_type")
     for field, values in (("source_status", SOURCE_STATES), ("target_status", TARGET_STATES), ("retention_status", RETENTION_STATES)):
         value = _text(event[field], "event.%s" % field)
         if value not in values:
@@ -986,6 +1031,25 @@ def _event_shape(event: Any, handoff_id: str) -> Dict[str, Any]:
     if event["actor"] != LIFECYCLE_ACTOR:
         raise ContractError("event.actor is invalid")
     _text_list(event["evidence_refs"], "event.evidence_refs")
+    if schema_version == LIFECYCLE_SCHEMA_VERSION and event_type == "prepare":
+        cr_status = event["cr_status"]
+        cr_digest = event["cr_source_digest"]
+        cr_state = event["cr_observation_state"]
+        if cr_status is not None and (not isinstance(cr_status, str) or cr_status not in {"ready", "absent", "stale", "withheld"}):
+            raise ContractError("event.cr_status is invalid")
+        if cr_digest is not None and (not isinstance(cr_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", cr_digest)):
+            raise ContractError("event.cr_source_digest is invalid")
+        _text(event["cr_observed_at"], "event.cr_observed_at")
+        if not isinstance(cr_state, str) or cr_state not in CR_OBSERVATION_STATES:
+            raise ContractError("event.cr_observation_state is invalid")
+        if cr_state in {"ready", "stale"} and (cr_status != cr_state or cr_digest is None):
+            raise ContractError("event CR observation is incomplete")
+        if cr_state == "absent" and cr_status != "absent":
+            raise ContractError("event CR absence is inconsistent")
+        if cr_state == "withheld" and cr_status not in {"ready", "absent", "stale", "withheld", None}:
+            raise ContractError("event CR withholding is inconsistent")
+        if cr_state == "unavailable" and (cr_status is not None or cr_digest is not None):
+            raise ContractError("unavailable CR observation must not report a CR result")
     if contains_secret(event):
         raise ContractError("lifecycle event contains a possible credential or secret")
     return event
@@ -1158,7 +1222,10 @@ def _source_task_ready(payload: Dict[str, Any], events: list[Dict[str, Any]]) ->
     )
 
 
-def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str]) -> dict[str, Any]:
+def _append_event(
+    root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str],
+    *, cr_observation: Optional[Dict[str, Any]] = None,
+) -> dict[str, Any]:
     path = _lifecycle_path(root, handoff_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)
@@ -1173,6 +1240,8 @@ def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[st
         events = _read_events(path, handoff_id)
         current = _state(events)
         if event_type == "prepare":
+            if cr_observation is None:
+                raise ContractError("prepare requires a Continuity Record observation")
             existing = next((event for event in events if event["event_type"] == "prepare"), None)
             if existing is not None:
                 if _prepared_mode(events) != next((ref.removeprefix("mode=") for ref in evidence_refs if ref.startswith("mode=")), None):
@@ -1205,6 +1274,8 @@ def _append_event(root: Path, handoff_id: str, event_type: str, desired: dict[st
             "retention_status": desired["retention"], "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
             "actor": LIFECYCLE_ACTOR, "evidence_refs": evidence_refs,
         }
+        if event_type == "prepare":
+            event.update({key: cr_observation[key] for key in ("cr_status", "cr_source_digest", "cr_observed_at", "cr_observation_state")})
         encoded = json.dumps(event, ensure_ascii=True, sort_keys=True) + "\n"
         handle.seek(0, 2)
         handle.write(encoded)
@@ -1252,6 +1323,7 @@ def _direct_session_id(root: Path) -> str:
 def _ownership_call(
     root: Path, operation: str, task_id: str, task_path: str, handoff_id: str,
     package_digest: str, expected_generation: Optional[int], *, explicit: bool,
+    expected_continuity_digest: Optional[str] = None,
 ) -> dict[str, Any]:
     script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
     command = [
@@ -1261,6 +1333,8 @@ def _ownership_call(
     ]
     if expected_generation is not None:
         command += ["--expected-generation", str(expected_generation)]
+    if expected_continuity_digest is not None:
+        command += ["--expected-continuity-digest", expected_continuity_digest]
     if explicit:
         command.append("--explicit-user-request")
     result = subprocess.run(
@@ -1319,11 +1393,6 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
     generation = 0 if operation == "quiesce" and expected_generation is None else expected_generation
     if generation is None:
         raise ContractError("expected ownership generation is required")
-    if operation in {"quiesce", "seal", "retire", "consume"}:
-        continuity = _continuity_call(root, "show")
-        captured = payload["work_context"]["task"]["continuity"]["source_digest"]
-        if continuity.get("status") != "ready" or continuity.get("source_digest") != captured:
-            raise ContractError("current Trellis continuity differs from the package snapshot")
     if operation == "quiesce":
         current = _task_current(root).get("current_task")
         if not isinstance(current, dict) or current.get("id") != task_id or current.get("dir") != task_path:
@@ -1332,7 +1401,12 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
     if operation == "retire":
         events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
         _ownership_gate(root, _prepared_mode(events), _state(events), archive_observation or "not_required")
-    result = _ownership_call(root, operation, task_id, task_path, handoff_id, package_digest, generation, explicit=True)
+    captured = payload["work_context"]["task"]["continuity"]["source_digest"]
+    result = _ownership_call(
+        root, operation, task_id, task_path, handoff_id, package_digest, generation,
+        explicit=True,
+        expected_continuity_digest=captured if operation == "quiesce" else None,
+    )
     if operation != "release" and result.get("generation") != generation + 1:
         raise ContractError("Trellis task transfer returned an unexpected generation")
     receipt = _ownership_event(root, handoff_id, operation, result)
@@ -1481,9 +1555,15 @@ def _lifecycle_result(operation: str, handoff_id: str, result: dict[str, Any]) -
 
 
 def lifecycle_prepare(root: Path, handoff_path: str, mode: str) -> tuple[str, dict[str, Any]]:
-    handoff_id, _, _ = _core(root, handoff_path, mutable=True)
+    handoff_id, _, payload = _core(root, handoff_path, mutable=True)
     selected_mode = lifecycle_mode(mode)
-    return handoff_id, _append_event(root, handoff_id, "prepare", {"source": "prepared", "target": "not_admitted", "retention": "none"}, ["mode=" + selected_mode, "source=session:" + _direct_session_id(root)])
+    observation = _continuity_observation(root, payload["work_context"]["task"])
+    return handoff_id, _append_event(
+        root, handoff_id, "prepare",
+        {"source": "prepared", "target": "not_admitted", "retention": "none"},
+        ["mode=" + selected_mode, "source=session:" + _direct_session_id(root)],
+        cr_observation=observation,
+    )
 
 
 def lifecycle_seal(root: Path, handoff_path: str, *, explicit: bool) -> tuple[str, dict[str, Any]]:
@@ -1664,9 +1744,22 @@ def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
         source_ready = (
             source_ready
             and ownership.get("status") in {"sealed", "ready", "claiming", "claimed", "consumed"}
-            and ownership.get("continuity_digest") == task["continuity"]["source_digest"]
+            and (
+                task["continuity"]["source_digest"] is None
+                or ownership.get("continuity_digest") == task["continuity"]["source_digest"]
+            )
         )
-    return {"status": "ready" if source_ready else "pending", "handoff_id": handoff_id, "mode": mode, "state": state, **({"ownership": ownership} if ownership is not None else {})}
+    prepare = next((event for event in events if event["event_type"] == "prepare"), None)
+    cr_observation = {
+        key: prepare[key]
+        for key in ("cr_status", "cr_source_digest", "cr_observed_at", "cr_observation_state")
+        if prepare is not None and key in prepare
+    }
+    return {
+        "status": "ready" if source_ready else "pending", "handoff_id": handoff_id,
+        "mode": mode, "state": state, **cr_observation,
+        **({"ownership": ownership} if ownership is not None else {}),
+    }
 
 
 def emit(operation: str, status: str, reason: Optional[str] = None, **details: Any) -> None:

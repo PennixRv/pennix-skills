@@ -231,7 +231,7 @@ def validate_observation(value: Any) -> Dict[str, Any]:
 def validate_attestation(value: Any) -> Dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {
         "target_source", "core_view_read", "prompt_read", "trellis_started", "facts_reconciled",
-        "action_authorized", "task_disposition", "task_path", "continuation_status",
+        "action_authorized", "task_disposition", "task_path",
         "history_read", "history_refs"
     }:
         raise ContractError("attestation fields are invalid")
@@ -264,16 +264,11 @@ def validate_attestation(value: Any) -> Dict[str, Any]:
         candidate = Path(task_path)
         if candidate.is_absolute() or ".." in candidate.parts or not task_path.startswith(".trellis/tasks/"):
             raise ContractError("attestation task path is unsafe")
-    continuation = value["continuation_status"]
-    if continuation is not None:
-        continuation = _text(continuation, "attestation.continuation_status")
-        if continuation not in {"absent", "ready", "stale", "withheld"}:
-            raise ContractError("attestation continuation status is invalid")
     normalized = {
         "target_source": target_source, "core_view_read": value["core_view_read"], "prompt_read": value["prompt_read"],
         "trellis_started": value["trellis_started"], "facts_reconciled": value["facts_reconciled"],
         "action_authorized": False, "task_disposition": disposition,
-        "task_path": task_path, "continuation_status": continuation,
+        "task_path": task_path,
         "history_read": history_read, "history_refs": history_refs,
     }
     if contains_secret(normalized):

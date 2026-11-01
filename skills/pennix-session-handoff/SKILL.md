@@ -87,11 +87,13 @@ python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view his
   "trellis_started": true, "facts_reconciled": true,
   "history_read": "none", "history_refs": [],
   "action_authorized": false, "task_disposition": "incomplete",
-  "task_path": ".trellis/tasks/<task>", "continuation_status": "withheld"
+  "task_path": ".trellis/tasks/<task>"
 }
 ```
 
 `history_read` 只能为 `none`、`partial` 或 `full`。`none` 必须对应空引用；`partial` 记录实际读到的范围，例如 `{"event_index":1,"offset":0,"next_offset":4096}`，整段历史视图使用 `event_index=null`。`full` 要求整段历史视图的引用覆盖从 0 到末尾且没有缺口；完整阅读一条候选仍只算 `partial`。范围按实际阅读结果填写，可以合并相邻范围；程序检查引用和边界，但不证明代理理解。旧字段 `core_read` 被拒绝。声明与引用仅保存于现有接纳收据，不建立第二份阅读台账。
+
+当前 CR 状态由 source `prepare` 收据中的四个 `cr_*` 字段记录；目标会话在 `$trellis-start` 后重新读取并协调当前 CR。目标 attestation 只用 `facts_reconciled` 表示当前事实已完成对账，不重复记录 CR 状态。
 
 ## 生命周期收据与保留
 
@@ -163,7 +165,7 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.jso
 python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> --expected-generation <n> --explicit-user-request
 ```
 
-`quiesce`、`seal`、`retire` 按连续代数执行：初始代数为 0，依次写入 1、2、3。每一步都核对包中捕获的 CR 摘要；来源任务发生变化时停止，必要时在转出前用 `release` 恢复来源归属并重新准备包。归属屏障由 Trellis 写入；需要时本地 `finalize` 记录额外边界证据，证据缺失保持 pending。
+`quiesce`、`seal`、`retire` 按连续代数执行：初始代数为 0，依次写入 1、2、3。`quiesce` 将包中可用的来源投影摘要交给 Trellis，Trellis 重新计算当前投影并建立归属屏障；之后每一步都核对该实时投影和路线快照。来源事实发生变化时停止，必要时在转出前用 `release` 恢复来源归属并重新准备包。需要时本地 `finalize` 记录额外边界证据，证据缺失保持 pending。
 
 来源尚未完成 `retire` 时，可以在来源会话用当前代数释放转移并恢复原任务指针：
 
@@ -181,7 +183,7 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership status --handoff <core.json
 
 目标必须有自己的直接 `session:<key>` 身份；Trellis `claim` 在授权后设置目标任务指针，之后 `consume` 用下一代数确认归属。目标不继承来源指针。来源转出前可用 `ownership release` 解除屏障；转出后只能由记录的目标会话恢复。任务归属的 `claim` 与 `consume` 和包的 `retention archive` 是彼此独立的操作。目标会话消费归属后，handoff lifecycle status 仍按包收据与来源边界判断，不把归属状态当作任务阶段。任何一种操作都不执行 pending.next_action，不关闭 Trellis 任务，不写入未批准状态，也不删除会话、记忆、资源、watch、rollout 或日志。
 
-Trellis 的只读 `continuity show` 返回当前 CR 状态和来源摘要；`continuity capture --expected-source-digest <digest|absent>` 用比较并交换捕获当前投影。写入包时，适配器确保任务包中保存的 CR 与任务、阶段、路线和 Git 投影相符。包状态 `ready` 仅代表包自身生命周期满足条件，不代表 CR 新鲜、任务可继续或用户已授权。
+Trellis 的只读 `continuity show` 用于记录 CR 观察状态和当前投影摘要；适配器不调用 `continuity capture`。首次 `prepare` 收据保留 `cr_status`、`cr_source_digest`、`cr_observed_at` 和 `cr_observation_state`。CR 缺失、过期、被拒绝读取或 CLI 不可用都按实际状态记录，不改变包自身的结构核验结果。任务归属仍由 Trellis 在 `quiesce` 时重新计算当前投影并建立围栏；CR 无法提供投影摘要时，只有 Trellis 能独立计算当前投影才可继续该操作。包状态 `ready` 不代表 CR 新鲜、任务可继续或用户已授权。
 
 需要新会话入口 prompt 时，在精确 `validate` 返回 `ready` 后执行一次：
 

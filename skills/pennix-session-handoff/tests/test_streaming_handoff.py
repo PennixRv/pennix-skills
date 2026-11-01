@@ -321,7 +321,7 @@ class StreamingHandoffTests(unittest.TestCase):
             run(fixtures.SCRIPT, "prepare", "--handoff", relative)
             run(fixtures.SCRIPT, "seal", "--handoff", relative, "--explicit-user-request")
             attestation = self.root / "resource-attestation.json"
-            attestation.write_text(json.dumps({"target_source": "session:target", "core_view_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "continuation_status": "absent", "history_read": "full", "history_refs": [{"event_index": None, "offset": 0, "next_offset": payload["history"]["characters"]}]}))
+            attestation.write_text(json.dumps({"target_source": "session:target", "core_view_read": True, "prompt_read": True, "trellis_started": True, "facts_reconciled": True, "action_authorized": False, "task_disposition": "none", "task_path": None, "history_read": "full", "history_refs": [{"event_index": None, "offset": 0, "next_offset": payload["history"]["characters"]}]}))
             run(fixtures.SCRIPT, "admit", "--handoff", relative, "--attestation", str(attestation.relative_to(self.root)), target="target")
             if scale == 100000:
                 receipt = handoff._lifecycle_path(self.root, identifier)

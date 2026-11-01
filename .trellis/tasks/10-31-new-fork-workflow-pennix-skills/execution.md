@@ -23,7 +23,7 @@
 
 ## 2026-11-01：主线路由 work package 验收
 
-- 已依据 Trellis owner task 冻结的 workflow/resolver 合同，完成 `pennix-workflow-routing` 与 `pennix-decision-grill` 调整。路由说明五阶段职责、按需组件参与、owner 与状态写入入口、允许的调用路径、停止条件和重新规划触发；决策协助保留用户选择权，不写入 Trellis 状态。
+- 已依据 Trellis owner task 冻结的 workflow/resolver 合同，完成 `pennix-workflow-routing` 与 `pennix-decision-grill` 调整。路由说明各业务阶段职责、按需组件参与、owner 与状态写入入口、允许的调用路径、停止条件和重新规划触发；决策协助保留用户选择权，不写入 Trellis 状态。
 - 主线路由保留与 `formal session handoff package` 的职责和优先级隔离；会话交接不作为阶段转换，也不成为主线路由或主线准入条件。
 - 主线验证通过：workflow-routing 4 项、decision-grill 12 项；`python3 -B scripts/collection.py verify` 验证 16 个 Skills 和 2 个 commands；`git diff --check` 通过。
 
@@ -40,3 +40,63 @@
 - 会话交接适配器测试分别收集后通过：43 项通过、1 项跳过，另有 66 个子测试通过。两份同名 `test_contract.py` 不合并在一次默认 pytest 收集中运行，以避免导入名冲突。
 - `uv run --with pytest`、原生 Trellis `task.py validate`、`python3 -B scripts/collection.py verify`（16 个 Skills、2 个 commands）及 `git diff --check` 均通过。此记录随附加适配器工作包提交；根任务随后记录两个工作包的最终提交引用。
 - 本 owner task 保持 `in_progress / plan_closed`，等待根任务固定提交并完成组合验收；未发布、安装或更新根仓 gitlink。
+
+## 2026-11-01：业务阶段标准称谓复核
+
+- 按已确定的术语规则，将 PRD、设计、实施计划和 `pennix-workflow-routing` 中面向读者的业务阶段引用统一为标准阶段名称或通用“业务阶段”，保留机器标识、稳定引用和历史研究原文。
+- 该修订不改变路线、gate、授权条件、实施范围或验收要求。原生 `replan` 返回 `solution_formation`；revision 6 digest 为 `sha256:8d9264e16d80ef4894ced3b967ce6df96d8d558c41099838cb22b1c279f23365`，原生 `validate` 通过。重封口后继续保持本任务已授权的实施状态。
+
+## 2026-11-01：业务阶段称谓终扫
+
+- 路由表已使用各业务阶段的标准中文名称和对应 Skill 标识；同步移除决策支持合同测试函数名中的序号别名，测试断言继续核对条件性决策树和先例审查规则。
+- 此次复核不改变组件路由或阶段行为。两个 Skill 的合同测试、集合校验、owner task 原生校验及 `git diff --check` 均通过。
+## 2026-11-01：实现审查点复核
+
+- `pennix-workflow-routing` 已按 Trellis CLI 的 `route_dependency_admission` 合同说明：只核验当前路线选中的外部依赖，并在路线入口及产生外部副作用前检查；未选组件不进入门禁。
+- `python3 -m unittest discover -s tests -p 'test_*.py'` 全量 122 项通过；路由 Skill 定向合同测试 4 项通过。
+
+## 2026-11-01：按父任务 revision 7 扩展审查范围
+
+- 父任务批准的 revision 7 要求 Pennix Skills owner task 审查正式集合全部 16 项，而原 owner 计划只覆盖路由、决策协助和独立会话交接适配。已通过原生 `task.py replan` 返回 `intake`，正在更新 owner PRD、设计、实施计划和验收范围；正式集合审查只读，按证据决定是否修改。
+- 主线 `aabe97d`、会话交接 `967d18c` 已是既有提交，另有待审未提交差异。计划保留提交历史：主线审查从 `aabe97d` 建立隔离 worktree；通过后，会话交接延续分支以独立后续提交接入 `967d18c` 及相关差异，使根任务仍能先固定主线、再固定附加适配。
+- 继续沿用官方 Skill 作者指南与中文技术写作规范；不把官方示例变成统一模板、长度门槛或强制 reference，也不把全量审查扩成无依据的全量改写。
+
+## 2026-11-02：外部检索路由冲突纳入方案
+
+- 对照父任务 `external-requirements.md` 和阶段参与审查，确认父任务已决定一般外部访问优先使用 Tavily，Grok 仅在操作适用或路线明确选择时使用；当前 `pennix-workflow-routing`、`pennix-grok-search` 与 `pennix-tavily-search` 仍描述 Grok 优先，存在明确冲突。
+- owner 方案已补入路由及两个来源 Skill 的修订范围，并保留各 Skill 已有失败合同：Tavily 失败不自动改用其他服务商；Grok 仅作为适用操作或明确选择的来源，原有有界 Tavily 后备仍受来源、工具和隐私约束。
+- 本项来自父任务既定决策，不新增用户选择；待 owner task 方案重新封口后，在主线路由 work package 一并实施和验证。
+- 同步更正 owner 计划中 `967d18c` 的完整提交 SHA，并将会话交接独立实施基线固定为仓库已核验提交 `967d18cfcd38303cbe34913632fafcfb045aa4ca`。主线与附加适配的最终组合仍按父任务的 gitlink 接纳顺序处理。
+
+## Pennix Skills 正式集合审查结论
+
+对照当前 `collection.json` 的 16 项正式 Skill 逐项阅读入口描述与 `SKILL.md`；完整阶段参与关系见父任务 `research/pennix-skill-phase-participation-audit.md`。reference、元数据与测试按问题需要核验，未把全量审查扩成全量改写。
+
+| Skill | 与工作流的关系 | 本轮结论 |
+| --- | --- | --- |
+| `pennix-agent-output-quality` | 输出结构按读者任务和交付风险按需参与 | 保持现状 |
+| `pennix-chinese-tech-writing` | 新写或实质改写中文技术内容时使用 | 保持现状，作为本轮写作规范 |
+| `pennix-codegraph-integration` | 代码关系和影响核验按需参与 | 保持现状 |
+| `pennix-component-lifecycle` | 组件安装、配置或版本管理时参与 | 保持现状 |
+| `pennix-decision-grill` | 仅处理需用户取舍的交互 | 纳入主线合同复核，保留条件性提问 |
+| `pennix-context-mode-integration` | 已选来源的文本处理和非交互 CLI 按需使用 | 保持现状 |
+| `pennix-grok-search` | 外部检索的条件来源 | 修正过宽触发，使其仅适用于具体操作或明确选择 |
+| `pennix-project-agents-governance` | 项目规则资产治理相关时参与 | 保持现状 |
+| `pennix-resource-cleanup` | 确有资源清理需求时参与 | 保持现状 |
+| `pennix-session-handoff` | 与业务阶段正交的低优先级附加能力 | 独立验收，不纳入主线路由 |
+| `pennix-siyuan-knowledge` | 用户维护知识需要时参与 | 保持现状 |
+| `pennix-tavily-search` | 当前一般外部检索的优先来源 | 修正触发说明和默认路由，保留来源 Skill 的失败边界 |
+| `pennix-trellis-asset-check` | 只读诊断生成资产时参与 | 保持现状 |
+| `pennix-trellis-project-update` | 更新已管理项目的 Trellis 资产时参与 | 保持现状 |
+| `pennix-windsurf-code-search` | 无有效代码锚点时条件性发现语义候选 | 保持现状，并沿用父任务记录的当前连接缺失事实 |
+| `pennix-workflow-routing` | 跨组件职责与调用路由 | 修正外部检索来源优先级及阶段协作表述 |
+
+其余 Skill 的职责、条件触发和现有交叉链接均与父任务阶段参与审查一致；未发现需要在本 owner task 改写的证据。主线路由及三项来源/路由 Skill 的后续复核和测试结果见下方执行记录。
+
+## 2026-11-02：路由实施审查与扩展 Skill 阶段路由闭环
+
+- 对照父任务核心模型、阶段参与审查和 Trellis owner task 的 `route_dependency_admission` 合同复核主线路由。发现阶段参与表遗漏 `codebase-design` 在实施中遇到真实模块接口/边界设计问题时的适用场景；已补入 Pennix 路由表及根侧核心模型，仍只在具体问题触发时作为辅助方法。
+- 原路由草案要求在路线入口和产生外部副作用前重复核验依赖，没有 Trellis 合同依据，可能形成重复门槛。现改为遵循 Trellis CLI 原生准入合同：只核验当前路线实际选用且需要准入的依赖；没有需要准入的依赖时不建记录，未选能力不成为前置条件。
+- 主线路由与 `pennix-decision-grill`、`pennix-grok-search`、`pennix-tavily-search` 的审查差异已在隔离主线工作树形成提交 `6bcb3f1`。路由和决策支持保持条件参与与用户取舍边界；一般外部检索优先 Tavily，Grok 仅用于操作适用或用户/路线明确选择的情况，并保留各自失败合同。
+- 主线验证通过：workflow-routing 合同测试 5 项、decision-grill 合同测试 12 项、Pennix 全套测试 12 项、集合校验 16 个 Skill/2 个 command、四个受影响 Skill 的格式校验和中文写作检查、`git diff --check`。根侧核心模型与参与审计的中文写作检查、相对链接和阶段序号术语扫描均通过。
+- 独立 formal session handoff adapter 验证通过 45 项（跳过 1 项按平台/环境条件测试）；Pennix owner task 原生 `validate` 通过。该适配不进入主线路由，最终组合分支仍需复验。
