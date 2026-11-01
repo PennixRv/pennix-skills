@@ -1,10 +1,12 @@
 ---
 name: pennix-grok-search
-description: 用户明确要求网络搜索、核对当前或最新事实、抓取 URL 或发现网站页面时使用；除非用户要求实时网络访问，不用于本地代码搜索或稳定的离线知识。
+description: 仅在检索操作适合 Grok（如需要 X 来源），或用户/当前路线明确选择 Grok 时使用；一般外部检索优先使用 Tavily。不用于本地代码搜索或稳定的离线知识。
 metadata:
-  short-description: 以 Grok 为首选并使用独立来源的网络检索
+  short-description: 使用 Grok 的网页与 X 来源检索
 ---
 # Grok Search
+
+一般外部检索优先使用 `$pennix-tavily-search`；只有操作适合 Grok 或用户/当前路线明确选择 Grok 时，才按本 Skill 的命令合同执行。
 
 输出目录维护使用同一 owner 的 `grok-search prune`，不通过 shell 删除输出文件。
 

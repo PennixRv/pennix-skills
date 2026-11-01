@@ -1,11 +1,11 @@
 ---
 name: pennix-tavily-search
-description: 使用自托管 Hikari 的 tvly-hikari CLI 执行 Tavily 专属搜索、URL 提取、限定范围映射与爬取，或在 Grok Search 不可用时执行一次直接后备；不用于本地仓库、通常的 Grok 优先检索或要求特定官方来源或工具的路径。
+description: 使用自托管 Hikari 的 tvly-hikari CLI 进行一般外部检索及 Tavily 搜索、URL 提取、限定范围映射与爬取；不用于本地代码搜索或不符合用户指定来源/工具的请求。
 metadata:
-  short-description: Hikari 承载的 Tavily 网络检索
+  short-description: 使用 Hikari 的 Tavily 网页检索
 ---
 # Tavily Hikari
-仅在 Tavily 专属操作或确认需要从 `grok-search` 切换一次后备时使用已配置的 `tvly-hikari` CLI。它将官方 Tavily CLI 操作转发到用户自托管的 Hikari 端点，并返回结构化结果。普通在线检索从 `grok-search` 开始。
+当前任务需要外部检索时优先使用已配置的 `tvly-hikari` CLI；用户指定其他来源或工具时，按请求路由到相符入口。该 CLI 将官方 Tavily 操作转发到用户自托管的 Hikari 端点，并返回结构化结果。
 配置的端点必须是用户自托管的 Hikari 部署。在配置存在之前，此入口视为不可用；不得使用已有的公共 Hikari 端点。
 
 ## 边界

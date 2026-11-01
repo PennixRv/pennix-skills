@@ -47,7 +47,7 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 | 已批准项目的符号、调用关系、架构或影响范围 | 优先可用 CodeGraph，边界见下节 | 返回源码区段可复用；缺失或陈旧部分再核验，不机械重读；未批准项目不得自动启用索引 |
 | 含义与范围明确但没有有效代码锚点的业务、历史或遗留代码定位 | `$pennix-windsurf-code-search` 可直接发现候选，既有外部边界不变 | 不强制先 rg／图查询；候选在 Context Mode 内核验当前源码，关系再交 CodeGraph |
 | 加载并遵守项目外 AGENTS.md、SKILL.md 及其必读引用 | 宿主原生入口完整读取，不先尝试 Context Mode | 仅指指令加载；普通项目外数据按实际文件工具权限和来源合同处理 |
-| 当前外部资料、网页或多来源研究 | 先 `$pennix-grok-search`；一次确认不可用后，单次 `$pennix-tavily-search` 自托管辅助路径 | 来源 owner 保留发现和认证合同；已取得资料可由 Context Mode 按来源合同处理/索引，写入任务事实前仍核验 |
+| 当前外部资料、网页或多来源研究 | 优先 `$pennix-tavily-search`；当前操作适合 Grok 或用户/路线明确选择 Grok 时使用 `$pennix-grok-search` | 来源 owner 保留发现和认证合同；已取得资料可由 Context Mode 按来源合同处理/索引，写入任务事实前仍核验 |
 | 长任务或跨轮后台执行 | 按需选择可保留所需运行语义的真实执行接口 | 任务时长本身不排除 Context Mode；需要宿主交互或当前接口无法续接时走对应宿主入口 |
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用 context-mode 限定分析或原生分页读取 | 不把原始结果重新塞回工具参数，分析结果不自动晋升为任务事实 |
 | 工作流缓存、Channel、输出、备份或历史资源的盘点与清理 | `$pennix-resource-cleanup`，再转资源 owner 的原生清理入口 | 默认只读；精确预览和明确授权后才允许 owner 执行 |
@@ -61,19 +61,21 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 
 Trellis 方案从 idea 到闭合及封口后的变化，路由至宿主当前声明的 `trellis-idea-to-closed-plan`：它负责详细有序步骤、唯一可观察停止点、阶段推进、审查与批准；`pennix-decision-grill` 只接受重要用户取舍和交互方法委托。模型按项目入口判断独立请求、终态后续、minor/major 与最早受影响阶段；minor 记 `execution.md` 后保持当前阶段，major 调用原生 replan 后重新审查和批准。此处不复制 stage 表、schema 或封口命令参数；旧项目按实际版本合同处理，不能假设仅 `in_progress` 可重开，也不因新增查漏补缺要求自动 replan。
 
-## 五个阶段中的组件路由
+## 各业务阶段中的组件路由
 
-目标 Trellis fork 的 bundled workflow 和五个独立阶段 Skill 决定各阶段的工作顺序与转换。下表只说明跨组件路由；组件按当前需要参与，不是每个阶段的必备清单。阶段状态、路线、授权和接受结果由 Trellis CLI 写入。
+目标 Trellis fork 的 bundled workflow 和各业务阶段对应的 Skill 决定阶段内工作顺序与转换。下表只说明跨组件路由；组件按当前需要参与，不是每个阶段的必备清单。阶段状态、路线、授权和接受结果由 Trellis CLI 写入。路线实际选用且需准入的外部依赖，按 Trellis CLI 的原生准入合同核验；未选能力不列为该路线前置条件。
 
 | 阶段 | 路由重点 | 可能参与的组件与边界 |
 | --- | --- | --- |
-| 阶段 1：目标探索与需求核对 | 建立目标、范围、验收目标和约束的当前基线，并取得用户确认 | 阶段 1 Skill 与 `trellis-idea-to-closed-plan` 负责阶段工作；按问题选择本地代码、外部资料或用户维护知识来源。`pennix-decision-grill` 只处理会改变基线的重要用户取舍。 |
-| 阶段 2：决策空间构造与归并 | 识别并整理实质选项；只有选项依赖、条件分支会改变后续决策时才展开决策树 | 阶段 2 Skill 与 `trellis-idea-to-closed-plan` 负责决策空间；按需使用外部检索核验相关先例，或让 `trellis-teamwork` 提供只读证据。需用户决定的实质取舍交给 `pennix-decision-grill`。 |
-| 阶段 3：解决方案设计与收敛 | 解决保留的用户决定，形成并核对完整方案及适用的实施合同 | 阶段 3 Skill 与规划入口负责收敛；触发 prior-art review 时，在接受正式方案前核验相关开源实现或公开提案。`pennix-decision-grill` 负责必要的同步用户取舍；Trellis CLI 接受阶段结果。 |
-| 阶段 4：任务实施 | 按已接受且获授权的合同实施、集成和验证 | 阶段 4 Skill、源码 owner 仓库规范、`trellis-before-dev` 与 `trellis-check` 负责对应工作。CodeGraph、Context Mode 或语义代码搜索按问题选择；`trellis-teamwork` 只提供只读协作，只有明确授权写入型委派时才由 Paseo 管理 Git worktree。组件部署和项目资产更新仍分别交 Lifecycle 与 Trellis 原生入口。 |
-| 阶段 5：交付审查与收尾 | 核对当前交付及合同内必需工作，处置缺口或允许保留的遗留 | 阶段 5 Skill 与 `trellis-check` 按实际风险审查；必要时调用资源 owner 的清理入口。`trellis-finish-work` 只负责会话收尾，不代替阶段接受或 Trellis CLI 的任务完成操作。 |
+| 目标探索与需求核对 | 建立目标、范围、验收目标和约束的当前基线，并取得用户确认 | `trellis-goal-exploration-and-requirements` 与 `trellis-idea-to-closed-plan` 负责本阶段工作；按问题选择本地代码、外部资料或用户维护知识来源。`pennix-decision-grill` 只处理会改变基线的重要用户取舍。 |
+| 决策空间构造与归并 | 识别并整理实质选项；只有选项依赖、条件分支会改变后续决策时才展开决策树 | `trellis-decision-space-construction-and-merging` 与 `trellis-idea-to-closed-plan` 负责决策空间；按需使用外部检索核验相关先例，或让 `trellis-teamwork` 提供只读证据。当前宿主声明的 `prototype` 仅在现有证据不足、具体状态或逻辑问题适合交互验证且当前授权涵盖时考虑。需用户决定的实质取舍交给 `pennix-decision-grill`。 |
+| 解决方案设计与收敛 | 解决保留的用户决定，形成并核对完整方案及适用的实施合同 | `trellis-solution-design-and-convergence` 与规划入口负责收敛；触发 prior-art review 时，在接受正式方案前核验相关开源实现或公开提案。当前宿主声明的 `codebase-design` 可辅助实际涉及的模块接口或边界设计；`prototype` 仅在具体模型不确定性适合交互验证时考虑。两者都不替代项目事实、用户决定或 Trellis CLI 接受阶段结果。`pennix-decision-grill` 负责必要的同步用户取舍。 |
+| 任务实施 | 按已接受且获授权的合同实施、集成和验证 | `trellis-task-implementation`、源码 owner 仓库规范、`trellis-before-dev` 与 `trellis-check` 负责相关工作。CodeGraph、Context Mode 或语义代码搜索按问题选择；当前宿主声明的 `codebase-design` 仅在实施中确有模块接口或边界设计问题时提供方法；当前宿主声明的 `diagnosing-bugs` 仅在难定位缺陷或性能回退需要系统诊断时参与，修复后的复发预防由 `trellis-break-loop` 按需处理。`trellis-teamwork` 只提供只读协作，只有明确授权写入型委派时才由 Paseo 管理 Git worktree。组件部署和项目资产更新仍分别交 Lifecycle 与 Trellis 原生入口。 |
+| 交付审查与收尾 | 核对当前交付及合同内必需工作，处置缺口或允许保留的遗留 | `trellis-delivery-review-and-closeout` 与 `trellis-check` 按实际风险审查；必要时调用资源 owner 的清理入口。`trellis-finish-work` 只负责会话收尾，不代替阶段接受或 Trellis CLI 的任务完成操作。 |
 
 formal session handoff package 是用户明确请求时才执行的独立附加操作，不是阶段转换、实施或任务完成的前置条件，也不改变以上路由。
+
+上述扩展 Skill 只在当前宿主已声明且具体触发条件满足时作为辅助方法；它们不是目标 Trellis fork 的 bundled 依赖，也不拥有阶段状态、方案接受或用户授权。
 
 ## 代码检索：先选来源，再选载体
 
@@ -111,17 +113,14 @@ CodeGraph 不可用、缺失、陈旧或 worktree 受限时，保留实际原因
 - 本地检索结果为空、过时或无法解释时先保留具体缺口，不能自动扩大外部范围。外部事实用网页检索，语义代码候选用上节 Windsurf 条件；用户明确指定来源时优先遵守，同时保留任务和凭据边界。
 - `$pennix-grok-search` 的可发现性不构成自动调用理由；调用前必须先判断问题是否确实需要外部资料。
 
-## 外部检索降级
+## 外部检索来源与失败处理
 
-- 普通外部检索必须先走 `$pennix-grok-search`，搜索显式使用 `--no-extra`；`--extra N` 仅在当前请求明确要求或已经获得批准时使用。CLI 自有的有界尝试不构成代理重试；代理不重复整个命令。正确构造的单次 Grok
-  操作若因上游/网络错误、配额、超时、不可用前置条件、来源导致的命令失败或
-  畸形响应而不可用，才将同一个有界请求交给自托管 `$pennix-tavily-search` 一次。
-- 不支持的 CLI 选项、缺少必需参数等可在本地改正的调用/用法错误，先改正调用，不能直接触发降级。
-- 降级只用于有界搜索和已知页面读取；原请求为 map、crawl 或 research 时，只能收敛为满足请求所需的
-  搜索加页面读取，不宣称具备原路径的等价语义。
-- Grok 已返回满足当前请求的可用降级结果时直接消费，不触发 Hikari；只有整个命令不可用才允许这一次降级。代理不重试、不并行双跑、不改配置、不读取配置判断 provider、不暴露诊断中的敏感信息、不再选择第三个 provider。
-  保留用户、task 或 system 指定的来源、工具、时效、隐私和范围约束，并在对外结果中简要说明路由发生变化。
-- 若自托管 Tavily 路径也不可用，报告检索缺口并停止；显式要求特定工具或来源的更高优先级指令始终覆盖本默认规则。
+- 当前任务需要外部检索时优先使用 `$pennix-tavily-search`。Tavily 操作失败时遵循其 Skill 的失败合同并报告检索缺口，不自动重试或改用其他服务商。用户指定来源或工具时，按该请求选择相符入口。
+- 仅在当前操作适合 Grok 或用户/路线明确选择 Grok 时使用 `$pennix-grok-search`。搜索显式使用 `--no-extra`；`--extra N` 仅在当前请求明确要求或已经获得批准时使用。CLI 自有的有界尝试不构成代理重试；代理不重复整个命令。正确构造的单次 Grok 操作若因上游/网络错误、配额、超时、不可用前置条件、来源导致的命令失败或畸形响应而不可用，才可将同一个有界请求交给自托管 `$pennix-tavily-search` 一次，并须继续满足来源、工具、隐私和范围约束。
+- 不支持的 CLI 选项、缺少必需参数等可在本地改正的调用/用法错误，先改正调用，不能直接触发 Grok 后备。
+- 后备只用于有界搜索和已知页面读取；原请求为 map、crawl 或 research 时，只能收敛为满足请求所需的搜索加页面读取，不宣称具备原路径的等价语义。
+- Grok 已返回满足当前请求的可用结果时直接消费，不触发 Hikari；只有整个命令不可用才允许这一次后备。代理不重试、不并行双跑、不改配置、不读取配置判断 provider、不暴露诊断中的敏感信息、不再选择第三个 provider。对外结果简要说明实际来源及任何路由变化。
+- 若该次自托管 Tavily 后备也不可用，报告检索缺口并停止；显式要求特定工具或来源的更高优先级指令始终覆盖本默认规则。
 
 ## 组件职责
 
@@ -148,13 +147,11 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 
 - Context Mode 的索引、摘要和恢复材料不自动成为 task、Issue、授权或配置事实；关键结论回到当前权威来源核验。
 - 不用执行器重实现 Trellis channel watcher、事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
-- `$pennix-grok-search` 负责外部检索，载体不接管其网络调用、凭据读取、备用供应商或错误协议。
-- `openai-docs` 负责其允许的 OpenAI/Codex/API/ChatGPT 官方资料路径；它与 Grok 优先的外部检索各自遵守规定接口。
+- 网页检索来源由上文路由决定；Grok、Tavily 和 `openai-docs` 各自保留来源与调用合同，Context Mode 不接管其网络请求、凭据读取、服务商切换或错误处理。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
 - 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选提交到 Git；Context Mode 本地索引按集成 Skill、用户指令和来源 owner 合同处理，可保存带来源及未核验状态的候选。
 
 ## 输出
 
 路由结论应简要说明：请求语义、唯一责任组件、是否需要先读项目规则、候选如何核验、是否允许持久化、所需用户授权和
-停止条件。若基础工具按正确原生调用仍不可用，保留原错误并停止；外部网络检索仅可按“外部检索降级”使用一次
-自托管 Tavily 路径，其他路径不要用第二套状态机、替代 provider 或自定义重试掩盖能力缺口。
+停止条件。若基础工具按正确原生调用仍不可用，保留原错误并停止；网页检索按“外部检索来源与失败处理”选择适用入口，不用其他路径的状态机、替代服务商或自定义重试掩盖能力缺口。

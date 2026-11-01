@@ -18,14 +18,15 @@ class DecisionGrillContractTests(unittest.TestCase):
         for marker in ("依赖和所需证据已满足", "再按影响与阻断优先级排序", "后序留到之后的轮次", "后序问题可能因回答新出现", "不以凑批次"):
             self.assertIn(marker, self.content)
 
-    def test_phase_two_decision_tree_and_phase_three_prior_art_review_are_conditional(self) -> None:
+    def test_decision_space_and_solution_design_prior_art_review_are_conditional(self) -> None:
         for marker in (
-            "阶段 2 按问题复杂度选择清单、表格或决策树",
+            "决策空间构造与归并按问题复杂度选择清单、表格或决策树",
             "只有选项之间存在会改变后续分支的依赖或条件时，才需要决策树",
-            "阶段 2 可触发 prior-art review",
-            "阶段 3 在接受正式方案前核验相关流行开源实现或公开提案",
+            "该阶段可触发 prior-art review",
+            "解决方案设计与收敛在接受正式方案前核验相关流行开源实现或公开提案",
             "新项目和长期维护项目的大型重构尤其应检查这类参考",
             "不自动变成硬性约束",
+            "外部事实也按 `$pennix-workflow-routing` 选择适用来源",
         ):
             self.assertIn(marker, self.content)
 
