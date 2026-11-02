@@ -173,7 +173,7 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> 
 python3 "$PENNIX_HANDOFF" --project-root . ownership release --handoff <core.json> --expected-generation <n> --explicit-user-request
 ```
 
-新会话完成只读接纳且用户明确授权继续后，才可以 claim 并关闭归属：
+新会话完成只读接纳且用户明确授权继续后，才可以 claim 并消费归属：
 
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . ownership claim --handoff <core.json> --expected-generation <n> --explicit-user-request
@@ -181,7 +181,9 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership consume --handoff <core.jso
 python3 "$PENNIX_HANDOFF" --project-root . ownership status --handoff <core.json>
 ```
 
-目标必须有自己的直接 `session:<key>` 身份；Trellis `claim` 在授权后设置目标任务指针，之后 `consume` 用下一代数确认归属。目标不继承来源指针。来源转出前可用 `ownership release` 解除屏障；转出后只能由记录的目标会话恢复。任务归属的 `claim` 与 `consume` 和包的 `retention archive` 是彼此独立的操作。目标会话消费归属后，handoff lifecycle status 仍按包收据与来源边界判断，不把归属状态当作任务阶段。任何一种操作都不执行 pending.next_action，不关闭 Trellis 任务，不写入未批准状态，也不删除会话、记忆、资源、watch、rollout 或日志。
+目标必须有自己的直接 `session:<key>` 身份；Trellis `claim` 在授权后设置目标任务指针，之后 `consume` 用当前代次确认归属。目标不继承来源指针。来源转出前可用 `ownership release` 解除屏障；稳定的 `claimed` 状态可在用户明确授权和当前代次校验后重新指定目标，进行中的 `claiming` 或 `recovery_required` 则由已记录的操作会话恢复。任务归属的 `claim` 与 `consume` 和包的 `retention archive` 是彼此独立的操作。目标会话消费归属后，handoff lifecycle status 仍按包收据与来源边界判断，不把归属状态当作任务阶段。任何一种操作都不执行 pending.next_action，不关闭 Trellis 任务，不写入未批准状态，也不删除会话、记忆、资源、watch、rollout 或日志。
+
+若 `ownership status` 返回 `claimed`，但 `target_session_id` 与当前直接会话不同，且用户明确授权当前会话接管，可用状态返回的当前代次再次执行 `ownership claim`；Trellis 会将归属目标改为当前会话、递增代次并更新任务指针。随后用 `claim` 返回的代次执行 `consume`；消费前的任务写入仍会被拒绝。若当前会话已是记录目标，直接按当前代次执行 `consume`。进行中的 `claiming` 或 `recovery_required` 仍由对应操作已记录的会话恢复，不以超时自动接管。该恢复只重新指定 Trellis 任务归属，不重新接纳或改写 handoff lifecycle，也不改变 `retention archive`。
 
 Trellis 的只读 `continuity show` 用于记录 CR 观察状态和当前投影摘要；适配器不调用 `continuity capture`。首次 `prepare` 收据保留 `cr_status`、`cr_source_digest`、`cr_observed_at` 和 `cr_observation_state`。CR 缺失、过期、被拒绝读取或 CLI 不可用都按实际状态记录，不改变包自身的结构核验结果。任务归属仍由 Trellis 在 `quiesce` 时重新计算当前投影并建立围栏；CR 无法提供投影摘要时，只有 Trellis 能独立计算当前投影才可继续该操作。包状态 `ready` 不代表 CR 新鲜、任务可继续或用户已授权。
 
