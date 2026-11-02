@@ -2,9 +2,9 @@
 
 ## 边界
 
-本设计落实父任务步骤 5 和 9。既有主线路由和正式会话交接适配分别已提交为 `aabe97d` 与 `967d18c`；本轮扩展对正式集合全部 16 项 Skill 的适用性审查，并按证据修复工作流相关内容。主线路由 work package 可修改正式集合中经审查确认有问题的 Skill、必要 reference 和相关测试；正式会话交接 work package 仍只修改 `pennix-session-handoff` 的 Skill、adapter 脚本和测试。
+本设计落实父任务步骤 5 和 9。既有主线路由和正式会话交接适配分别从 `aabe97d` 与 `967d18c` 延续，并已包含在当前 `main` 历史中；本轮扩展对正式集合全部 16 项 Skill 的适用性审查，并按证据修复工作流相关内容。主线路由 work package 可修改正式集合中经审查确认有问题的 Skill、必要 reference 和相关测试；正式会话交接 work package 仍只修改 `pennix-session-handoff` 的 Skill、adapter 脚本和测试。
 
-主线路由复核在 `aabe97d` 基础上使用独立 worktree，避免把既有 `967d18c` 会话交接提交带入父任务步骤 8 的主线固定点。若审查确认需要主线修改，将已存在的路由与决策协助工作差异按审查结果转入该 worktree，并形成独立主线提交；若没有新增主线差异，则复用 `aabe97d`。会话交接适配在 Trellis owner task 冻结接口后，从 `967d18c` 独立分支实施和验收，不等待 Pennix Skills 主线。两类工作包均通过后，owner task 再从已验收主线建立最终延续分支，接入既有及新会话交接提交并运行组合验证；不改写既有提交。这样根任务可在步骤 8 固定纯主线提交，再于步骤 10 固定包含附加适配的后续提交。两类结果保留独立收据，会话交接不进入主线路由或主线准入。
+所有源码继续在根仓 `pennix-skills` submodule 的既有 `main` checkout 中修改；不另建分支或 Git worktree，也不改写 `aabe97d`、`967d18c` 及其后的提交。主线路由与会话交接适配以逻辑工作包分别审查和记录验收收据，工作区差异和提交按现有主线顺序保留。主线路由收据用于父任务主线验收；会话交接收据仍是优先级较低的独立附加交付，不进入主线路由或主线准入，父任务整体关闭前单独核对。当前 `main` 已含这两类工作的既有提交历史，因此不得为恢复旧的纯主线分叉而 reset、cherry-pick 重建或删除有效提交。
 
 ## 主线路由 work package
 
@@ -30,4 +30,4 @@ adapter 与主线路由没有运行时依赖。主线可以在 adapter 未完成
 
 ## 失败、兼容与回退
 
-Trellis 接口未达到稳定合同时，停止步骤 5 和 9 的依赖实施，保留当前方案和证据，回父任务或本 owner task 重新审查。若只是 Skill 文本、链接或测试错误，在当前 work package 内修复并重验。若 adapter 发现 ready、身份、generation 或权限条件不满足，拒绝继续并保留原生收据，不添加绕过路径。所有改动均在 Pennix Skills 独立 worktree 中，未进入根仓安装或发布。
+Trellis 接口未达到稳定合同时，停止步骤 5 和 9 的依赖实施，保留当前方案和证据，回父任务或本 owner task 重新审查。若只是 Skill 文本、链接或测试错误，在当前 work package 内修复并重验。若 adapter 发现 ready、身份、generation 或权限条件不满足，拒绝继续并保留原生收据，不添加绕过路径。所有改动均在根仓 `pennix-skills` submodule 的既有 `main` checkout 中；完成父任务集成验收前不更新根仓 gitlink，不执行发布或安装。

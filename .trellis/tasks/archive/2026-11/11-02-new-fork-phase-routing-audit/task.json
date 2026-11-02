@@ -1,0 +1,33 @@
+{
+  "id": "new-fork-phase-routing-audit",
+  "name": "new-fork-phase-routing-audit",
+  "title": "Correct workflow phase routing boundaries",
+  "description": "Remove the host planning entry from target fork phase routing and include conditional decision support in delivery review routing.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-02",
+  "completedAt": "2026-11-02",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning": {
+      "revision": 3,
+      "stage": "direct_ready"
+    },
+    "execution_class": "direct",
+    "delivery_mode": "change_bearing"
+  }
+}

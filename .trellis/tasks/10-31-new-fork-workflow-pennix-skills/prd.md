@@ -6,7 +6,7 @@
 
 ## 需求
 
-- 目标基线为 Pennix Skills `088caf16cfd6ff4e20fe08adbb1d503f9d715642`，集成目标为 `main`；源码只在本仓库的专用 owner worktree 修改。既有主线提交 `aabe97d` 与会话交接提交 `967d18c` 保持不变；主线复核从 `aabe97d` 建立隔离 worktree，会话交接适配在 Trellis 接口冻结后从 `967d18c` 独立实施，最终组合阶段再接到已验收主线提交。
+- 初始 owner task 基线为 Pennix Skills `088caf16cfd6ff4e20fe08adbb1d503f9d715642`，集成目标为 `main`。源码继续在根仓 `pennix-skills` submodule 的既有 `main` checkout 修改；当前 HEAD 为 `b8fc139b`，保留 `aabe97d`、`967d18c` 及其后的全部主线提交和当前工作区差异。主线路由审查与正式会话交接适配仍是逻辑上分别验收的工作包，但不通过新分支或额外 Git worktree 隔离，也不重写既有提交；接纳顺序按父任务记录的主线与附加交付合同执行。
 - 主线路由必须明确区分 `owner`、源码维护仓库、安装工具、`state_writer`、`allowed_transport`、退出条件和重新规划触发条件；不能用 Skill 文本接管 Trellis 任务、阶段、路线、授权或接受事实。
 - 主线路由应按各业务阶段的实际职责选择 Trellis、Pennix Skills、Trellis Teamwork、Paseo、CodeGraph、Windsurf Code Search、网页检索、SiYuan、Context Mode、Lifecycle 和宿主原生接口；按需参与，不将所有组件硬编码为每个阶段必需。
 - 当前任务确需外部检索时优先使用 Tavily；仅在具体操作适合 Grok 或用户/当前路线明确选择 Grok 时使用 Grok。遵守所选 Skill 的失败合同和用户指定来源，不因失败自动轮换服务商。

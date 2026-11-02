@@ -106,3 +106,17 @@
 - 按 owner 计划从主线路由提交 `6bcb3f1` 建立 `pennix/new-fork-workflow-skills-session-handoff-final`，依次接入既有 handoff 提交 `967d18c` 和适配修订 `0026b9d`；最终组合实现提交为 `9b87c01`。既有提交未改写，主线路由提交仍可单独接纳。
 - 最终组合分支验证通过：Pennix 核心测试 12 项、workflow-routing 合同测试 5 项、decision-grill 合同测试 12 项、session-handoff 测试 45 项（跳过 1 项环境条件测试）；`collection.py verify` 确认 16 个 Skill 和 2 个 command。五个受影响 Skill 的格式校验和中文文案检查通过，owner task 原生 `validate` 与历史差异 `git diff --check` 通过。
 - 本 worktree 未绑定当前任务指针，因此 `task.py current --json` 返回 `current_task: null`；显式路径的原生 task 校验通过，任务记录仍为 `in_progress`，等待根任务分别接纳主线路由与附加适配，不据此写入完成状态。
+
+## 2026-11-02：按用户指定的 main submodule checkout 继续
+
+- Pennix Skills 当前工作现场为根仓 `pennix-skills` submodule 的 `main` 分支，HEAD 为 `b8fc139b`，包含既有主线路由和正式会话交接适配提交。既有 owner 分支引用及提交历史保留；不创建新分支或额外 worktree。
+- 将主线路由审查的未提交修订保留在 `main`，并明确列出五个真实 bundled 阶段 Skill slug；路由测试检查五个阶段名称与 slug 的对应关系。阶段路由审查 task 的 PRD 和执行记录已通过原生归档入口保存到 `.trellis/tasks/archive/2026-11/11-02-new-fork-phase-routing-audit/`。
+- 本轮验证通过：Pennix 核心测试 12 项、workflow-routing 合同测试 5 项、decision-grill 合同测试 12 项、集合校验（16 个 Skill、2 个 command）、`pennix-workflow-routing` 与 `pennix-grok-search` 中文文案检查，以及 `git diff --check`。`pennix-session-handoff` 源码未改动；其 pytest 专属测试本轮因环境缺少 pytest 且 PyPI TLS 连接失败而未重跑，保留此前 `b8fc139b` 验收的 45 项通过、1 项环境条件跳过结果。
+- 任务仍为 `in_progress / plan_closed`，分支和 base branch 均为 `main`。当前 root gitlink 仍暂存于旧值 `967d18cf`；待组件 owner 接纳和根侧组合验收后再按父任务流程更新。
+
+### 2026-11-02：提交前完整性复核
+
+- 对照父任务阶段术语表和 Trellis bundled 阶段 Skill 清单复核 `pennix-workflow-routing`：五个标准阶段称谓、独立阶段 Skill slug、条件参与组件、Trellis CLI 阶段状态归属和独立 formal session handoff package 边界一致；不把可选 Skill/组件改成每阶段强制门槛。
+- `pennix-grok-search` 的失败说明现如实停止并报告检索缺口，不再隐式转向与其自身职责不符的 Tavily 后备；一般外部检索仍由 workflow routing 依既定来源优先级选择。
+- 当前改动的 workflow-routing 合同测试 5 项、decision-grill 合同测试 12 项、Pennix 核心测试 12 项、16 个 Skill/2 个 command 的集合校验通过，`git diff --check` 通过。formal session handoff 独立 runner 的三组模块此前通过；pytest 专项环境限制沿用前述记录。
+- 组件仍为 `main` 上的未提交现场；根侧组合验收待组件提交与 gitlink 固定后执行，owner task 保持 `in_progress`。
