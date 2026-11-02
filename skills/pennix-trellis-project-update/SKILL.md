@@ -15,7 +15,7 @@ description: "通过当前原生 Trellis CLI 安全更新已管理项目的生�
 
 在明确的项目根目录执行：
 
-1. 读取最近的 `AGENTS.md`、`.trellis/workflow.md`、`.trellis/config.yaml`、`.trellis/.version`、`.trellis/.template-hashes.json`，以及存在时的 `.trellis/workflow-provenance.json`。
+1. 读取最近的 `AGENTS.md`、`.trellis/workflow.md`、`.trellis/config.yaml`、`.trellis/.version` 和 `.trellis/.template-hashes.json`。如果还存在旧的 `.trellis/workflow-provenance.json`，只将其作为历史残留核对；当前 bundled native workflow 的来源与完整性由 Trellis CLI 的版本和模板哈希管理。
 2. 确认存在 `.trellis/`。不存在时停止并使用原生 Trellis 初始化流程；本 Skill 不把初始化作为更新副作用。
 3. 运行 `trellis --version`、`trellis platforms` 和：
 
@@ -51,24 +51,25 @@ trellis update --skip-all
 trellis workflow --list
 ```
 
-Marketplace 内容在获取或写入前必须同时具备模板 ID、明确来源和不可变引用（通常为提交 SHA）。分支名或当前文件内容不足以构成来源。先预览候选，不直接替换活动工作流：
+显式 custom workflow source 只有在用户明确选择时才参与。需要可复现结果时，应使用不可变引用（通常为提交 SHA）；分支名适合用户自行管理的可变来源，不应被误当作发布锁定。先预览候选，不直接替换活动工作流：
 
 ```bash
-trellis workflow --list --marketplace 'gh:OWNER/REPO/path#IMMUTABLE_REF'
+trellis workflow --list --workflow-source 'gh:OWNER/REPO/path#REF'
 trellis workflow --template TEMPLATE_ID \
-  --marketplace 'gh:OWNER/REPO/path#IMMUTABLE_REF' \
+  --workflow-source 'gh:OWNER/REPO/path#REF' \
   --create-new
 ```
 
-明确的 `trellis workflow --create-new` 始终写入 `.trellis/workflow.md.new`，即使活动工作流与此前来源完全相同；它不会更新活动工作流或来源记录。这与 `trellis update --create-new` 写入的冲突候选不同。`modified` 也可能由来源或引用变化，或比较基线变化导致，不能单凭它判断消费者文件被人修改。核对来源、提交和内容后再作结论。审查整个候选，记录接受结果，再用相同的模板、来源和引用应用。只有任务明确授权且活动文件被标记为 modified 时才使用 `--force`。
+明确的 `trellis workflow --create-new` 始终写入 `.trellis/workflow.md.new`，即使活动工作流与此前来源完全相同；它不会更新活动工作流。这与 `trellis update --create-new` 写入的冲突候选不同。审查整个候选，记录接受结果，再用相同的模板和来源应用。只有任务明确授权且活动文件被标记为 modified 时才使用 `--force`。
 
 应用后运行：
 
 ```bash
-trellis workflow --verify
+trellis workflow --list
+trellis workflow --template native
 ```
 
-该命令核对已记录的工作流 ID、来源、引用、内容哈希和活动文件内容。缺少来源记录时，不得仅凭文件内容相同来修复；应通过原生命令选择精确来源并物化，或记录旧状态不可核验并停止。不得在 `native`、Marketplace 模板和保存的本地变体之间悄悄切换。
+对 bundled native，`trellis workflow --template native` 会将活动文件与 CLI 内置模板比较；内容一致时刷新模板哈希，存在本地修改时停止并要求显式处置。对 custom source，保留其显式来源和用户管理边界，不把它悄悄切换为 bundled native 或保存的本地变体。
 
 对 `trellis update --create-new` 候选，逐个决定精确的 `.new` 路径。保留所有待处理或不相同的候选。活动文件已接受且任务已记录处置后，只能删除与活动文件逐字相同的 sidecar：
 
@@ -84,7 +85,7 @@ test -f PATH.new && test ! -L PATH.new && cmp -s -- PATH PATH.new && rm -- PATH.
 
 处理完每个预期候选后：
 
-1. 重新运行 `trellis update --dry-run`；工作流发生变化时，针对持久化的不可变来源运行 `trellis workflow --verify`。
+1. 重新运行 `trellis update --dry-run`；工作流发生变化时，运行 `trellis workflow --list`，并对 bundled native 运行 `trellis workflow --template native` 复核活动文件与模板哈希。
 2. 运行 `git diff --check` 和项目相关测试、lint 或类型检查。
 3. 检查 `git status` 和完整差异。只能留下请求范围内的项目资产和持久化任务证据；每个 `.new` 候选都必须已接受、明确拒绝或作为有解释的待处理项保留。
 4. 确认 `.trellis/.version` 和原生模板哈希仅由 Trellis 修改，项目差异中没有秘密、会话、缓存、运行态或源代码检出目录。
