@@ -128,3 +128,11 @@
 - 修复原生中间态恢复已成功、适配器却因代次没有再次递增而报错的问题；claim 和 retire 均按已记录操作身份与当前代次核对，不为其他会话放宽恢复。
 - Skill 正文与脚本、CLI 参数同步更新。接纳仍是只读协调，不执行 pending next action；恢复归属仍须用户明确授权。
 - 验证通过：handoff unittest 共 46 项，45 项通过、1 项环境条件跳过；覆盖真实 CLI 参数、来源绑定、恢复重试代次及 reconcile 拒绝分支。`collection.py verify` 确认 16 个 Skill 和 2 个 command，差异检查通过。真实集合更新与 Trellis 联合安装结果由根协调任务另录。
+
+## 2026-11-03：四状态目录治理的正式交接适配
+
+- 本项承接父任务已授权的四状态目录治理 G3 组合验收。原交接包保留迁移前路径，已安装 adapter 因直接传入旧路径而返回 `TASK_TRANSFER_WITHHELD`，但 Trellis 已有跨状态唯一名称解析。问题位于本组件，不再复制 Trellis 解析逻辑或改写不可变交接包。
+- 在全部 ownership 和生命周期查询共用的 `_ownership_call` 修复一次：原路径存在时继续精确查询；路径已移动时传递原完整目录名，由 Trellis 唯一解析并保留任务 ID、包绑定、代次、路线和直接身份校验。没有增加依赖、旧路径别名或运行记录写入。
+- 扩充既有回归，在真实移动 fixture 任务目录后核验 ownership、生命周期和包原始字节；修复前失败，修复后通过。同步 Skill 与 prompt renderer 的当前阶段门禁、交付审查、原生 complete/cancel 和 finish-work 仅记录进展的职责，并更新对应合同断言；既有交接 prompt 保持原字节。
+- 独立 handoff runner 的三组测试模块全部通过；`collection.py verify` 确认 16 个 Skill 和 2 个 command，中文文案检查与 `git diff --check` 通过。源码侧对根项目原包实测生命周期 `ready`、归属 `consumed`，原来源摘要保持不变。后续由根任务记录本提交的真实集合更新及安装后联合验收。
+- 所有改动继续落在既有 `main` 分支；本 owner task 保持 `in_progress`，没有修改其生命周期或执行原包业务待办。

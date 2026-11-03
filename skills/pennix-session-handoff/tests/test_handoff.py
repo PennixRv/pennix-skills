@@ -947,6 +947,7 @@ class HandoffTests(unittest.TestCase):
         task_script = root / ".trellis/scripts/task.py"
         task_script.write_text(
             "import json, os, sys\n"
+            "from pathlib import Path\n"
             "args = sys.argv[1:]\n"
             "target = os.environ.get('TRELLIS_CONTEXT_ID') == 'target'\n"
             "task = None if target else {'id': 'fixture-task', 'dir': '.trellis/tasks/demo', 'status': 'in_progress'}\n"
@@ -957,6 +958,11 @@ class HandoffTests(unittest.TestCase):
             "    print(json.dumps({'status': 'ready', 'source_digest': '" + "c" * 64 + "', 'captured_source_digest': '" + "c" * 64 + "', 'current': current}))\n"
             "elif args and args[0] == 'transfer':\n"
             "    op = args[1]\n"
+            "    task_ref = args[args.index('--task-path') + 1]\n"
+            "    task_path = Path('.trellis/tasks/in_progress/demo') if task_ref == 'demo' else Path(task_ref)\n"
+            "    if not task_path.is_dir():\n"
+            "        print(json.dumps({'code': 'TASK_TRANSFER_WITHHELD', 'reason': 'task path is unavailable'}))\n"
+            "        raise SystemExit(1)\n"
             "    with open('.trellis/.runtime/ownership-args.jsonl', 'a', encoding='utf-8') as handle:\n"
             "        handle.write(json.dumps(args) + '\\n')\n"
             "    if op == 'status':\n"
@@ -1015,11 +1021,17 @@ class HandoffTests(unittest.TestCase):
         calls = [json.loads(line) for line in (root / ".trellis/.runtime/ownership-args.jsonl").read_text().splitlines()]
         claim_args = next(args for args in calls if args[1] == "claim")
         self.assertEqual(claim_args[claim_args.index("--expected-continuity-digest") + 1], "c" * 64)
+        self.assertEqual(claim_args[claim_args.index("--task-path") + 1], ".trellis/tasks/demo")
         with self.assertRaises(handoff.ContractError):
             handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=2)
         self.assertEqual(handoff.ownership_operation(root, "consume", relative, explicit=True, expected_generation=4)["ownership"]["status"], "consumed")
+        migrated = root / ".trellis/tasks/in_progress/demo"
+        migrated.parent.mkdir()
+        (root / ".trellis/tasks/demo").rename(migrated)
         self.assertEqual(handoff.ownership_operation(root, "status", relative, explicit=False)["ownership"]["status"], "consumed")
         self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
+        calls = [json.loads(line) for line in (root / ".trellis/.runtime/ownership-args.jsonl").read_text().splitlines()]
+        self.assertEqual(calls[-1][calls[-1].index("--task-path") + 1], "demo")
         self.assertEqual((root / relative).read_bytes(), before)
         events = (root / handoff.LIFECYCLE_RUNTIME / (handoff_id + ".jsonl")).read_text(encoding="utf-8").splitlines()
         self.assertEqual(sum('"event_type": "ownership_claim"' in line for line in events), 1)

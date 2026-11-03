@@ -87,7 +87,7 @@ python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view his
   "trellis_started": true, "facts_reconciled": true,
   "history_read": "none", "history_refs": [],
   "action_authorized": false, "task_disposition": "incomplete",
-  "task_path": ".trellis/tasks/<task>"
+  "task_path": ".trellis/tasks/in_progress/<task>"
 }
 ```
 
@@ -137,7 +137,7 @@ write -> validate -> render -> prepare(core_only)
 
 `admit` 的目标 attestation 始终按固定顺序累计：完整读取核心视图、完整读取配对 prompt、完成 `$trellis-start` 所需上下文、协调当前事实。已有明确上下文时不重复启动检查。未完成的前缀只报告进度，不创建目标预约，也不标记消费；只有完整四步前缀才记录 `reconciled` 这一逻辑消费标记。相同目标可在中断后重试，其他目标不能消费。源仍 pending 时返回 `pending`，保持可重试且不声明消费。`target_source` 必须精确等于当前 Trellis 直接 `session_source` 的 `session:<target-key>`；规范源、源 rollout ID 和 rollout 会话 ID 不能冒充目标身份。
 
-接纳从不执行 `pending.next_action`，不启动任务，不改变任务指针，也不关闭任务。后续继续必须另行获得授权，依次执行归属 `claim` 和 `consume`，再依据当前任务分类和阶段使用 `$trellis-continue`；两项归属操作不推进任务阶段。只读 `analysis_only` 研究保持 planning，不运行 `task.py start`；变更任务只有在当前原生 seal 和批准存在时才 start，已经运行的工作恢复已有检查点。完成任务按原生 Trellis `finish` 或 `archive` 使用精确任务路径，不制造会话指针。
+接纳从不执行 `pending.next_action`，不启动任务，不改变任务指针，也不关闭任务。后续继续必须另行获得授权，依次执行归属 `claim` 和 `consume`，再依据当前任务分类和阶段使用 `$trellis-continue`；两项归属操作不推进任务阶段。只读 `analysis_only` 研究保持 planning，不运行 `task.py start`；变更任务只有在当前阶段授权与接受门禁满足时才 start，已经运行的工作恢复已有检查点。任务关闭按 `$trellis-delivery-review-and-closeout` 核验后，通过原生 `complete` 或 `cancel` 使用当前精确任务路径；它们分别进入 `completed/YYYY-MM` 或 `cancelled`。`$trellis-finish-work` 只记录进展，不代替生命周期关闭，不制造会话指针。
 
 协调接纳后，`retention archive` 核验整包与 prompt，再原子复制 core/history/prompt 三文件；恢复也按整包核验和目录事务进行。重试归档是幂等的；失败归档仍可再次归档，不重复 intake。`restore`、`reopen` 和 `purge` 都要求同一交接 ID。`purge` 在归档核验后通过目录切换移除规范三文件，收据写入失败时恢复原目录；发现未知资产则拒绝清理。它不删除任务、rollout、会话、记忆、资源、watch、日志或远程数据。收据按 JSONL 逐记录处理，保留为审计证据。`status --handoff <core.json>` 用于查看选定生命周期模式是否 ready；渲染器拒绝 pending 高保证模式。
 
@@ -148,7 +148,7 @@ write -> validate -> render -> prepare(core_only)
 1. 核验精确包，并在收据不是 `ready` 时停止。
 2. 在处理 pending next action 前逐页完整读取核心视图和 `session-handoff-prompt.md`，历史按需阅读。
 3. 按 `$trellis-start` 补齐缺失上下文，将捕获任务、Git、证据和待处理动作与当前事实比较。用 `action_authorized=false` 和真实的阅读范围记录累计 `admit` 进度；只有完整核心与 prompt 阅读、上下文初始化和协调序列才算消费。
-4. 如果任务已经实际完成，先按正常 `$trellis-finish-work` 流程完成并归档。
+4. 如果任务已经实际完成，先按 `$trellis-delivery-review-and-closeout` 核验当前交付和接受条件，再使用原生 `complete`；取消则按真实撤回依据使用 `cancel`。`$trellis-finish-work` 仅记录进展。
 5. 如果任务未完成、已变化或被阻塞，不从快照关闭；记录当前处置，并且只有适合继续时使用 `$trellis-continue`。
 6. 协调后停止。不要执行 pending next action，也不要在用户后续指令前开始新的实施。
 
@@ -159,6 +159,8 @@ write -> validate -> render -> prepare(core_only)
 ## 任务归属转移
 
 包含任务时先渲染 prompt，再按以下顺序推进包生命周期和 Trellis 任务归属。适配器只调用项目原生 `.trellis/scripts/task.py continuity` 与 `task.py transfer`，不直接修改任务指针：
+
+包内任务路径保留捕获时的原文。若该路径已随目录治理移动，适配器将原完整目录名交给 Trellis 原生名称解析；Trellis 仍须唯一定位，并核验任务 ID、包绑定、代次、直接身份和路线。原路径仍存在时保持精确路径查询；歧义、身份不符或缺失记录继续拒绝，不建立旧路径别名，不改写交接包或运行记录。
 
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.json> --explicit-user-request
@@ -222,4 +224,4 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 
 渲染器以原子方式创建同一时间戳目录下的 `session-handoff-prompt.md`。首次渲染只是源侧准备；源侧仍需执行 `prepare`、必要的归属 `quiesce/seal`、`finalize` 和适用的 `retire`。确认 `status --handoff <core.json>` 返回 `ready` 后可幂等重跑渲染器，并将其标准输出原样作为最终交付，让用户直接复制 `text` 块到新会话。不要在最终块后追加摘要、核验说明或命令。
 
-生成的 prompt 指导新会话再次核验，使用正常 `$trellis-start`，协调捕获任务，并依据当前事实选择 `$trellis-finish-work` 或 `$trellis-continue`。任务和 next action 只是导航提示，不能覆盖当前用户指令、Trellis 事实、Issue 状态或 Git 状态。ready-only prompt 渲染完成后停止；不要运行 finish、archive 或其他会使收据失效的变更。后续会话必须先完成自身核验和正常 Trellis 启动检查。首次接管在协调后停止，不自动执行 pending action。
+生成的 prompt 指导新会话再次核验，使用正常 `$trellis-start`，协调捕获任务，并依据当前事实选择交付审查或 `$trellis-continue`；`$trellis-finish-work` 记录进展。任务和 next action 只是导航提示，不能覆盖当前用户指令、Trellis 事实、Issue 状态或 Git 状态。ready-only prompt 渲染完成后停止；不要运行 complete、cancel 或其他会使收据失效的变更。后续会话必须先完成自身核验和正常 Trellis 启动检查。首次接管在协调后停止，不自动执行 pending action。

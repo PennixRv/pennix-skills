@@ -1327,9 +1327,11 @@ def _ownership_call(
     include_current: bool = False,
 ) -> dict[str, Any]:
     script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
+    # The immutable package keeps its captured path; Trellis resolves moved tasks.
+    task_ref = task_path if (root / task_path).exists() else Path(task_path).name
     command = [
         sys.executable, str(script), "transfer", operation,
-        "--task-id", task_id, "--task-path", task_path,
+        "--task-id", task_id, "--task-path", task_ref,
         "--package-id", handoff_id, "--package-digest", package_digest,
     ]
     if expected_generation is not None:
