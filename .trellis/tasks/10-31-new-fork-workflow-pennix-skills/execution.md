@@ -120,3 +120,11 @@
 - `pennix-grok-search` 的失败说明现如实停止并报告检索缺口，不再隐式转向与其自身职责不符的 Tavily 后备；一般外部检索仍由 workflow routing 依既定来源优先级选择。
 - 当前改动的 workflow-routing 合同测试 5 项、decision-grill 合同测试 12 项、Pennix 核心测试 12 项、16 个 Skill/2 个 command 的集合校验通过，`git diff --check` 通过。formal session handoff 独立 runner 的三组模块此前通过；pytest 专项环境限制沿用前述记录。
 - 组件仍为 `main` 上的未提交现场；根侧组合验收待组件提交与 gitlink 固定后执行，owner task 保持 `in_progress`。
+
+## 2026-11-03：对齐 Trellis 正式交接恢复合同
+
+- 用户明确要求与 Trellis 源码交接恢复修复配套；所有变更落在本 submodule 既有 `main` 分支，不创建分支或 worktree。
+- handoff 适配器增加原生只读当前投影、显式摘要的 sealed-source claim 和 consumed-target reconcile；保持包来源摘要不可变。先验证原生来源摘要与包一致，再交给 Trellis 校验当前摘要、路线、代次和直接目标身份。
+- 修复原生中间态恢复已成功、适配器却因代次没有再次递增而报错的问题；claim 和 retire 均按已记录操作身份与当前代次核对，不为其他会话放宽恢复。
+- Skill 正文与脚本、CLI 参数同步更新。接纳仍是只读协调，不执行 pending next action；恢复归属仍须用户明确授权。
+- 验证通过：handoff unittest 共 46 项，45 项通过、1 项环境条件跳过；覆盖真实 CLI 参数、来源绑定、恢复重试代次及 reconcile 拒绝分支。`collection.py verify` 确认 16 个 Skill 和 2 个 command，差异检查通过。真实集合更新与 Trellis 联合安装结果由根协调任务另录。

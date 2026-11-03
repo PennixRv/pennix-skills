@@ -903,6 +903,44 @@ class HandoffTests(unittest.TestCase):
                     handoff.ownership_operation(root, "seal", relative, explicit=True, expected_generation=1)
                     self.assertEqual(handoff.lifecycle_status(root, relative)["status"], "ready")
 
+    def test_ownership_recovery_preserves_source_binding_and_retry_generation(self) -> None:
+        root = self.make_git_root(with_task=True)
+        self.addCleanup(shutil.rmtree, root)
+        request = self.make_request(root, self.make_rollout())
+        written = self.run_cli(root, "write", "--request", str(request), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stderr)
+        relative = self.handoff_path_from(written.stdout)
+        core_before = (root / relative).read_bytes()
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
+        source_digest, target_digest = "c" * 64, "e" * 64
+        for status in ("claiming", "recovery_required"):
+            with self.subTest(status=status), mock.patch.dict(os.environ, {"FIXTURE_TARGET": "target"}):
+                previous = {"status": status, "generation": 3, "target_session_id": "target", "continuity_digest": source_digest}
+                claimed = {**previous, "status": "claimed", "target_continuity_digest": target_digest}
+                with mock.patch.object(handoff, "_ownership_call", side_effect=[previous, claimed]) as transfer:
+                    result = handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3, expected_continuity_digest=target_digest)
+                    self.assertEqual(result["ownership"], claimed)
+                    self.assertEqual(transfer.call_args.kwargs["expected_continuity_digest"], target_digest)
+        for status in ("retiring", "recovery_required"):
+            previous = {"status": status, "generation": 3, "source_session_id": "source", "continuity_digest": source_digest}
+            retired = {**previous, "status": "ready"}
+            with self.subTest(status=status), mock.patch.object(handoff, "_ownership_gate"), mock.patch.object(handoff, "_ownership_call", side_effect=[previous, retired]):
+                self.assertEqual(handoff.ownership_operation(root, "retire", relative, explicit=True, expected_generation=3)["ownership"], retired)
+        previous = {"status": "consumed", "generation": 4, "continuity_digest": source_digest}
+        reconciled = {**previous, "generation": 5, "target_continuity_digest": target_digest}
+        with mock.patch.object(handoff, "_ownership_call", side_effect=[previous, reconciled]) as transfer:
+            self.assertEqual(handoff.ownership_operation(root, "reconcile", relative, explicit=True, expected_generation=4, expected_continuity_digest=target_digest)["ownership"], reconciled)
+            self.assertEqual(transfer.call_args.kwargs["expected_continuity_digest"], target_digest)
+        with mock.patch.object(handoff, "_ownership_call", return_value={**previous, "continuity_digest": "d" * 64}) as transfer:
+            with self.assertRaisesRegex(handoff.ContractError, "immutable package source"):
+                handoff.ownership_operation(root, "reconcile", relative, explicit=True, expected_generation=4, expected_continuity_digest=target_digest)
+            self.assertEqual(transfer.call_count, 1)
+        with self.assertRaisesRegex(handoff.ContractError, "explicitly checked"):
+            handoff.ownership_operation(root, "reconcile", relative, explicit=True, expected_generation=4)
+        with self.assertRaisesRegex(handoff.ContractError, "valid expected"):
+            handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3, expected_continuity_digest="invalid")
+        self.assertEqual((root / relative).read_bytes(), core_before)
+
     def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:
         root = self.make_git_root(with_task=True)
         self.addCleanup(shutil.rmtree, root)
@@ -966,8 +1004,17 @@ class HandoffTests(unittest.TestCase):
 
         os.environ["TRELLIS_CONTEXT_ID"] = "target"
         self.addCleanup(os.environ.pop, "TRELLIS_CONTEXT_ID", None)
-        claimed = handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3)
+        inspected = self.run_cli(root, "ownership", "status", "--handoff", relative, "--include-current")
+        self.assertEqual(inspected.returncode, 0, inspected.stderr)
+        calls = [json.loads(line) for line in (root / ".trellis/.runtime/ownership-args.jsonl").read_text().splitlines()]
+        self.assertIn("--include-current", calls[-1])
+        claim = self.run_cli(root, "ownership", "claim", "--handoff", relative, "--expected-generation", "3", "--expected-continuity-digest", "c" * 64, "--explicit-user-request")
+        self.assertEqual(claim.returncode, 0, claim.stderr)
+        claimed = json.loads(claim.stdout)
         self.assertEqual(claimed["ownership"]["status"], "claimed")
+        calls = [json.loads(line) for line in (root / ".trellis/.runtime/ownership-args.jsonl").read_text().splitlines()]
+        claim_args = next(args for args in calls if args[1] == "claim")
+        self.assertEqual(claim_args[claim_args.index("--expected-continuity-digest") + 1], "c" * 64)
         with self.assertRaises(handoff.ContractError):
             handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=2)
         self.assertEqual(handoff.ownership_operation(root, "consume", relative, explicit=True, expected_generation=4)["ownership"]["status"], "consumed")

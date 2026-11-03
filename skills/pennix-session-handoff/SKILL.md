@@ -185,6 +185,31 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership status --handoff <core.json
 
 若 `ownership status` 返回 `claimed`，但 `target_session_id` 与当前直接会话不同，且用户明确授权当前会话接管，可用状态返回的当前代次再次执行 `ownership claim`；Trellis 会将归属目标改为当前会话、递增代次并更新任务指针。随后用 `claim` 返回的代次执行 `consume`；消费前的任务写入仍会被拒绝。若当前会话已是记录目标，直接按当前代次执行 `consume`。进行中的 `claiming` 或 `recovery_required` 仍由对应操作已记录的会话恢复，不以超时自动接管。该恢复只重新指定 Trellis 任务归属，不重新接纳或改写 handoff lifecycle，也不改变 `retention archive`。
 
+若来源已 `sealed`，但原会话未执行 `retire`，目标不得冒充来源，也不需要先 `start` 才取得身份。`task.py current --json` 在没有任务指针时也应返回真实 `session_source`；不支持该合同的旧项目先通过 Trellis 原生更新入口修复。
+
+用户明确授权当前会话接管后，先通过只读原生入口取得并核对当前投影；该入口不设置任务指针：
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . ownership status --handoff <core.json> --include-current
+```
+
+完整核对返回的 `current_projection` 中任务、阶段、证据及 Git 事实后，才把 `current_continuity_digest` 明确传给恢复命令。摘要不能自动视为已核对，也不能用旧包摘要替代当前摘要：
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . ownership claim --handoff <core.json> --expected-generation <n> --expected-continuity-digest <已核对的当前摘要> --explicit-user-request
+python3 "$PENNIX_HANDOFF" --project-root . ownership consume --handoff <core.json> --expected-generation <claim返回的代次> --explicit-user-request
+```
+
+Trellis 保留不可变的来源 `continuity_digest`，只将已核对现场记为 `target_continuity_digest`，并在同一归属锁内清除仍匹配的来源指针、设置并核验目标指针。包绑定、当前代次、直接目标身份及原路线不匹配均拒绝。中断后的 `claiming` 或目标侧 `recovery_required` 只能由记录目标用当前代次重试，成功恢复不再递增代次；`retiring` 或来源侧 `recovery_required` 同理由记录来源恢复。
+
+已消费目标如需确认随后发生且原路线不变的授权现场修复，仍先核对 `ownership status --include-current`，再执行：
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . ownership reconcile --handoff <core.json> --expected-generation <n> --expected-continuity-digest <已核对的当前摘要> --explicit-user-request
+```
+
+`reconcile` 只更新目标摘要和代次，不改来源摘要或任务阶段。适配器先核对原生来源摘要仍与不可变包一致；不接受调用者重写来源摘要。旧 Trellis 不支持这些参数时如实停止并更新，不直接修改 `.trellis/.runtime/`，也不以接纳、归档或 `ready` 状态代替任务归属转移。
+
 Trellis 的只读 `continuity show` 用于记录 CR 观察状态和当前投影摘要；适配器不调用 `continuity capture`。首次 `prepare` 收据保留 `cr_status`、`cr_source_digest`、`cr_observed_at` 和 `cr_observation_state`。CR 缺失、过期、被拒绝读取或 CLI 不可用都按实际状态记录，不改变包自身的结构核验结果。任务归属仍由 Trellis 在 `quiesce` 时重新计算当前投影并建立围栏；CR 无法提供投影摘要时，只有 Trellis 能独立计算当前投影才可继续该操作。包状态 `ready` 不代表 CR 新鲜、任务可继续或用户已授权。
 
 需要新会话入口 prompt 时，在精确 `validate` 返回 `ready` 后执行一次：

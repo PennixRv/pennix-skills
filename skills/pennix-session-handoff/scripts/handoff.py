@@ -1324,6 +1324,7 @@ def _ownership_call(
     root: Path, operation: str, task_id: str, task_path: str, handoff_id: str,
     package_digest: str, expected_generation: Optional[int], *, explicit: bool,
     expected_continuity_digest: Optional[str] = None,
+    include_current: bool = False,
 ) -> dict[str, Any]:
     script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
     command = [
@@ -1337,6 +1338,8 @@ def _ownership_call(
         command += ["--expected-continuity-digest", expected_continuity_digest]
     if explicit:
         command.append("--explicit-user-request")
+    if include_current:
+        command.append("--include-current")
     result = subprocess.run(
         command, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         timeout=20, check=False,
@@ -1379,17 +1382,22 @@ def _ownership_gate(root: Path, mode: str, state: dict[str, str], observation: O
         raise ContractError("handoff source boundary is not sealed")
 
 
-def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None) -> dict[str, Any]:
+def ownership_operation(root: Path, operation: str, handoff_path: str, *, explicit: bool, archive_observation: Optional[str] = None, expected_generation: Optional[int] = None, expected_continuity_digest: Optional[str] = None, include_current: bool = False) -> dict[str, Any]:
     handoff_id, core, payload = _core(root, handoff_path, mutable=operation != "status")
     task_id, task_path = _ownership_task(payload)
     package_digest = _ownership_core_digest(core).removeprefix("sha256:")
     if operation == "status":
-        result = _ownership_call(root, operation, task_id, task_path, handoff_id, package_digest, None, explicit=False)
+        result = _ownership_call(root, operation, task_id, task_path, handoff_id, package_digest, None, explicit=False, include_current=include_current)
         return {"handoff_id": handoff_id, "ownership": result}
     if not explicit:
         raise ContractError("ownership writes require --explicit-user-request")
-    if operation not in {"quiesce", "seal", "retire", "claim", "consume", "release"}:
+    if operation not in {"quiesce", "seal", "retire", "claim", "consume", "release", "reconcile"}:
         raise ContractError("task transfer operation is unsupported")
+    if expected_continuity_digest is not None:
+        if operation not in {"claim", "reconcile"} or not re.fullmatch(r"[a-f0-9]{64}", expected_continuity_digest):
+            raise ContractError("claim or reconcile requires a valid expected live SHA-256 digest")
+    if operation == "reconcile" and expected_continuity_digest is None:
+        raise ContractError("reconcile requires an explicitly checked live continuity digest")
     generation = 0 if operation == "quiesce" and expected_generation is None else expected_generation
     if generation is None:
         raise ContractError("expected ownership generation is required")
@@ -1402,12 +1410,24 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
         events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
         _ownership_gate(root, _prepared_mode(events), _state(events), archive_observation or "not_required")
     captured = payload["work_context"]["task"]["continuity"]["source_digest"]
+    recovering_pointer = False
+    if operation in {"claim", "retire", "reconcile"}:
+        previous = _ownership_call(root, "status", task_id, task_path, handoff_id, package_digest, None, explicit=False)
+        if captured is not None and previous.get("continuity_digest") != captured:
+            raise ContractError("Trellis ownership no longer matches the immutable package source digest")
+        recovery_states = {"claiming", "recovery_required"} if operation == "claim" else {"retiring", "recovery_required"}
+        identity_field = "target_session_id" if operation == "claim" else "source_session_id"
+        recovering_pointer = (
+            operation in {"claim", "retire"} and previous.get("status") in recovery_states
+            and previous.get("generation") == generation
+            and previous.get(identity_field) == _direct_session_id(root)
+        )
     result = _ownership_call(
         root, operation, task_id, task_path, handoff_id, package_digest, generation,
         explicit=True,
-        expected_continuity_digest=captured if operation == "quiesce" else None,
+        expected_continuity_digest=captured if operation == "quiesce" else expected_continuity_digest,
     )
-    if operation != "release" and result.get("generation") != generation + 1:
+    if operation != "release" and result.get("generation") != generation + (0 if recovering_pointer else 1):
         raise ContractError("Trellis task transfer returned an unexpected generation")
     receipt = _ownership_event(root, handoff_id, operation, result)
     if operation == "seal" and result.get("status") == "sealed":
@@ -1800,13 +1820,17 @@ def main() -> int:
     status.add_argument("--handoff", required=True)
     ownership = sub.add_parser("ownership")
     ownership_sub = ownership.add_subparsers(dest="ownership_command", required=True)
-    for name in ("quiesce", "seal", "retire", "claim", "consume", "release", "status"):
+    for name in ("quiesce", "seal", "retire", "claim", "consume", "release", "reconcile", "status"):
         command = ownership_sub.add_parser(name)
         command.add_argument("--handoff", required=True)
+        if name == "status":
+            command.add_argument("--include-current", action="store_true")
         if name == "retire":
             command.add_argument("--archive-observation", choices=("not_required", "observed"), default="not_required")
-        if name in {"seal", "retire", "claim", "consume", "release"}:
+        if name in {"seal", "retire", "claim", "consume", "release", "reconcile"}:
             command.add_argument("--expected-generation", required=True, type=int)
+        if name in {"claim", "reconcile"}:
+            command.add_argument("--expected-continuity-digest", required=name == "reconcile")
         if name != "status":
             command.add_argument("--explicit-user-request", action="store_true")
     retention = sub.add_parser("retention")
@@ -1858,6 +1882,8 @@ def main() -> int:
                 explicit=getattr(args, "explicit_user_request", False),
                 archive_observation=getattr(args, "archive_observation", None),
                 expected_generation=getattr(args, "expected_generation", None),
+                expected_continuity_digest=getattr(args, "expected_continuity_digest", None),
+                include_current=getattr(args, "include_current", False),
             )
             emit("ownership", "recorded", **result)
             return 0
