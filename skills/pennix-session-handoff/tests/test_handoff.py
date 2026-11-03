@@ -926,17 +926,6 @@ class HandoffTests(unittest.TestCase):
             retired = {**previous, "status": "ready"}
             with self.subTest(status=status), mock.patch.object(handoff, "_ownership_gate"), mock.patch.object(handoff, "_ownership_call", side_effect=[previous, retired]):
                 self.assertEqual(handoff.ownership_operation(root, "retire", relative, explicit=True, expected_generation=3)["ownership"], retired)
-        previous = {"status": "consumed", "generation": 4, "continuity_digest": source_digest}
-        reconciled = {**previous, "generation": 5, "target_continuity_digest": target_digest}
-        with mock.patch.object(handoff, "_ownership_call", side_effect=[previous, reconciled]) as transfer:
-            self.assertEqual(handoff.ownership_operation(root, "reconcile", relative, explicit=True, expected_generation=4, expected_continuity_digest=target_digest)["ownership"], reconciled)
-            self.assertEqual(transfer.call_args.kwargs["expected_continuity_digest"], target_digest)
-        with mock.patch.object(handoff, "_ownership_call", return_value={**previous, "continuity_digest": "d" * 64}) as transfer:
-            with self.assertRaisesRegex(handoff.ContractError, "immutable package source"):
-                handoff.ownership_operation(root, "reconcile", relative, explicit=True, expected_generation=4, expected_continuity_digest=target_digest)
-            self.assertEqual(transfer.call_count, 1)
-        with self.assertRaisesRegex(handoff.ContractError, "explicitly checked"):
-            handoff.ownership_operation(root, "reconcile", relative, explicit=True, expected_generation=4)
         with self.assertRaisesRegex(handoff.ContractError, "valid expected"):
             handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3, expected_continuity_digest="invalid")
         self.assertEqual((root / relative).read_bytes(), core_before)

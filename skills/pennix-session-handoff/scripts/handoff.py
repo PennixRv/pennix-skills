@@ -1393,13 +1393,11 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
         return {"handoff_id": handoff_id, "ownership": result}
     if not explicit:
         raise ContractError("ownership writes require --explicit-user-request")
-    if operation not in {"quiesce", "seal", "retire", "claim", "consume", "release", "reconcile"}:
+    if operation not in {"quiesce", "seal", "retire", "claim", "consume", "release"}:
         raise ContractError("task transfer operation is unsupported")
     if expected_continuity_digest is not None:
-        if operation not in {"claim", "reconcile"} or not re.fullmatch(r"[a-f0-9]{64}", expected_continuity_digest):
-            raise ContractError("claim or reconcile requires a valid expected live SHA-256 digest")
-    if operation == "reconcile" and expected_continuity_digest is None:
-        raise ContractError("reconcile requires an explicitly checked live continuity digest")
+        if operation != "claim" or not re.fullmatch(r"[a-f0-9]{64}", expected_continuity_digest):
+            raise ContractError("claim requires a valid expected live SHA-256 digest")
     generation = 0 if operation == "quiesce" and expected_generation is None else expected_generation
     if generation is None:
         raise ContractError("expected ownership generation is required")
@@ -1413,7 +1411,7 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
         _ownership_gate(root, _prepared_mode(events), _state(events), archive_observation or "not_required")
     captured = payload["work_context"]["task"]["continuity"]["source_digest"]
     recovering_pointer = False
-    if operation in {"claim", "retire", "reconcile"}:
+    if operation in {"claim", "retire"}:
         previous = _ownership_call(root, "status", task_id, task_path, handoff_id, package_digest, None, explicit=False)
         if captured is not None and previous.get("continuity_digest") != captured:
             raise ContractError("Trellis ownership no longer matches the immutable package source digest")
@@ -1822,17 +1820,17 @@ def main() -> int:
     status.add_argument("--handoff", required=True)
     ownership = sub.add_parser("ownership")
     ownership_sub = ownership.add_subparsers(dest="ownership_command", required=True)
-    for name in ("quiesce", "seal", "retire", "claim", "consume", "release", "reconcile", "status"):
+    for name in ("quiesce", "seal", "retire", "claim", "consume", "release", "status"):
         command = ownership_sub.add_parser(name)
         command.add_argument("--handoff", required=True)
         if name == "status":
             command.add_argument("--include-current", action="store_true")
         if name == "retire":
             command.add_argument("--archive-observation", choices=("not_required", "observed"), default="not_required")
-        if name in {"seal", "retire", "claim", "consume", "release", "reconcile"}:
+        if name in {"seal", "retire", "claim", "consume", "release"}:
             command.add_argument("--expected-generation", required=True, type=int)
-        if name in {"claim", "reconcile"}:
-            command.add_argument("--expected-continuity-digest", required=name == "reconcile")
+        if name == "claim":
+            command.add_argument("--expected-continuity-digest")
         if name != "status":
             command.add_argument("--explicit-user-request", action="store_true")
     retention = sub.add_parser("retention")

@@ -204,13 +204,9 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership consume --handoff <core.jso
 
 Trellis 保留不可变的来源 `continuity_digest`，只将已核对现场记为 `target_continuity_digest`，并在同一归属锁内清除仍匹配的来源指针、设置并核验目标指针。包绑定、当前代次、直接目标身份及原路线不匹配均拒绝。中断后的 `claiming` 或目标侧 `recovery_required` 只能由记录目标用当前代次重试，成功恢复不再递增代次；`retiring` 或来源侧 `recovery_required` 同理由记录来源恢复。
 
-已消费目标如需确认随后发生且原路线不变的授权现场修复，仍先核对 `ownership status --include-current`，再执行：
+`consume` 成功后，任务归属转移完成；目标会话的普通任务修改、提交、阶段推进和交付收尾不再更新 handoff ownership generation，也不重新协调或改写原交接包。需要查看当前任务投影时只调用 `ownership status --include-current`；它是只读查询。若在 `claim` 前发现当前投影发生变化，回到上面的显式摘要核对和 `claim --expected-continuity-digest` 恢复路径，不为普通工作增加 post-consume 同步入口。
 
-```bash
-python3 "$PENNIX_HANDOFF" --project-root . ownership reconcile --handoff <core.json> --expected-generation <n> --expected-continuity-digest <已核对的当前摘要> --explicit-user-request
-```
-
-`reconcile` 只更新目标摘要和代次，不改来源摘要或任务阶段。适配器先核对原生来源摘要仍与不可变包一致；不接受调用者重写来源摘要。旧 Trellis 不支持这些参数时如实停止并更新，不直接修改 `.trellis/.runtime/`，也不以接纳、归档或 `ready` 状态代替任务归属转移。
+旧 Trellis 不支持上述 claim 恢复参数时如实停止并更新，不直接修改 `.trellis/.runtime/`，也不以接纳、归档或 `ready` 状态代替任务归属转移。
 
 Trellis 的只读 `continuity show` 用于记录 CR 观察状态和当前投影摘要；适配器不调用 `continuity capture`。首次 `prepare` 收据保留 `cr_status`、`cr_source_digest`、`cr_observed_at` 和 `cr_observation_state`。CR 缺失、过期、被拒绝读取或 CLI 不可用都按实际状态记录，不改变包自身的结构核验结果。任务归属仍由 Trellis 在 `quiesce` 时重新计算当前投影并建立围栏；CR 无法提供投影摘要时，只有 Trellis 能独立计算当前投影才可继续该操作。包状态 `ready` 不代表 CR 新鲜、任务可继续或用户已授权。
 
