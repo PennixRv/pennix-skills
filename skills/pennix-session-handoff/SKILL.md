@@ -167,7 +167,7 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <core.jso
 python3 "$PENNIX_HANDOFF" --project-root . ownership seal --handoff <core.json> --expected-generation <n> --explicit-user-request
 ```
 
-`quiesce`、`seal`、`retire` 按连续代数执行：初始代数为 0，依次写入 1、2、3。`quiesce` 将包中可用的来源投影摘要交给 Trellis，Trellis 重新计算当前投影并建立归属屏障；之后每一步都核对该实时投影和路线快照。来源事实发生变化时停止，必要时在转出前用 `release` 恢复来源归属并重新准备包。需要时本地 `finalize` 记录额外边界证据，证据缺失保持 pending。
+`quiesce`、`seal`、`retire` 按连续代数执行：没有归属记录时从 0 开始，依次写入 1、2、3；再次交接从当前记录代数开始，每一步递增。`quiesce` 将包中可用的来源投影摘要交给 Trellis，Trellis 重新计算当前投影并建立归属屏障；之后每一步都核对该实时投影和路线快照。来源事实发生变化时停止，必要时在转出前用 `release` 恢复来源归属并重新准备包。需要时本地 `finalize` 记录额外边界证据，证据缺失保持 pending。
 
 来源尚未完成 `retire` 时，可以在来源会话用当前代数释放转移并恢复原任务指针：
 
@@ -205,6 +205,15 @@ python3 "$PENNIX_HANDOFF" --project-root . ownership consume --handoff <core.jso
 Trellis 保留不可变的来源 `continuity_digest`，只将已核对现场记为 `target_continuity_digest`，并在同一归属锁内清除仍匹配的来源指针、设置并核验目标指针。包绑定、当前代次、直接目标身份及原路线不匹配均拒绝。中断后的 `claiming` 或目标侧 `recovery_required` 只能由记录目标用当前代次重试，成功恢复不再递增代次；`retiring` 或来源侧 `recovery_required` 同理由记录来源恢复。
 
 `consume` 成功后，任务归属转移完成；目标会话的普通任务修改、提交、阶段推进和交付收尾不再更新 handoff ownership generation，也不重新协调或改写原交接包。需要查看当前任务投影时只调用 `ownership status --include-current`；它是只读查询。若在 `claim` 前发现当前投影发生变化，回到上面的显式摘要核对和 `claim --expected-continuity-digest` 恢复路径，不为普通工作增加 post-consume 同步入口。
+
+用户再次明确要求跨会话交接同一任务时，由当前 owner 准备一个新包。先按任务只读查询当前归属，再将观察到的代数交给新包的 `quiesce`；不要把旧包的记录缺失或不匹配视为代数 0：
+
+```bash
+python3 .trellis/scripts/task.py transfer status --task-id <当前任务ID> --task-path <当前任务路径> --include-current
+python3 "$PENNIX_HANDOFF" --project-root . ownership quiesce --handoff <新core.json> --expected-generation <当前代数> --explicit-user-request
+```
+
+只有已消费目标的直接会话且任务指针仍匹配，才能用新包建立下一次转移；后续仍按 `seal`、`retire`、`claim`、`consume` 顺序推进。原交接包及其生命周期收据保留原样，不重新接纳，也不承担新转移的状态。
 
 旧 Trellis 不支持上述 claim 恢复参数时如实停止并更新，不直接修改 `.trellis/.runtime/`，也不以接纳、归档或 `ready` 状态代替任务归属转移。
 

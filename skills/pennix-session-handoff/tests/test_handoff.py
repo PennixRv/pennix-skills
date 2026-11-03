@@ -930,6 +930,22 @@ class HandoffTests(unittest.TestCase):
             handoff.ownership_operation(root, "claim", relative, explicit=True, expected_generation=3, expected_continuity_digest="invalid")
         self.assertEqual((root / relative).read_bytes(), core_before)
 
+    def test_another_handoff_passes_the_current_generation_to_native_quiesce(self) -> None:
+        root = self.make_git_root(with_task=True)
+        self.addCleanup(shutil.rmtree, root)
+        written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+        self.assertEqual(written.returncode, 0, written.stderr)
+        relative = self.handoff_path_from(written.stdout)
+        core_before = (root / relative).read_bytes()
+        self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
+        native = {"status": "quiescing", "generation": 6, "source_session_id": "source"}
+        with mock.patch.object(handoff, "_ownership_call", return_value=native) as transfer:
+            result = handoff.ownership_operation(root, "quiesce", relative, explicit=True, expected_generation=5)
+        self.assertEqual(result["ownership"], native)
+        self.assertEqual(transfer.call_args.args[6], 5)
+        self.assertTrue(transfer.call_args.kwargs["explicit"])
+        self.assertEqual((root / relative).read_bytes(), core_before)
+
     def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:
         root = self.make_git_root(with_task=True)
         self.addCleanup(shutil.rmtree, root)
