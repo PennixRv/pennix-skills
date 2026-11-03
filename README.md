@@ -25,7 +25,7 @@ TTY 的配置式执行使用同一模型；`pennix secrets edit` 打开权限为
 
 本集合不复制 lifecycle catalog、执行器、模板、暂存、receipt 或组件适配器，也不
 通过多轮 Agent 对话引导安装。安装后的 Skill 只描述正确入口和 owner 边界，不在
-安装副本形成第二个源码权威。Trellis 任务、Channel、交接、Codex 原生登录、插件、
+安装副本形成第二个源码权威。Trellis 任务、Teamwork、交接、Codex 原生登录、插件、
 Hook/MCP/TUI、项目初始化和外部检索继续使用各自原生入口。
 
 Codex 自定义 Responses API URL 属于 `workflow.config`，静态 API Key 属于私有 `secrets.toml`；运行时通过 Lifecycle 生成的 `auth.command` 读取 Key。这一路径不要求 ChatGPT 浏览器登录。

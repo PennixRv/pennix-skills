@@ -1,6 +1,6 @@
 ---
 name: pennix-resource-cleanup
-description: 用户要求盘点、预览或清理 Pennix 工作流组件产生的缓存、历史输出、Channel 或备份时使用；按资源 owner 的原生清理入口执行，默认只读，不做全局垃圾回收。
+description: 用户要求盘点、预览或清理 Pennix 工作流组件产生的缓存、历史输出、Teamwork 或备份时使用；按资源 owner 的原生清理入口执行，默认只读，不做全局垃圾回收。
 ---
 
 # 工作流资源清理
@@ -18,8 +18,8 @@ description: 用户要求盘点、预览或清理 Pennix 工作流组件产生�
 
 ## 入口归属
 
-- Trellis Channel：使用原生 `trellis channel prune`；默认预览，确认后才带 `--yes`。活动 worker、不可读或损坏的 `events.jsonl`、无效 PID 和无法验证的进程身份必须闭锁。
-- Trellis update 备份：使用原生 `trellis backup list` 查看，使用 `trellis backup prune --keep 3` 预览，确认后才带 `--yes`。未知或未完成备份阻止整批删除。
+- Trellis Teamwork：先读取当前 `trellis teamwork --help` 与项目 Skill，由当前原生资源入口核验活动 session、assignment、进程及报告保留要求；不调用已退役的 channel 命令，不猜造 prune 子命令或自行删除运行目录。
+- Trellis 资产备份：使用 `trellis backup list` 盘点，`inspect`／`verify` 分别核验选定完整快照；`trellis backup prune --keep 3` 默认预览，已有明确授权后再带 `--yes`。日常至少保留三个完整快照，不自动 TTL。用户明确要求全部移除时使用 `--all`；包括已确认归属的旧更新快照和受管迁移单文件备份时再带 `--include-legacy`。执行前重新核对预览与实际状态，报告成功、保留、失败、文件数和字节；未知、损坏、不完整和未解决恢复对象分别报告并保护，不能按名称强删。备份内容与源任务、会话及 ablation 恢复事务是不同对象。
 - Grok Search 输出：使用 owner 的 `grok-search prune`；默认预览，确认后才带 `--yes`。遵守 TTL、总字节数、文件数和活动写入保护。
 - Context Mode：使用 `ctx_purge` 明确声明 session/project 范围与确认；只清当前核验数据根，普通卸载保留数据。自动派生会话数据遵守组件的 30 天活动保留合同，不直接删数据库或目录。
 - 其他服务、Docker、系统包管理器、思源笔记、Hikari、NAS 或远程主机：只有在该 owner 已提供并被当前任务允许的原生清理入口时才继续；否则只报告证据门，不猜测或代为删除。
@@ -32,4 +32,4 @@ description: 用户要求盘点、预览或清理 Pennix 工作流组件产生�
 - 不为补齐统计而读取不必要的原始大文件；能由 owner 返回的计数和字节数优先使用 owner 返回值。
 - 任务存在时，把核验后的清理结果写入当前任务已有的研究、验收或实现进度落点；不另建重复总台账。清理 Skill 本身不改变任务状态、Git、组件版本或项目资产。
 
-跨组件或 owner 不清时先使用 `$pennix-workflow-routing`；涉及系统组件安装、升级或集合接纳时使用 `$pennix-component-lifecycle`。需要持久化已核验事实时使用当前项目的 `$trellis-research-record`，并保留资源 owner、原生命令和原始回执。
+跨组件或 owner 不清时先使用 `$pennix-workflow-routing`；涉及系统组件安装、升级或集合接纳时使用 `$pennix-component-lifecycle`。已核验事实保存到当前任务阶段产物、research 或 execution 自然落点，保留资源 owner、原生命令与回执，不依赖额外研究留存入口。

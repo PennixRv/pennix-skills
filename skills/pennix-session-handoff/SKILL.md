@@ -148,7 +148,7 @@ write -> validate -> render -> prepare(core_only)
 1. 核验精确包，并在收据不是 `ready` 时停止。
 2. 在处理 pending next action 前逐页完整读取核心视图和 `session-handoff-prompt.md`，历史按需阅读。
 3. 按 `$trellis-start` 补齐缺失上下文，将捕获任务、Git、证据和待处理动作与当前事实比较。用 `action_authorized=false` 和真实的阅读范围记录累计 `admit` 进度；只有完整核心与 prompt 阅读、上下文初始化和协调序列才算消费。
-4. 如果任务已经实际完成，先按 `$trellis-delivery-review-and-closeout` 核验当前交付和接受条件，再使用原生 `complete`；取消则按真实撤回依据使用 `cancel`。`$trellis-finish-work` 仅记录进展。
+4. 已经处于 completed／cancelled 的任务只核验当前事实，不重复关闭。仍非终态的任务，即使材料看似完成，也不由接纳授予关闭权；只有另有明确关闭授权、当前归属及原生收尾审查通过时，才独立执行 complete／cancel。接纳阶段停在用户约定位置。`$trellis-finish-work` 仅记录进展。
 5. 如果任务未完成、已变化或被阻塞，不从快照关闭；记录当前处置，并且只有适合继续时使用 `$trellis-continue`。
 6. 协调后停止。不要执行 pending next action，也不要在用户后续指令前开始新的实施。
 

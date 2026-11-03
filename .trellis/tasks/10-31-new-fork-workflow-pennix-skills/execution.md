@@ -136,3 +136,10 @@
 - 扩充既有回归，在真实移动 fixture 任务目录后核验 ownership、生命周期和包原始字节；修复前失败，修复后通过。同步 Skill 与 prompt renderer 的当前阶段门禁、交付审查、原生 complete/cancel 和 finish-work 仅记录进展的职责，并更新对应合同断言；既有交接 prompt 保持原字节。
 - 独立 handoff runner 的三组测试模块全部通过；`collection.py verify` 确认 16 个 Skill 和 2 个 command，中文文案检查与 `git diff --check` 通过。源码侧对根项目原包实测生命周期 `ready`、归属 `consumed`，原来源摘要保持不变。后续由根任务记录本提交的真实集合更新及安装后联合验收。
 - 所有改动继续落在既有 `main` 分支；本 owner task 保持 `in_progress`，没有修改其生命周期或执行原包业务待办。
+
+## 2026-11-03：Skill 体系整体修订
+
+- 父任务 S1–S6 已获用户整体实施、发布及真实重装授权。源码继续在 main；Grill 与路由按五阶段分别处理结果接受和实施授权，保留同范围局部工程继续、重大变化返回最早阶段、整体方案展示和审查。Teamwork 按只读角色提交报告，general 与 batch 分开，不把交互式 run/spawn 当作已验证 batch adapter。
+- 同步 Context Mode、handoff、project-update、asset-check、component-lifecycle、resource-cleanup 的正文及引用；清理走 Trellis 原生 backup 生命周期，正式交接不隐式完成或取消活动任务，显式 custom workflow source 不被无条件替换。
+- 集合结构校验为 16 个 Skill/2 个 command，路由 5 项、handoff 46 项（1 项条件跳过）通过；Grill 测试已从旧规划协议对齐当前合同，待最终重跑。组件提交与 Lifecycle 安装由统一候选验证后执行，尚未改写安装副本。
+- 本轮最终集合校验、核心 12 项、Grill 12 项、路由 5 项、项目更新合同 3 项、资产诊断 4 项、中文规则 23 项、AGENTS 治理 4 项、离线评估 9 项通过；所有修改的 Skill 通过 quick_validate，git diff --check 通过。项目更新测试同步五阶段与只读 Teamwork 角色，不保留已退役工作流的固定措辞。准备提交 main 并由原生 Lifecycle 更新集合，不手改已安装文件。

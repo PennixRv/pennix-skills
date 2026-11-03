@@ -6,9 +6,9 @@
 | --- | --- | --- | --- |
 | Grok Search | 完整结果、运行输出；可重新请求但可能有成本 | 30 天、1 GiB、4096 文件；单次维护最多 8192 条目 / 5 秒 | `grok-search prune` 默认预览，授权后 `--yes`；临时文件、符号链接、活动 grace 保护；回执核对候选、失败和实际文件字节 |
 | Context Mode | 本地会话派生事件、恢复材料及明确主动索引；原始 Codex 历史归宿主 | 自动会话派生数据按最近活动保留 30 天，当前会话受保护；普通主动索引保留 | `ctx_purge` 要求 `confirm: true` 及 `scope: session/project`；session 仅当前核验线程；无原生预览时只读盘点，普通卸载保留数据；不扫描旧根或其他 owner |
-| Trellis Channel | 临时频道与 worker；最小会话关系记录是权威历史 | 原生 age/candidate 选择，不以目录名证明可删 | `trellis channel prune` 默认预览，授权后 `--yes`；事件、PID、身份和 admission 锁未知均保留；频道清理不删除关系历史 |
-| Trellis backup | 项目更新恢复快照；不可凭空重建旧定制 | 最近至少 3 个完整备份；无自动 TTL 删除 | `trellis backup list` / `prune --keep 3`；授权后 `--yes`；更新事务、未知与不完整状态整批阻断 |
-| Trellis mem / task | 原始对话、任务事实与索引；原始历史不可重建 | 按原生历史/归档合同，不作为通用缓存淘汰 | 使用项目原生归档、索引入口；索引可重建不授权删除源历史 |
+| Trellis Teamwork | Teamwork Session、thread、teammate 与事件；与任务生命周期分离 | 按当前原生命令能力；不以目录名或无输出证明可删 | 先检查 `trellis teamwork --help` 和实际会话、进程状态；没有原生清理入口时只读盘点，不猜造 prune 命令或删除事件目录 |
+| Trellis backup | 受管资产快照及迁移单文件副本；不可凭空重建旧定制 | 日常保留最近至少 3 个已核验完整快照；无自动 TTL | `trellis backup list`、`inspect`、`verify`、`prune --keep 3` 默认预览；授权后 `--yes`。显式全清用 `prune --all --include-legacy`，只纳入已核实旧 writer 的快照及受管迁移 `.backup`；活动更新／恢复及其回退快照、未知／不完整对象受保护。恢复先预览并核对 `--review`，任务布局及阶段运行时不兼容时拒绝 |
+| Trellis mem / task | 原始对话、任务事实与索引；原始历史不可重建 | 当前原生任务按 planning／in_progress／completed／cancelled 目录管理，completed 按月分层；不作为缓存淘汰 | 会话日志、任务完成／取消、正式交接分别使用 owner 原生入口；完成不授予删除历史权限，也不再使用已退役 archive 命令 |
 | 正式交接 | 交接包、rollout 投影、恢复材料 | 按交接 owner 的 archive/restore/purge 合同 | 使用 `pennix-session-handoff`；归档、恢复和彻底删除语义不同，不直接删目录 |
 | AOE | worktree、trash、容器、projection；可能含未提交工作 | trash 默认 30 天，实际 profile 为准 | AOE 原生 purge/restore；先取得 dirty 检测、活动保护、per-profile force 和 projection forget 证据，缺证不删 |
 | Codex / Ponytail Plugin | history、rollout、诊断日志、shell snapshot、插件 Store | 宿主自己的保留与版本机制；用户历史保留 | Codex 原生管理入口；旧 catalog key 持续增长需先有元数据证据，插件静态资产不另建 GC |

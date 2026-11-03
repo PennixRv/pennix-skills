@@ -53,7 +53,7 @@ pennix secrets import-ssh --help
 
 组件的原生入口优先于生命周期包装：
 
-- `trellis init`、Trellis 任务、Channel、交接、Hook 和宿主原生交互继续使用各自接口。
+- `trellis init`、Trellis 任务、Teamwork、交接、Hook 和宿主原生交互继续使用各自接口。
 - Codex provider 的 URL、模型和偏好由 owner 按当前 CLI 配置接口更新；静态 Key 只走上述 `auth.command` 读取接口。插件使用 Codex 原生 plugin 命令。
 - CCH、Hikari、Grok、Windsurf 和思源的秘密从 `secrets.toml` 交给各自 owner；未选连接保持关闭，状态输出不回显凭据。
 - 项目初始化、索引建立和服务端部署必须由目标组件的原生流程完成；系统安装不会替代它们。

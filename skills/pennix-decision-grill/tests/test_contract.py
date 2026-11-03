@@ -35,7 +35,7 @@ class DecisionGrillContractTests(unittest.TestCase):
             self.assertIn(marker, self.content)
 
     def test_evidence_does_not_erase_the_decision_checkpoint_or_choose_for_user(self) -> None:
-        for marker in ("先在当前任务保存", "返回动作", "子节点只核验事实，不替用户决定取舍", "不加轮询、另一套调度器", "证据与依赖尚未完成", "不得依据空列表直接封口"):
+        for marker in ("先在当前任务保存", "返回动作", "teammate 只交报告", "不加轮询或另一套调度器", "证据与依赖尚未完成", "空列表不等于整体方案获接受"):
             self.assertIn(marker, self.content)
 
     def test_required_unanswered_question_never_becomes_a_timed_default(self) -> None:
@@ -53,16 +53,16 @@ class DecisionGrillContractTests(unittest.TestCase):
             self.assertIn(marker, self.content)
 
     def test_material_execution_choice_uses_native_phase_while_small_addition_can_continue(self) -> None:
-        for marker in ("立即说明问题、影响与推荐", "trellis-idea-to-closed-plan", "execution.md", "minor", "major", "不手改 `task.json`", "该请求仅授权精确增量", "不创建第二状态机"):
+        for marker in ("说明问题、影响和推荐", "已授权的局部工程选择", "execution 自然落点后继续", "回最早受影响阶段", "不手改 `task.json`", "重新核验受影响接受及授权", "不创建第二状态机"):
             self.assertIn(marker, self.content)
         self.assertNotIn("仅允许 `in_progress` 的 `replan`", self.content)
 
-    def test_final_review_precedes_seal_and_combines_explicit_authorization(self) -> None:
+    def test_final_review_preserves_separate_acceptance_and_authorization(self) -> None:
         review = self.content.split("## 最终方案复核", 1)[1].split("## 执行中的新选择", 1)[0]
-        self.assertLess(review.index("先展示完整方案"), review.index("再按上述宿主交互合同征询"))
-        self.assertIn("trellis-idea-to-closed-plan", review)
+        self.assertLess(review.index("先展示完整方案"), review.index("按宿主交互合同询问"))
+        self.assertIn("trellis-solution-design-and-convergence", review)
         self.assertNotIn("原生 `plan seal`", review)
-        for marker in ("封口并批准推进", "补充／修改方案", "不要求固定口令", "用户只同意封口", "空回执、取消", "不重复索取同一实施批准", "展示后有实质变化", "不盲目重做已成功的 seal"):
+        for marker in ("只接受方案时不推定实施授权", "分别交原生接口记录", "不要求口令", "空回执、取消", "已有充分整体授权不重复询问", "实质变化回最早受影响阶段", "不盲目重做已成功的动作"):
             self.assertIn(marker, review)
 
     def test_plan_review_gate_precedes_final_plan_display(self) -> None:
@@ -73,15 +73,15 @@ class DecisionGrillContractTests(unittest.TestCase):
             "证据或合同问题",
             "用户取舍问题",
             "已知限制",
-            "重复审查",
-            "未通过时不得请求“封口并批准推进”",
-            "不新增 Trellis 状态",
+            "复核受影响材料",
+            "实质矛盾未解决时不请求整体批准",
+            "不新增 Trellis 或 Teamwork 状态",
         ):
             self.assertIn(marker, gate)
-        self.assertIn("先运行一轮独立的方案审查", gate)
+        self.assertIn("独立复核不强制另派代理", gate)
 
     def test_approval_research_and_continue_keep_their_distinct_boundaries(self) -> None:
-        for marker in ("设计回答不授予实施权", "`analysis_only` 完成证据不要求实施批准", "专门批准", "普通继续或充分压缩断点复用已知决定", "模型行为的确定性保证"):
+        for marker in ("逐项设计问答不等于用户认可整体方案", "纯分析完成证据不要求实施批准", "纳入规划不等于实施批准", "普通继续或充分压缩断点复用已知决定", "模型行为的确定性保证"):
             self.assertIn(marker, self.content)
 
     def test_extra_findings_return_to_the_mainline_and_keep_approval_distinct(self) -> None:

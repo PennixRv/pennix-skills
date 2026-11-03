@@ -12,4 +12,4 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 
 `pass` 只表示固定路径存在，且 `.agents/skills/` 的非隐藏直接子目录具有 `SKILL.md`。脚本还报告可选 `Trellis/` 检出状态、包名和旧 `.trellis/codex-workflow.json` 路径；这些报告项不构成全面验收。它不验证 frontmatter、正文语义、版本或摘要匹配、任务阶段、工作流运行正确性、其他组件接入与整体健康。若请求需要这些结论，转到具体 owner 的核验入口，不能把本报告扩写成“工作流已通过”。
 
-本 Skill 不探测服务商、不修改 Codex 配置、不停止工作节点、不安装包、不删除插件缓存，也不写入任务事实。不得用它替代 Trellis 自己的 Channel 生命周期命令。
+本 Skill 不探测服务商、不修改 Codex 配置、不停止 teammate、不安装包、不删除插件缓存，也不写入任务事实。不得替代 Trellis 原生 Teamwork 生命周期接口。

@@ -40,7 +40,7 @@ metadata:
 本 Skill 只负责输出的信息覆盖、详略、重点、结构和语义复核：
 
 - 中文语言、术语、保真和中文排版由 `$pennix-chinese-tech-writing` 负责。
-- Trellis 项目的方案形成、审查、阶段与原生封口批准由当前项目的 `trellis-idea-to-closed-plan` 负责；`$pennix-decision-grill` 负责被委托的重要用户取舍与交互方法。本 Skill 只检查展示内容，不自行推进阶段或增加批准门。
+- Trellis 项目的方案形成、审查、阶段接受和实施授权由已选 workflow 与当前阶段 Skill 负责；`$pennix-decision-grill` 只协助重要用户取舍与交互。本 Skill 检查展示内容，不推进阶段或增加批准门。
 - 任务状态、工具调用、安装、发布、凭据和持久化仍由各自 owner 负责。
 - 不自动改写用户文件，不引入模型评审器，不把字数、标题数量、列表比例或“像不像 AI”当作质量证明。
 

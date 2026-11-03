@@ -9,7 +9,7 @@ description: "通过当前原生 Trellis CLI 安全更新已管理项目的生�
 - 全局组件安装、配置、集合替换或核验使用 `$pennix-component-lifecycle`。
 - 只读本地诊断使用 `pennix-trellis-asset-check`。
 - 已有项目的 Trellis 更新和选定工作流刷新使用本 Skill。不要从 Trellis 检出目录复制文件，也不要创建第二个更新器。
-- Trellis 任务、Channel、交接、Hook 和平台原生协议保留各自原生归属；执行载体不模拟或接管状态机。
+- Trellis 任务、Teamwork、交接、Hook 和平台原生协议保留各自原生归属；执行载体不模拟或接管状态机。
 
 ## 预检
 
@@ -33,7 +33,7 @@ trellis update --dry-run
 trellis update --create-new
 ```
 
-它允许当前 fork 更新安全文件和新增模板文件，并为已修改模板写入 `.new` 候选。逐个按项目合同审查候选。只有封口任务明确选择保留全部已修改文件而不生成候选时，才允许使用 `--skip-all`：
+它允许当前 fork 更新安全文件和新增模板文件，并为已修改模板写入 `.new` 候选。逐个按当前已授权合同审查候选。只有当前方案明确选择保留全部已修改文件而不生成候选时，才使用 `--skip-all`：
 
 ```bash
 trellis update --skip-all
@@ -62,7 +62,7 @@ trellis workflow --template TEMPLATE_ID \
 
 明确的 `trellis workflow --create-new` 始终写入 `.trellis/workflow.md.new`，即使活动工作流与此前来源完全相同；它不会更新活动工作流。这与 `trellis update --create-new` 写入的冲突候选不同。审查整个候选，记录接受结果，再用相同的模板和来源应用。只有任务明确授权且活动文件被标记为 modified 时才使用 `--force`。
 
-应用后运行：
+应用后先核对当前选定来源。仅 bundled native 使用以下原生复核：
 
 ```bash
 trellis workflow --list
@@ -70,6 +70,8 @@ trellis workflow --template native
 ```
 
 对 bundled native，`trellis workflow --template native` 会将活动文件与 CLI 内置模板比较；内容一致时刷新模板哈希，存在本地修改时停止并要求显式处置。对 custom source，保留其显式来源和用户管理边界，不把它悄悄切换为 bundled native 或保存的本地变体。
+
+custom source 使用已接受的相同 TEMPLATE_ID、显式 source 和不可变 REF 复核；必要时重新生成 `.new` 候选并比较，不能运行上面的 native 切换命令代替校验。
 
 对 `trellis update --create-new` 候选，逐个决定精确的 `.new` 路径。保留所有待处理或不相同的候选。活动文件已接受且任务已记录处置后，只能删除与活动文件逐字相同的 sidecar：
 
@@ -79,7 +81,7 @@ test -f PATH.new && test ! -L PATH.new && cmp -s -- PATH PATH.new && rm -- PATH.
 
 删除不同的 sidecar 必须有精确的拒绝记录和授权。不得使用宽泛的 `find ... -delete`、递归清理或未审查命令删除 `.new` 文件。
 
-当前 `codex-subnode-channel` 工作流默认由主会话内联交付；只有明确要求的独立证据才使用子节点，持久化报告仍须由协调代理核验并接受。
+当前 bundled native workflow 采用五阶段路线；Teamwork teammate 按只读角色交付报告，由主代理核验。平台原生可写代理遵循项目另外明确的执行模型，不能当作 Teamwork teammate。
 
 ## 完成核验
 
@@ -90,4 +92,4 @@ test -f PATH.new && test ! -L PATH.new && cmp -s -- PATH PATH.new && rm -- PATH.
 3. 检查 `git status` 和完整差异。只能留下请求范围内的项目资产和持久化任务证据；每个 `.new` 候选都必须已接受、明确拒绝或作为有解释的待处理项保留。
 4. 确认 `.trellis/.version` 和原生模板哈希仅由 Trellis 修改，项目差异中没有秘密、会话、缓存、运行态或源代码检出目录。
 
-原生命令失败、来源缺失、已修改文件需要未封口覆盖决策或核验不完整时，返回规划或决策门禁。不要猜测、强制操作或声称完成。
+原生命令失败、来源缺失、已修改文件需要尚未授权的覆盖决定或核验不完整时，返回受影响阶段或决策入口。不要猜测、强制操作或声称完成。
