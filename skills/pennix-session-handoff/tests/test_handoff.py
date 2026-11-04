@@ -946,6 +946,29 @@ class HandoffTests(unittest.TestCase):
         self.assertTrue(transfer.call_args.kwargs["explicit"])
         self.assertEqual((root / relative).read_bytes(), core_before)
 
+    def test_quiesce_cli_accepts_current_generation_for_another_handoff(self) -> None:
+        for generation in (None, 5):
+            with self.subTest(generation=generation):
+                root = self.make_git_root(with_task=True)
+                self.addCleanup(shutil.rmtree, root)
+                task_script = root / ".trellis/scripts/task.py"
+                task_script.write_text(task_script.read_text().replace(
+                    "    status, generation = states[op]\n",
+                    "    status, generation = states[op]\n"
+                    "    if op == 'quiesce':\n"
+                    "        generation = int(args[args.index('--expected-generation') + 1]) + 1\n",
+                ), encoding="utf-8")
+                written = self.run_cli(root, "write", "--request", str(self.make_request(root)), "--explicit-user-request")
+                self.assertEqual(written.returncode, 0, written.stderr)
+                relative = self.handoff_path_from(written.stdout)
+                self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
+                arguments = [] if generation is None else ["--expected-generation", str(generation)]
+                result = self.run_cli(root, "ownership", "quiesce", "--handoff", relative, *arguments, "--explicit-user-request")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                ownership = json.loads(result.stdout)["ownership"]
+                self.assertEqual(ownership["status"], "quiescing")
+                self.assertEqual(ownership["generation"], (generation or 0) + 1)
+
     def test_ownership_adapter_keeps_core_immutable_and_records_distinct_receipts(self) -> None:
         root = self.make_git_root(with_task=True)
         self.addCleanup(shutil.rmtree, root)

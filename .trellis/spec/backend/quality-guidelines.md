@@ -58,7 +58,7 @@ Questions to answer:
 
 ## 会话交接接纳合同
 
-- Schema 11 通过 core 的 `history` 元数据绑定同目录的
+- Schema 12 通过 core 的 `history` 元数据绑定同目录的
   `session-handoff-history.jsonl`，记录固定文件名、SHA-256、字节数、Unicode
   字符数、类型记录计数和捕获边界。随历史增长的候选、时间线、覆盖区间和工具
   关联只存于 JSONL；时间线引用候选序号。
@@ -71,6 +71,9 @@ Questions to answer:
   生命周期、接纳语义。
 - 测试覆盖共享入口拒绝畸形字段、长 Unicode 文本无损分页、收据范围边界和历史
   写入授权门。
+- 再次交接的回归须经过真实 CLI 解析器，将当前代数传入
+  `ownership quiesce --expected-generation`，同时验证首次交接省略该参数时仍从 0 开始。直接调用
+  `ownership_operation` 不能代替该入口测试。
 - 写入、校验和收据扫描不保留随历史规模增长的数组。SQLite 索引仅存于本次操作的
   私有临时目录，缓存有界且临时数据写入文件。内存占用随最大单条记录、core、
   请求页和固定缓冲区增长；耗时和临时磁盘用量可以随规模增长。使用 192 MiB

@@ -1,5 +1,11 @@
 # 执行记录
 
+## 2026-11-04：修复再次交接的 CLI 代数参数遗漏
+
+根侧正式交接时发现，`ownership_operation` 已支持非零 `expected_generation`，Skill 也已要求再次交接传入当前代数，但 `ownership quiesce` 的 CLI 解析器遗漏该参数，导致真实命令在解析阶段退出 2。原有回归直接调用实现函数，未覆盖这个断点；解析失败没有写入任务归属。
+
+已在既有 `main` 修复解析器：quiesce 接受可选整数参数，省略时仍由实现保持初始代数 0；其他归属写入继续要求显式代数。新增真实 CLI 回归分别覆盖首次交接和当前代数 5 的再次交接，验证原生 transfer 收到代数并返回下一代。修复前非零子用例失败，修复后根侧 `node scripts/run-workflow-integration.mjs --session-handoff` 退出 0，三组模块通过；`git diff --check` 通过。源码修改限于本 Skill，部署与根 gitlink 由根侧协调记录，不创建分支或 worktree。
+
 ## 2026-10-31：任务启动与基线核验
 
 - revision 3 方案摘要：`sha256:2a918ec79e16b15a0da9dc314121532ebc80081009469ea05ad2549df686746d`。原生 `validate`、`plan seal`、`plan approve` 和 `task.py start` 均通过；任务状态为 `in_progress`。

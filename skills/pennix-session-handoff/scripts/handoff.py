@@ -1827,8 +1827,8 @@ def main() -> int:
             command.add_argument("--include-current", action="store_true")
         if name == "retire":
             command.add_argument("--archive-observation", choices=("not_required", "observed"), default="not_required")
-        if name in {"seal", "retire", "claim", "consume", "release"}:
-            command.add_argument("--expected-generation", required=True, type=int)
+        if name != "status":
+            command.add_argument("--expected-generation", required=name != "quiesce", type=int)
         if name == "claim":
             command.add_argument("--expected-continuity-digest")
         if name != "status":
