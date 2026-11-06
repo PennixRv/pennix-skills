@@ -58,6 +58,11 @@ Questions to answer:
 
 ## 会话交接接纳合同
 
+- 当前 rollout 定位通过 `handoff.py resolve-rollout` 的真实 CLI 回归验证：用宿主
+  `CODEX_THREAD_ID` 精确查询只读 Codex 元数据，核验唯一记录、绝对普通文件及首条
+  `session_meta.payload.id`。不得由当前日期、修改时间、旧交接包路径或扫描目录推导。
+  归档后元数据路径可变化；结构不支持或身份冲突必须受控失败。测试使用合成 SQLite
+  和 rollout，覆盖跨日、归档和拒绝场景，核对源数据不变；不提交真实数据库或转录。
 - Schema 12 通过 core 的 `history` 元数据绑定同目录的
   `session-handoff-history.jsonl`，记录固定文件名、SHA-256、字节数、Unicode
   字符数、类型记录计数和捕获边界。随历史增长的候选、时间线、覆盖区间和工具

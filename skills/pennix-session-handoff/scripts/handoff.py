@@ -251,6 +251,44 @@ def _read_rollout_path(value: Any) -> Dict[str, Optional[str]]:
     return {"path": str(path.resolve()), "session_id": session_id}
 
 
+def resolve_rollout() -> Dict[str, str]:
+    session_id = _text(os.environ.get("CODEX_THREAD_ID"), "CODEX_THREAD_ID")
+    home = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
+    if not home.is_absolute():
+        raise ContractError("CODEX_HOME must be absolute")
+    # shortcut: Codex state schema 5 only; review this adapter when Codex changes its metadata schema.
+    database_path = _regular_file(home / "state_5.sqlite", "Codex metadata database")
+    database = sqlite3.connect(database_path.as_uri() + "?mode=ro", uri=True)
+    try:
+        rows = database.execute(
+            "SELECT rollout_path FROM threads WHERE id = ?", (session_id,),
+        ).fetchmany(2)
+    finally:
+        database.close()
+    if len(rows) != 1:
+        raise ContractError("Codex metadata must match exactly one current thread")
+    path = Path(_text(rows[0][0], "Codex rollout path"))
+    if not path.is_absolute():
+        raise ContractError("Codex rollout path must be absolute")
+    _regular_file(path, "Codex rollout")
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            record = json.loads(handle.readline())
+    except (ValueError, UnicodeError) as exc:
+        raise ContractError("Codex rollout first record must be session metadata") from exc
+    if (
+        not isinstance(record, dict)
+        or record.get("type") != "session_meta"
+        or not isinstance(record.get("payload"), dict)
+        or record["payload"].get("id") != session_id
+    ):
+        raise ContractError("Codex rollout session metadata does not match the current thread")
+    rollout = {"path": str(path), "session_id": session_id}
+    if contains_secret(rollout):
+        raise ContractError("Codex rollout metadata contains a recognized secret")
+    return rollout
+
+
 def _short_text(value: Any) -> Optional[str]:
     if not isinstance(value, str):
         return None
@@ -1793,6 +1831,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-root", required=True, type=Path)
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("resolve-rollout", help="Resolve the current Codex thread's rollout from read-only metadata")
     write = sub.add_parser("write")
     write.add_argument("--request", required=True, type=Path)
     write.add_argument("--explicit-user-request", action="store_true")
@@ -1841,6 +1880,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         root = _root(str(args.project_root))
+        if args.command == "resolve-rollout":
+            emit("resolve-rollout", "ready", rollout=resolve_rollout(), source="codex-state-5")
+            return 0
         if args.command == "validate":
             handoff_id, destination = _destination(root, handoff_path=args.handoff)
             relative = destination.relative_to(root).as_posix()

@@ -1,0 +1,56 @@
+{
+  "id": "handoff-rollout",
+  "name": "handoff-rollout",
+  "title": "修复交接 rollout 精确定位",
+  "description": "根任务 11-06-rollout 已批准的交接定位修复；只读精确线程元数据查询、文件身份验证、Skill 指引、回归与发布。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-06",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning": {
+      "revision": 3,
+      "stage": "plan_closed",
+      "review_digest": "sha256:25dd4c03078ac082aa26dec802bd710033558064e4eb1d500a4bdcc36f9fcbbd",
+      "seal": {
+        "revision": 3,
+        "task_id": "handoff-rollout",
+        "task_name": "11-06-handoff-rollout",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "7184ab1727b9f6c62f856df34623e61ef185869bb938a6b1cfbe181c05468deb",
+          "design.md": "473a3406dac38fb66420ca0ab362eae8ed6824ee1474192f5f10424bd66f6623",
+          "implement.md": "c9564f4abe71a3c5c842cd4aee1ce1ead59bbe58041f04f8d4794e0ec4cd883e"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "plan_digest": "sha256:25dd4c03078ac082aa26dec802bd710033558064e4eb1d500a4bdcc36f9fcbbd",
+        "sealed_at": "2026-11-06T13:12:40.628866+00:00"
+      },
+      "approved_revision": 3,
+      "approval_basis": "用户已明确同意根任务 design.md revision ce9049d6 的同一整体方案、实施、发布及重装；组件资产仅展开该批准范围。",
+      "approved_at": "2026-11-06T13:12:40.883906+00:00"
+    },
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing"
+  }
+}

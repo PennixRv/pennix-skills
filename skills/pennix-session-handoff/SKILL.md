@@ -6,7 +6,18 @@ description: 仅在用户明确要求正式跨会话交接时，创建、核验�
 本 Skill 创建供新的 Codex 协调代理使用的导航包。它不是会话转录备份、任务数据库、检查点台账、原生会话恢复机制，也不是继续中断工具调用的机制。Trellis 仍是任务和生命周期状态的事实来源；新会话必须重新核验这些事实。
 普通工作、重启、上下文压缩、等待、验收失败、服务商失败或传输句柄丢失都不使用本 Skill。这些事件本身不授权交接。
 
-用户明确请求正式交接时，先完成并核验必须让下一会话看到的工作。在 `.trellis/session-handoffs/` 外准备一个小型请求 JSON。顶层字段必须是：
+用户明确请求正式交接时，先完成并核验必须让下一会话看到的工作。准备请求前，使用当前宿主的真实会话身份解析 rollout：
+
+```bash
+python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" --project-root . \
+  resolve-rollout
+```
+
+只在退出码为 0 且回执 `status=ready` 时，将返回的 `rollout` 对象原样放入请求。命令使用当前 `CODEX_THREAD_ID`，以只读方式查询 `${CODEX_HOME:-$HOME/.codex}/state_5.sqlite` 的精确线程记录，再核验文件及首条会话元数据身份；不扫描会话目录，不读取消息正文，不写数据库、交接包、任务或收据。当前适配限于已核验的 Codex state schema 5；缺少身份、记录、文件或结构不匹配时停止并报告实际错误，不拼接日期、时间戳或文件名，也不使用旧交接包路径代替当前查询。会话归档后文件可能移动，以当前元数据为准。
+
+若宿主事件已直接提供明确的 `transcript_path`，应同时核对事件会话 ID 与文件首条会话身份；不得假定它是环境变量，不为路径发现新增 Hook 或启动 App Server。没有可核验路径时保持阻塞。
+
+在 `.trellis/session-handoffs/` 外准备一个小型请求 JSON。顶层字段必须是：
 
 ```json
 {
