@@ -55,12 +55,14 @@ pennix secrets import-ssh --help
 
 - `trellis init`、Trellis 任务、Teamwork、交接、Hook 和宿主原生交互继续使用各自接口。
 - Codex provider 的 URL、模型和偏好由 owner 按当前 CLI 配置接口更新；静态 Key 只走上述 `auth.command` 读取接口。插件使用 Codex 原生 plugin 命令。
-- CCH、Hikari、Grok、Windsurf 和思源的秘密从 `secrets.toml` 交给各自 owner；未选连接保持关闭，状态输出不回显凭据。
+- CCH、Hikari、Grok 和思源的秘密从 `secrets.toml` 交给各自 owner；Windsurf 默认兼容中央输入，也可明确开启 `PENNIX_WINDSURF_OWNER_CREDENTIAL`，由其原生 owner 使用专属文件，缺文件时从既有 Devin 登录导入，不新增中央副本。环境覆盖、外部文件、漂移或不安全权限仍阻断。未选连接保持关闭，状态输出不回显凭据。
 - 项目初始化、索引建立和服务端部署必须由目标组件的原生流程完成；系统安装不会替代它们。
 
 ## 声明式动作和卸载
 
 `plan` 只读。`apply` 按 `components.lock.json` 中的已核验目标改变已选择组件和 owner 输入，普通 `apply` 不升级已有锁；明确升级使用 `pennix update <component-id>`，由原生入口展示精确候选和影响并确认。漂移、未知所有权、符号链接和不安全权限默认停止；使用 `pennix repair <component-id>` 表达显式修复意图，参数以当前 help 为准。当前未实现原生写入接口的连接目标会阻断 `apply`，不能把输入齐全当成连接已配置。
+
+Arch/AUR 外部更新或已启用 Codex 插件与锁失配时，使用 `pennix reconcile <component-id>` 展示并接受精确已安装身份。它要求可信旧记录与同源核验；系统包只同步记录，插件只通过原生 Marketplace 对齐，不自动升级、降级或编辑缓存。部分失败保留 journal，恢复必须沿相同原生入口重新核验。`outdated` 仅表示实际身份与锁不相等；结合实际身份、锁定身份与既有受管记录判断。
 
 一次性卸载不改变声明式配置：
 
@@ -79,7 +81,7 @@ pennix uninstall --all --confirm-all ALL
 
 ## 服务和 relay
 
-Paseo 自启动在配置中明确选择“关闭 / 登录启动 / 无登录常驻”。常驻模式必须具备真实的 user systemd 与 linger 能力；生命周期只管理自己的 unit，不创建 Windows 启动任务，也不关闭未知或共享 linger。服务切换放在其他动作之后，最后验证实际进程和连接。
+Paseo 自启动在配置中明确选择“关闭 / 登录启动 / 无登录常驻”。登录自启只在 systemd 用户 manager 启动时执行一次原生 `daemon start`；日常启停使用 `paseo daemon start/stop/restart`。`PENNIX_PASEO_RUN` 只请求本次 apply 显式启动，自启无需开启该项。普通检查和 apply 不拉起已停止实例，关闭或移除入口不停止 daemon；入口配置、实际运行健康和版本分别核验。常驻模式必须具备真实的 user systemd 与 linger 能力；生命周期只管理自己的 unit，不创建 Windows 启动任务，也不关闭未知或共享 linger。服务切换放在其他动作之后，最后验证实际进程和连接。
 
 启用 relay 时，生命周期必须先通过已登记的受信 SSH owner 读取并修改 NAS/router nginx 的精确登记项，完成 `nginx -t` 和 reload，再启用 WSL daemon。relay 仓库文档中的 TLS、`/ws`、Upgrade/Connection 和稳定 `serverId` 规则是唯一反代依据；不得猜测配置、重建 NAS Compose 或为手机新增登记。远端撤回失败时不得开始本地破坏性卸载。Android 配对由用户按 `paseo daemon pair` 的原生输出完成。
 

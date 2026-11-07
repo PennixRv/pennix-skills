@@ -1,0 +1,56 @@
+{
+  "id": "windsurf-owner-materialization",
+  "name": "windsurf-owner-materialization",
+  "title": "物化 Windsurf owner 凭据新版并对齐导航",
+  "description": "根 converge-pennix-lifecycle 已授权：按 collection.json npm-pack 物化真实 Windsurf 已发布提交，验证源身份、集合及受影响导航，提交消费版本。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-07",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "stage": "plan_closed",
+      "review_digest": "sha256:4c7946093d62508b605159658109df0b4f6b92b9a47a40285a1ebd75da3f0686",
+      "seal": {
+        "revision": 1,
+        "task_id": "windsurf-owner-materialization",
+        "task_name": "11-07-windsurf-owner-materialization",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "116ae01f8661baf43c0099fd3ce4b584db0f5d06274dfcef5ab773d6350b6a8b",
+          "design.md": "0508666b639fed4658f597d7ce1300c0f6dce794f4e608fcb26968d4c07373ec",
+          "implement.md": "e3ae7bbdb00d77cdb10e314fe26035a6136025a9a4a9adb98cc42c61c5d16534"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "plan_digest": "sha256:4c7946093d62508b605159658109df0b4f6b92b9a47a40285a1ebd75da3f0686",
+        "sealed_at": "2026-11-07T08:34:08.877497+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "Root approved contract 24db3ff9e7d997bf2ffcdefb7006894006d980df3382e76b5339d42f16d2e00a; user-approved-implementation-2026-11-07",
+      "approved_at": "2026-11-07T08:34:08.941055+00:00"
+    }
+  }
+}
