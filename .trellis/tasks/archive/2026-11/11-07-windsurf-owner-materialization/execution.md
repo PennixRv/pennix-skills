@@ -1,5 +1,7 @@
 # 实施进度
 
+最终消费提交 c607488ec6ef7f0855bd79d15c303beda159f43e 已推送，并由本机 pennix update pennix-skills 在展示精确候选、交互确认和后置核验后固定安装；集合摘要 b25022f72c9b9d23e8474fe983c4c38c8c58cde4920db64a072979cdca86b03f。根侧 check 的集合及 Windsurf 连接均 current/match，真实合成项目搜索 complete。原生任务收尾提交仅含任务及 journal，不改变 collection.json 或生成文件；消费身份继续指向上述工作提交。
+
 根已批准合同下，原生 plan advance、seal、approve、start 已完成，revision 1。生命周期导航已同步显式 reconcile、Windsurf owner 输入和 Paseo 仅自启边界；固定源与生成快照尚未修改。
 
 前置 Windsurf v0.1.17 经维护者修正 Actions token 后，run 42355980168 attempt 3 的 npm publish 明确成功。CI 紧接的公开下载仍返回 404，整个 run 为 failure；待公开传播后，独立下载 SHA-256 与 attestation 的 471c397712aa90f94a42c31ba047850f1c06b8e08cfc76b9776d9f23c08ccb0a 完全一致，精确版本安装、npm audit signatures 的 registry signature 和 attestation 均通过。没有重复发布或移动 tag。

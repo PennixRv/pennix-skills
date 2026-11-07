@@ -941,3 +941,25 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 下一步（Next Steps）
 
 - 根仓库固定最终 owner gitlink，执行 runner、offline 和 full-local 组合验收并归档根任务。
+
+
+## 会话（Session） 37：Pennix 生命周期收敛交付
+<!-- trellis-session: v=2 fp=082d133078f7e6b3 -->
+
+**日期（Date）**: 2026-11-07
+**任务（Task）**: Pennix 生命周期收敛交付
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+原生物化固定 Windsurf 发行 E，19 文件内容与权限一致，集合和评估通过，本机已固定消费；Grok 既有 undici advisory 独立记录。
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `c607488ec6ef7f0855bd79d15c303beda159f43e` | fix: materialize released Windsurf owner credential lifecycle |
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
