@@ -37,7 +37,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn((SKILL.parent / "references/knowledge-promotion.md").resolve(), targets)
 
     def test_phase_routing_keeps_stage_skills_distinct_and_optional_components_conditional(self) -> None:
-        content = SKILL.read_text(encoding="utf-8")
+        content = (SKILL.parent / "references/phase-routing.md").read_text(encoding="utf-8")
         for marker in (
             "| 目标探索与需求核对阶段 |",
             "| 决策空间构造与归并阶段 |",
@@ -56,7 +56,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         ):
             self.assertIn(marker, content)
         self.assertIn("组件按当前需要参与，不是每个阶段的必备清单", content)
-        phase_section = content.split("## 各业务阶段中的组件路由", 1)[1].split("## 代码检索：先选来源，再选载体", 1)[0]
+        phase_section = content
         phase_rows = [
             line for line in phase_section.splitlines()
             if line.startswith((

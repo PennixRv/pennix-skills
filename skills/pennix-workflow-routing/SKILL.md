@@ -57,7 +57,7 @@ Context Mode 的工具参数与宿主适配以当前 MCP instructions、工具�
 
 宿主专属协议（例如 `apply_patch`、用户审批、宿主 MCP、视觉渲染或实时 continuation）使用真实宿主接口。项目外指令加载按上表直接原生全文读取。Context Mode 不可用、调用失败或无法保留必要身份、交互、取消、续接语义时，核对是否已执行，再为本次调用使用获准的原生入口；不把一次失败扩大为组件整体不可用。权限拒绝必须遵守，不能换载体绕过。项目外普通数据按宿主权限访问；项目库范围不构成全局执行器的文件访问禁区。Hook 行为取决于实际 adapter 与宿主能力，不能声称全部工具都被接管。
 
-强制全文材料必须沿真实分页取得完整原文；输出被索引或截断时继续读取缺失范围，必要时使用允许的原生入口。自动恢复和索引是历史参考，当前指令、原生任务状态及授权仍为权威。Codex 原始 sessions/memories 归宿主；Context Mode v2 默认使用 `~/.context-mode`，按 Git common directory 确定共享项目库，worktree 不等于独立清理边界。数据库自愈遵循上游；安装、配置和版本更新归 Lifecycle。
+强制全文材料必须沿真实分页取得完整原文；输出被索引或截断时继续读取缺失范围，必要时使用允许的原生入口。上游的单次读取大小限制支持有界分页，与访问授权拒绝分别判断；项目外指令仍通过原生入口分页读取，不转入执行器。实际权限或信任拒绝必须停止。自动恢复和索引是历史参考，当前指令、原生任务状态及授权仍为权威。Codex 原始 sessions/memories 归宿主；Context Mode v2 默认使用 `~/.context-mode`，按 Git common directory 确定共享项目库，worktree 不等于独立清理边界。数据库自愈遵循上游；安装、配置和版本更新归 Lifecycle。
 
 Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unbound_task|unbound_ambiguous` 表示尚未绑定任务，两者分别判断。有身份时按用户明确意图原生 `select`，再遵守任务阶段。载体无法核验身份时使用宿主原生 shell；禁止复制环境身份、借用其他会话 pointer 或制造 shell ticket。
 
@@ -65,44 +65,15 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 
 ## 各业务阶段中的组件路由
 
-目标 Trellis fork 的 bundled workflow 和各自独立的阶段 Skill 决定阶段内工作顺序与转换。下表只说明跨组件路由；组件按当前需要参与，不是每个阶段的必备清单，未选能力不列为该路线前置条件。阶段状态、路线、授权和接受结果由 Trellis CLI 写入。
-
-| 阶段 | 路由重点 | 可能参与的组件与边界 |
-| --- | --- | --- |
-| 目标探索与需求核对阶段 | 建立目标、范围、验收目标和约束的当前基线，并取得用户确认 | `trellis-goal-exploration-and-requirements` 负责本阶段工作；按问题选择本地代码、外部资料或用户维护知识来源。`pennix-decision-grill` 只处理会改变目标基线的重要用户取舍。 |
-| 决策空间构造与归并阶段 | 构造与筛选实质候选；只有选项依赖或条件分支会改变后续决策时才展开决策树 | `trellis-decision-space-construction-and-merging` 负责决策空间；按需参考外部先例，普通外部检索优先 Tavily；`trellis-teamwork` 可提供只读证据。用户保留决定整理给第三阶段，再由其按需委托 Grill。 |
-| 解决方案设计与收敛阶段 | 解决保留的用户决定，形成并核对完整方案及适用的实施合同 | `trellis-solution-design-and-convergence` 负责收敛；触发 prior-art review 时，在接受正式方案前核验相关开源实现或公开提案。当前宿主声明的 `codebase-design` 可辅助实际涉及的模块接口或边界设计；`prototype` 仅在具体模型不确定性适合交互验证时考虑。两者都不是目标 Trellis fork 的 bundled 依赖或阶段门禁。`pennix-decision-grill` 负责必要的同步用户取舍；Trellis CLI 接受阶段结果。 |
-| 任务实施与测试验证阶段 | 按已接受且获授权的合同实施、集成和验证 | `trellis-task-implementation`、源码 owner 仓库规范、`trellis-before-dev` 与 `trellis-check` 负责相关工作。CodeGraph、Context Mode 或语义代码搜索按问题选择；当前宿主声明的 `codebase-design` 仅在确有模块接口或边界设计问题时提供方法，`diagnosing-bugs` 仅在难定位缺陷或性能回退需要系统诊断时参与；修复后的复发预防由 `trellis-break-loop` 按需处理。`trellis-teamwork` 只提供只读协作；只有明确授权写入型委派时才由 Paseo 管理 Git worktree。组件部署和项目资产更新仍分别交 Lifecycle 与 Trellis 原生入口。 |
-| 交付审查与现场收尾阶段 | 核对当前交付及合同内必需工作，处置缺口或允许保留的遗留 | `trellis-delivery-review-and-closeout` 与 `trellis-check` 按实际风险审查；只有存在必要用户决定或合同要求用户接受时，才由 `pennix-decision-grill` 协助同步交互。必要时调用资源 owner 的清理入口。`trellis-finish-work` 只负责会话收尾，不代替 Trellis CLI 对阶段结果的核验和接受或任务完成操作。 |
-
-`pennix-session-handoff` 仅在用户明确要求时作为独立附加操作执行，不是阶段转换、实施或任务完成的前置条件，也不改变以上路由。
-
-上述扩展 Skill 只在当前宿主已声明且具体触发条件满足时作为辅助方法；它们不是目标 Trellis fork 的 bundled 依赖，也不拥有阶段状态、方案接受或用户授权。
+任务涉及 Trellis 阶段、协作、辅助 Skill 或交付收尾时，读取 [阶段与辅助组件路由](references/phase-routing.md)。阶段状态与授权仍由 Trellis 原生接口维护。
 
 ## 代码检索：先选来源，再选载体
 
-有效代码锚点是可直接查询的路径、文件名、字面量、符号或模块名；只知道项目范围不算。按当前问题选择一个足以推进的来源，不按工具调用量验收：
-
-| 已有证据与问题 | 首选来源 | 后续动作 |
-| --- | --- | --- |
-| 符号／模块线索，需要调用、依赖、具名流程、架构或影响／测试线索 | 已批准且可用的 CodeGraph | 原生 MCP 直接查询；真实 CLI 按输出与宿主能力选择载体。复用已返回且当前有效的源码区段；只补缺失、陈旧或强制全文要求 |
-| 已知路径读取、字面量／配置匹配、解析、比较 | 当前文件中的精确文本 | 使用原生文本入口或 Context Mode 读取／rg／解析；大输出在执行器内筛选。全文要求必须完整返回 |
-| 定位含义、目标与范围已明确，但没有有效代码锚点 | Windsurf Code Search | 在既有外部允许范围内，直接运行其真实 CLI，按需由 Context Mode 分析大输出；不先做无效的文本／图探测 |
-| 有锚点，但适用文本／图证据已核验仍缺语义线索 | 重新判断是否仍有可用锚点 | 有则继续有界精确查询；没有且仍需语义候选时才转 Windsurf。单次未命中不是自动外部后备 |
-| 定位含义、owner 或允许范围仍不清楚 | 当前任务与必要用户澄清 | 先明确问题，不用外部搜索替用户决定边界 |
-
-CodeGraph 是本地预计算的代码结构索引，按名字和代码词检索，不提供业务语义向量检索；Windsurf 当前路径由外部模型规划有界本地搜索，返回位置候选，不维护同等结构图，也不能证明全量影响范围。Context Mode 执行已选命令、批量独立工作、派生结果并回查已取得文本的内容索引；rg 是文本搜索。这些能力不混称“代码索引”，Context Mode 不自动选择或转发其他 MCP。
-
-CodeGraph 不可用、缺失、陈旧或 worktree 受限时，保留实际原因，通过允许的文本入口补当前源码证据；不自动初始化／sync／重建图，也不把影响分析自动外送 Windsurf。Windsurf 保留退出码、status／truncated／coverage；候选路径、行范围和语义须核验，`local_range_validated` 不代表语义正确。已有证据充分时停止检索。
+已知路径和字面量直接查当前文本；已批准且索引可用项目的符号与影响问题优先 CodeGraph；含义与范围明确但缺少有效代码锚点时才考虑 Windsurf。需要代码定位或结构分析时，读取 [代码检索的来源与核验边界](references/code-search-routing.md)。
 
 ## 当前 Trellis fork 并行工作流
 
-本节只分流入口，Teamwork Session、teammate、assignment、报告与处置由当前 `trellis-teamwork` 和原生 CLI 管理。
-
-1. 按项目当前执行模型和实际授权选择主会话、宿主原生代理或只读 Teamwork；可用工具与角色不同，不相互冒充，也不强制派发。
-2. Teamwork teammate 通过角色合同只提供报告，不写源码、主任务事实或接受结果。主代理核验证据、受保护目标和接受条件后记录处置；执行结束不等于验收通过。不新增 sandbox 或权限隔离门槛。
-3. general 是协作模式，batch 是需要已验证 adapter 的受控入口。未具备 adapter 就明确拒绝 batch，不用交互 run/spawn 替代；模型和 reasoning 配置读取当前原生 profile，不写死旧映射。
-4. 派发、等待、恢复、资源处置及临时任务选择均使用当前 Trellis 原生接口。身份、归属、阶段和实施授权分别核验；不伪造状态、复制旧队列协议、用轮询替代原生等待或自动重启已停止任务。普通继续与压缩恢复沿已知断点推进。
+需要并行协作时，读取 [并行工作入口](references/teamwork-routing.md)，再调用当前声明的 trellis-teamwork 与原生 CLI。
 
 ## 本地证据优先
 
@@ -118,23 +89,7 @@ CodeGraph 不可用、缺失、陈旧或 worktree 受限时，保留实际原因
 
 ## 组件职责
 
-SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识操作，如用户要求的来源导入。独立网页调研、Codex 官方资料和本地项目定位仍走各自入口，不能借用思源工具作为通用检索或其他检索工具的降级路径。保留思源原生能力，按调用意图选择。
-
-知识、历史回溯和规则晋升按用户意图选择唯一主要来源，见
-[`references/knowledge-promotion.md`](references/knowledge-promotion.md)。已配置思源的人工知识操作由
-`pennix-siyuan-knowledge` 使用原生 MCP；当前 task/源码/spec、`trellis mem` 历史和 formal handoff
-各保留自身状态和规定接口。中文技术知识的撰写或改写加载 `$pennix-chinese-tech-writing`，保存仍需具体用户授权。知识失败不阻断任务或交接，禁止无条件预加载、自动捕获与双向同步。
-
-- `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；context-mode 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
-- 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。Trellis 原生模板、骨架与机械惯例优先，自定义中文正文采用写作方法；生成资产仍回实际模板来源修改。
-- CodeGraph 配置、使用边界和原生 MCP/CLI 手册索引交 `$pennix-codegraph-integration`；系统部署交 lifecycle，项目操作保留其原生入口与明确授权。
-- 确有独立证据价值的工作遵循当前项目选择的 Teamwork 合同；Trellis 维护 assignment、持久报告和协作生命周期，主会话保留项目事实、验收和 Git。
-- 核验后的研究事实、候选、不确定性及决定影响写回当前阶段产物、research 或 execution 等已有自然落点；不依赖不存在的研究留存 Skill，不另建事实台账。
-- 已初始化项目的 Trellis 资产更新和已选 workflow 刷新由 `$pennix-trellis-project-update` 负责，必须调用当前 Trellis fork 的原生 `trellis update` / `trellis workflow`；系统级组件部署仍由 `$pennix-component-lifecycle` 负责，`$pennix-trellis-asset-check` 只做只读诊断。
-- `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和确定性 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；正式交接通过本地来源封口和配对包验证记录来源收敛。初始 admission 只在 core、prompt、`$trellis-start` 和当前事实完整核对后记录一次 `reconciled`，不完整消费不写 target reservation；后续 `claim` 必须有新的明确继续授权。
-- 系统组件部署和 Skills 物化由 `$pennix-component-lifecycle` 编排已登记动作；CodeGraph 项目操作归其原生入口，Hook 实现和配置归事件所属组件及宿主的原生入口。普通路由请求不授权这些高影响动作。
-- 工作流资源清理由 `$pennix-resource-cleanup` 负责流程路由；Trellis、Grok、context-mode、服务、容器、系统和远程主机仍分别拥有自己的资源与清理合同。路由 Skill 不执行全局回收，也不替 owner 删除目录。
-- Hook/config 和拥有该行为的运行时负责必须发生的事件、阻断、信任、生命周期和审计；提示词只能表达决策原则，不能宣称确定性保证。
+涉及知识、历史、正式交接、项目资产更新、部署或资源清理时，读取 [专项组件归属](references/component-ownership.md)。知识与规则晋升另见 [知识晋升边界](references/knowledge-promotion.md)。
 
 ## 禁止混淆
 
