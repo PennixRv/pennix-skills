@@ -963,3 +963,38 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 状态（Status）
 
 [OK] **已完成（Completed）**
+
+
+## 会话（Session） 38：Context Mode v2 消费者适配与真实验收
+<!-- trellis-session: v=2 fp=e5e93c6be56220c2 -->
+
+**日期（Date）**: 2026-11-08
+**任务（Task）**: Context Mode v2 消费者适配与真实验收
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+移除旧集成 Skill，按上游 v2 与宿主原生行为重整路由、路径、清理和评估；真实 owner 安装固定集合，根 full-local 19 项通过；组件任务已原生归档，原始轨迹未入 Git。
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `6524b22` | refactor: align Context Mode consumers with upstream v2 |
+| `eab57ee` | test: retain isolated native rollouts for v2 routing evaluation |
+| `9f9cb21` | refactor: disclose routing details within upstream read limits |
+| `0b8a1c6` | docs: record real v2 consumer evaluation and limits |
+| `6dedda7` | docs: capture verified v2 evaluation contracts and delivery |
+| `aa686f3` | chore(task): archive verified Context Mode v2 consumers |
+
+### 测试（Testing）
+
+- [OK] collection 15 Skills/2 commands；路由5、runner10、根12测试通过；目标真实评估20轮，失败与未触发覆盖分别保留。
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
+
+### 下一步（Next Steps）
+
+- 本组件范围完成；根任务继续完成其原生交付审查及提交。
