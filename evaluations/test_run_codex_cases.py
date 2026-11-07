@@ -42,7 +42,7 @@ class EvaluationDriverTests(unittest.TestCase):
         paths = [".agents/skills/trellis-before-dev/SKILL.md",
                  "/home/test/.codex/skills/pennix-skills-extra/diagnosing-bugs/SKILL.md",
                  "/declared/r0/pennix-skills/pennix-grok-search/SKILL.md",
-                 "../pennix-context-mode-integration/SKILL.md"]
+                 "../pennix-workflow-routing/SKILL.md"]
         for path in paths:
             with self.subTest(path=path):
                 summary = self.summarize_items({
@@ -79,8 +79,34 @@ class EvaluationDriverTests(unittest.TestCase):
         data, digest = runner.load_cases()
         self.assertEqual(64, len(digest))
         self.assertEqual(36, sum(x["kind"] != "combination" for x in data["cases"]))
-        self.assertEqual(8, sum(x["kind"] == "combination" for x in data["cases"]))
+        self.assertEqual(10, sum(x["kind"] == "combination" for x in data["cases"]))
         self.assertTrue(all(name.startswith("pennix-") for x in data["cases"] for name in x["skills_after"]))
+
+    def test_sources_bind_actual_tree_to_owner_receipt_and_fixed_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            root = home / "skills/pennix-skills"
+            root.mkdir(parents=True)
+            member = root / "SKILL.md"
+            member.write_bytes(b"source fixture\n")
+            digest = runner.hashlib.sha256(b"F\0SKILL.md\0" + b"0\0source fixture\n").hexdigest()
+            revision = "a" * 40
+            receipt = root.parent / ".pennix-skills.receipt.json"
+            value = {"schema": 1, "destination": root.name, "digest": digest,
+                     "source": {"repo": "PennixRv/pennix-skills", "ref": revision, "manifest": "collection.json"},
+                     "manifest": {"skills": {}}}
+            receipt.write_text(json.dumps(value))
+            identity = runner.source_identity(home, revision)
+            self.assertEqual(revision, identity["collection_commit"])
+            with self.assertRaisesRegex(ValueError, "source_mismatch"):
+                runner.source_identity(home, "b" * 40)
+            member.write_text("changed")
+            with self.assertRaisesRegex(ValueError, "source_drift"):
+                runner.source_identity(home, revision)
+            member.unlink()
+            member.symlink_to(receipt)
+            with self.assertRaisesRegex(ValueError, "unsafe_evaluation_source"):
+                runner.source_identity(home, revision)
 
     def test_budget_cannot_reset_or_silently_repeat(self):
         with tempfile.TemporaryDirectory() as directory:

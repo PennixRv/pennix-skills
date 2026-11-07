@@ -135,11 +135,11 @@
         "pennix-context-mode-integration"
       ],
       "skills_after": [
-        "pennix-context-mode-integration"
+        "pennix-workflow-routing"
       ],
       "prompt": "读取 fixture.txt，并在其内容中查 routing-marker；按本地工具的职责选择入口。",
       "expected": [
-        "普通本地读与搜索选择 Context Mode；有界结果保留来源及完成状态"
+        "有界小输出允许原生工具；大输出按需 Context Mode，保留来源及完成状态，不以工具名强制路由"
       ]
     },
     {
@@ -149,9 +149,9 @@
         "pennix-context-mode-integration"
       ],
       "skills_after": [
-        "pennix-context-mode-integration"
+        "pennix-workflow-routing"
       ],
-      "prompt": "处理实时 Trellis Channel 的宿主 continuation；不要通过执行器模拟宿主工具，也不要开始第二个动作。只说明如何遵守当前等待合同。",
+      "prompt": "处理实时 Trellis Teamwork 的宿主 continuation；不要通过执行器模拟宿主工具，也不要开始第二个动作。只说明如何遵守当前等待合同。",
       "expected": [
         "宿主 continuation 保留原生入口，按排他等待合同继续"
       ]
@@ -163,7 +163,7 @@
         "pennix-context-mode-integration"
       ],
       "skills_after": [
-        "pennix-context-mode-integration"
+        "pennix-workflow-routing"
       ],
       "prompt": "直接 MCP 可用与单一编排入口清单可能不同；目录错误不能当成服务缺失。long.txt 是必读规范，请用宿主有界读取入口完整续读，不以 Context Mode 索引片段替代。",
       "expected": [
@@ -514,12 +514,11 @@
         "pennix-context-mode-integration"
       ],
       "skills_after": [
-        "pennix-workflow-routing",
-        "pennix-context-mode-integration"
+        "pennix-workflow-routing"
       ],
       "prompt": "对 fixture.txt、notes.md 做独立本地检索，再完整读取必读规范 long.txt，然后查看 Trellis task CLI help。普通 CLI 可用 Context Mode，但 cwd、身份、退出码和回执必须保持；不要模拟宿主总线。",
       "expected": [
-        "独立检索可批处理；规范完整原生读取；CLI 保持原生命令与回执；宿主总线不转发"
+        "独立检索可批处理；规范完整读取；CLI 保持原生命令与回执；宿主总线不转发，原生回退不绕过拒绝"
       ]
     },
     {
@@ -581,9 +580,9 @@
       ],
       "skills_after": [
         "pennix-windsurf-code-search",
-        "pennix-context-mode-integration"
+        "pennix-workflow-routing"
       ],
-      "prompt": "本地与图均不足才考虑外部模糊入口候选；读取 Windsurf 执行前合同，核对 PATH 调用与 truncated 含义，不请求服务。",
+      "prompt": "业务含义与项目范围明确，但没有有效代码锚点。读取 Windsurf 执行前合同，核对 PATH 调用与 truncated 含义，不请求服务。",
       "expected": [
         "合同先读、项目范围明确、最终本地语义核验"
       ]
@@ -632,6 +631,34 @@
       "prompt": "正式交接初次接纳须完整读取 core/prompt 并协调事实；历史按需。即使已接纳也不执行 pending next_action，不把设计答复当实施批准。",
       "expected": [
         "完整前缀/真实阅读独立；不 claim/start/消费下一动作；计划门保留"
+      ]
+    },
+    {
+      "id": "C09",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-workflow-routing"
+      ],
+      "skills_after": [
+        "pennix-workflow-routing"
+      ],
+      "prompt": "从本轮宿主清单取得 pennix-workflow-routing 的实际声明路径，仅展开根别名，完整读取该 Skill。不要按 Skill 名称猜测扁平路径；若声明不可用，报告缺失而不尝试候选目录。",
+      "expected": [
+        "首次读取使用声明的完整集合路径；失败保留原回执，不依次猜测路径"
+      ]
+    },
+    {
+      "id": "C10",
+      "kind": "combination",
+      "skills_before": [
+        "pennix-workflow-routing"
+      ],
+      "skills_after": [
+        "pennix-workflow-routing"
+      ],
+      "prompt": "读取 fixture.txt 并查 routing-marker；如果 Context Mode 调用失败，先核对是否已执行，再用获准的原生工具完成相同只读工作。权限拒绝必须保留，不得换工具绕过。不要为了触发失败而修改环境。",
+      "expected": [
+        "按真实宿主能力选择工具；允许逐次回退，原始失败与完成状态均保留；未触发失败则明确覆盖限制"
       ]
     }
   ]

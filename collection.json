@@ -7,7 +7,6 @@
     "pennix-codegraph-integration": {"path": "skills/pennix-codegraph-integration", "license": null},
     "pennix-component-lifecycle": {"path": "skills/pennix-component-lifecycle", "license": null},
     "pennix-decision-grill": {"path": "skills/pennix-decision-grill", "license": null},
-    "pennix-context-mode-integration": {"path": "skills/pennix-context-mode-integration", "license": null},
     "pennix-grok-search": {"path": "skills/pennix-grok-search", "license": "LICENSE"},
     "pennix-project-agents-governance": {"path": "skills/pennix-project-agents-governance", "license": null},
     "pennix-resource-cleanup": {"path": "skills/pennix-resource-cleanup", "license": null},

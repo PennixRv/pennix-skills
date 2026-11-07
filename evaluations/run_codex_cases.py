@@ -9,9 +9,11 @@ from pathlib import Path
 import re
 import shlex
 import signal
+import stat
 import subprocess
 import tempfile
 import time
+import tomllib
 
 CASES = Path(__file__).with_name("skill-cases.json")
 MAX_TRACE_BYTES = 8 * 1024 * 1024
@@ -36,7 +38,7 @@ def load_cases(path=CASES):
     ids = [case["id"] for case in cases]
     if data["schema_version"] != 1 or data["model_turn_limit"] != 100:
         raise ValueError("invalid_case_contract")
-    if len(cases) != 44 or len(set(ids)) != 44:
+    if not cases or len(set(ids)) != len(cases):
         raise ValueError("invalid_case_coverage")
     for case in cases:
         if not case["prompt"] or not case["expected"] or not SAFE_NAME.fullmatch(case["id"]):
@@ -82,10 +84,38 @@ def reserve_turn(output, digest, phase, case_id, retry=False):
     return number
 
 
-def command(workspace):
+def provider_options(provider_home):
+    """Reuse public provider settings and the existing owner auth command, never auth files."""
+    home = Path(provider_home)
+    if not home.is_absolute() or home.is_symlink():
+        raise ValueError("invalid_provider_home")
+    config = tomllib.loads((home / ".codex/config.toml").read_text())
+    name, model = config.get("model_provider"), config.get("model")
+    provider = config.get("model_providers", {}).get(name, {})
+    owner = home / ".local/bin/pennix"
+    secrets = home / ".config/pennix/secrets.toml"
+    release = home / ".local/share/pennix-lifecycle/releases"
+    if (not isinstance(name, str) or not SAFE_NAME.fullmatch(name)
+            or not isinstance(model, str) or not SAFE_NAME.fullmatch(model)
+            or not isinstance(provider.get("base_url"), str)
+            or not owner.resolve(strict=True).is_relative_to(release.resolve(strict=True))
+            or not secrets.is_file() or secrets.is_symlink()):
+        raise ValueError("provider_owner_unavailable")
+    # Explicit native CLI overrides are process-local; the owner reads its secret at runtime.
+    selected = {"model": model, "model_provider": name,
+                f"model_providers.{name}.name": provider.get("name", name),
+                f"model_providers.{name}.base_url": provider["base_url"],
+                f"model_providers.{name}.wire_api": "responses",
+                f"model_providers.{name}.requires_openai_auth": False,
+                f"model_providers.{name}.auth.command": str(owner),
+                f"model_providers.{name}.auth.args": ["secrets", "codex-token", "--secrets-file", str(secrets)]}
+    return [part for key, value in selected.items() for part in ("-c", key + "=" + json.dumps(value, ensure_ascii=False))]
+
+
+def command(workspace, provider_args=()):
     return ["codex", "exec", "--json", "--ephemeral", "--sandbox", "read-only",
             "--skip-git-repo-check", "--color", "never", "--cd", str(workspace),
-            "-c", 'approval_policy="never"', "-c", "agents.enabled=false", "-"]
+            "-c", 'approval_policy="never"', "-c", "agents.enabled=false", *provider_args, "-"]
 
 
 def stop_process(process):
@@ -103,10 +133,47 @@ def stop_process(process):
         process.wait(timeout=5)
 
 
-def collect(case, workspace, stdout, stderr):
+def source_identity(codex_home, revision):
+    home = Path(codex_home)
+    if not home.is_absolute() or home.is_symlink() or not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("invalid_evaluation_source")
+    root = home / "skills/pennix-skills"
+    receipt_path = root.parent / ".pennix-skills.receipt.json"
+    if root.is_symlink() or receipt_path.is_symlink():
+        raise ValueError("unsafe_evaluation_source")
+    receipt = json.loads(receipt_path.read_bytes())
+    if (receipt.get("schema") != 1 or receipt.get("destination") != root.name
+            or receipt.get("source") != {"repo": "PennixRv/pennix-skills", "ref": revision, "manifest": "collection.json"}
+            or not isinstance(receipt.get("manifest", {}).get("skills"), dict)):
+        raise ValueError("evaluation_source_mismatch")
+    digest = hashlib.sha256()
+    for item in sorted(root.rglob("*"), key=lambda p: p.relative_to(root).as_posix()):
+        relative = item.relative_to(root)
+        info = item.lstat()
+        if (not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode))
+                or info.st_uid != os.getuid() or info.st_mode & 0o022):
+            raise ValueError("unsafe_evaluation_source")
+        if "__pycache__" in relative.parts or item.suffix == ".pyc":
+            continue
+        if item.is_dir():
+            digest.update(f"D\0{relative.as_posix()}\0".encode())
+        else:
+            digest.update(f"F\0{relative.as_posix()}\0{info.st_mode & 0o111:o}\0".encode())
+            with item.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(65536), b""):
+                    digest.update(chunk)
+    if digest.hexdigest() != receipt.get("digest"):
+        raise ValueError("evaluation_source_drift")
+    return {"codex_home": str(home), "collection_commit": revision, "collection_digest": digest.hexdigest()}
+
+
+def collect(case, workspace, stdout, stderr, codex_home=None, provider_args=()):
     started = time.monotonic()
     with stdout.open("xb") as out, stderr.open("xb") as err:
-        process = subprocess.Popen(command(workspace), stdin=subprocess.PIPE,
+        environment = dict(os.environ)
+        if codex_home is not None:
+            environment["CODEX_HOME"] = str(codex_home)
+        process = subprocess.Popen(command(workspace, provider_args), stdin=subprocess.PIPE, env=environment,
                                    stdout=out, stderr=err, start_new_session=True)
         try:
             process.stdin.write((SAFETY + case["prompt"]).encode("utf-8"))
@@ -226,10 +293,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("before", "after"), required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--codex-home", required=True, help="Lifecycle 物化的候选或固定基线宿主目录")
+    parser.add_argument("--collection-commit", required=True, help="必须与 owner receipt 和实际内容吻合的完整提交")
+    parser.add_argument("--provider-home", required=True, help="现有 Lifecycle owner 与公开 provider 配置所在的用户目录；不复制认证")
     parser.add_argument("--case", action="append", dest="case_ids")
     parser.add_argument("--retry", action="store_true")
     args = parser.parse_args()
     os.umask(0o077)
+    identity = source_identity(args.codex_home, args.collection_commit)
+    provider_args = provider_options(args.provider_home)
     data, digest = load_cases()
     chosen = [case for case in data["cases"] if not args.case_ids or case["id"] in args.case_ids]
     if not chosen or (args.case_ids and set(args.case_ids) - {x["id"] for x in chosen}):
@@ -261,10 +333,12 @@ def main():
                 continue
             stem = f"{number:03d}-{args.phase}-{case['id']}"
             trace, error = output / (stem + ".jsonl"), output / (stem + ".stderr")
-            status = collect(case, workspace, trace, error)
+            if source_identity(args.codex_home, args.collection_commit) != identity:
+                raise ValueError("evaluation_source_changed")
+            status = collect(case, workspace, trace, error, args.codex_home, provider_args)
             result = {"case_id": case["id"], "phase": args.phase, "turn_number": number,
                       "fixture_sha256": digest, "host": "codex-exec-ephemeral-read-only",
-                      **summarize(trace, status)}
+                      "source": identity, **summarize(trace, status)}
             (output / (stem + ".summary.json")).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
             print(json.dumps(result, ensure_ascii=False), flush=True)
             if status != "completed":

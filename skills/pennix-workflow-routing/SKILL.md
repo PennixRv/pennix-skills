@@ -38,11 +38,11 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 | Trellis 任务/阶段、组件 CLI 与系统部署 | 使用 owner 的真实命令和接口；符合当前调用语义时可由 Context Mode 执行并分析回执 | Context Mode 不接管 owner 协议、状态写入或授权；不以 shell 模拟专属协议 |
 | Teamwork continuation、Codex 交互/Hook、原生 MCP/TUI | 对应宿主或组件原生入口 | 保留实时状态与排他等待，不包装宿主总线 |
 | 宿主工具面与 Hook 路由核验 | 分别检查宿主 MCP、`functions` 内嵌工具、Context Mode `tools/list` 和 `PreToolUse` matcher/decision | 逐层记录声明、发现、可调用和回执；不以任一层推断其他层 |
-| Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 先按问题选择来源，再按其真实 MCP／CLI 接口调用；MCP 直接调用，可等价 CLI 默认 Context Mode | 载体不接管来源、凭据、认证输出或降级；已送入上下文的 MCP 输出再复制到执行器不能追回上下文成本 |
+| Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 先按问题选择来源，再按其真实 MCP／CLI 接口调用；MCP 直接调用，大输出可按需交 Context Mode 分析 | 载体不接管来源、凭据、认证输出或降级；已送入上下文的 MCP 输出再复制到执行器不能追回上下文成本 |
 | 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过执行器或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
 | 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
 | 日常答复、复杂交付或批准前方案展示需要检查覆盖、详略、重点、结构或图表关系 | `$pennix-agent-output-quality`；中文技术内容再组合 `$pennix-chinese-tech-writing` | 输出质量 Skill 负责内容组织和语义复核，语言 Skill 负责中文表达与保真；简单事实走短路径，不改变任务状态、批准或安装 owner |
-| 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | 默认按 `$pennix-context-mode-integration` 在 Context Mode 内完成本地数据处理，并按其有限负面边界选载体 | 完整读取必须实际取得全文；索引不证明内容已读或已核验；无固定命令数门槛 |
+| 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | 遵循当前宿主与 Context Mode v2 的原生行为；小而有界的输出直接读取，需要筛选、计算或压缩大输出时使用 Context Mode | 支持输出替换的宿主先执行再处理真实输出；全文要求须完整取得，索引与摘要不能代替全文 |
 | 已配置服务的健康检查、有限查询或读取 | 直接调用当前会话中可用的 MCP 工具 | 若工具未绑定到当前会话，报告能力缺口并停止；不要改走 shell HTTP |
 | 已批准项目的符号、调用关系、架构或影响范围 | 优先可用 CodeGraph，边界见下节 | 返回源码区段可复用；缺失或陈旧部分再核验，不机械重读；未批准项目不得自动启用索引 |
 | 含义与范围明确但没有有效代码锚点的业务、历史或遗留代码定位 | `$pennix-windsurf-code-search` 可直接发现候选，既有外部边界不变 | 不强制先 rg／图查询；候选在 Context Mode 内核验当前源码，关系再交 CodeGraph |
@@ -53,9 +53,11 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 | 工作流缓存、Teamwork、输出、备份或历史资源的盘点与清理 | `$pennix-resource-cleanup`，再转资源 owner 的原生清理入口 | 默认只读；精确预览和明确授权后才允许 owner 执行 |
 | 项目 AGENTS 来源、内部生成块、内容职责或冲突 | `$pennix-project-agents-governance` | 默认只读，手工正文按请求编辑，生成块委托原生 owner |
 
-工具参数、完整读取、输出与数据边界遵守 [`pennix-context-mode-integration`](../pennix-context-mode-integration/SKILL.md)。owner 决定操作语义、权限和状态；其真实非交互命令可由 Context Mode 承载，前提是本次所需身份、参数、退出码与回执均可保留。不得用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
+Context Mode 的工具参数与宿主适配以当前 MCP instructions、工具声明和原生 help 为准。owner 决定操作语义、权限和状态；其真实非交互命令可由 Context Mode 承载，前提是本次所需身份、参数、退出码与回执均可保留。不得用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
 
-宿主专属协议（例如 `apply_patch`、用户审批、宿主 MCP、视觉渲染或实时 continuation），以及当前执行器确实不能保留必要身份、交互、取消或续接语义的调用，使用真实宿主接口。项目外指令加载另按上表直接原生全文读取。权限拒绝必须遵守，不能换载体绕过。除该指令例外外，发现错误、未测试、一次失败、文件名、敏感标签、项目外路径、命令副作用、Git、任务时长和候选未核验状态都不单独构成排除理由。短回执可直接读，也可由 Context Mode 承载；不设固定批次数。Hook 指导、有限重写和透传不改变 owner，也不保证接管全部宿主工具。
+宿主专属协议（例如 `apply_patch`、用户审批、宿主 MCP、视觉渲染或实时 continuation）使用真实宿主接口。项目外指令加载按上表直接原生全文读取。Context Mode 不可用、调用失败或无法保留必要身份、交互、取消、续接语义时，核对是否已执行，再为本次调用使用获准的原生入口；不把一次失败扩大为组件整体不可用。权限拒绝必须遵守，不能换载体绕过。项目外普通数据按宿主权限访问；项目库范围不构成全局执行器的文件访问禁区。Hook 行为取决于实际 adapter 与宿主能力，不能声称全部工具都被接管。
+
+强制全文材料必须沿真实分页取得完整原文；输出被索引或截断时继续读取缺失范围，必要时使用允许的原生入口。自动恢复和索引是历史参考，当前指令、原生任务状态及授权仍为权威。Codex 原始 sessions/memories 归宿主；Context Mode v2 默认使用 `~/.context-mode`，按 Git common directory 确定共享项目库，worktree 不等于独立清理边界。数据库自愈遵循上游；安装、配置和版本更新归 Lifecycle。
 
 Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unbound_task|unbound_ambiguous` 表示尚未绑定任务，两者分别判断。有身份时按用户明确意图原生 `select`，再遵守任务阶段。载体无法核验身份时使用宿主原生 shell；禁止复制环境身份、借用其他会话 pointer 或制造 shell ticket。
 
@@ -83,15 +85,15 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 
 | 已有证据与问题 | 首选来源 | 后续动作 |
 | --- | --- | --- |
-| 符号／模块线索，需要调用、依赖、具名流程、架构或影响／测试线索 | 已批准且可用的 CodeGraph | 原生 MCP 直接查询；真实 CLI 默认 Context Mode。复用已返回且当前有效的源码区段；只补缺失、陈旧或强制全文要求 |
-| 已知路径读取、字面量／配置匹配、解析、比较 | 当前文件中的精确文本 | 默认在 Context Mode 内读取／rg／解析；“本地”“已知路径”不改变载体。全文要求必须完整返回 |
-| 定位含义、目标与范围已明确，但没有有效代码锚点 | Windsurf Code Search | 在既有外部允许范围内，直接运行其真实 CLI，由 Context Mode 承载；不先做无效的文本／图探测 |
+| 符号／模块线索，需要调用、依赖、具名流程、架构或影响／测试线索 | 已批准且可用的 CodeGraph | 原生 MCP 直接查询；真实 CLI 按输出与宿主能力选择载体。复用已返回且当前有效的源码区段；只补缺失、陈旧或强制全文要求 |
+| 已知路径读取、字面量／配置匹配、解析、比较 | 当前文件中的精确文本 | 使用原生文本入口或 Context Mode 读取／rg／解析；大输出在执行器内筛选。全文要求必须完整返回 |
+| 定位含义、目标与范围已明确，但没有有效代码锚点 | Windsurf Code Search | 在既有外部允许范围内，直接运行其真实 CLI，按需由 Context Mode 分析大输出；不先做无效的文本／图探测 |
 | 有锚点，但适用文本／图证据已核验仍缺语义线索 | 重新判断是否仍有可用锚点 | 有则继续有界精确查询；没有且仍需语义候选时才转 Windsurf。单次未命中不是自动外部后备 |
 | 定位含义、owner 或允许范围仍不清楚 | 当前任务与必要用户澄清 | 先明确问题，不用外部搜索替用户决定边界 |
 
 CodeGraph 是本地预计算的代码结构索引，按名字和代码词检索，不提供业务语义向量检索；Windsurf 当前路径由外部模型规划有界本地搜索，返回位置候选，不维护同等结构图，也不能证明全量影响范围。Context Mode 执行已选命令、批量独立工作、派生结果并回查已取得文本的内容索引；rg 是文本搜索。这些能力不混称“代码索引”，Context Mode 不自动选择或转发其他 MCP。
 
-CodeGraph 不可用、缺失、陈旧或 worktree 受限时，保留实际原因，在 Context Mode 内补当前源码证据；不自动初始化／sync／重建图，也不把影响分析自动外送 Windsurf。Windsurf 保留退出码、status／truncated／coverage；候选路径、行范围和语义须核验，`local_range_validated` 不代表语义正确。已有证据充分时停止检索。
+CodeGraph 不可用、缺失、陈旧或 worktree 受限时，保留实际原因，通过允许的文本入口补当前源码证据；不自动初始化／sync／重建图，也不把影响分析自动外送 Windsurf。Windsurf 保留退出码、status／truncated／coverage；候选路径、行范围和语义须核验，`local_range_validated` 不代表语义正确。已有证据充分时停止检索。
 
 ## 当前 Trellis fork 并行工作流
 
@@ -104,7 +106,7 @@ CodeGraph 不可用、缺失、陈旧或 worktree 受限时，保留实际原因
 
 ## 本地证据优先
 
-- 涉及当前机器、当前项目、工作树、源码、配置、日志或已存在资源时，按上节选择 CodeGraph、精确文本或无锚点语义定位；适用 CLI 与文本处理默认 Context Mode，项目外指令加载遵守原生全文例外。本地证据已足以回答时，不启动外部检索。
+- 涉及当前机器、当前项目、工作树、源码、配置、日志或已存在资源时，按上节选择 CodeGraph、精确文本或无锚点语义定位；适用 CLI 与文本处理按输出和宿主能力选择载体，项目外指令加载遵守原生全文例外。本地证据已足以回答时，不启动外部检索。
 - 本地存在目标源码但问题要求当前上游状态、公开资料、跨项目比较或外部事实时，才进入外部检索；外部检索结果仅补充或对照本地证据，不能替代本地事实核验。
 - 本地检索结果为空、过时或无法解释时先保留具体缺口，不能自动扩大外部范围。外部事实用网页检索，语义代码候选用上节 Windsurf 条件；用户明确指定来源时优先遵守，同时保留任务和凭据边界。
 - `$pennix-grok-search` 的可发现性不构成自动调用理由；调用前必须先判断问题是否确实需要外部资料。
@@ -140,7 +142,7 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 - 不用执行器重实现 Trellis Teamwork 事件等待、Hook 交互或其他已有专用协议；不通过轮询替代生命周期等待。
 - `$pennix-tavily-search` 负责一般外部检索，`$pennix-grok-search` 负责适合 Grok 或明确选择 Grok 的检索；各自保留来源、认证和失败合同。`openai-docs` 负责其允许的 OpenAI/Codex/API/ChatGPT 官方资料路径；官方来源要求优先走对应官方入口。
 - 不因“用户希望并行”就自动派发 worker；没有独立证据价值时保留主会话 inline 路径。
-- 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选提交到 Git；Context Mode 本地索引按集成 Skill、用户指令和来源 owner 合同处理，可保存带来源及未核验状态的候选。
+- 不将凭据、会话、缓存、数据库、日志、运行态、原始外部响应或未经核验的候选提交到 Git；Context Mode 本地索引按原生工具、用户指令和来源 owner 合同处理，可保存带来源及未核验状态的候选。
 
 ## 输出
 

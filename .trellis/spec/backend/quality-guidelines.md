@@ -137,6 +137,16 @@ Questions to answer:
 - For example, read a mandatory PRD fully through the host's bounded file entry;
   ordinary `task.py current` may use Context Mode if cwd, native identity, exit
   code and complete receipt are preserved. Do not route host continuations there.
+- Context Mode v2 follows its upstream adapter and the current host: bounded
+  native output is valid; executors help derive results from large output.
+  Do not reintroduce a mandatory executor wrapper or the removed integration
+  Skill. Preserve per-call native fallback, complete-reading obligations and
+  permission denials. Project cleanup affects the Git-common-directory database,
+  including other worktrees; consult the actual native purge schema.
+- Evaluation `--phase` only labels results. Require an explicit candidate
+  CODEX_HOME, full collection commit, owner receipt and matching installed-tree
+  digest. Reuse the registered provider auth command at runtime; never copy
+  private authentication files into a fixture or summary.
 - Record source, installed revision and behavioral results separately. Keep raw
   traces outside Git, enforce the agreed model-call budget, and report failed,
   blocked or untriggered coverage without converting it to a pass. Installation

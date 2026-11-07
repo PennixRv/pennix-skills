@@ -11,8 +11,8 @@ Codex 主会话和 Trellis 独立 Codex 节点是功能保障范围。全局 ins
 
 先确认明确项目根、当前 cwd、工具是否实际暴露、CLI 来源与原生索引状态。索引存在不等于已批准使用；`projectPath` 会解析其自身或祖先最近的 `.codegraph/`，不是子目录过滤器，根目录缺少索引也不代表子项目无能力。linked Git worktree 不使用 CodeGraph。缺少能力、未索引或陈旧时报告具体限制，在 Context Mode 内补有界当前源码证据，不隐式安装、初始化、sync、重建索引或转外部影响分析。
 
-符号、模块、调用、依赖、具名流程、架构和影响／测试线索问题优先使用可用图；它按名字和代码词检索，接收自然语言不代表业务语义向量检索。已知路径／字面量的精确读取匹配默认在 Context Mode 内完成；明确语义定位但无代码锚点时见 `$pennix-windsurf-code-search`，完整路由表归 `$pennix-workflow-routing`。
+符号、模块、调用、依赖、具名流程、架构和影响／测试线索问题优先使用可用图；它按名字和代码词检索，接收自然语言不代表业务语义向量检索。已知路径／字面量使用当前文本入口，Context Mode 适合大输出分析，原生工具可按需回退；明确语义定位但无代码锚点时见 `$pennix-windsurf-code-search`，完整路由表归 `$pennix-workflow-routing`。
 
-只在宿主实际提供原生 MCP 工具时直接调用，不通过 Context Mode 模拟；deferred 工具沿宿主发现入口加载。真实等价 CLI 默认按 `$pennix-context-mode-integration` 承载。MCP initialize instructions 和原生 help 是协议权威。实际返回且当前有效的源码区段可复用，不为“回到源码”机械重复读取；未返回部分、陈旧数据、强制全文及必要正确性检查须补齐当前证据，图关系不自动晋升为任务事实。主会话和独立节点各自核验能力，不能以主会话工具可见代替节点验收。
+只在宿主实际提供原生 MCP 工具时直接调用，不通过 Context Mode 模拟；deferred 工具沿宿主发现入口加载。真实 CLI 按 `$pennix-workflow-routing` 选择载体，大输出可由 Context Mode 分析，保留原生回退。MCP initialize instructions 和原生 help 是协议权威。实际返回且当前有效的源码区段可复用，不为“回到源码”机械重复读取；未返回部分、陈旧数据、强制全文及必要正确性检查须补齐当前证据，图关系不自动晋升为任务事实。主会话和独立节点各自核验能力，不能以主会话工具可见代替节点验收。
 
 需要项目准备、配置或协议细节时读[原生手册索引](references/native-manual.md)。调用形式或本地可执行位置不改变组件原生接口要求。实际操作保留原始成功、受限和错误结果；不以第二套重试器、缓存或自动索引掩盖缺口。

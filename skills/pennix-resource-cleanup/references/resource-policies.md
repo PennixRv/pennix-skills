@@ -5,7 +5,7 @@
 | 组件 / owner | 对象、可重建性 | 默认保留 / 容量边界 | 原生入口与保护 / 所需证据 |
 | --- | --- | --- | --- |
 | Grok Search | 完整结果、运行输出；可重新请求但可能有成本 | 30 天、1 GiB、4096 文件；单次维护最多 8192 条目 / 5 秒 | `grok-search prune` 默认预览，授权后 `--yes`；临时文件、符号链接、活动 grace 保护；回执核对候选、失败和实际文件字节 |
-| Context Mode | 本地会话派生事件、恢复材料及明确主动索引；原始 Codex 历史归宿主 | 自动会话派生数据按最近活动保留 30 天，当前会话受保护；普通主动索引保留 | `ctx_purge` 要求 `confirm: true` 及 `scope: session/project`；session 仅当前核验线程；无原生预览时只读盘点，普通卸载保留数据；不扫描旧根或其他 owner |
+| Context Mode v2 | 共用项目库中的 journal events、sources 与 chunks；原始 Codex 历史归宿主 | 按上游策略过期所有索引，不为当前 session 或主动索引增加永久保护；默认根 `~/.context-mode` | `ctx_purge` 严格选择一个参数：`session: <id>`、`source: <label/handle>` 或 `project: true`，以当前工具声明为准；project 会影响 Git common directory 对应的共享项目库及其他 worktree。先核验项目、范围并取得删除授权，无原生预览时只读盘点；普通卸载保留数据，v1 旧根只能用经核验的一次性 owner 清理入口 |
 | Trellis Teamwork | Teamwork Session、thread、teammate 与事件；与任务生命周期分离 | 按当前原生命令能力；不以目录名或无输出证明可删 | 先检查 `trellis teamwork --help` 和实际会话、进程状态；没有原生清理入口时只读盘点，不猜造 prune 命令或删除事件目录 |
 | Trellis backup | 受管资产快照及迁移单文件副本；不可凭空重建旧定制 | 日常保留最近至少 3 个已核验完整快照；无自动 TTL | `trellis backup list`、`inspect`、`verify`、`prune --keep 3` 默认预览；授权后 `--yes`。显式全清用 `prune --all --include-legacy`，只纳入已核实旧 writer 的快照及受管迁移 `.backup`；活动更新／恢复及其回退快照、未知／不完整对象受保护。恢复先预览并核对 `--review`，任务布局及阶段运行时不兼容时拒绝 |
 | Trellis mem / task | 原始对话、任务事实与索引；原始历史不可重建 | 当前原生任务按 planning／in_progress／completed／cancelled 目录管理，completed 按月分层；不作为缓存淘汰 | 会话日志、任务完成／取消、正式交接分别使用 owner 原生入口；完成不授予删除历史权限，也不再使用已退役 archive 命令 |
