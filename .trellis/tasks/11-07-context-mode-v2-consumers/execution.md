@@ -4,3 +4,5 @@
 - 分支 refactor/context-mode-v2-consumers，起点 5cfe7adb61ddd585a6f65574b5aec6fb1c6c3c49。已删除集成成员，修订 manifest、AGENTS、路由、CodeGraph、清理边界和评估；保留 cases 的 skills_before 旧名称作为基线事实。
 - collection verify：15 Skills / 2 commands；路由 5 项、runner 10 项、根 tests 12 项通过。runner 支持显式 CODEX_HOME 和固定集合提交，实际树摘要必须吻合 Lifecycle receipt；phase 仍只是结果标签。
 - 待做：真实 owner 物化的 before/after 评估、必要 spec、源码与公开提交、owner 更新移除旧成员及根集成；不以静态通过代替真实行为。
+
+- runner 后续去掉 ephemeral：v2 原生线程元数据需要真实 rollout，已有 spec 也明确 ephemeral 无 rollout 时 Hook 可全部拒绝。评估历史仅留隔离临时 CODEX_HOME，不进入 Git；compact/reload 仍由真实组件 app-server 验证，不以单轮测试代替。provider 只复用公开设置和现有 Lifecycle auth command 的运行时输出，不复制私有认证文件。

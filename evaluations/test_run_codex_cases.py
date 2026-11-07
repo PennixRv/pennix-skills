@@ -146,7 +146,7 @@ class EvaluationDriverTests(unittest.TestCase):
     def test_command_keeps_model_and_trust_configuration(self):
         argv = runner.command(Path("/tmp/fixture"))
         self.assertIn("read-only", argv)
-        self.assertIn("--ephemeral", argv)
+        self.assertNotIn("--ephemeral", argv)
         self.assertNotIn("--model", argv)
         self.assertNotIn("--ignore-user-config", argv)
         self.assertFalse(any("bypass" in part for part in argv))

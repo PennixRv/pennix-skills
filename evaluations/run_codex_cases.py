@@ -113,7 +113,7 @@ def provider_options(provider_home):
 
 
 def command(workspace, provider_args=()):
-    return ["codex", "exec", "--json", "--ephemeral", "--sandbox", "read-only",
+    return ["codex", "exec", "--json", "--sandbox", "read-only",
             "--skip-git-repo-check", "--color", "never", "--cd", str(workspace),
             "-c", 'approval_policy="never"', "-c", "agents.enabled=false", *provider_args, "-"]
 
@@ -337,7 +337,7 @@ def main():
                 raise ValueError("evaluation_source_changed")
             status = collect(case, workspace, trace, error, args.codex_home, provider_args)
             result = {"case_id": case["id"], "phase": args.phase, "turn_number": number,
-                      "fixture_sha256": digest, "host": "codex-exec-ephemeral-read-only",
+                      "fixture_sha256": digest, "host": "codex-exec-isolated-read-only",
                       "source": identity, **summarize(trace, status)}
             (output / (stem + ".summary.json")).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
             print(json.dumps(result, ensure_ascii=False), flush=True)
