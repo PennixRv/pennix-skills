@@ -152,6 +152,16 @@ Questions to answer:
   blocked or untriggered coverage without converting it to a pass. Installation
   success alone cannot establish that a routing recurrence is fixed.
 
+### 场景：固定来源的 Context Mode v2 行为评估
+
+1. 适用范围：修改路由、路径加载或 Context Mode 消费指引时，核验真实候选的工具轨迹；静态检查不替代行为证据。
+2. 接口：`python3 evaluations/run_codex_cases.py --phase before|after --output-dir <目录> --codex-home <绝对路径> --collection-commit <完整SHA> --provider-home <已配置HOME> --case <ID>`；`--retry` 追加保留失败后的新轮次。
+3. 合同：phase 仅为标签；完整提交、owner receipt、集合树摘要须一致。候选会话须保留原生 rollout。Provider 只通过既有 auth.command 读取认证，不复制凭据。MCP 子进程的 CODEX_HOME 由 Lifecycle 显式配置，runner 不补造环境过滤结果。
+4. 错误矩阵：receipt/ref/树摘要不匹配或符号链接拒绝运行；权限拒绝停止；本次能力故障保留实际回执再判断原生回退；输出大小限制按上游支持的有界分页处理，与访问权限拒绝分别判断。
+5. 正常、基线及异常：小文件可以原生读取；强制全文材料须取得全部连续页；大型入口将条件细节渐进披露。错误路径不通过猜测目录弥补，未触发的失败分支记录未实测。
+6. 验证：runner 单测覆盖来源缺失、摘要漂移及坏路径；collection verify 和链接检查验证实际成员。真实轨迹核对 Skill 声明路径、首读结果、MCP 线程身份、普通原生调用、全文页覆盖及失败停止点。
+7. 错误与正确：只把 `--phase after` 改成新标签却沿用旧安装，不能证明新版行为；由 owner 物化固定候选并在每例前核验 receipt 与成员树，才形成可比较证据。真实模型和原生宿主压缩恢复是两种证据，分别记录。
+
 ---
 
 ## Testing Requirements

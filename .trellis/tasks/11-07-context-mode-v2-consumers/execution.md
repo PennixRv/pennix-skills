@@ -10,3 +10,6 @@
 - 实际 before/after 评估累计 20 轮，原始 rollout 和 stderr 仅保留隔离临时现场。before 的旧 MCP approval deny 未绕过；首轮 after 因 MCP 子进程未收到 CODEX_HOME 而失败，随后由 Lifecycle 配置修正。重跑又发现 24 KiB 路由入口触发上游 16 KiB 单次读取限制，部分模型误当权限拒绝。保留失败结果，按渐进披露将阶段、代码检索、协作和专项 owner 细节移入有触发条件的 references，入口保留基本路由、权限和全文边界，没有改上游 Hook。
 - 最终行为候选 `9f9cb2180858b824db816f23cf49b61598fc983d`，owner 物化集合摘要 `aecf38c3308ecd468a9e833727d9475e898ab6075a7842a3ef8dba5aebd25923`。第 016–020 轮 S04-positive、S04-boundary、C01、C09、C10 均实际完整读到声明的 Skill，路径未猜测；MCP ctx_resume 均成功。小文件允许原生读取/rg，1000 行全文通过连续原生分页取得；C01 本地检索和真实 CLI help 完成。C10 ctx_execute 成功读取并匹配，未触发失败回退，不能宣称失败分支经过这轮实测。
 - 路由 5 项、评估 runner 10 项、集合根 12 项及 collection verify 15 Skills / 2 commands 通过；Skill validator 通过。后续任务记录改动不改变已验收成员树。还需公开提交、真实 owner 更新与跨仓安装验收，不提前归档组件任务。
+
+- 交付复核：公开提交 `0b8a1c6384bca4e527cf9824eabd0a4eb69c2a93` 已经真实 pennix update 安装，native status 为 match；旧集成 Skill 目录已不存在。Lifecycle 最终使用 `0.2.36`，CM 为 `2.1.5-pennix.1`；四个实际 Hook trusted，AOE trusted 状态保留。根 full-local 19 项全通过，根测试 8 项及 offline 11 项通过。Trellis backup list/prune 的本仓结果均为空，没有失败或保护对象。
+- 复发预防：本次缺口属于跨层合同与测试覆盖不足。旧单入口承载大量条件规则，超过上游读取阈值后提示又被模型误当权限拒绝；已拆分条件引用并实测完整首读。来源标签不足以证明候选，runner 现核验实际 receipt 与成员树。相关可执行评估合同写入 backend quality spec；安装配置与 trust 迁移经验归 Lifecycle 文档，不复制到本仓。后续提交仅为规范和任务记账，不改变已安装成员树。
