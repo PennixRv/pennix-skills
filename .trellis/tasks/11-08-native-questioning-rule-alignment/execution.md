@@ -15,3 +15,11 @@
 Codex 0.167.0 原生协议加本地确定性模型 fixture 验证四例：Default 正常答复、空答案、取消，以及 Plan 正常答复。四例均在收到回执前不继续请求模型；取消为 interrupted 且无后续请求，空答案原样返回 `{}`。Default 的 `request_user_input` 对应 `isBlocking=false`，Plan 为 true，均不是 `request_user_input_async`。此层只证明协议，不代替真实模型选择。依据为 OpenAI Codex `rust-v0.167.0` 的 `codex-rs/core/src/tools/handlers/request_user_input.rs`：`is_blocking: mode == ModeKind::Plan` 且 await 原生答复。
 
 集合代码交付由本仓发布，实际安装、新 MCP、Tavily 与根侧最终收尾仍由根任务执行；本记录不提前宣称整体完成。
+
+## 最终组件验收
+
+根已核验公开 Skills 提交 `75952b97fa3472ba447def69391d3cdc8a08b379` 的 CI 42444843630 success，Lifecycle v0.2.38 的 CI 42445163319 success。实际 `pennix update pennix-skills` 展示并接受相同固定 ref，生成真实集合 receipt；AGENTS 经原生摘要保护 repair 安装批准候选。Context Mode 包保持 2.1.5-pennix.1，仅原生环境 repair。
+
+安装后在真实 `/home/penn/.codex` 新建两个独立宿主场景，分别通过同步问答及全文/大输出检查。另一个新宿主经真实 MCP 执行器发现 tvly-hikari、tvly、CCH，并完成唯一一次限定 Tavily 查询，CLI 退出 0；没有复制认证或手改安装树。根 offline 11/11、根 fixture 8 项通过；两个仓库原生备份盘点为空，无需删除。
+
+按 3.2/3.3 复盘：工具缺失误判属于跨层合同与隐含假设；本轮计量失误同样把载体字段当成工具身份。已在现有 backend/quality-guidelines.md 补充 app-server 名称/字段分离、线程绑定和回归边界，不在根复制通用合同。真实行为仅覆盖当前样本；异步工具仍暴露，已明确为行为约束而非技术隔离。当前组件接受条件满足，可以原生归档；根任务继续承担最终组合收尾。无新增未决取舍。

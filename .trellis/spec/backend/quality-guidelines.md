@@ -162,6 +162,20 @@ Questions to answer:
 6. 验证：runner 单测覆盖来源缺失、摘要漂移及坏路径；collection verify 和链接检查验证实际成员。真实轨迹核对 Skill 声明路径、首读结果、MCP 线程身份、普通原生调用、全文页覆盖及失败停止点。
 7. 错误与正确：只把 `--phase after` 改成新标签却沿用旧安装，不能证明新版行为；由 owner 物化固定候选并在每例前核验 receipt 与成员树，才形成可比较证据。真实模型和原生宿主压缩恢复是两种证据，分别记录。
 
+### 原生提问评估
+
+- `run_codex_cases.py --host app-server` 复用上述固定来源和预算，真实收发
+  `item/tool/requestUserInput`；`--resume-thread <ID> --compact` 验证同线程原生恢复。
+  协议 fixture 验证等待、答复、空答案和取消，真实模型另验实际选择，二者不能互代。
+- Codex 0.167.0 的 Default 模式中，`request_user_input` 也产生
+  `isBlocking=false`；Plan 模式才为 true。该字段不证明调用了异步工具。
+  `question_tools(path, codex_home, thread_id, turn_id)` 仅审计宿主实际返回的
+  sessions 文件，核验 session_meta 身份后按 turn_context 统计真实 function_call
+  名称；路径越界、身份不符或超出预算均拒绝，不能从 UI 标志猜测名称。
+- 回归必须覆盖 false 标志下同步调用、旧 turn 的异步调用不混入新 turn、身份及路径拒绝。
+  summary 保留宿主标志与工具计数两类事实；未读取原生工具证据时保持 unknown，
+  基线未复现不能改报为修复前失败。评估中未选异步，不代表宿主已技术移除该工具。
+
 ---
 
 ## Testing Requirements
