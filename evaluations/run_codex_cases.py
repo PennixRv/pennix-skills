@@ -298,7 +298,12 @@ def main():
     parser.add_argument("--provider-home", required=True, help="现有 Lifecycle owner 与公开 provider 配置所在的用户目录；不复制认证")
     parser.add_argument("--case", action="append", dest="case_ids")
     parser.add_argument("--retry", action="store_true")
+    parser.add_argument("--host", choices=("exec", "app-server"), default="exec")
+    parser.add_argument("--resume-thread", help="app-server 原生线程 ID；不接受替换历史")
+    parser.add_argument("--compact", action="store_true", help="先真实压缩 resume 的线程")
     args = parser.parse_args()
+    if (args.resume_thread or args.compact) and args.host != "app-server":
+        parser.error("resume/compact require app-server")
     os.umask(0o077)
     identity = source_identity(args.codex_home, args.collection_commit)
     provider_args = provider_options(args.provider_home)
@@ -335,10 +340,21 @@ def main():
             trace, error = output / (stem + ".jsonl"), output / (stem + ".stderr")
             if source_identity(args.codex_home, args.collection_commit) != identity:
                 raise ValueError("evaluation_source_changed")
-            status = collect(case, workspace, trace, error, args.codex_home, provider_args)
+            if args.host == "app-server":
+                import app_server_cases
+                status, thread_id, observations = app_server_cases.collect(
+                    case, workspace, trace, error, args.codex_home, provider_args,
+                    resume_thread=args.resume_thread, compact=args.compact)
+                evidence = {"native_thread_id": thread_id, "interaction": observations,
+                            "verdict": "needs_review" if status == "completed" else "blocked_native_execution"}
+            else:
+                status = collect(case, workspace, trace, error, args.codex_home, provider_args)
+                evidence = summarize(trace, status)
             result = {"case_id": case["id"], "phase": args.phase, "turn_number": number,
-                      "fixture_sha256": digest, "host": "codex-exec-isolated-read-only",
-                      "source": identity, **summarize(trace, status)}
+                       "fixture_sha256": digest, "host": "codex-" + args.host + "-isolated-read-only",
+                       "source": identity, **evidence}
+            agents = Path(args.codex_home) / "AGENTS.md"
+            result["agents_sha256"] = hashlib.sha256(agents.read_bytes()).hexdigest() if agents.is_file() else None
             (output / (stem + ".summary.json")).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
             print(json.dumps(result, ensure_ascii=False), flush=True)
             if status != "completed":

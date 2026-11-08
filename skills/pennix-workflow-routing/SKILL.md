@@ -37,7 +37,7 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 | --- | --- | --- |
 | Trellis 任务/阶段、组件 CLI 与系统部署 | 使用 owner 的真实命令和接口；符合当前调用语义时可由 Context Mode 执行并分析回执 | Context Mode 不接管 owner 协议、状态写入或授权；不以 shell 模拟专属协议 |
 | Teamwork continuation、Codex 交互/Hook、原生 MCP/TUI | 对应宿主或组件原生入口 | 保留实时状态与排他等待，不包装宿主总线 |
-| 宿主工具面与 Hook 路由核验 | 分别检查宿主 MCP、`functions` 内嵌工具、Context Mode `tools/list` 和 `PreToolUse` matcher/decision | 逐层记录声明、发现、可调用和回执；不以任一层推断其他层 |
+| 宿主工具面与 Hook 路由核验 | 按当前问题核对宿主直接声明、编排器嵌套工具、MCP 或 Hook 的实际入口；不必每次穷举所有层 | `request_user_input` 等直接工具不要求出现在 `functions.exec` 的 `ALL_TOOLS` 或 MCP 清单中；局部缺项不代表宿主缺失，参数、用途、权限和环境失败保留原类别 |
 | Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 先按问题选择来源，再按其真实 MCP／CLI 接口调用；MCP 直接调用，大输出可按需交 Context Mode 分析 | 载体不接管来源、凭据、认证输出或降级；已送入上下文的 MCP 输出再复制到执行器不能追回上下文成本 |
 | 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过执行器或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
 | 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
@@ -84,7 +84,7 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 
 ## 外部检索来源选择
 
-- 当前任务需要外部检索时优先使用 `$pennix-tavily-search`。Tavily 操作失败时遵循其 Skill 的失败合同并报告检索缺口，不自动重试或改用其他服务商。用户指定来源或工具时，按该请求选择相符入口。
+- 当前任务需要外部检索时优先使用 `$pennix-tavily-search`。操作失败遵循其 Skill 对请求前本地错误与请求后错误的区分：核实是否已执行，再选择允许的入口；不盲目重试或改用其他服务商。用户指定来源或工具时，按该请求选择相符入口。
 - 仅在当前操作适合 Grok（例如需要 X 来源）或用户/路线明确选择 Grok 时使用 `$pennix-grok-search`。遵守该 Skill 的调用与失败合同；不因其可发现就自动调用，也不在失败后自动切换服务商。
 
 ## 组件职责

@@ -87,8 +87,6 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         content = SKILL.read_text(encoding="utf-8")
         self.assertIn("优先 `$pennix-tavily-search`", content)
         self.assertIn("仅在当前操作适合 Grok（例如需要 X 来源）或用户/路线明确选择 Grok", content)
-        self.assertIn("Tavily 操作失败时遵循其 Skill 的失败合同", content)
-        self.assertIn("不自动重试或改用其他服务商", content)
         self.assertNotIn("普通外部检索必须先走 `$pennix-grok-search`", content)
 
 

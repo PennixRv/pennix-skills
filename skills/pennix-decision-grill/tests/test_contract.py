@@ -26,7 +26,6 @@ class DecisionGrillContractTests(unittest.TestCase):
             "解决方案设计与收敛在接受正式方案前核验相关流行开源实现或公开提案",
             "新项目和长期维护项目的大型重构尤其应检查这类参考",
             "不自动变成硬性约束",
-            "外部事实也按 `$pennix-workflow-routing` 选择适用来源",
         ):
             self.assertIn(marker, self.content)
 

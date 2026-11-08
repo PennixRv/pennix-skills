@@ -1,0 +1,56 @@
+{
+  "id": "native-questioning-rule-alignment",
+  "name": "native-questioning-rule-alignment",
+  "title": "修复原生提问判断与 Skill 联动规则",
+  "description": "实施根任务已批准合同的 Skills 工作包：提问入口、v2 路由、Tavily 请求前回退和真实交互评估；根合同及授权为上游依据。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-08",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning": {
+      "revision": 3,
+      "stage": "plan_closed",
+      "review_digest": "sha256:daf086a8d77fabec1b395a4ec92d9c358a5c1234f14e58ad60b744788962e049",
+      "seal": {
+        "revision": 3,
+        "task_id": "native-questioning-rule-alignment",
+        "task_name": "11-08-native-questioning-rule-alignment",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "9fa3f53479b2e8f1d3c0b4800ebd5101e4ced72a7c66ddff2b52232aa25afc7e",
+          "design.md": "fdf46a41899098316ad7573c8f0be372fcc6d29a19fc10e19b56236d11524397",
+          "implement.md": "d60aafdf4c7a425265df8153654647e3b2dafaa851b333f41bc2e4d2d91cb0d3"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "plan_digest": "sha256:daf086a8d77fabec1b395a4ec92d9c358a5c1234f14e58ad60b744788962e049",
+        "sealed_at": "2026-11-08T03:33:00.736542+00:00"
+      },
+      "approved_revision": 3,
+      "approval_basis": "用户明确批准根任务完整合同4ad9ae36及同范围组件实施、提交推送、发行安装和验收收尾；本任务仅投影该已批准工作包，无新取舍",
+      "approved_at": "2026-11-08T03:33:00.910633+00:00"
+    },
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing"
+  }
+}

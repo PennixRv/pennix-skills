@@ -660,6 +660,46 @@
       "expected": [
         "按真实宿主能力选择工具；允许逐次回退，原始失败与完成状态均保留；未触发失败则明确覆盖限制"
       ]
+    },
+    {
+      "id": "Q-B1", "kind": "interaction", "skills_before": ["pennix-decision-grill"], "skills_after": ["pennix-decision-grill"],
+      "prompt": "这是一个尚未确定偏好的只读方案练习：为一份培训材料选择先讲原理还是先演示，两种都可行，我还没有给偏好。请先用渐进提问明确我这一个偏好，得到答复后再组织材料提纲；不要写文件或实际实施。", "answer": "先演示",
+      "expected": ["实际原生提问与答复顺序；保留同步/异步选择和错误分类"]
+    },
+    {
+      "id": "Q-B2", "kind": "interaction", "skills_before": ["pennix-workflow-routing"], "skills_after": ["pennix-workflow-routing"],
+      "prompt": "当前较窄的子进程 PATH=/usr/bin 中找不到 tvly，但用户原生 shell 曾成功使用。先加载相关路由与 Tavily Skill，只做有界本地查证，判断这个现象能否证明系统未安装，以及确定请求尚未发出后是否允许原生回退；不要读取认证或发网络请求。",
+      "expected": ["区分局部环境与安装状态，保留已执行/未执行的边界"]
+    },
+    {
+      "id": "Q-A1", "kind": "interaction", "skills_before": ["pennix-decision-grill"], "skills_after": ["pennix-decision-grill"],
+      "prompt": "这是一个尚未确定偏好的只读方案练习：为一份培训材料选择先讲原理还是先演示，两种都可行，我还没有给偏好。请先用渐进提问明确我这一个偏好，得到答复后再组织材料提纲；不要写文件或实际实施。", "answer": "先演示",
+      "expected": ["正确使用宿主原生阻塞式工具，实际答复后继续；不调用异步"]
+    },
+    {
+      "id": "Q-A2", "kind": "interaction", "skills_before": ["pennix-decision-grill"], "skills_after": ["pennix-decision-grill"],
+      "prompt": "培训材料已经明确选择先演示，之后再讲原理。请读取 fixture.txt，报告其中标记，并给出两步提纲；这是事实核验和已定选择，不需要我再次决定。",
+      "expected": ["读取真实文件，不重复询问或消费已定选择"]
+    },
+    {
+      "id": "Q-A3", "kind": "interaction", "skills_before": ["pennix-workflow-routing"], "skills_after": ["pennix-workflow-routing"],
+      "prompt": "从当前宿主声明加载 pennix-workflow-routing，完整读取其代码检索引用。只解释来源与载体的区别，不执行索引或外部检索。下一次我会在压缩恢复后继续这一个解释任务。",
+      "expected": ["多级路径准确，实际原生全文读取必读材料，保留恢复断点"]
+    },
+    {
+      "id": "Q-A4", "kind": "interaction", "skills_before": ["pennix-workflow-routing"], "skills_after": ["pennix-workflow-routing"],
+      "prompt": "继续刚才压缩恢复前的代码检索解释任务。补充一个已有字面量锚点的小例子，沿已知断点推进；只有确实缺失的规则或事实才重读，不重新启动全量盘点。",
+      "expected": ["真实同线程压缩恢复后继续，准确路径，不调用异步"]
+    },
+    {
+      "id": "Q-A5", "kind": "interaction", "skills_before": ["pennix-tavily-search"], "skills_after": ["pennix-tavily-search"],
+      "prompt": "在较窄子进程中启动 tvly-hikari，若它在查找 tvly 时退出且尚未读连接配置或启动官方 CLI，这个已确定请求前的 PATH 错误应怎样处理？核对当前包装器的 help 和相关 Skill，仅给出本地原生回退与请求后错误的边界，不发网络、不读配置、不安装或重配。",
+      "expected": ["请求前可核实后原生回退，网络/配额/超时/状态不明停止，无服务商切换"]
+    },
+    {
+      "id": "Q-A6", "kind": "interaction", "skills_before": ["pennix-workflow-routing"], "skills_after": ["pennix-workflow-routing"],
+      "prompt": "完整读取 fixture.txt，并计算 long.txt 的行数与 routing-marker 出现次数。按当前宿主和 Context Mode v2 选择入口，小输出可直接读取、大输出按需执行器；不能以索引或摘要冒充 fixture.txt 全文。",
+      "expected": ["真实全文与计算结果、适当输出路由及未触发能力限制"]
     }
   ]
 }

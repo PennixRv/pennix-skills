@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 import run_codex_cases as runner
+import app_server_cases
 
 
 class EvaluationDriverTests(unittest.TestCase):
@@ -78,8 +79,9 @@ class EvaluationDriverTests(unittest.TestCase):
     def test_frozen_coverage_and_name_mapping(self):
         data, digest = runner.load_cases()
         self.assertEqual(64, len(digest))
-        self.assertEqual(36, sum(x["kind"] != "combination" for x in data["cases"]))
+        self.assertEqual(36, sum(x["kind"] not in {"combination", "interaction"} for x in data["cases"]))
         self.assertEqual(10, sum(x["kind"] == "combination" for x in data["cases"]))
+        self.assertEqual(8, sum(x["kind"] == "interaction" for x in data["cases"]))
         self.assertTrue(all(name.startswith("pennix-") for x in data["cases"] for name in x["skills_after"]))
 
     def test_sources_bind_actual_tree_to_owner_receipt_and_fixed_commit(self):
@@ -150,6 +152,48 @@ class EvaluationDriverTests(unittest.TestCase):
         self.assertNotIn("--model", argv)
         self.assertNotIn("--ignore-user-config", argv)
         self.assertFalse(any("bypass" in part for part in argv))
+
+    def test_native_question_response_uses_question_ids_and_rejects_secrets(self):
+        message = {"id": "native-7", "params": {"isBlocking": True,
+                   "questions": [{"id": "preference", "question": "Which order?"}]}}
+        response = app_server_cases.answer_request(message, "demo first")
+        self.assertEqual({"id": "native-7", "result": {"answers": {
+            "preference": {"answers": ["demo first"]}}}}, response)
+        message["params"]["questions"][0]["isSecret"] = True
+        with self.assertRaisesRegex(ValueError, "unsafe_native_question"):
+            app_server_cases.answer_request(message, "not a secret")
+
+    def test_native_question_observations_preserve_async_and_failed_turns(self):
+        events = [
+            {"method": "item/tool/requestUserInput", "params": {"isBlocking": True}},
+            {"method": "evaluation/questionAnswered", "params": {}},
+            {"method": "item/tool/requestUserInput", "params": {"isBlocking": False}},
+            {"method": "turn/completed", "params": {"turn": {"status": "failed"}}},
+            {"method": "item/completed", "params": {"item": {"type": "contextCompaction"}}},
+        ]
+        result = app_server_cases.observe(events)
+        self.assertEqual(1, result["blocking_questions"])
+        self.assertEqual(1, result["async_questions"])
+        self.assertEqual(1, result["question_answers"])
+        self.assertTrue(result["turn_failed"])
+        self.assertTrue(result["compaction_observed"])
+
+    def test_native_client_preserves_server_errors_and_rejects_unexpected_requests(self):
+        import queue
+        import time
+        app = object.__new__(app_server_cases.AppServer)
+        app.sequence, app.events, app.messages = 0, [], queue.Queue()
+        sent = []
+        app.send = sent.append
+        app.messages.put({"id": 1, "error": {"code": -32602, "message": "invalid params"}})
+        with self.assertRaisesRegex(ValueError, "native_rpc_error"):
+            app.rpc("thread/start", {})
+        self.assertEqual("thread/start", sent[0]["method"])
+        app.messages.put({"id": "approval-1", "method": "item/commandExecution/requestApproval"})
+        with self.assertRaisesRegex(ValueError, "unexpected_server_request"):
+            app.rpc("thread/start", {})
+        with self.assertRaises(TimeoutError):
+            app.next(time.monotonic() - 1)
 
 
 if __name__ == "__main__":
