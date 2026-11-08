@@ -998,3 +998,27 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 下一步（Next Steps）
 
 - 本组件范围完成；根任务继续完成其原生交付审查及提交。
+
+
+## 会话（Session） 39：原生提问规则与真实宿主验收
+<!-- trellis-session: v=2 fp=a19726f2093d35d8 -->
+
+**日期（Date）**: 2026-11-08
+**任务（Task）**: 原生提问规则与真实宿主验收
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+完成已批准三个Skill联动、app-server真实问答评估和计量纠偏；14项eval单测通过。根经Lifecycle0.2.38安装固定集合，新宿主及新MCP唯一Tavily查询成功；异步工具仍暴露，仅行为禁止。当前任务已原生归档，其他活动任务不改动。
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `3ef9af4` | fix: align native questioning and bounded fallback rules |
+| `75952b9` | fix: distinguish question tools from host blocking flags |
+| `3224ff7` | docs: capture verified native questioning delivery |
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
