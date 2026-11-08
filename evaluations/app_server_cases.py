@@ -5,6 +5,7 @@ import queue
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 import run_codex_cases as driver
 
@@ -100,14 +101,18 @@ def answer_request(message, answer):
 
 
 def observe(events):
-    result = {"blocking_questions": 0, "async_questions": 0, "question_answers": 0,
+    result = {"host_blocking_requests": 0, "host_nonblocking_requests": 0, "question_answers": 0,
+              "question_tool_calls": None,
               "command_items": 0, "mcp_items": 0, "completed_turns": 0,
               "compaction_observed": False, "turn_failed": False}
     for event in events:
         method, params = event.get("method"), event.get("params", {})
         if method == "item/tool/requestUserInput":
-            field = "blocking_questions" if params.get("isBlocking") is True else "async_questions"
+            # Default-mode request_user_input also has isBlocking=false in Codex.
+            field = "host_blocking_requests" if params.get("isBlocking") is True else "host_nonblocking_requests"
             result[field] += 1
+        elif method == "evaluation/questionTools":
+            result["question_tool_calls"] = params
         elif method == "evaluation/questionAnswered":
             result["question_answers"] += 1
         elif method == "thread/compacted":
@@ -121,6 +126,29 @@ def observe(events):
             result["completed_turns"] += 1
             result["turn_failed"] |= params.get("turn", {}).get("status") != "completed"
     return result
+
+def question_tools(path, codex_home, thread_id, turn_id):
+    path = Path(path).resolve(strict=True)
+    if not path.is_relative_to((Path(codex_home) / "sessions").resolve()):
+        raise ValueError("unsafe_rollout_path")
+    if path.stat().st_size > driver.MAX_TRACE_BYTES:
+        raise ValueError("trace_limit")
+    counts = {"request_user_input": 0, "request_user_input_async": 0}
+    identity, current = False, None
+    with path.open() as stream:
+        for line in stream:
+            event = json.loads(line)
+            payload = event.get("payload", {})
+            if event.get("type") == "session_meta":
+                identity = payload.get("id") == thread_id
+            elif event.get("type") == "turn_context":
+                current = payload.get("turn_id")
+            elif (current == turn_id and event.get("type") == "response_item"
+                  and payload.get("type") == "function_call" and payload.get("name") in counts):
+                counts[payload["name"]] += 1
+    if not identity:
+        raise ValueError("rollout_identity_mismatch")
+    return counts
 
 
 def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
@@ -146,7 +174,7 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
                 app.rpc("thread/compact/start", {"threadId": thread_id})
                 app.wait("turn/completed", offset)
             offset = len(app.events)
-            app.rpc("turn/start", {"threadId": thread_id,
+            turn = app.rpc("turn/start", {"threadId": thread_id,
                                   "input": [{"type": "text", "text": driver.SAFETY + case["prompt"]}]})
             deadline = time.monotonic() + driver.TIMEOUT_SECONDS
             cursor = offset
@@ -163,6 +191,10 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
                     app.events.insert(cursor, marker)
                 elif method == "turn/completed":
                     failed = message.get("params", {}).get("turn", {}).get("status") != "completed"
+                    counts = question_tools(started["thread"]["path"], codex_home, thread_id, turn["turn"]["id"])
+                    marker = {"method": "evaluation/questionTools", "params": counts}
+                    trace.write(json.dumps(marker) + "\n")
+                    app.events.append(marker)
                     return ("native_failure" if failed else "completed"), thread_id, observe(app.events)
     except (TimeoutError, ValueError, OSError, EOFError) as error:
         with error_path.open("a") as stream:

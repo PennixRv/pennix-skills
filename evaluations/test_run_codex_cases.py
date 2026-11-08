@@ -163,20 +163,46 @@ class EvaluationDriverTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe_native_question"):
             app_server_cases.answer_request(message, "not a secret")
 
-    def test_native_question_observations_preserve_async_and_failed_turns(self):
+    def test_native_question_observations_do_not_infer_tool_name_from_host_flag(self):
         events = [
             {"method": "item/tool/requestUserInput", "params": {"isBlocking": True}},
             {"method": "evaluation/questionAnswered", "params": {}},
             {"method": "item/tool/requestUserInput", "params": {"isBlocking": False}},
+            {"method": "evaluation/questionTools", "params": {
+                "request_user_input": 2, "request_user_input_async": 0}},
             {"method": "turn/completed", "params": {"turn": {"status": "failed"}}},
             {"method": "item/completed", "params": {"item": {"type": "contextCompaction"}}},
         ]
         result = app_server_cases.observe(events)
-        self.assertEqual(1, result["blocking_questions"])
-        self.assertEqual(1, result["async_questions"])
+        self.assertEqual(1, result["host_blocking_requests"])
+        self.assertEqual(1, result["host_nonblocking_requests"])
+        self.assertEqual(2, result["question_tool_calls"]["request_user_input"])
+        self.assertEqual(0, result["question_tool_calls"]["request_user_input_async"])
         self.assertEqual(1, result["question_answers"])
         self.assertTrue(result["turn_failed"])
         self.assertTrue(result["compaction_observed"])
+
+    def test_rollout_question_counts_bind_path_identity_and_current_turn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "sessions").mkdir()
+            path = home / "sessions/rollout.jsonl"
+            events = [
+                {"type": "session_meta", "payload": {"id": "thread-1"}},
+                {"type": "turn_context", "payload": {"turn_id": "old"}},
+                {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input_async"}},
+                {"type": "turn_context", "payload": {"turn_id": "new"}},
+                {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input"}},
+            ]
+            path.write_text("\n".join(json.dumps(event) for event in events))
+            self.assertEqual({"request_user_input": 1, "request_user_input_async": 0},
+                             app_server_cases.question_tools(path, home, "thread-1", "new"))
+            with self.assertRaisesRegex(ValueError, "rollout_identity_mismatch"):
+                app_server_cases.question_tools(path, home, "other", "new")
+            outside = home / "outside.jsonl"
+            outside.write_text(path.read_text())
+            with self.assertRaisesRegex(ValueError, "unsafe_rollout_path"):
+                app_server_cases.question_tools(outside, home, "thread-1", "new")
 
     def test_native_client_preserves_server_errors_and_rejects_unexpected_requests(self):
         import queue
