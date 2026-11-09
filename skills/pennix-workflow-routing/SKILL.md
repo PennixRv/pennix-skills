@@ -73,7 +73,7 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 
 ## 当前 Trellis fork 并行工作流
 
-需要并行协作时，读取 [并行工作入口](references/teamwork-routing.md)，再调用当前声明的 trellis-teamwork 与原生 CLI。
+需要并行协作时，读取 [并行工作入口](references/teamwork-routing.md)：只读证据使用当前 `trellis-teamwork`，已授权完整结果包的独立工作树实施使用当前 `trellis-worktree-delegation`。各自走原生入口，工具可见不替代派发授权。
 
 ## 本地证据优先
 

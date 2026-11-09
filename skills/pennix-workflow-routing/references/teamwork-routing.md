@@ -2,6 +2,10 @@
 
 本节只分流入口，Teamwork Session、teammate、assignment、报告与处置由当前 `trellis-teamwork` 和原生 CLI 管理。
 
+完整结果包的独立工作树实施使用已安装的 `trellis-worktree-delegation`，由 Trellis 控制绑定、准备/实施许可、恢复及接受，Paseo 维护同机 workspace/agent/provider thread。它与 Teamwork 的只读证据协作不同；可用节点数、空闲 teammate 或“并行”字样均不构成派发许可。没有该 Skill、新协议脚本或可选 `trellis-paseo-adapter` 时，沿 Lifecycle 和 Trellis 原生资产更新修复，不退回旧的一步启动。
+
+主控或委派节点的源码检索各自遵守 CodeGraph 的本树绑定与能力合同；共享全局安装不等于共享索引。全局 AGENTS 由宿主原生加载，固定委派角色、按次合同投影和每 turn 指示分开提供，不复制整套主控环境。未知创建/发送只核验并接回既有资源，不能重放；主控接受和目标 owner 集成不交给节点或 Teamwork。
+
 1. 按项目当前执行模型和实际授权选择主会话、宿主原生代理或只读 Teamwork；可用工具与角色不同，不相互冒充，也不强制派发。
 2. Teamwork teammate 通过角色合同只提供报告，不写源码、主任务事实或接受结果。主代理核验证据、受保护目标和接受条件后记录处置；执行结束不等于验收通过。不新增 sandbox 或权限隔离门槛。
 3. general 是协作模式，batch 是需要已验证 adapter 的受控入口。未具备 adapter 就明确拒绝 batch，不用交互 run/spawn 替代；模型和 reasoning 配置读取当前原生 profile，不写死旧映射。

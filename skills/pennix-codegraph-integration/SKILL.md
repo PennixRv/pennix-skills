@@ -9,7 +9,11 @@ Pennix 受限 fork 保持 `codegraph` CLI，交付 Linux x64 的 `@pennixrv/code
 
 Codex 主会话和 Trellis 独立 Codex 节点是功能保障范围。全局 install/refresh/upgrade/uninstall 保留用户级 AGENTS 原文；用户层仅保留本 Skill 的一行导航。已批准项目可通过原生 local install 维护短块，块只提示能力条件和 MCP/CLI 入口。其他宿主只保留已核验兼容行为，不推导相同功能保证。
 
-先确认明确项目根、当前 cwd、工具是否实际暴露、CLI 来源与原生索引状态。索引存在不等于已批准使用；`projectPath` 会解析其自身或祖先最近的 `.codegraph/`，不是子目录过滤器，根目录缺少索引也不代表子项目无能力。linked Git worktree 不使用 CodeGraph。缺少能力、未索引或陈旧时报告具体限制，在 Context Mode 内补有界当前源码证据，不隐式安装、初始化、sync、重建索引或转外部影响分析。
+先确认明确项目根、当前 cwd、工具是否实际暴露、CLI 来源与原生索引状态。索引存在不等于已批准使用。传统未绑定入口的 `projectPath` 会解析其自身或祖先最近的 `.codegraph/`，不是子目录过滤器；根目录缺少索引也不代表子项目无能力。
+
+工作树并行要求原生 `serve --mcp --bound-worktree <当前 checkout>` 能力（Pennix 1.6.2-pennix.4 起），并有本树独立索引与查询 provenance。主控及每个委派节点分别核验实际安装版本、MCP 启动绑定和当前返回来源；同 HEAD 或同 Git common directory 不能证明同树。节点省略 projectPath 时仍只用本树索引，显式其他树应被拒绝，不能借祖先或兄弟索引。缺少这项原生能力时，linked worktree 继续停用 CodeGraph，不能凭新版 Skill 放行；必需能力合同不满足时报告阻断，由 controller 通过原生 owner 修复。
+
+缺少能力、未索引或陈旧时报告具体限制，在 Context Mode 内补有界当前源码证据；这不代替必需图能力的准入。不隐式安装、初始化、sync、重建索引或转外部影响分析。明确获准的每树准备由目标组件原生入口完成，不从主树复制数据库。
 
 符号、模块、调用、依赖、具名流程、架构和影响／测试线索问题优先使用可用图；它按名字和代码词检索，接收自然语言不代表业务语义向量检索。已知路径／字面量使用当前文本入口，Context Mode 适合大输出分析，原生工具可按需回退；明确语义定位但无代码锚点时见 `$pennix-windsurf-code-search`，完整路由表归 `$pennix-workflow-routing`。
 
