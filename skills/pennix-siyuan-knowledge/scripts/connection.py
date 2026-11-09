@@ -98,7 +98,8 @@ def inspect(input_value: dict | None = None) -> dict:
     input_value = input_value or {}
     path = connection_path()
     if not path.exists() and not path.is_symlink():
-        return {"state": "missing", "owned": False, "detail": "SiYuan connection is absent"}
+        receipt = read_receipt()
+        return {"state": "orphaned" if receipt else "missing", "owned": bool(receipt), "detail": "SiYuan connection is absent"}
     try:
         value = read_connection(path)
     except FileNotFoundError:
@@ -120,7 +121,22 @@ def inspect(input_value: dict | None = None) -> dict:
     return {"state": "current" if current else "drifted", "owned": True, "detail": "SiYuan connection matches lifecycle receipt" if current else "SiYuan connection drifted"}
 
 
-def configure(input_value: dict) -> dict:
+def validate_lifecycle(input_value: dict, operation: str) -> tuple[dict, dict | None]:
+    if input_value.get("target") != "siyuan" or not isinstance(operation, str) or operation not in {"configure", "unconfigure"}:
+        raise ConnectionError("SiYuan lifecycle operation is invalid")
+    path = connection_path()
+    for parent in path.parents:
+        if parent.is_symlink() or parent.exists() and not parent.is_dir():
+            raise ConnectionError("unsafe connection directory")
+    if path.parent.exists():
+        info = path.parent.stat()
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise ConnectionError("unsafe connection directory")
+    if operation == "unconfigure":
+        before = inspect()
+        if before["state"] != "missing" and (not before["owned"] or before["state"] not in {"current", "orphaned"}):
+            raise ConnectionError("SiYuan lifecycle ownership is missing or drifted")
+        return before, None
     if input_value.get("target") != "siyuan" or not isinstance(input_value.get("values"), dict) or not isinstance(input_value.get("secrets"), dict):
         raise ConnectionError("SiYuan lifecycle input is invalid")
     if not isinstance(input_value.get("desired_digest"), str):
@@ -130,15 +146,20 @@ def configure(input_value: dict) -> dict:
     if hashlib.sha256(canonical).hexdigest() != input_value["desired_digest"]:
         raise ConnectionError("SiYuan lifecycle desired digest is invalid")
     before = inspect(input_value)
-    if before["state"] == "current":
-        return before
-    if before["state"] in {"external", "invalid"} or before["state"] == "adoptable" and input_value.get("adopt_existing") is not True:
+    if before["state"] in {"external", "invalid", "orphaned"} or before["state"] == "adoptable" and input_value.get("adopt_existing") is not True:
         raise ConnectionError(f"SiYuan owner state {before['state']} cannot be taken over")
     values, secrets = input_value["values"], input_value["secrets"]
     record = {"schema": 1, "url": values.get("url"), "api_token": secrets.get("api_token"), "default_notebook": values.get("default_notebook")}
     if any(not isinstance(record[key], str) or not record[key].strip() for key in ("url", "api_token", "default_notebook")):
         raise ConnectionError("SiYuan lifecycle fields are incomplete")
     validate(record)
+    return before, record
+
+
+def configure(input_value: dict) -> dict:
+    before, record = validate_lifecycle(input_value, "configure")
+    if before["state"] == "current":
+        return before
     path = connection_path()
     before_connection = path.read_bytes() if path.exists() else None
     before_receipt = receipt_path().read_bytes() if receipt_path().exists() else None
@@ -160,6 +181,9 @@ def unconfigure() -> dict:
     before = inspect()
     if before["state"] == "missing":
         return {"state": "absent", "owned": False, "detail": "SiYuan connection is absent"}
+    if before["state"] == "orphaned" and before["owned"]:
+        receipt_path().unlink()
+        return {"state": "absent", "owned": False, "detail": "SiYuan orphaned receipt removed"}
     if not before["owned"] or before["state"] != "current":
         raise ConnectionError("SiYuan lifecycle ownership is missing or drifted")
     path = connection_path()
@@ -179,19 +203,57 @@ def unconfigure() -> dict:
     return {"state": "absent", "owned": False, "detail": "SiYuan connection removed"}
 
 
+def snapshot(paths):
+    metadata = []
+    for path in sorted({parent for item in paths for parent in (item, *item.parents)}):
+        try:
+            value = path.lstat()
+            metadata.append((str(path), value.st_mode, value.st_uid))
+        except FileNotFoundError:
+            metadata.append((str(path), None))
+    return tuple(digest(path) for path in paths), metadata
+
+
 def main() -> int:
+    protocol = {"protocol_version": 1, "capabilities": ["validate", "execution-effect"], "operation_id": None}
+    effect = "none"
+    baseline = None
     try:
         input_value = json.load(sys.stdin)
+        if not isinstance(input_value, dict):
+            raise ConnectionError("invalid lifecycle input")
+        identity = input_value.get("operation_id")
+        if identity is not None and (not isinstance(identity, str) or not identity.strip() or len(identity) > 200):
+            raise ConnectionError("invalid lifecycle operation identity")
+        protocol["operation_id"] = identity
         if len(sys.argv) != 4 or sys.argv[1] != "lifecycle" or sys.argv[3] != "--json":
             raise ConnectionError("usage: connection.py lifecycle <configure|inspect|unconfigure> --json")
         action = sys.argv[2]
-        result = inspect(input_value) if action == "inspect" else configure(input_value) if action == "configure" else unconfigure() if action == "unconfigure" else None
-        if result is None:
-            raise ConnectionError("usage: connection.py lifecycle <configure|inspect|unconfigure> --json")
-        print(json.dumps(result, ensure_ascii=False))
+        if action == "inspect":
+            result = inspect(input_value)
+        else:
+            operation = input_value.get("operation") if action == "validate" else action
+            before, _ = validate_lifecycle(input_value, operation)
+            if action == "validate":
+                result = before
+            else:
+                paths = (connection_path(), receipt_path())
+                baseline = snapshot(paths)
+                effect = "unknown"
+                result = configure(input_value) if action == "configure" else unconfigure()
+                effect = "none" if (action == "configure" and before["state"] == "current"
+                                    or action == "unconfigure" and before["state"] == "missing") else "changed"
+        print(json.dumps({**result, **protocol, "effect": effect}, ensure_ascii=False))
         return 0
-    except (ConnectionError, OSError, ValueError, UnicodeError) as error:
-        print(str(error), file=sys.stderr)
+    except (ConnectionError, OSError, ValueError, UnicodeError):
+        if baseline is not None:
+            try:
+                if snapshot(paths) == baseline:
+                    effect = "restored"
+            except OSError:
+                pass
+        print(json.dumps({**protocol, "effect": effect, "state": "blocked", "owned": False,
+                          "detail": "SiYuan lifecycle operation failed"}))
         return 2
 
 

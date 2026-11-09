@@ -1,0 +1,56 @@
+{
+  "id": "lifecycle-owner-protocol",
+  "name": "lifecycle-owner-protocol",
+  "title": "Lifecycle 连接 owner 合同收敛",
+  "description": "落实已批准根合同的 SiYuan Hikari Grok 原生预检和执行事实，保护外部配置并刷新 Windsurf 来源投影。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-09",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning": {
+      "revision": 3,
+      "stage": "plan_closed",
+      "review_digest": "sha256:026d27961a2a4ff7ae09a6535813a874fba86a02ca17d99d5debde47658bb391",
+      "seal": {
+        "revision": 3,
+        "task_id": "lifecycle-owner-protocol",
+        "task_name": "11-09-lifecycle-owner-protocol",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "043c87a7072f6dfe6a77360b54a8fb6ecf7d0c26df8bd2a0ad1051e83e87c8a0",
+          "design.md": "9032c7bf44a8828789ba879871f6aec1cd7e40e0546991eb968d6b2bf7db61e9",
+          "implement.md": "16d2c9377ab2eae9ca1ff180e9e776e8b53e0e25c7843dc5e3529f4ee707bb3a"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "plan_digest": "sha256:026d27961a2a4ff7ae09a6535813a874fba86a02ca17d99d5debde47658bb391",
+        "sealed_at": "2026-11-09T03:26:11.078095+00:00"
+      },
+      "approved_revision": 3,
+      "approval_basis": "用户已明确批准展示的完整根合同并完整推进，包括本组件范围、发布和本机验收；见根 implementation-approval.md",
+      "approved_at": "2026-11-09T03:26:11.130685+00:00"
+    },
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing"
+  }
+}

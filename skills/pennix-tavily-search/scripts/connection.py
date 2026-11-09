@@ -53,6 +53,9 @@ def _environment_override() -> dict[str, object] | None:
 
 def _assert_parent(path: Path, create: bool = False) -> None:
     parent = path.parent
+    for item in path.parents:
+        if item.is_symlink() or item.exists() and not item.is_dir():
+            raise ConnectionError("unsafe Hikari configuration directory")
     if create:
         parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
@@ -218,7 +221,7 @@ def inspect(input_value: dict | None = None) -> dict[str, object]:
     if config_content is None and receipt_value is None:
         return {"state": "absent", "owned": False, "detail": "Hikari local connection is absent"}
     if config_content is None:
-        return {"state": "external", "owned": False, "detail": "Hikari local connection is not lifecycle-owned"}
+        return {"state": "orphaned", "owned": True, "detail": "Hikari connection is absent but its receipt remains"}
     try:
         existing = _validate_config(json.loads(config_content))
     except (ConnectionError, ValueError, UnicodeError):
@@ -237,7 +240,14 @@ def inspect(input_value: dict | None = None) -> dict[str, object]:
     return {"state": "current", "owned": True, "detail": "Hikari local connection matches lifecycle receipt"}
 
 
-def configure(input_value: dict) -> dict[str, object]:
+def validate_lifecycle(input_value: dict, operation: str) -> tuple[dict, str | None, str | None]:
+    if input_value.get("target") != "hikari" or not isinstance(operation, str) or operation not in {"configure", "unconfigure"}:
+        raise ConnectionError("Hikari lifecycle operation is invalid")
+    if operation == "unconfigure":
+        before = inspect()
+        if before["state"] != "absent" and (not before["owned"] or before["state"] not in {"current", "orphaned"}):
+            raise ConnectionError("Hikari lifecycle ownership is missing or drifted")
+        return before, None, None
     if (input_value.get("target") != "hikari" or not isinstance(input_value.get("values"), dict)
             or not isinstance(input_value.get("secrets"), dict)
             or not isinstance(input_value.get("desired_digest"), str)):
@@ -251,10 +261,15 @@ def configure(input_value: dict) -> dict[str, object]:
     if input_value["desired_digest"] != expected_digest:
         raise ConnectionError("Hikari lifecycle digest is invalid")
     before = inspect(input_value)
+    if before["state"] in {"external", "invalid", "environment-override", "orphaned"} or before["state"] == "adoptable" and input_value.get("adopt_existing") is not True:
+        raise ConnectionError(f"Hikari owner state {before['state']} cannot be taken over")
+    return before, base_url, token
+
+
+def configure(input_value: dict) -> dict[str, object]:
+    before, base_url, token = validate_lifecycle(input_value, "configure")
     if before["state"] == "current":
         return before
-    if before["state"] in {"external", "invalid", "environment-override"} or before["state"] == "adoptable" and input_value.get("adopt_existing") is not True:
-        raise ConnectionError(f"Hikari owner state {before['state']} cannot be taken over")
     path = config_path()
     receipt = receipt_path(path)
     before_config = _read_private(path)
@@ -286,6 +301,9 @@ def unconfigure() -> dict[str, object]:
     before = inspect()
     if before["state"] == "absent":
         return {"state": "absent", "owned": False, "detail": "Hikari local connection is absent"}
+    if before["state"] == "orphaned" and before["owned"]:
+        receipt_path(config_path()).unlink()
+        return {"state": "absent", "owned": False, "detail": "Hikari orphaned receipt removed"}
     if before["state"] != "current" or not before["owned"]:
         raise ConnectionError("Hikari lifecycle ownership is missing or drifted")
     path = config_path()
@@ -305,19 +323,57 @@ def unconfigure() -> dict[str, object]:
     return {"state": "absent", "owned": False, "detail": "Hikari local connection removed"}
 
 
+def snapshot(paths):
+    metadata = []
+    for path in sorted({parent for item in paths for parent in (item, *item.parents)}):
+        try:
+            value = path.lstat()
+            metadata.append((str(path), value.st_mode, value.st_uid))
+        except FileNotFoundError:
+            metadata.append((str(path), None))
+    return tuple(_read_private(path) for path in paths), metadata
+
+
 def main() -> int:
+    protocol = {"protocol_version": 1, "capabilities": ["validate", "execution-effect"], "operation_id": None}
+    effect = "none"
+    baseline = None
     try:
         if len(sys.argv) != 4 or sys.argv[1] != "lifecycle" or sys.argv[3] != "--json":
             raise ConnectionError("usage: connection.py lifecycle <configure|inspect|unconfigure> --json")
         input_value = json.load(sys.stdin)
+        if not isinstance(input_value, dict):
+            raise ConnectionError("invalid lifecycle input")
+        identity = input_value.get("operation_id")
+        if identity is not None and (not isinstance(identity, str) or not identity.strip() or len(identity) > 200):
+            raise ConnectionError("invalid lifecycle operation identity")
+        protocol["operation_id"] = identity
         action = sys.argv[2]
-        result = inspect(input_value) if action == "inspect" else configure(input_value) if action == "configure" else unconfigure() if action == "unconfigure" else None
-        if result is None:
-            raise ConnectionError("usage: connection.py lifecycle <configure|inspect|unconfigure> --json")
-        print(json.dumps(result, ensure_ascii=False))
+        if action == "inspect":
+            result = inspect(input_value)
+        else:
+            operation = input_value.get("operation") if action == "validate" else action
+            before, _, _ = validate_lifecycle(input_value, operation)
+            if action == "validate":
+                result = before
+            else:
+                paths = (config_path(), receipt_path())
+                baseline = snapshot(paths)
+                effect = "unknown"
+                result = configure(input_value) if action == "configure" else unconfigure()
+                effect = "none" if (action == "configure" and before["state"] == "current"
+                                    or action == "unconfigure" and before["state"] == "absent") else "changed"
+        print(json.dumps({**result, **protocol, "effect": effect}, ensure_ascii=False))
         return 0
-    except (ConnectionError, OSError, ValueError, UnicodeError) as error:
-        print(str(error), file=sys.stderr)
+    except (ConnectionError, OSError, ValueError, UnicodeError):
+        if baseline is not None:
+            try:
+                if snapshot(paths) == baseline:
+                    effect = "restored"
+            except (ConnectionError, OSError):
+                pass
+        print(json.dumps({**protocol, "effect": effect, "state": "blocked", "owned": False,
+                          "detail": "Hikari lifecycle operation failed"}))
         return 2
 
 

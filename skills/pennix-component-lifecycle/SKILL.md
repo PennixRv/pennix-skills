@@ -37,6 +37,8 @@ pennix check
 
 没有 TTY 时不要让 Agent 代替交互填写。先在受信主机生成或编辑 `workflow.config`，再执行 `pennix plan`、`pennix apply`；缺少必填输入应快速失败。
 
+当前目标为 Arch Linux / WSL2 Arch x86_64、同设备同用户单个管理目标，允许非默认 CODEX_HOME。跨设备只带配置意图，目标机重建锁、receipt、journal 和秘密；改变 XDG_STATE_HOME 不能绕过已有目标登记或事务。bootstrap 的系统准备包含完整 `pacman -Syu`，按实际计划及既有授权执行。
+
 ## 秘密和 owner
 
 使用：
@@ -64,6 +66,8 @@ pennix secrets import-ssh --help
 
 Arch/AUR 外部更新或已启用 Codex 插件与锁失配时，使用 `pennix reconcile <component-id>` 展示并接受精确已安装身份。它要求可信旧记录与同源核验；系统包只同步记录，插件只通过原生 Marketplace 对齐，不自动升级、降级或编辑缓存。部分失败保留 journal，恢复必须沿相同原生入口重新核验。`outdated` 仅表示实际身份与锁不相等；结合实际身份、锁定身份与既有受管记录判断。
 
+先用 `pennix recover --json` 查看未结事务，再按当前原生 help 对同一事务和步骤处置。none、restored 或完成后置条件必须有原生证据；版本相同、人工确认或干净工作树不能释放 unknown。没有 force 清除入口；所有处置留存归档，不自行改写状态文件。旧 owner 缺少 validate/事实协议时先明确升级，普通 apply 不偷偷追最新。
+
 一次性卸载不改变声明式配置：
 
 ```bash
@@ -82,6 +86,8 @@ pennix uninstall --all --confirm-all ALL
 ## 服务和 relay
 
 Paseo 自启动在配置中明确选择“关闭 / 登录启动 / 无登录常驻”。登录自启只在 systemd 用户 manager 启动时执行一次原生 `daemon start`；日常启停使用 `paseo daemon start/stop/restart`。`PENNIX_PASEO_RUN` 只请求本次 apply 显式启动，自启无需开启该项。普通检查和 apply 不拉起已停止实例，关闭或移除入口不停止 daemon；入口配置、实际运行健康和版本分别核验。常驻模式必须具备真实的 user systemd 与 linger 能力；生命周期只管理自己的 unit，不创建 Windows 启动任务，也不关闭未知或共享 linger。服务切换放在其他动作之后，最后验证实际进程和连接。
+
+官方 Skills 首装由已验证版本的 Paseo 公开接口自动完成；计划须披露 `.agents/skills`、`.claude/skills` 及原生自有旧 `.codex/skills` 的影响。停止态 daemon 只为安装临时启动，按同一实例停止；安装、启停或连接结果不明时保留现场，不盲目重放旧前台启动。以原生 selection、manifest、磁盘和实例事实核验结果，不能把 selection=all 当成安装完成。
 
 启用 relay 时，生命周期必须先通过已登记的受信 SSH owner 读取并修改 NAS/router nginx 的精确登记项，完成 `nginx -t` 和 reload，再启用 WSL daemon。relay 仓库文档中的 TLS、`/ws`、Upgrade/Connection 和稳定 `serverId` 规则是唯一反代依据；不得猜测配置、重建 NAS Compose 或为手机新增登记。远端撤回失败时不得开始本地破坏性卸载。Android 配对由用户按 `paseo daemon pair` 的原生输出完成。
 
