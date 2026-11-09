@@ -3,7 +3,7 @@
   "name": "paseo-worktree-integration",
   "title": "Paseo 工作树集成的 CodeGraph 与路由合同",
   "description": "承接已批准 W3，按已验证 CodeGraph bound 接口更新能力条件、原生手册及组件路由；当前主会话实施与验收。",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,8 +11,8 @@
   "creator": "penn",
   "assignee": "penn",
   "createdAt": "2026-11-09",
-  "completedAt": null,
-  "branch": null,
+  "completedAt": "2026-11-09",
+  "branch": "main",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -24,8 +24,10 @@
   "notes": "",
   "meta": {
     "planning": {
-      "revision": 1,
-      "stage": "intake"
-    }
+      "revision": 3,
+      "stage": "direct_ready"
+    },
+    "execution_class": "direct",
+    "delivery_mode": "change_bearing"
   }
 }
