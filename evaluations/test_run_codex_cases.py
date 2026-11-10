@@ -87,7 +87,7 @@ class EvaluationDriverTests(unittest.TestCase):
     def test_frozen_coverage_and_name_mapping(self):
         data, digest = runner.load_cases()
         self.assertEqual(64, len(digest))
-        legacy = [x for x in data["cases"] if x.get("suite") != "scenario-routing"]
+        legacy = [x for x in data["cases"] if x.get("suite") not in {"scenario-routing", "document-reading"}]
         self.assertEqual(36, sum(x["kind"] not in {"combination", "interaction"} for x in legacy))
         self.assertEqual(10, sum(x["kind"] == "combination" for x in data["cases"]))
         self.assertEqual(8, sum(x["kind"] == "interaction" for x in data["cases"]))
@@ -98,6 +98,10 @@ class EvaluationDriverTests(unittest.TestCase):
         self.assertEqual(positive, negative)
         self.assertEqual(25, len(positive))
         self.assertEqual(5, sum(x["kind"] == "scenario-combination" for x in scenarios))
+        documents = [x for x in data["cases"] if x.get("suite") == "document-reading"]
+        self.assertEqual({"docx", "pdf", "pptx", "xlsx"},
+                         {name for x in documents for name in x["skills_after"]})
+        self.assertEqual(1, sum(x["kind"] == "document-negative" for x in documents))
 
     def test_case_permissions_are_explicit_and_writes_stay_in_fixture(self):
         with tempfile.TemporaryDirectory() as directory:

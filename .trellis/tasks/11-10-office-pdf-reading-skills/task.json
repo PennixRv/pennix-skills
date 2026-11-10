@@ -1,0 +1,56 @@
+{
+  "id": "office-pdf-reading-skills",
+  "name": "office-pdf-reading-skills",
+  "title": "Office 与 PDF 阅读技能引入",
+  "description": "执行根任务已批准的 WP1：固定 Anthropic 四项技能，适配阅读入口并验证来源、许可与集合。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-10",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "stage": "plan_closed",
+      "review_digest": "sha256:f96dc51d7ead2725b4604ddb9fc45b126b5db822561db05972f4b20e3d2476a9",
+      "seal": {
+        "revision": 1,
+        "task_id": "office-pdf-reading-skills",
+        "task_name": "11-10-office-pdf-reading-skills",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "e4e13e608952d07b83d7824b3909aa6cd174225e3547dcfbb493c815287dfff4",
+          "design.md": "7bdfcb734e745f43c0055000c03ad150597e4bf500b041aa564cb02cc7f7a848",
+          "implement.md": "bac75b69a74f7d44003a9fb14bf3bf4750d47964c59304c200e68ed0358c6bc2"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "plan_digest": "sha256:f96dc51d7ead2725b4604ddb9fc45b126b5db822561db05972f4b20e3d2476a9",
+        "sealed_at": "2026-11-10T08:30:08.823305+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "用户对根任务同一完整方案及实施、发布、安装合并询问答复认可；本组件承接已展示的 WP1，未新增范围。",
+      "approved_at": "2026-11-10T08:30:08.876139+00:00"
+    }
+  }
+}

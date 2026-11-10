@@ -36,6 +36,8 @@ Codex 自定义 Responses API URL 属于 `workflow.config`，静态 API Key 属�
 
 ## Skill 维护
 
+`docx`、`pdf`、`pptx`、`xlsx` 是 Anthropic 官方固定提交的本地衍生版本，使用各自 Apache 2.0 许可。来源、文件比较及本地适配见各自 `UPSTREAM.md`。默认入口用于本地阅读；Python、OCR 和 Office 转换依赖由 Lifecycle 管理，Skill 不临时安装包，也不自动改写原件。完整生成方法保留，但不代表生成依赖已经安装或全面验收。
+
 `pennix-windsurf-code-search` 和 `pennix-grok-search` 是发布集合中的物化目录；其
 上游源码和固定提交由 `collection.json` 声明。项目 AGENTS
 治理、CodeGraph 集成、中文技术写作、Context Mode 集成和知识操作继续由对应 Skill 负责。

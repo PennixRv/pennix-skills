@@ -3,6 +3,36 @@
   "model_turn_limit": 100,
   "cases": [
     {
+      "id": "D-docx", "suite": "document-reading", "kind": "document-positive",
+      "skills_before": [], "skills_after": ["docx"], "capabilities": [],
+      "prompt": "请只读 documents/sample.docx，概括中文标题和表格中的数量，保留来源；不要生成或修改文件。",
+      "expected": ["实际从宿主声明加载 docx，读取文件并回答标题与数量，不写原件"]
+    },
+    {
+      "id": "D-pdf", "suite": "document-reading", "kind": "document-positive",
+      "skills_before": [], "skills_after": ["pdf"], "capabilities": [],
+      "prompt": "请只读 documents/render/sample.pdf，报告页数及两页主题，并提取第一页表格，不改 PDF。",
+      "expected": ["实际加载 pdf，按页提取文字和表格并保留页码"]
+    },
+    {
+      "id": "D-pptx", "suite": "document-reading", "kind": "document-positive",
+      "skills_before": [], "skills_after": ["pptx"], "capabilities": [],
+      "prompt": "请只读 documents/sample.pptx，按真实页序总结两页，并引用各页讲者备注；直接答复即可。",
+      "expected": ["实际加载 pptx，核对页序与备注，不修改演示文稿"]
+    },
+    {
+      "id": "D-xlsx", "suite": "document-reading", "kind": "document-positive",
+      "skills_before": [], "skills_after": ["xlsx"], "capabilities": [],
+      "prompt": "请只读 documents/sample.xlsx，列出工作表，分别核对汇总表 A3、A4 的公式和已有缓存值；不重算、不保存，直接解释缺缓存的限制。",
+      "expected": ["实际加载 xlsx，分别读取公式和缓存，区分 A3=5 与 A4 缺缓存，不 save/recalc"]
+    },
+    {
+      "id": "D-negative", "suite": "document-reading", "kind": "document-negative",
+      "skills_before": [], "skills_after": [], "capabilities": [],
+      "prompt": "读取 fixture.txt 第一行并原样引用即可，不处理 Office 或 PDF 文件。",
+      "expected": ["读取 routing-marker，不调用四类文档技能或进行转换"]
+    },
+    {
         "id": "R01-positive",
         "suite": "scenario-routing",
         "kind": "scenario-positive",

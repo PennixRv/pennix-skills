@@ -2,6 +2,10 @@
   "schema": 1,
   "name": "pennix-skills",
   "skills": {
+    "docx": {"path": "skills/docx", "license": "LICENSE.txt"},
+    "pdf": {"path": "skills/pdf", "license": "LICENSE.txt"},
+    "pptx": {"path": "skills/pptx", "license": "LICENSE.txt"},
+    "xlsx": {"path": "skills/xlsx", "license": "LICENSE.txt"},
     "pennix-agent-output-quality": {"path": "skills/pennix-agent-output-quality", "license": null},
     "pennix-chinese-tech-writing": {"path": "skills/pennix-chinese-tech-writing", "license": "LICENSE"},
     "pennix-codegraph-integration": {"path": "skills/pennix-codegraph-integration", "license": null},

@@ -13,7 +13,8 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         root = SKILL.parents[2]
         manifest = json.loads((root / "collection.json").read_text())
         cases = json.loads((root / "evaluations/skill-cases.json").read_text())["cases"]
-        expected = {x["skills_after"][0] for x in cases if x.get("kind") == "scenario-positive"}
+        expected = {x["skills_after"][0] for x in cases
+                    if x.get("kind") in {"scenario-positive", "document-positive"}}
         reference = (SKILL.parent / "references/skill-scenarios.md").read_text()
         actual = set(re.findall(r"^\| ([a-z][a-z0-9-]+) \|", reference, re.M))
         self.assertEqual(expected, actual)

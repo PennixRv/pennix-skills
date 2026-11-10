@@ -95,6 +95,25 @@ Questions to answer:
 
 ## Required Patterns
 
+### Vendored document Skills
+
+- `docx`, `pdf`, `pptx`, and `xlsx` are locally derived subdirectory imports,
+  not whole-repository `materialized` members. Each `UPSTREAM.md` fixes the
+  full source commit; `upstream-files.sha256` enumerates every original file.
+  Compare the complete file set and unchanged bytes; local adaptations are
+  explicitly enumerated. Do not weaken the materialized manifest schema.
+- Run `python3 -m unittest discover -s tests -p test_document_skills.py -v`
+  for provenance, exact license bytes, temporary profile cleanup and failure
+  propagation. The LibreOffice wrapper may create an isolated profile but
+  must not compile a shim or inject LD_PRELOAD to evade restrictions.
+- Reading never saves or recalculates the source. In XLSX, load formulas and
+  cached values separately; a missing cache stays unknown. A creation-only
+  output constraint must not suppress a read-and-summarize request.
+- Lifecycle owns document dependencies. Resolve the Python tool through uv's
+  native directory and verified receipt; do not assume system imports or
+  perform runtime pip/npm installation. Actual installed reading, rendering,
+  OCR and discovery are separate integration evidence, not static test claims.
+
 ### Skill collection deployment boundary
 
 - The repository checkout is the source of truth. The installed collection is
