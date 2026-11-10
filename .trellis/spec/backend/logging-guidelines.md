@@ -64,8 +64,9 @@ Changes to `evaluations/run_codex_cases.py` must preserve the distinction betwee
 
 `skill_path_observations` is ordered and contains `event`, `path`, `skill`, `tool`, and `outcome` (`read`, `failed`, `unknown`). Preserve project, collection and relative path levels. `skill_read_counts` counts these outcomes separately per observed path; `skill_read_candidates` remains a compatibility list of names, not proof of reading. Neither a `read` receipt nor a count proves complete output or agent consumption. Do not persist raw commands, messages, output bodies, credentials or session files in summaries or Git.
 
-Evaluation summaries also bind the explicit CODEX_HOME, owner-receipted full
-collection commit and installed-tree digest. Check this identity before each
+Evaluation summaries separately bind the explicit CODEX_HOME and shared user
+collection target under HOME/.agents/skills, owner-receipted full collection
+commit and installed-tree digest. CODEX_HOME does not select a collection version. Check this identity before each
 attempt. The public provider configuration and existing Lifecycle auth command
 are process-local CLI overrides; secret values and private auth files never
 enter the fixture or result. A phase label cannot establish which source ran.

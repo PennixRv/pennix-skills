@@ -20,8 +20,8 @@ pennix apply
 
 `workflow.config` 是带格式主版本的 Linux Kconfig 文件。`config edit` 和无
 TTY 的配置式执行使用同一模型；`pennix secrets edit` 打开权限为 `0600` 的私有
-`secrets.toml`，秘密不进入任务、输出、JSON 或 Git。永久取消组件通过编辑配置后
-`pennix apply` 完成；一次性 `pennix uninstall` 不修改配置。
+`secrets.toml`，秘密不进入任务、输出、JSON 或 Git。通常通过编辑配置后
+`pennix apply` 取消组件；共享用户 Skill 集合取消选择后仍保留，须显式卸载，且会影响同一用户的全部宿主配置。一次性 `pennix uninstall` 不修改配置。
 
 本集合不复制 lifecycle catalog、执行器、模板、暂存、receipt 或组件适配器，也不
 通过多轮 Agent 对话引导安装。安装后的 Skill 只描述正确入口和 owner 边界，不在
@@ -41,6 +41,8 @@ Codex 自定义 Responses API URL 属于 `workflow.config`，静态 API Key 属�
 治理、CodeGraph 集成、中文技术写作、Context Mode 集成和知识操作继续由对应 Skill 负责。
 
 本仓的 `skills/<name>` 是源码路径；安装后的集合层级和 Skill 声明路径由宿主提供。加载时保留主集合、extra 集合或项目 Skill 的实际目录，相对引用从实际 `SKILL.md` 所在目录解析，不按名称猜测平铺路径。
+
+共享集合安装在 `$HOME/.agents/skills/pennix-skills` 和 `$HOME/.agents/skills/pennix-skills-extra`；`CODEX_HOME` 继续管理 Codex 配置，不切换共享集合版本。旧目录通过 Lifecycle 的同版本 `repair` 迁移，再用 `update` 升级内容；不要手动移动安装树或 receipt。
 
 维护时运行 `python3 scripts/collection.py verify`；同步工作流先用 `python3 scripts/collection.py sources` 验证并读取固定来源，按声明的 `archive` 或 `npm-pack` 模式生成目录，再验证完整集合。修改先进入真实来源仓库，物化目录不直接编辑。集合、各 Skill 与 `evaluations/` 的离线测试分别运行；离线检查不代表模型实际路由通过。
 

@@ -104,8 +104,9 @@ def observe(events):
     result = {"host_blocking_requests": 0, "host_nonblocking_requests": 0, "question_answers": 0,
               "question_tool_calls": None,
               "command_items": 0, "mcp_items": 0, "completed_turns": 0,
-              "compaction_observed": False, "turn_failed": False}
-    for event in events:
+              "compaction_observed": False, "turn_failed": False,
+              "skill_declarations": [], "skill_path_observations": []}
+    for number, event in enumerate(events, 1):
         method, params = event.get("method"), event.get("params", {})
         if method == "item/tool/requestUserInput":
             # Default-mode request_user_input also has isBlocking=false in Codex.
@@ -115,13 +116,20 @@ def observe(events):
             result["question_tool_calls"] = params
         elif method == "evaluation/questionAnswered":
             result["question_answers"] += 1
+        elif method == "evaluation/skillDeclarations":
+            result["skill_declarations"] = params
         elif method == "thread/compacted":
             result["compaction_observed"] = True
         elif method == "item/completed":
-            kind = params.get("item", {}).get("type")
+            item = params.get("item", {})
+            kind = item.get("type")
             result["command_items"] += kind == "commandExecution"
             result["mcp_items"] += kind == "mcpToolCall"
             result["compaction_observed"] |= kind == "contextCompaction"
+            if kind == "commandExecution":
+                result["skill_path_observations"].extend(driver.skill_observations({
+                    "type": "command_execution", "command": item.get("command"),
+                    "exit_code": item.get("exitCode"), "aggregated_output": item.get("aggregatedOutput")}, number))
         elif method == "turn/completed":
             result["completed_turns"] += 1
             result["turn_failed"] |= params.get("turn", {}).get("status") != "completed"
@@ -161,6 +169,15 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
             app.rpc("initialize", {"clientInfo": {"name": "pennix-skill-evaluation", "version": "1"},
                                    "capabilities": {"experimentalApi": True}})
             app.send({"method": "initialized"})
+            listing = app.rpc("skills/list", {"cwds": [str(workspace)], "forceReload": True})
+            declared = []
+            for entry in listing["data"]:
+                if entry.get("errors"):
+                    raise ValueError("native_skill_discovery_errors")
+                declared.extend({key: skill[key] for key in ("name", "path", "scope")} for skill in entry["skills"])
+            marker = {"method": "evaluation/skillDeclarations", "params": declared}
+            trace.write(json.dumps(marker, ensure_ascii=False) + "\n")
+            app.events.append(marker)
             params = {"cwd": str(workspace), "approvalPolicy": "never", "sandbox": "read-only"}
             if resume_thread:
                 started = app.rpc("thread/resume", {**params, "threadId": resume_thread})

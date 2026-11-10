@@ -11,7 +11,7 @@ description: "按职责与调用语义路由跨组件工作流请求，区分 Tr
 
 ## Skill 身份与路径
 
-加载 Skill 前，先从当前宿主清单找到对应逻辑入口，取得该项的声明路径；短路径只按宿主映射展开根别名，保留剩余目录层级并原样读取，不从 Skill 名称反推目录。项目 Skill 可能位于 `.agents/skills/<skill-name>/SKILL.md`，用户级主集合和 extra 可能分别位于 `skills/pennix-skills/<skill-name>/SKILL.md` 与 `skills/pennix-skills-extra/<skill-name>/SKILL.md`；这些例子不替代本轮声明，也不是依次重试的候选表。Skill 的相对引用以实际加载文件所在目录为基准。若无法确认实际路径，保留原始回执并停止，不通过平铺路径重试，也不因路径猜测失败判定 Skill 或宿主工具不存在。
+加载 Skill 前，先从当前宿主清单找到对应逻辑入口，取得该项的声明路径；短路径只按宿主映射展开根别名，保留剩余目录层级并原样读取，不从 Skill 名称反推目录。项目 Skill 可能位于 `<project>/.agents/skills/<skill-name>/SKILL.md`；用户级主集合和 extra 的共享目标分别是 `$HOME/.agents/skills/pennix-skills/<skill-name>/SKILL.md` 与 `$HOME/.agents/skills/pennix-skills-extra/<skill-name>/SKILL.md`。CODEX_HOME 管理宿主配置，不选择共享集合版本；system、插件和其他原生 owner 保留自己的声明位置。这些例子不替代本轮声明，也不是依次重试的候选表。Skill 的相对引用以实际加载文件所在目录为基准。若无法确认实际路径，保留原始回执并停止，不通过平铺路径重试，也不因路径猜测失败判定 Skill 或宿主工具不存在。以首次实际读取及其回执核验完整路径，后续成功不能抹去首次错误。
 
 ## 调用前判定
 

@@ -133,16 +133,20 @@ def stop_process(process):
         process.wait(timeout=5)
 
 
-def source_identity(codex_home, revision):
+def source_identity(codex_home, revision, *, user_home=None):
     home = Path(codex_home)
     if not home.is_absolute() or home.is_symlink() or not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("invalid_evaluation_source")
-    root = home / "skills/pennix-skills"
+    user = Path(user_home) if user_home is not None else Path.home()
+    root = user / ".agents/skills/pennix-skills"
+    if not user.is_absolute() or any(parent.is_symlink() for parent in (root, *root.parents)):
+        raise ValueError("unsafe_evaluation_source")
     receipt_path = root.parent / ".pennix-skills.receipt.json"
     if root.is_symlink() or receipt_path.is_symlink():
         raise ValueError("unsafe_evaluation_source")
     receipt = json.loads(receipt_path.read_bytes())
     if (receipt.get("schema") != 1 or receipt.get("destination") != root.name
+            or receipt.get("target") != str(root)
             or receipt.get("source") != {"repo": "PennixRv/pennix-skills", "ref": revision, "manifest": "collection.json"}
             or not isinstance(receipt.get("manifest", {}).get("skills"), dict)):
         raise ValueError("evaluation_source_mismatch")
@@ -164,7 +168,7 @@ def source_identity(codex_home, revision):
                     digest.update(chunk)
     if digest.hexdigest() != receipt.get("digest"):
         raise ValueError("evaluation_source_drift")
-    return {"codex_home": str(home), "collection_commit": revision, "collection_digest": digest.hexdigest()}
+    return {"codex_home": str(home), "collection_target": str(root), "collection_commit": revision, "collection_digest": digest.hexdigest()}
 
 
 def collect(case, workspace, stdout, stderr, codex_home=None, provider_args=()):
@@ -293,7 +297,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("before", "after"), required=True)
     parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--codex-home", required=True, help="Lifecycle 物化的候选或固定基线宿主目录")
+    parser.add_argument("--codex-home", required=True, help="宿主配置根；共享用户集合按当前 HOME 核验，不从配置根选择版本")
     parser.add_argument("--collection-commit", required=True, help="必须与 owner receipt 和实际内容吻合的完整提交")
     parser.add_argument("--provider-home", required=True, help="现有 Lifecycle owner 与公开 provider 配置所在的用户目录；不复制认证")
     parser.add_argument("--case", action="append", dest="case_ids")

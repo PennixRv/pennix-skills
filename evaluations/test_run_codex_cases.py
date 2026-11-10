@@ -87,28 +87,31 @@ class EvaluationDriverTests(unittest.TestCase):
     def test_sources_bind_actual_tree_to_owner_receipt_and_fixed_commit(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            root = home / "skills/pennix-skills"
+            root = home / ".agents/skills/pennix-skills"
             root.mkdir(parents=True)
             member = root / "SKILL.md"
             member.write_bytes(b"source fixture\n")
             digest = runner.hashlib.sha256(b"F\0SKILL.md\0" + b"0\0source fixture\n").hexdigest()
             revision = "a" * 40
             receipt = root.parent / ".pennix-skills.receipt.json"
-            value = {"schema": 1, "destination": root.name, "digest": digest,
+            value = {"schema": 1, "destination": root.name, "target": str(root), "digest": digest,
                      "source": {"repo": "PennixRv/pennix-skills", "ref": revision, "manifest": "collection.json"},
                      "manifest": {"skills": {}}}
             receipt.write_text(json.dumps(value))
-            identity = runner.source_identity(home, revision)
+            identity = runner.source_identity(home / "codex", revision, user_home=home)
+            other = runner.source_identity(home / "another-codex", revision, user_home=home)
+            self.assertEqual(identity["collection_target"], other["collection_target"])
+            self.assertEqual(str(root), identity["collection_target"])
             self.assertEqual(revision, identity["collection_commit"])
             with self.assertRaisesRegex(ValueError, "source_mismatch"):
-                runner.source_identity(home, "b" * 40)
+                runner.source_identity(home, "b" * 40, user_home=home)
             member.write_text("changed")
             with self.assertRaisesRegex(ValueError, "source_drift"):
-                runner.source_identity(home, revision)
+                runner.source_identity(home, revision, user_home=home)
             member.unlink()
             member.symlink_to(receipt)
             with self.assertRaisesRegex(ValueError, "unsafe_evaluation_source"):
-                runner.source_identity(home, revision)
+                runner.source_identity(home, revision, user_home=home)
 
     def test_budget_cannot_reset_or_silently_repeat(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -181,6 +184,21 @@ class EvaluationDriverTests(unittest.TestCase):
         self.assertEqual(1, result["question_answers"])
         self.assertTrue(result["turn_failed"])
         self.assertTrue(result["compaction_observed"])
+
+    def test_app_server_preserves_declaration_and_first_read_failure_after_retry(self):
+        path = "/home/test/.agents/skills/pennix-skills/pennix-grok-search/SKILL.md"
+        wrong = "/home/test/.agents/skills/pennix-grok-search/SKILL.md"
+        declared = [{"name": "pennix-grok-search", "path": path, "scope": "user"}]
+        events = [{"method": "evaluation/skillDeclarations", "params": declared}]
+        for target, status, body in [(wrong, 1, "missing"), (path, 0, "Skill body")]:
+            events.append({"method": "item/completed", "params": {"item": {
+                "type": "commandExecution", "command": "cat " + target,
+                "exitCode": status, "aggregatedOutput": body}}})
+        result = app_server_cases.observe(events)
+        self.assertEqual(declared, result["skill_declarations"])
+        self.assertEqual([wrong, path], [x["path"] for x in result["skill_path_observations"]])
+        self.assertEqual(["failed", "read"], [x["outcome"] for x in result["skill_path_observations"]])
+        self.assertNotIn("Skill body", json.dumps(result))
 
     def test_rollout_question_counts_bind_path_identity_and_current_turn(self):
         with tempfile.TemporaryDirectory() as directory:
