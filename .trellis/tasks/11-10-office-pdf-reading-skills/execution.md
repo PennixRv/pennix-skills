@@ -11,3 +11,11 @@
 规范已在 backend/quality-guidelines.md 增补来源导入、只读和运行时合同。根只读组合初次 10/11 通过，唯一失败为尚未正式发布安装的 release alignment，符合当前实施断点，须在最终安装后重跑。
 
 CI 所有 11 个逐 Skill 测试文件均已执行，共 108 项（其中 1 skipped）；初次发现 routing 测试只计算既有 scenario-positive，已补入四项 document-positive 的实际覆盖，重跑通过。新导入上游保留的原始文件包含空白告警；完整 staged diff --check 因这些原始字节返回 2，本地语义文件检查通过，不为消除告警改写已固定上游。
+
+## 正式安装与功能验收
+
+主集合提交 1fab5b4ebaf20ec0af8627ad7289631a7f469acd 已推送，官方 CI 42785567513 成功；Lifecycle 原生安装的集合 digest 为 27789184a31249371bd875344e305193b382cb8b973f2261377268987a6e37be。真实 app-server skills/list 已发现四项 user scope 声明。集合载荷之后未修改，仅显式 smoke 根据实际 OCR 结果修正空白归一化断言，并保留原始识别文本。
+
+正式 Lifecycle 0.2.51 安装完成后，受管 Python 实际运行 smoke 全部通过，输出位于 /tmp/pennix-office-smoke-20261110-verified；涵盖八组检查及三份原件哈希。OCR 原始结果“文 档 阅 读 冼 试 OCR 123”存在误字，验收仅证明中英文路径可用，不承诺字符准确率。
+
+限定的五个真实发现用例已由根任务逐项复核：DOCX 中文标题和 Alpha 数量 5；PDF 两页主题及第一页表格；PPTX 页序与两条备注；XLSX 两表与 A3 缓存 5/A4 缺缓存；普通文本不加载文档 Skill，均符合。驱动保留 needs_review 原始值，由根 validation.md 保存人工复核结论，不伪造自动评分。默认阅读不重算或保存，宏与外链是禁止执行的数据边界；合成样例没有宏或外链，不将本次检查表述为任意恶意文档的隔离认证。

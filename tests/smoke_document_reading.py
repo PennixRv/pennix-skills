@@ -122,7 +122,7 @@ def main():
     image.save(scan, "PDF", resolution=180)
     assert not (PdfReader(scan).pages[0].extract_text() or "").strip()
     ocr = pytesseract.image_to_string(convert_from_path(scan, dpi=180)[0], lang="chi_sim+eng")
-    assert "文档" in ocr and "123" in ocr, ocr
+    assert "文档" in "".join(ocr.split()) and "123" in ocr, ocr
     for source, legacy, modern, skill in ((word, "doc:MS Word 97", "docx", "docx"),
                                            (powerpoint, "ppt:MS PowerPoint 97", "pptx", "pptx"),
                                            (excel, "xls:MS Excel 97", "xlsx", "xlsx")):
@@ -145,7 +145,7 @@ def main():
     else:
         raise AssertionError("invalid PDF unexpectedly parsed")
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in before.items())
-    print(json.dumps({"status": "passed", "fixtures": str(directory), "originals_unchanged": True,
+    print(json.dumps({"status": "passed", "fixtures": str(directory), "originals_unchanged": True, "ocr_text": ocr.strip(),
                       "checks": ["docx-chinese-table", "xlsx-formulas-cache-missing", "pptx-order-notes", "pdf-pages-table", "chinese-ocr", "office-render", "doc-ppt-xls-conversion", "invalid-pdf"]}, ensure_ascii=False))
 
 
