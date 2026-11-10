@@ -17,7 +17,7 @@ import tomllib
 
 CASES = Path(__file__).with_name("skill-cases.json")
 MAX_TRACE_BYTES = 8 * 1024 * 1024
-TIMEOUT_SECONDS = 300
+TIMEOUT_SECONDS = 900
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.:/-]{1,100}$")
 SKILL_PATH = re.compile(r"(?<![\w./~-])((?:~/|/)?(?:[\w.-]+/)+SKILL\.md)(?![\w.-])")
 SAFETY = """这是已授权的只读 Skill 行为测试，不是实现或检查 worker。
