@@ -8,6 +8,14 @@ import app_server_cases
 
 
 class EvaluationDriverTests(unittest.TestCase):
+    def test_extra_native_requests_reserve_budget_before_execution(self):
+        observed = []
+        app_server_cases.reserve_extra_turn(lambda kind: observed.append(kind) or 7, "question-answer")
+        self.assertEqual(["question-answer"], observed)
+        for reserve in [None, lambda kind: None]:
+            with self.assertRaisesRegex(ValueError, "native_interaction_requires_budget"):
+                app_server_cases.reserve_extra_turn(reserve, "compact")
+
     def summarize_items(self, *items):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "trace.jsonl"

@@ -420,8 +420,8 @@ def main():
                 status, thread_id, observations = app_server_cases.collect(
                     case, selected_workspace, trace, error, args.codex_home, provider_args,
                     resume_thread=args.resume_thread, compact=args.compact,
-                    reserve_model_turn=lambda: reserve_turn(output, digest, args.phase,
-                                                           case["id"] + ":compact", retry=True))
+                    reserve_model_turn=lambda kind: reserve_turn(output, digest, args.phase,
+                                                                case["id"] + ":" + kind, retry=True))
                 evidence = {"native_thread_id": thread_id, "interaction": observations,
                             "verdict": "needs_review" if status == "completed" else "blocked_native_execution"}
             else:

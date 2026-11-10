@@ -100,6 +100,11 @@ def answer_request(message, answer):
     return {"id": message["id"], "result": {"answers": answers}}
 
 
+def reserve_extra_turn(reserve, kind):
+    if reserve is None or reserve(kind) is None:
+        raise ValueError("native_interaction_requires_budget")
+
+
 def observe(events):
     result = {"host_blocking_requests": 0, "host_nonblocking_requests": 0, "question_answers": 0,
               "question_tool_calls": None,
@@ -207,8 +212,7 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
             if compact:
                 if not resume_thread:
                     raise ValueError("compaction_requires_existing_thread")
-                if reserve_model_turn is None or reserve_model_turn() is None:
-                    raise ValueError("compaction_requires_budget")
+                reserve_extra_turn(reserve_model_turn, "compact")
                 offset = len(app.events)
                 app.rpc("thread/compact/start", {"threadId": thread_id})
                 app.wait("turn/completed", offset)
@@ -225,7 +229,9 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
                 if "id" in message and method:
                     if method != "item/tool/requestUserInput" or not case.get("answer"):
                         raise ValueError("unexpected_server_request:" + method)
-                    app.send(answer_request(message, case["answer"]))
+                    response = answer_request(message, case["answer"])
+                    reserve_extra_turn(reserve_model_turn, "question-answer")
+                    app.send(response)
                     marker = {"method": "evaluation/questionAnswered", "params": {}}
                     trace.write(json.dumps(marker) + "\n")
                     app.events.insert(cursor, marker)
