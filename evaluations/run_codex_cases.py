@@ -56,10 +56,12 @@ def case_prompt(case, workspace):
         permissions.append("允许适用原生入口读取非敏感公开来源或当前已配置连接的只读状态；不发送本地材料，不写远端。")
     if policy["type"] == "workspaceWrite":
         permissions.append("只允许在当前无秘密 fixture 目录内生成本例要求的产物；禁止写其他项目、安装树、用户配置和知识库。")
+    context = ("当前目录是原生 Trellis 初始化的合成阶段 fixture；先读取 SCENARIO.md 及其引用的原生任务事实。它只提供本例阶段背景，不代表生产批准或当前宿主已绑定；本例只交付方法产物，不创建、绑定或推进任务。\n"
+               if case.get("kind") == "scenario-combination" else "")
     return ("这是已授权的真实方法行为测试，不是实现或检查 worker。使用实际已安装方法及真正原生工具；不伪造结果、答复、会话或阶段事实。\n"
             + "\n".join(permissions)
             + "\n除上述本例能力外仅可读 Skill/必要引用、当前 fixture 及 CLI help。不得安装、配置、更新生产项目、删除、正式交接、读秘密或改变信任/模型。能力或隔离不满足就停止，保留真实错误。请完成本例实际方法产物，不以名称或口头承诺代替。\n测试请求：\n"
-            + case["prompt"])
+            + context + case["prompt"])
 
 
 def load_cases(path=CASES):
@@ -345,6 +347,17 @@ def summarize(path, native_status):
     return result
 
 
+def case_workspace(output, workspace, case):
+    if case.get("kind") != "scenario-combination":
+        return workspace
+    root = output / "phase-fixtures"
+    candidate = root / case["id"]
+    if (root.is_symlink() or candidate.is_symlink()
+            or not (candidate / ".trellis").is_dir()):
+        raise ValueError("native_phase_fixture_required")
+    return candidate
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("before", "after"), required=True)
@@ -394,6 +407,7 @@ def main():
             if not target.exists():
                 target.write_text(text)
         for case in chosen:
+            selected_workspace = case_workspace(output, workspace, case)
             number = reserve_turn(output, digest, args.phase, case["id"], args.retry)
             if number is None:
                 continue
@@ -404,14 +418,14 @@ def main():
             if args.host == "app-server":
                 import app_server_cases
                 status, thread_id, observations = app_server_cases.collect(
-                    case, workspace, trace, error, args.codex_home, provider_args,
+                    case, selected_workspace, trace, error, args.codex_home, provider_args,
                     resume_thread=args.resume_thread, compact=args.compact,
                     reserve_model_turn=lambda: reserve_turn(output, digest, args.phase,
                                                            case["id"] + ":compact", retry=True))
                 evidence = {"native_thread_id": thread_id, "interaction": observations,
                             "verdict": "needs_review" if status == "completed" else "blocked_native_execution"}
             else:
-                status = collect(case, workspace, trace, error, args.codex_home, provider_args)
+                status = collect(case, selected_workspace, trace, error, args.codex_home, provider_args)
                 evidence = summarize(trace, status)
             result = {"case_id": case["id"], "phase": args.phase, "turn_number": number,
                        "fixture_sha256": digest, "host": "codex-" + args.host + "-isolated",

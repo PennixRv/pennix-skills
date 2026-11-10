@@ -136,6 +136,22 @@ class EvaluationDriverTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid_evaluation_collection"):
                 runner.source_identity(home / "codex", revision, user_home=home, collection="unknown")
 
+    def test_phase_cases_require_separate_native_fixture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace = root / "fixture"
+            case = {"id": "RC1", "kind": "scenario-combination", "suite": "scenario-routing", "prompt": "explain"}
+            self.assertEqual(workspace, runner.case_workspace(root, workspace, {}))
+            with self.assertRaisesRegex(ValueError, "native_phase_fixture_required"):
+                runner.case_workspace(root, workspace, case)
+            candidate = root / "phase-fixtures/RC1"
+            (candidate / ".trellis").mkdir(parents=True)
+            self.assertEqual(candidate, runner.case_workspace(root, workspace, case))
+            self.assertIn("SCENARIO.md", runner.case_prompt(case, candidate))
+            (root / "phase-fixtures/RC2").symlink_to(candidate, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "native_phase_fixture_required"):
+                runner.case_workspace(root, workspace, {**case, "id": "RC2"})
+
     def test_sources_bind_actual_tree_to_owner_receipt_and_fixed_commit(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
