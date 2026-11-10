@@ -75,13 +75,15 @@ pennix uninstall <component-id> --confirm <component-id>
 pennix uninstall --all --confirm-all ALL
 ```
 
-卸载后配置仍选择的组件会显示为“已选择但未部署”，再次 `apply` 会重新部署。要永久取消组件，先在 `pennix config edit` 中取消选择，再运行 `pennix apply`。反向依赖、受管 relay 条目无法远端撤回、漂移或归属不明时阻塞，不隐式级联。
+卸载后配置仍选择的组件会显示为“已选择但未部署”，再次 `apply` 会重新部署。通常先在 `pennix config edit` 中取消选择，再运行 `pennix apply`；共享用户 Skill 集合取消选择后仍保留，须显式卸载，且影响同一用户的全部宿主配置。反向依赖、受管 relay 条目无法远端撤回、漂移或归属不明时阻塞，不隐式级联。
 
 `--all` 只表示移除当前工具能证明属于自己的已部署工作流目标，不清空 `workflow.config`，不删除用户数据、认证、项目、未知文件或外部维护的远端登记。
 
 生命周期工具自身卸载使用其 bootstrap 的 `uninstall` 操作；这与工作流组件卸载是不同入口，均须保留原生归属与数据保护检查。
 
 `pennix-skills` 和 `pennix-skills-extra` 各自维护 `collection.json`，声明成员路径、许可、命令和物化来源。`pennix-lifecycle` 固定集合仓库提交并独立验证 manifest；Skill 集合不复制 lifecycle catalog。receipt、集合树和命令链接必须一起切换，升级失败恢复旧树；损坏、未知或不受支持的 receipt 一律阻塞，不读取历史格式。
+
+两集合分别安装在 `$HOME/.agents/skills/pennix-skills` 和 `$HOME/.agents/skills/pennix-skills-extra`，保留集合层级；`CODEX_HOME` 只切换 Codex 配置。旧目录先由同版本 `repair` 迁移，再用 `update` 升级来源；中断沿原生 journal/recover 核验恢复，禁止手动移动安装树。Context Mode 的三个共享命令 Skill 由其自身 owner 管理，无法确认其他宿主使用情况时卸载保留共享文件并说明。
 
 ## 服务和 relay
 
