@@ -1022,3 +1022,31 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 状态（Status）
 
 [OK] **已完成（Completed）**
+
+
+## 会话（Session） 40：引入 Office 与 PDF 阅读 Skills 并验收正式运行时
+<!-- trellis-session: v=2 fp=572fa1d25c0a28ef -->
+
+**日期（Date）**: 2026-11-10
+**任务（Task）**: 引入 Office 与 PDF 阅读 Skills 并验收正式运行时
+**分支（Branch）**: `main`
+
+### 摘要（Summary）
+
+完成固定 Anthropic 四项导入、许可来源、默认只读和现有路由引用；正式主集合安装与完整本地 smoke、四格式加反例五次真实发现复核通过，组件任务已原生归档。OCR 有误字，创建编辑方法未作全面验收；无剩余实施工作或阻塞。
+
+### Git 提交（Git Commits）
+
+| 哈希（Hash） | 消息（Message） |
+|------|---------|
+| `1fab5b4` | feat: add Apache-licensed Office and PDF reading skills |
+| `3624514` | test: verify installed document runtime and discovery cases |
+
+### 测试（Testing）
+
+- [OK] 集合 15 项、评估驱动 19 项、逐 Skill 108 项（1 skipped）、完整本地 smoke 八组通过
+- [OK] 五个实际 app-server 请求复核通过，原始 needs_review 保留
+
+### 状态（Status）
+
+[OK] **已完成（Completed）**
