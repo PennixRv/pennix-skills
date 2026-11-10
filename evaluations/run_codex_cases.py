@@ -358,6 +358,17 @@ def case_workspace(output, workspace, case):
     return candidate
 
 
+def phase_fixture_state(workspace):
+    records = []
+    for path in sorted((workspace / ".trellis/tasks").glob("*/*/task.json")):
+        raw = path.read_bytes()
+        state = json.loads(raw).get("meta", {}).get("task_workflow")
+        if state:
+            records.append({"task": path.parent.name, "phase": state["current_phase_id"],
+                            "sha256": hashlib.sha256(raw).hexdigest()})
+    return {"version": (workspace / ".trellis/.version").read_text().strip(), "tasks": records}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("before", "after"), required=True)
@@ -415,6 +426,7 @@ def main():
             trace, error = output / (stem + ".jsonl"), output / (stem + ".stderr")
             if evaluation_sources(args.codex_home, args.collection_commit, args.extra_collection_commit) != identity:
                 raise ValueError("evaluation_source_changed")
+            phase_before = phase_fixture_state(selected_workspace) if case.get("kind") == "scenario-combination" else None
             if args.host == "app-server":
                 import app_server_cases
                 status, thread_id, observations = app_server_cases.collect(
@@ -430,6 +442,8 @@ def main():
             result = {"case_id": case["id"], "phase": args.phase, "turn_number": number,
                        "fixture_sha256": digest, "host": "codex-" + args.host + "-isolated",
                        "capabilities": case.get("capabilities", []), "source": identity, **evidence}
+            if phase_before is not None:
+                result["native_phase_fixture"] = {"before": phase_before, "after": phase_fixture_state(selected_workspace)}
             agents = Path(args.codex_home) / "AGENTS.md"
             result["agents_sha256"] = hashlib.sha256(agents.read_bytes()).hexdigest() if agents.is_file() else None
             (output / (stem + ".summary.json")).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")

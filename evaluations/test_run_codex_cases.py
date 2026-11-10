@@ -154,11 +154,20 @@ class EvaluationDriverTests(unittest.TestCase):
                 runner.case_workspace(root, workspace, case)
             candidate = root / "phase-fixtures/RC1"
             (candidate / ".trellis").mkdir(parents=True)
+            (candidate / ".trellis/.version").write_text("native-version\n")
             self.assertEqual(candidate, runner.case_workspace(root, workspace, case))
             self.assertIn("SCENARIO.md", runner.case_prompt(case, candidate))
             (root / "phase-fixtures/RC2").symlink_to(candidate, target_is_directory=True)
             with self.assertRaisesRegex(ValueError, "native_phase_fixture_required"):
                 runner.case_workspace(root, workspace, {**case, "id": "RC2"})
+            task = candidate / ".trellis/tasks/planning/test/task.json"
+            task.parent.mkdir(parents=True)
+            task.write_text(json.dumps({"meta": {"task_workflow": {"current_phase_id": "native-phase"}}}))
+            before = runner.phase_fixture_state(candidate)
+            self.assertEqual("native-phase", before["tasks"][0]["phase"])
+            self.assertEqual("native-version", before["version"])
+            task.write_text(task.read_text() + "\n")
+            self.assertNotEqual(before, runner.phase_fixture_state(candidate))
 
     def test_sources_bind_actual_tree_to_owner_receipt_and_fixed_commit(self):
         with tempfile.TemporaryDirectory() as directory:
