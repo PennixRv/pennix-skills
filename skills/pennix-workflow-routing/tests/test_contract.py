@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import re
 import unittest
 
@@ -8,6 +9,16 @@ SKILL = Path(__file__).parents[1] / "SKILL.md"
 
 class WorkflowRoutingContractTest(unittest.TestCase):
     # Static integrity only; routing behavior requires actual tool-call evidence.
+    def test_scenario_reference_covers_main_manifest_and_paired_extra_cases(self) -> None:
+        root = SKILL.parents[2]
+        manifest = json.loads((root / "collection.json").read_text())
+        cases = json.loads((root / "evaluations/skill-cases.json").read_text())["cases"]
+        expected = {x["skills_after"][0] for x in cases if x.get("kind") == "scenario-positive"}
+        reference = (SKILL.parent / "references/skill-scenarios.md").read_text()
+        actual = set(re.findall(r"^\| ([a-z][a-z0-9-]+) \|", reference, re.M))
+        self.assertEqual(expected, actual)
+        self.assertLessEqual(set(manifest["skills"]), actual)
+
     def test_routing_parameter_identifiers_remain_available(self) -> None:
         identifiers = set(re.findall(r"`([a-z_]+)`", SKILL.read_text(encoding="utf-8")))
         self.assertFalse({

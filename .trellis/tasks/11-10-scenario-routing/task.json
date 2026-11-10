@@ -1,0 +1,56 @@
+{
+  "id": "scenario-routing",
+  "name": "scenario-routing",
+  "title": "全量 Skills 场景路由与评估适配",
+  "description": "执行根任务已批准合同 WP1/WP3：主集合路由、两集合身份及真实行为评估；用户当前整体批准覆盖本包。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-10",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution_class": "planned",
+    "delivery_mode": "change_bearing",
+    "planning": {
+      "revision": 1,
+      "stage": "plan_closed",
+      "review_digest": "sha256:51e989da99853ca5d51847782edaff4d503a177037a6259f38f31529fa178f37",
+      "seal": {
+        "revision": 1,
+        "task_id": "scenario-routing",
+        "task_name": "11-10-scenario-routing",
+        "documents": [
+          "prd.md",
+          "design.md",
+          "implement.md"
+        ],
+        "document_digests": {
+          "prd.md": "2ebc96425e1a5fddeaa6fe60889485b3053bb339a7e7dabaea83ab6207b8bf42",
+          "design.md": "7335a388f6b04951adcdc8ded23079a2a411407b1b7f6284ae7dc7caca30d1fa",
+          "implement.md": "da5952ed44919dc19c0711927d3914efa67bc623c384cdf2d409872f3a231ce1"
+        },
+        "execution_class": "planned",
+        "delivery_mode": "change_bearing",
+        "plan_digest": "sha256:51e989da99853ca5d51847782edaff4d503a177037a6259f38f31529fa178f37",
+        "sealed_at": "2026-11-10T05:38:59.635890+00:00"
+      },
+      "approved_revision": 1,
+      "approval_basis": "当前用户已明确批准根任务完整方案及连续实施，本组件仅落实同范围WP1/WP3，批准原文见根implementation-approval.md",
+      "approved_at": "2026-11-10T05:38:59.802817+00:00"
+    }
+  }
+}

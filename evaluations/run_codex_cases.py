@@ -31,6 +31,37 @@ SAFETY = """这是已授权的只读 Skill 行为测试，不是实现或检查 
 """
 
 
+def case_policy(case, workspace):
+    capabilities = case.get("capabilities", [])
+    if (not isinstance(capabilities, list) or not all(isinstance(x, str) for x in capabilities)
+            or len(set(capabilities)) != len(capabilities)
+            or set(capabilities) - {"public_read", "fixture_write"}):
+        raise ValueError("invalid_case_capabilities")
+    policy = {"type": "readOnly", "networkAccess": "public_read" in capabilities}
+    if "fixture_write" in capabilities:
+        root = Path(workspace)
+        if not root.is_absolute() or root.is_symlink() or not root.is_dir():
+            raise ValueError("unsafe_fixture")
+        policy.update(type="workspaceWrite", writableRoots=[str(root)],
+                      excludeSlashTmp=True, excludeTmpdirEnvVar=True)
+    return policy
+
+
+def case_prompt(case, workspace):
+    policy = case_policy(case, workspace)
+    if not case.get("capabilities"):
+        return SAFETY + case["prompt"]
+    permissions = []
+    if policy["networkAccess"]:
+        permissions.append("允许适用原生入口读取非敏感公开来源或当前已配置连接的只读状态；不发送本地材料，不写远端。")
+    if policy["type"] == "workspaceWrite":
+        permissions.append("只允许在当前无秘密 fixture 目录内生成本例要求的产物；禁止写其他项目、安装树、用户配置和知识库。")
+    return ("这是已授权的真实方法行为测试，不是实现或检查 worker。使用实际已安装方法及真正原生工具；不伪造结果、答复、会话或阶段事实。\n"
+            + "\n".join(permissions)
+            + "\n除上述本例能力外仅可读 Skill/必要引用、当前 fixture 及 CLI help。不得安装、配置、更新生产项目、删除、正式交接、读秘密或改变信任/模型。能力或隔离不满足就停止，保留真实错误。请完成本例实际方法产物，不以名称或口头承诺代替。\n测试请求：\n"
+            + case["prompt"])
+
+
 def load_cases(path=CASES):
     raw = path.read_bytes()
     data = json.loads(raw)
@@ -43,6 +74,7 @@ def load_cases(path=CASES):
     for case in cases:
         if not case["prompt"] or not case["expected"] or not SAFE_NAME.fullmatch(case["id"]):
             raise ValueError("invalid_case")
+        case_policy(case, Path(tempfile.gettempdir()))
     return data, hashlib.sha256(raw).hexdigest()
 
 
@@ -109,13 +141,24 @@ def provider_options(provider_home):
                 f"model_providers.{name}.requires_openai_auth": False,
                 f"model_providers.{name}.auth.command": str(owner),
                 f"model_providers.{name}.auth.args": ["secrets", "codex-token", "--secrets-file", str(secrets)]}
+    if "model_reasoning_effort" in config:
+        selected["model_reasoning_effort"] = config["model_reasoning_effort"]
     return [part for key, value in selected.items() for part in ("-c", key + "=" + json.dumps(value, ensure_ascii=False))]
 
 
-def command(workspace, provider_args=()):
-    return ["codex", "exec", "--json", "--sandbox", "read-only",
+def command(workspace, provider_args=(), case=None):
+    policy = case_policy(case or {}, workspace)
+    mode = "workspace-write" if policy["type"] == "workspaceWrite" else "read-only"
+    settings = {"sandbox_workspace_write.writable_roots": policy.get("writableRoots", []),
+                "sandbox_workspace_write.network_access": policy["networkAccess"],
+                "sandbox_workspace_write.exclude_slash_tmp": True,
+                "sandbox_workspace_write.exclude_tmpdir_env_var": True,
+                "sandbox_read_only.network_access": policy["networkAccess"]}
+    return ["codex", "exec", "--json", "--sandbox", mode,
             "--skip-git-repo-check", "--color", "never", "--cd", str(workspace),
-            "-c", 'approval_policy="never"', "-c", "agents.enabled=false", *provider_args, "-"]
+            "-c", 'approval_policy="never"', "-c", "agents.enabled=false",
+            *[part for key, value in settings.items() for part in ("-c", key + "=" + json.dumps(value))],
+            *provider_args, "-"]
 
 
 def stop_process(process):
@@ -133,21 +176,23 @@ def stop_process(process):
         process.wait(timeout=5)
 
 
-def source_identity(codex_home, revision, *, user_home=None):
+def source_identity(codex_home, revision, *, user_home=None, collection="pennix-skills"):
     home = Path(codex_home)
     if not home.is_absolute() or home.is_symlink() or not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("invalid_evaluation_source")
     user = Path(user_home) if user_home is not None else Path.home()
-    root = user / ".agents/skills/pennix-skills"
+    if collection not in {"pennix-skills", "pennix-skills-extra"}:
+        raise ValueError("invalid_evaluation_collection")
+    root = user / ".agents/skills" / collection
     if not user.is_absolute() or any(parent.is_symlink() for parent in (root, *root.parents)):
         raise ValueError("unsafe_evaluation_source")
-    receipt_path = root.parent / ".pennix-skills.receipt.json"
+    receipt_path = root.parent / f".{collection}.receipt.json"
     if root.is_symlink() or receipt_path.is_symlink():
         raise ValueError("unsafe_evaluation_source")
     receipt = json.loads(receipt_path.read_bytes())
     if (receipt.get("schema") != 1 or receipt.get("destination") != root.name
             or receipt.get("target") != str(root)
-            or receipt.get("source") != {"repo": "PennixRv/pennix-skills", "ref": revision, "manifest": "collection.json"}
+            or receipt.get("source") != {"repo": "PennixRv/" + collection, "ref": revision, "manifest": "collection.json"}
             or not isinstance(receipt.get("manifest", {}).get("skills"), dict)):
         raise ValueError("evaluation_source_mismatch")
     digest = hashlib.sha256()
@@ -171,16 +216,23 @@ def source_identity(codex_home, revision, *, user_home=None):
     return {"codex_home": str(home), "collection_target": str(root), "collection_commit": revision, "collection_digest": digest.hexdigest()}
 
 
+def evaluation_sources(codex_home, revision, extra_revision=None):
+    identity = source_identity(codex_home, revision)
+    if extra_revision:
+        identity["extra"] = source_identity(codex_home, extra_revision, collection="pennix-skills-extra")
+    return identity
+
+
 def collect(case, workspace, stdout, stderr, codex_home=None, provider_args=()):
     started = time.monotonic()
     with stdout.open("xb") as out, stderr.open("xb") as err:
         environment = dict(os.environ)
         if codex_home is not None:
             environment["CODEX_HOME"] = str(codex_home)
-        process = subprocess.Popen(command(workspace, provider_args), stdin=subprocess.PIPE, env=environment,
+        process = subprocess.Popen(command(workspace, provider_args, case), stdin=subprocess.PIPE, env=environment,
                                    stdout=out, stderr=err, start_new_session=True)
         try:
-            process.stdin.write((SAFETY + case["prompt"]).encode("utf-8"))
+            process.stdin.write(case_prompt(case, workspace).encode("utf-8"))
             process.stdin.close()
             while process.poll() is None:
                 if time.monotonic() - started > TIMEOUT_SECONDS:
@@ -299,6 +351,7 @@ def main():
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--codex-home", required=True, help="宿主配置根；共享用户集合按当前 HOME 核验，不从配置根选择版本")
     parser.add_argument("--collection-commit", required=True, help="必须与 owner receipt 和实际内容吻合的完整提交")
+    parser.add_argument("--extra-collection-commit", help="场景路由验收必需的extra完整提交，与独立receipt及树核验")
     parser.add_argument("--provider-home", required=True, help="现有 Lifecycle owner 与公开 provider 配置所在的用户目录；不复制认证")
     parser.add_argument("--case", action="append", dest="case_ids")
     parser.add_argument("--retry", action="store_true")
@@ -309,12 +362,14 @@ def main():
     if (args.resume_thread or args.compact) and args.host != "app-server":
         parser.error("resume/compact require app-server")
     os.umask(0o077)
-    identity = source_identity(args.codex_home, args.collection_commit)
+    identity = evaluation_sources(args.codex_home, args.collection_commit, args.extra_collection_commit)
     provider_args = provider_options(args.provider_home)
     data, digest = load_cases()
     chosen = [case for case in data["cases"] if not args.case_ids or case["id"] in args.case_ids]
     if not chosen or (args.case_ids and set(args.case_ids) - {x["id"] for x in chosen}):
         raise ValueError("unknown_case")
+    if any(case.get("suite") == "scenario-routing" for case in chosen) and not args.extra_collection_commit:
+        raise ValueError("scenario_requires_both_collections")
     if args.retry and not args.case_ids:
         raise ValueError("retry_requires_specific_cases")
     output = private_output(args.output_dir)
@@ -327,7 +382,9 @@ def main():
         fixtures = {"fixture.txt": "routing-marker\nsecond line\n",
                     "notes.md": "仅在来源校验成功时继续。失败时停止，不能宣称全面健康。\n错误原文：FC_PATH_INVALID\n",
                     "template.md": "# Implementation Plan\n\n## Preconditions\n\n仅在用户明确批准后实施。\n\n`execution_class = planned`\n",
-                    "long.txt": "Unicode 中文 routing-marker\n" * 1000}
+                    "long.txt": "Unicode 中文 routing-marker\n" * 1000,
+                    "service.py": "def parse_count(raw):\n    count = int(raw)\n    if count < 0:\n        raise ValueError('negative count')\n    return count\n\ndef selected_orders(values):\n    return [str(parse_count(x)) for x in values if parse_count(x)]\n",
+                    "AGENTS.sample.md": "# 合成来源链样例（非实际规则）\n\n用户正文声明按宿主路径读取。\n<!-- EXAMPLE_GENERATED_START -->\n生成段示例建议平铺技能路径；writer未知，需要证据核对。\n<!-- EXAMPLE_GENERATED_END -->\n"}
         for name, text in fixtures.items():
             target = workspace / name
             if target.is_symlink():
@@ -342,21 +399,23 @@ def main():
                 continue
             stem = f"{number:03d}-{args.phase}-{case['id']}"
             trace, error = output / (stem + ".jsonl"), output / (stem + ".stderr")
-            if source_identity(args.codex_home, args.collection_commit) != identity:
+            if evaluation_sources(args.codex_home, args.collection_commit, args.extra_collection_commit) != identity:
                 raise ValueError("evaluation_source_changed")
             if args.host == "app-server":
                 import app_server_cases
                 status, thread_id, observations = app_server_cases.collect(
                     case, workspace, trace, error, args.codex_home, provider_args,
-                    resume_thread=args.resume_thread, compact=args.compact)
+                    resume_thread=args.resume_thread, compact=args.compact,
+                    reserve_model_turn=lambda: reserve_turn(output, digest, args.phase,
+                                                           case["id"] + ":compact", retry=True))
                 evidence = {"native_thread_id": thread_id, "interaction": observations,
                             "verdict": "needs_review" if status == "completed" else "blocked_native_execution"}
             else:
                 status = collect(case, workspace, trace, error, args.codex_home, provider_args)
                 evidence = summarize(trace, status)
             result = {"case_id": case["id"], "phase": args.phase, "turn_number": number,
-                       "fixture_sha256": digest, "host": "codex-" + args.host + "-isolated-read-only",
-                       "source": identity, **evidence}
+                       "fixture_sha256": digest, "host": "codex-" + args.host + "-isolated",
+                       "capabilities": case.get("capabilities", []), "source": identity, **evidence}
             agents = Path(args.codex_home) / "AGENTS.md"
             result["agents_sha256"] = hashlib.sha256(agents.read_bytes()).hexdigest() if agents.is_file() else None
             (output / (stem + ".summary.json")).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")

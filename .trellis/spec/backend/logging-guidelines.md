@@ -73,6 +73,15 @@ enter the fixture or result. A phase label cannot establish which source ran.
 
 ### Validation & Error Matrix
 
+Scenario-routing evaluations additionally bind the independent extra collection
+receipt and tree through `--extra-collection-commit`. Each case declares only
+`public_read` and/or `fixture_write` when needed. Native workspace-write policies
+exclude both temporary-directory defaults and allow only the fixture root;
+production configuration, collection trees and remote mutations remain outside
+the case. Compaction reserves another entry in the same 100-turn budget before
+the native request. Record model, provider and effort from the matching native
+turn context, without copying raw context or authentication.
+
 | Evidence | Outcome |
 | --- | --- |
 | Single-file `cat`, integer exit 0, nonempty string output | `read`; does not prove complete output or agent consumption |

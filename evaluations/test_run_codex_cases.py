@@ -79,10 +79,58 @@ class EvaluationDriverTests(unittest.TestCase):
     def test_frozen_coverage_and_name_mapping(self):
         data, digest = runner.load_cases()
         self.assertEqual(64, len(digest))
-        self.assertEqual(36, sum(x["kind"] not in {"combination", "interaction"} for x in data["cases"]))
+        legacy = [x for x in data["cases"] if x.get("suite") != "scenario-routing"]
+        self.assertEqual(36, sum(x["kind"] not in {"combination", "interaction"} for x in legacy))
         self.assertEqual(10, sum(x["kind"] == "combination" for x in data["cases"]))
         self.assertEqual(8, sum(x["kind"] == "interaction" for x in data["cases"]))
-        self.assertTrue(all(name.startswith("pennix-") for x in data["cases"] for name in x["skills_after"]))
+        self.assertTrue(all(name.startswith("pennix-") for x in legacy for name in x["skills_after"]))
+        scenarios = [x for x in data["cases"] if x.get("suite") == "scenario-routing"]
+        positive = {x["skills_after"][0] for x in scenarios if x["kind"] == "scenario-positive"}
+        negative = {x["skills_after"][0] for x in scenarios if x["kind"] == "scenario-negative"}
+        self.assertEqual(positive, negative)
+        self.assertEqual(25, len(positive))
+        self.assertEqual(5, sum(x["kind"] == "scenario-combination" for x in scenarios))
+
+    def test_case_permissions_are_explicit_and_writes_stay_in_fixture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            normal = runner.case_policy({}, root)
+            self.assertEqual({"type": "readOnly", "networkAccess": False}, normal)
+            writer = {"prompt": "generate a probe", "capabilities": ["fixture_write"]}
+            policy = runner.case_policy(writer, root)
+            self.assertEqual([str(root)], policy["writableRoots"])
+            self.assertTrue(policy["excludeSlashTmp"])
+            self.assertTrue(policy["excludeTmpdirEnvVar"])
+            self.assertFalse(policy["networkAccess"])
+            self.assertNotIn("不得安装、配置、更新项目", runner.case_prompt(writer, root))
+            self.assertIn("fixture", runner.case_prompt(writer, root))
+            for invalid in [["production_write"], ["fixture_write", "fixture_write"], [{}], "public_read"]:
+                with self.subTest(capabilities=invalid), self.assertRaisesRegex(ValueError, "invalid_case_capabilities"):
+                    runner.case_policy({"capabilities": invalid}, root)
+            link = root / "linked"
+            link.symlink_to(root, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "unsafe_fixture"):
+                runner.case_policy(writer, link)
+
+    def test_extra_identity_uses_independent_receipt_and_rejects_wrong_collection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            root = home / ".agents/skills/pennix-skills-extra"
+            root.mkdir(parents=True)
+            (root / "SKILL.md").write_bytes(b"extra\n")
+            digest = runner.hashlib.sha256(b"F\0SKILL.md\0" + b"0\0extra\n").hexdigest()
+            revision = "e" * 40
+            value = {"schema": 1, "destination": root.name, "target": str(root), "digest": digest,
+                     "source": {"repo": "PennixRv/pennix-skills-extra", "ref": revision, "manifest": "collection.json"},
+                     "manifest": {"skills": {}}}
+            (root.parent / ".pennix-skills-extra.receipt.json").write_text(json.dumps(value))
+            identity = runner.source_identity(home / "codex", revision, user_home=home, collection="pennix-skills-extra")
+            self.assertEqual(str(root), identity["collection_target"])
+            (root / "SKILL.md").write_text("drift")
+            with self.assertRaisesRegex(ValueError, "source_drift"):
+                runner.source_identity(home / "codex", revision, user_home=home, collection="pennix-skills-extra")
+            with self.assertRaisesRegex(ValueError, "invalid_evaluation_collection"):
+                runner.source_identity(home / "codex", revision, user_home=home, collection="unknown")
 
     def test_sources_bind_actual_tree_to_owner_receipt_and_fixed_commit(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -209,12 +257,14 @@ class EvaluationDriverTests(unittest.TestCase):
                 {"type": "session_meta", "payload": {"id": "thread-1"}},
                 {"type": "turn_context", "payload": {"turn_id": "old"}},
                 {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input_async"}},
-                {"type": "turn_context", "payload": {"turn_id": "new"}},
+                {"type": "turn_context", "payload": {"turn_id": "new", "model": "native-model", "model_provider": "native-provider", "effort": "high", "private": "synthetic-secret"}},
                 {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input"}},
             ]
             path.write_text("\n".join(json.dumps(event) for event in events))
             self.assertEqual({"request_user_input": 1, "request_user_input_async": 0},
                              app_server_cases.question_tools(path, home, "thread-1", "new"))
+            self.assertEqual({"model": "native-model", "model_provider": "native-provider", "effort": "high"},
+                             app_server_cases.execution_identity(path, home, "thread-1", "new"))
             with self.assertRaisesRegex(ValueError, "rollout_identity_mismatch"):
                 app_server_cases.question_tools(path, home, "other", "new")
             outside = home / "outside.jsonl"

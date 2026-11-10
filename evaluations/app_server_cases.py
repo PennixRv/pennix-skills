@@ -105,7 +105,7 @@ def observe(events):
               "question_tool_calls": None,
               "command_items": 0, "mcp_items": 0, "completed_turns": 0,
               "compaction_observed": False, "turn_failed": False,
-              "skill_declarations": [], "skill_path_observations": []}
+              "skill_declarations": [], "skill_path_observations": [], "execution_identity": None}
     for number, event in enumerate(events, 1):
         method, params = event.get("method"), event.get("params", {})
         if method == "item/tool/requestUserInput":
@@ -114,6 +114,8 @@ def observe(events):
             result[field] += 1
         elif method == "evaluation/questionTools":
             result["question_tool_calls"] = params
+        elif method == "evaluation/executionIdentity":
+            result["execution_identity"] = params
         elif method == "evaluation/questionAnswered":
             result["question_answers"] += 1
         elif method == "evaluation/skillDeclarations":
@@ -159,8 +161,21 @@ def question_tools(path, codex_home, thread_id, turn_id):
     return counts
 
 
+def execution_identity(path, codex_home, thread_id, turn_id):
+    # Use the native rollout, never infer execution settings from an evaluation label.
+    question_tools(path, codex_home, thread_id, turn_id)
+    result = None
+    with Path(path).open() as stream:
+        for line in stream:
+            event = json.loads(line)
+            payload = event.get("payload", {})
+            if event.get("type") == "turn_context" and payload.get("turn_id") == turn_id:
+                result = {key: payload.get(key) for key in ("model", "model_provider", "effort")}
+    return result
+
+
 def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
-            *, resume_thread=None, compact=False):
+            *, resume_thread=None, compact=False, reserve_model_turn=None):
     app = None
     thread_id = None
     try:
@@ -178,6 +193,7 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
             marker = {"method": "evaluation/skillDeclarations", "params": declared}
             trace.write(json.dumps(marker, ensure_ascii=False) + "\n")
             app.events.append(marker)
+            policy = driver.case_policy(case, workspace)
             params = {"cwd": str(workspace), "approvalPolicy": "never", "sandbox": "read-only"}
             if resume_thread:
                 started = app.rpc("thread/resume", {**params, "threadId": resume_thread})
@@ -187,12 +203,15 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
             if compact:
                 if not resume_thread:
                     raise ValueError("compaction_requires_existing_thread")
+                if reserve_model_turn is None or reserve_model_turn() is None:
+                    raise ValueError("compaction_requires_budget")
                 offset = len(app.events)
                 app.rpc("thread/compact/start", {"threadId": thread_id})
                 app.wait("turn/completed", offset)
             offset = len(app.events)
             turn = app.rpc("turn/start", {"threadId": thread_id,
-                                  "input": [{"type": "text", "text": driver.SAFETY + case["prompt"]}]})
+                                  "sandboxPolicy": policy,
+                                  "input": [{"type": "text", "text": driver.case_prompt(case, workspace)}]})
             deadline = time.monotonic() + driver.TIMEOUT_SECONDS
             cursor = offset
             while True:
@@ -210,6 +229,10 @@ def collect(case, workspace, trace_path, error_path, codex_home, provider_args,
                     failed = message.get("params", {}).get("turn", {}).get("status") != "completed"
                     counts = question_tools(started["thread"]["path"], codex_home, thread_id, turn["turn"]["id"])
                     marker = {"method": "evaluation/questionTools", "params": counts}
+                    trace.write(json.dumps(marker) + "\n")
+                    app.events.append(marker)
+                    marker = {"method": "evaluation/executionIdentity", "params": execution_identity(
+                        started["thread"]["path"], codex_home, thread_id, turn["turn"]["id"])}
                     trace.write(json.dumps(marker) + "\n")
                     app.events.append(marker)
                     return ("native_failure" if failed else "completed"), thread_id, observe(app.events)

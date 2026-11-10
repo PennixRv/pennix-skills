@@ -3,6 +3,881 @@
   "model_turn_limit": 100,
   "cases": [
     {
+        "id": "R01-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-workflow-routing"
+        ],
+        "skills_after": [
+            "pennix-workflow-routing"
+        ],
+        "prompt": "我要同时升级工作流工具并更新当前隔离项目的生成资产；请先分清各自维护入口、顺序和授权边界，只给可执行计划，不实际升级。",
+        "expected": [
+            "区分系统部署与项目资产更新owner，给出入口和返回位置"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R01-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-workflow-routing"
+        ],
+        "skills_after": [
+            "pennix-workflow-routing"
+        ],
+        "prompt": "读取 fixture.txt 的第一行即可，不做其他操作。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R02-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-agent-output-quality"
+        ],
+        "skills_after": [
+            "pennix-agent-output-quality"
+        ],
+        "prompt": "请检查这份批准前方案的完整性并给出修订稿：『修改模板，然后发布。』目标是让恢复后的方法选择可靠，交付需含实际生效。重点核对读者所需信息、遗漏和验收，勿虚构已完成证据。",
+        "expected": [
+            "实际补齐目标、范围、验证、生效与风险，明确未知"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R02-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-agent-output-quality"
+        ],
+        "skills_after": [
+            "pennix-agent-output-quality"
+        ],
+        "prompt": "routing-marker 是 fixture.txt 中出现的字面量吗？只回答事实。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R03-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-chinese-tech-writing"
+        ],
+        "skills_after": [
+            "pennix-chinese-tech-writing"
+        ],
+        "prompt": "请改写 notes.md 的中文技术说明，消除歧义并保留前置条件、失败范围、错误标识和确定程度，直接在答复中交付，不写回。",
+        "expected": [
+            "保留条件和FC_PATH_INVALID，实际给出改写"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R03-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-chinese-tech-writing"
+        ],
+        "skills_after": [
+            "pennix-chinese-tech-writing"
+        ],
+        "prompt": "原样引用 notes.md 中错误代码，不校对或改写。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R04-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-decision-grill"
+        ],
+        "skills_after": [
+            "pennix-decision-grill"
+        ],
+        "prompt": "隔离测试的产品有两种可行恢复策略：自动覆盖旧草稿可减少等待但可能丢失人工编辑；保留冲突副本可保护草稿但需要人工处理。请先解决属于我的重要取舍，不替我默认选，也别问可直接查明的事实。本例是合成交互，不代表任何生产实施批准。",
+        "expected": [
+            "按风险和依赖询问真实取舍，不扩大为实施授权"
+        ],
+        "capabilities": [],
+        "answer": "选择保留冲突副本，优先保护人工编辑；本例不实施。"
+    },
+    {
+        "id": "R04-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-decision-grill"
+        ],
+        "skills_after": [
+            "pennix-decision-grill"
+        ],
+        "prompt": "notes.md 已明确失败时停止。请引用该条件，不需要我再确认。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R05-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-codegraph-integration"
+        ],
+        "skills_after": [
+            "pennix-codegraph-integration"
+        ],
+        "prompt": "需要核对当前 fixture 中 service.py 的调用影响，但还没有项目批准或索引可用证据。请先核验原生状态和工作树边界；索引不适用时用有界源码给出 callers，不初始化或重建。",
+        "expected": [
+            "核验原生能力和索引边界，受限则给有界源码证据，不自动索引"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R05-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-codegraph-integration"
+        ],
+        "skills_after": [
+            "pennix-codegraph-integration"
+        ],
+        "prompt": "只在 service.py 查找字面量 parse_count，不需要结构索引。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R06-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-windsurf-code-search"
+        ],
+        "skills_after": [
+            "pennix-windsurf-code-search"
+        ],
+        "prompt": "我要找到『过滤掉零数量订单』的处理位置，目前只有这个业务含义，没有文件名或符号锚点；范围仅当前无秘密 fixture。请按适用的语义定位入口发现有界候选，再核验实际源码；能力不支持此目录就保留限制。",
+        "expected": [
+            "选择无锚点语义定位，核验适用性及候选，不伪造索引"
+        ],
+        "capabilities": [
+            "public_read"
+        ]
+    },
+    {
+        "id": "R06-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-windsurf-code-search"
+        ],
+        "skills_after": [
+            "pennix-windsurf-code-search"
+        ],
+        "prompt": "请读取 service.py 的 parse_count 定义，路径和符号都已明确。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R07-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-tavily-search"
+        ],
+        "skills_after": [
+            "pennix-tavily-search"
+        ],
+        "prompt": "请比较当前 Agent Skills 公开规范与 obra/superpowers 的方法选择设计，获取相关官方公开正文，给出两条有来源的差异；不发送本地内容，不安装任何工具。",
+        "expected": [
+            "使用一般外部检索及正文证据，保留URL与适用差异"
+        ],
+        "capabilities": [
+            "public_read"
+        ]
+    },
+    {
+        "id": "R07-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-tavily-search"
+        ],
+        "skills_after": [
+            "pennix-tavily-search"
+        ],
+        "prompt": "问题仅是 fixture.txt 第二行是什么，不需要外部资料。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R08-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-grok-search"
+        ],
+        "skills_after": [
+            "pennix-grok-search"
+        ],
+        "prompt": "我只想了解 X 上关于 Agent Skills 渐进披露的公开讨论，请限定 X 来源，实际检索并区分观点与已核实事实；不要增加普通网页来源，也别发送本地内容。",
+        "expected": [
+            "适用原生X检索，保持X-only及来源，禁止自动切服务商"
+        ],
+        "capabilities": [
+            "public_read"
+        ]
+    },
+    {
+        "id": "R08-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-grok-search"
+        ],
+        "skills_after": [
+            "pennix-grok-search"
+        ],
+        "prompt": "请查一般公开技术规范的原文，来源是 agentskills.io，不需要X讨论。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R09-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-siyuan-knowledge"
+        ],
+        "skills_after": [
+            "pennix-siyuan-knowledge"
+        ],
+        "prompt": "请只读检索我维护的知识库里与工作流技能路由有关的条目，选一条相关内容给出可核验引用；没有连接或权限就明确受限，不保存或改写笔记，不在答复暴露连接配置。",
+        "expected": [
+            "真实原生知识读取与引用，或保留真实连接受限；不写知识"
+        ],
+        "capabilities": [
+            "public_read"
+        ]
+    },
+    {
+        "id": "R09-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-siyuan-knowledge"
+        ],
+        "skills_after": [
+            "pennix-siyuan-knowledge"
+        ],
+        "prompt": "请解释 fixture.txt 的内容，不需要用户知识库或保存。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R10-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-project-agents-governance"
+        ],
+        "skills_after": [
+            "pennix-project-agents-governance"
+        ],
+        "prompt": "项目的 AGENTS.md 出现两种互相冲突的技能路径，且其中一段带生成标记。我需要审查有效来源链和实际 writer，再提出修复落点。当前只依据 fixture 内 AGENTS.sample.md 给出有证据的方向，不修改全局规则。",
+        "expected": [
+            "区分用户正文和生成owner，来源未知保持未知，不直接改生成块"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R10-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-project-agents-governance"
+        ],
+        "skills_after": [
+            "pennix-project-agents-governance"
+        ],
+        "prompt": "修改 service.py 的一个局部变量之前，是否需要先审计所有AGENTS？只给范围判断。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R11-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-trellis-asset-check"
+        ],
+        "skills_after": [
+            "pennix-trellis-asset-check"
+        ],
+        "prompt": "隔离项目的生成技能可能与 CLI 不同步。请使用适用原生只读入口诊断当前 fixture 的生成资产与迁移残留，区分未初始化、缺失和过时；不要执行更新或初始化。",
+        "expected": [
+            "原生只读诊断，受限事实明确，不把诊断变更新"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R11-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-trellis-asset-check"
+        ],
+        "skills_after": [
+            "pennix-trellis-asset-check"
+        ],
+        "prompt": "只需阅读 fixture.txt，不进行项目资产检查或更新。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R12-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-trellis-project-update"
+        ],
+        "skills_after": [
+            "pennix-trellis-project-update"
+        ],
+        "prompt": "我已批准核对当前隔离 fixture 项目的 Trellis 更新候选；请使用原生只读预览判断它是否已管理、候选来源和冲突，给更新路径；本例止于预览，不应用、不初始化其他项目。",
+        "expected": [
+            "核对已管理前置、原生dry-run和冲突，止于预览"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R12-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-trellis-project-update"
+        ],
+        "skills_after": [
+            "pennix-trellis-project-update"
+        ],
+        "prompt": "此目录未初始化，我只想了解一段代码，不希望更新或初始化。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R13-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-component-lifecycle"
+        ],
+        "skills_after": [
+            "pennix-component-lifecycle"
+        ],
+        "prompt": "已授权核验当前已登记工作流组件的准备状态，请用其原生只读计划或状态入口核对两项：用户技能集合与 Trellis CLI。区分已安装身份、漂移和健康，不读取或输出秘密，不执行安装。",
+        "expected": [
+            "原生状态/计划，准确区别安装、锁定与ready，不额外部署"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R13-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-component-lifecycle"
+        ],
+        "skills_after": [
+            "pennix-component-lifecycle"
+        ],
+        "prompt": "某个命令名在PATH没找到，现在只要检查原因，不授权安装或配置。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R14-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-resource-cleanup"
+        ],
+        "skills_after": [
+            "pennix-resource-cleanup"
+        ],
+        "prompt": "请盘点工作流组件产生的缓存或历史资源，先选正确 owner 的原生只读预览，报告一类资源的范围和保留边界；不要删除或在输出暴露历史内容。",
+        "expected": [
+            "按owner实际预览，保留默认只读和共享边界"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R14-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-resource-cleanup"
+        ],
+        "skills_after": [
+            "pennix-resource-cleanup"
+        ],
+        "prompt": "当前任务完成了，请给一句状态说明，不要求盘点或清理缓存。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R15-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "pennix-session-handoff"
+        ],
+        "skills_after": [
+            "pennix-session-handoff"
+        ],
+        "prompt": "我准备把这项工作正式交给下一会话继续，请先核对当前正式交接入口、所需源会话证据和停止条件。本例只有核对授权，不创建交接包、不封口当前会话。",
+        "expected": [
+            "识别正式交接业务意图、读取原生help或先决，止于创建前"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R15-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "pennix-session-handoff"
+        ],
+        "skills_after": [
+            "pennix-session-handoff"
+        ],
+        "prompt": "我暂时休息一下，以后再继续；不要求跨会话交接。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R16-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "diagnosing-bugs"
+        ],
+        "skills_after": [
+            "diagnosing-bugs"
+        ],
+        "prompt": "service.py 中数量为0的订单被误过滤了，数量为负也不应接受。请诊断根因，提出可证伪假设，运行有界探针并说明回归信号；本例只读，不改源码。",
+        "expected": [
+            "实际假设、探针和根因，给零值及非法值回归"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R16-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "diagnosing-bugs"
+        ],
+        "skills_after": [
+            "diagnosing-bugs"
+        ],
+        "prompt": "Python中的if语句是什么？用一句话解释语法即可。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R17-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "codebase-design"
+        ],
+        "skills_after": [
+            "codebase-design"
+        ],
+        "prompt": "service.py 把解析、过滤、格式化挤在一起，消费者难测试。请围绕一个具体模块接口比较至少两个机制不同的边界方案，说明封装、测试和调用方代价，不实施重构。",
+        "expected": [
+            "实际比较不同接口机制与权衡，源码有锚点"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R17-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "codebase-design"
+        ],
+        "skills_after": [
+            "codebase-design"
+        ],
+        "prompt": "将局部变量x改名为count是否需要模块重构？给最小范围判断。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R18-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "prototype"
+        ],
+        "skills_after": [
+            "prototype"
+        ],
+        "prompt": "我不确定草稿保存的状态逻辑是否正确：clean经edit变dirty，dirty经save变clean，保存失败仍dirty，clean可以close而dirty应阻止。请先定判断信号，再在当前fixture生成一个可丢弃的小型可运行原型并验证四条转换，只写本例产物prototype_probe.py，不修改其他文件。",
+        "expected": [
+            "实际可运行原型及四转换结果，文件范围受限"
+        ],
+        "capabilities": [
+            "fixture_write"
+        ]
+    },
+    {
+        "id": "R18-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "prototype"
+        ],
+        "skills_after": [
+            "prototype"
+        ],
+        "prompt": "这四个确定状态的名称是什么？只列名称，不需要原型。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R19-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "improve-codebase-architecture"
+        ],
+        "skills_after": [
+            "improve-codebase-architecture"
+        ],
+        "prompt": "当前 service.py 的解析与过滤边界让零值缺陷反复出现，这是具名范围中的架构摩擦。请审查这一个子系统，给文件依据、改进候选、代价和首选方向，不扫描其他仓库、不实施重构。",
+        "expected": [
+            "具名架构摩擦证据、候选和推荐，返回方案不自动重构"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R19-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "improve-codebase-architecture"
+        ],
+        "skills_after": [
+            "improve-codebase-architecture"
+        ],
+        "prompt": "只把 service.py 的一个拼写改正是否需要全仓架构审查？只判断范围。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R20-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "retro"
+        ],
+        "skills_after": [
+            "retro"
+        ],
+        "prompt": "请研究这次执行摩擦：同一个技能先尝试了平铺路径而失败，随后正确集合路径成功；当前规则本已要求按宿主声明路径读取。请区分实际证据、根因假设、现有设施覆盖及责任owner，提出有界改进，不修改规则或环境。",
+        "expected": [
+            "依据给定摩擦复盘、区分假设，核对现有规则，不越权改环境"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R20-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "retro"
+        ],
+        "skills_after": [
+            "retro"
+        ],
+        "prompt": "所有操作正常通过，没有额外问题，请只汇报结束状态，不要复盘。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R21-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "teach"
+        ],
+        "skills_after": [
+            "teach"
+        ],
+        "prompt": "我想真正掌握 Python 闭包捕获变量的问题。请在对话中给一节聚焦短课，用一段能运行的小例子解释，再给一道检索练习并等待我的实际回答；不要创建课程文件，也不要把讲过记成我已掌握。",
+        "expected": [
+            "实际短课、示例和检索练习，先对话无目录门槛"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R21-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "teach"
+        ],
+        "skills_after": [
+            "teach"
+        ],
+        "prompt": "闭包这个术语是什么意思？只解释一句，不建立课程或学习记录。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R22-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "wait-what"
+        ],
+        "skills_after": [
+            "wait-what"
+        ],
+        "prompt": "上一回复是『receipt绑定来源提交和安装树摘要，但不能证明方法已实际采用』。我没理解：为什么摘要相同还不能证明我用到了方法？请直接重新解释这一疑点，并保留结论的限制。",
+        "expected": [
+            "依据实际前答解释身份与行为区别，不先求解释批准"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R22-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "wait-what"
+        ],
+        "skills_after": [
+            "wait-what"
+        ],
+        "prompt": "补充一个新要求：后续结果用表格列出。无需重复上一答复。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R23-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "loop-me"
+        ],
+        "skills_after": [
+            "loop-me"
+        ],
+        "prompt": "我每周手工收集发布候选、核对测试、等待负责人确认再发布，经常漏掉失败恢复。请把这个重复活动梳理成适度流程规格，写清触发、输入输出、责任、必要检查点和失败处理；先在对话交付，不新建调度器或任务系统。",
+        "expected": [
+            "实际流程规格和责任失败条件，无目录前置或自动化"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R23-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "loop-me"
+        ],
+        "skills_after": [
+            "loop-me"
+        ],
+        "prompt": "只安排一次已明确的小文件改动和验证，不建立重复工作流程。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R24-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "writing-fragments"
+        ],
+        "skills_after": [
+            "writing-fragments"
+        ],
+        "prompt": "我要写一次发布经验，但材料尚未成形。请将这些散乱观察保真收集到本例 fragments-output.md，暂不固定文章结构：『版本相同不等于来源相同』（我的判断）；『首次失败后重试成功，原错误仍有诊断价值』（本次观察）；『所有模型都可靠』（未验证猜测）。区分来源和确定程度，别把猜测写成事实。",
+        "expected": [
+            "实际保真素材文件，区分事实候选，不强制成文"
+        ],
+        "capabilities": [
+            "fixture_write"
+        ]
+    },
+    {
+        "id": "R24-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "writing-fragments"
+        ],
+        "skills_after": [
+            "writing-fragments"
+        ],
+        "prompt": "把『安装成功后检查』改成更清楚的一句话即可，不收集素材。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "R25-positive",
+        "suite": "scenario-routing",
+        "kind": "scenario-positive",
+        "skills_before": [
+            "writing-shape"
+        ],
+        "skills_after": [
+            "writing-shape"
+        ],
+        "prompt": "请依据固定材料写给工程同事一篇短文，直接生成本例 article-output.md，原料 notes.md 只读。材料是：来源校验成功才继续；失败必须停止；错误码FC_PATH_INVALID；同版本不证明同一来源。目标是解释为何交付还要核对实际生效。不要逐段访谈或选择分支模式，保留条件和不确定性。",
+        "expected": [
+            "实际成文、读者概念衔接、原料不变，不逐段索权"
+        ],
+        "capabilities": [
+            "fixture_write"
+        ]
+    },
+    {
+        "id": "R25-negative",
+        "suite": "scenario-routing",
+        "kind": "scenario-negative",
+        "skills_before": [
+            "writing-shape"
+        ],
+        "skills_after": [
+            "writing-shape"
+        ],
+        "prompt": "只说明函数parse_count的参数类型，保留API格式，不组织文章。",
+        "expected": [
+            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "RC1",
+        "suite": "scenario-routing",
+        "kind": "scenario-combination",
+        "skills_before": [],
+        "skills_after": [],
+        "prompt": "需求不变，目标是理解当前候选如何保护人工草稿；我已经确认要保护人工改动。请继续解释该目标的验收方式，不重新访谈或代替我批准实施。",
+        "expected": [
+            "需求阶段的解释方法返回原阶段，既定选择不重问"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "RC2",
+        "suite": "scenario-routing",
+        "kind": "scenario-combination",
+        "skills_before": [],
+        "skills_after": [],
+        "prompt": "基于 service.py 的具名架构摩擦，在决策阶段比较两个候选；到方案阶段组织完整审查要点。这里只做候选和草案，不宣称阶段已接受，也不实施。",
+        "expected": [
+            "架构候选接接口设计及方案组织，阶段与批准不混淆"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "RC3",
+        "suite": "scenario-routing",
+        "kind": "scenario-combination",
+        "skills_before": [],
+        "skills_after": [],
+        "prompt": "这里是已批准实施合同内的局部诊断：service.py 的0值被过滤。请按源码给探针、根因和验证方向，必要时解释执行方法，完成后继续本例诊断，不重开需求确认。",
+        "expected": [
+            "实施方法与已有授权协作，诊断不变成全流程重启"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "RC4",
+        "suite": "scenario-routing",
+        "kind": "scenario-combination",
+        "skills_before": [],
+        "skills_after": [],
+        "prompt": "准备交付这段研究：『已找到零值过滤原因，但未发布、未安装、未测恢复』。请审查交付缺口和准确表达，不能宣称完成，也不自动创建交接、写知识或清理缓存。",
+        "expected": [
+            "交付质量方法识别合同缺口，不触发非请求动作"
+        ],
+        "capabilities": []
+    },
+    {
+        "id": "RC5",
+        "suite": "scenario-routing",
+        "kind": "scenario-combination",
+        "skills_before": [],
+        "skills_after": [],
+        "prompt": "当前只是任务外请求：我不理解『索引可用也不能跨工作树借用』。请直接解释原因与一个例子；不用创建任务、初始化项目或做全量技能盘点。",
+        "expected": [
+            "start/intake/taskless短路径与理解方法协作"
+        ],
+        "capabilities": []
+    },
+    {
       "id": "S01-positive",
       "kind": "positive",
       "skills_before": [
@@ -11,9 +886,9 @@
       "skills_after": [
         "pennix-grok-search"
       ],
-      "prompt": "读取 https://developers.openai.com/codex/mcp 的公开正文，先确定应加载的入口和原生命令。",
+      "prompt": "限定X来源核对Agent Skills的公开讨论，先确定适用入口和原生命令，本例不发网络请求。",
       "expected": [
-        "加载 Grok Skill，读取必要引用，选择 native fetch"
+        "加载适用X检索Skill，读取必要引用，止于请求前"
       ]
     },
     {
