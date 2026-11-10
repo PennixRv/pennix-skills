@@ -104,6 +104,10 @@ class EvaluationDriverTests(unittest.TestCase):
             self.assertFalse(policy["networkAccess"])
             self.assertNotIn("不得安装、配置、更新项目", runner.case_prompt(writer, root))
             self.assertIn("fixture", runner.case_prompt(writer, root))
+            scenario = {"suite": "scenario-routing", "prompt": "核验只读状态并运行不落盘探针"}
+            self.assertIn("不落盘的有界诊断探针", runner.case_prompt(scenario, root))
+            self.assertEqual(normal, runner.case_policy(scenario, root))
+            self.assertIn("不得安装、配置、更新项目", runner.case_prompt({"prompt": "legacy"}, root))
             for invalid in [["production_write"], ["fixture_write", "fixture_write"], [{}], "public_read"]:
                 with self.subTest(capabilities=invalid), self.assertRaisesRegex(ValueError, "invalid_case_capabilities"):
                     runner.case_policy({"capabilities": invalid}, root)
@@ -265,6 +269,11 @@ class EvaluationDriverTests(unittest.TestCase):
                              app_server_cases.question_tools(path, home, "thread-1", "new"))
             self.assertEqual({"model": "native-model", "model_provider": "native-provider", "effort": "high"},
                              app_server_cases.execution_identity(path, home, "thread-1", "new"))
+            events[0]["payload"]["model_provider"] = "native-session-provider"
+            del events[3]["payload"]["model_provider"]
+            path.write_text("\n".join(json.dumps(event) for event in events))
+            self.assertEqual("native-session-provider",
+                             app_server_cases.execution_identity(path, home, "thread-1", "new")["model_provider"])
             with self.assertRaisesRegex(ValueError, "rollout_identity_mismatch"):
                 app_server_cases.question_tools(path, home, "other", "new")
             outside = home / "outside.jsonl"

@@ -49,9 +49,9 @@ def case_policy(case, workspace):
 
 def case_prompt(case, workspace):
     policy = case_policy(case, workspace)
-    if not case.get("capabilities"):
+    if not case.get("capabilities") and case.get("suite") != "scenario-routing":
         return SAFETY + case["prompt"]
-    permissions = []
+    permissions = ["允许本例明确要求的原生只读状态、计划或预览，以及不落盘的有界诊断探针；仅读取该方法必需的非敏感事实，不扫描其他项目或历史正文。"]
     if policy["networkAccess"]:
         permissions.append("允许适用原生入口读取非敏感公开来源或当前已配置连接的只读状态；不发送本地材料，不写远端。")
     if policy["type"] == "workspaceWrite":

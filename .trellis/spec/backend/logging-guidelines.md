@@ -80,7 +80,10 @@ exclude both temporary-directory defaults and allow only the fixture root;
 production configuration, collection trees and remote mutations remain outside
 the case. Compaction reserves another entry in the same 100-turn budget before
 the native request. Record model, provider and effort from the matching native
-turn context, without copying raw context or authentication.
+turn context, using the identity-validated session metadata when the native
+host records provider there instead. Do not copy raw context or authentication.
+Scenario prompts permit their explicitly requested read-only owner queries and
+non-persistent probes; transport still enforces the original read-only policy.
 
 | Evidence | Outcome |
 | --- | --- |

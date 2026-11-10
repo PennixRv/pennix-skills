@@ -164,13 +164,17 @@ def question_tools(path, codex_home, thread_id, turn_id):
 def execution_identity(path, codex_home, thread_id, turn_id):
     # Use the native rollout, never infer execution settings from an evaluation label.
     question_tools(path, codex_home, thread_id, turn_id)
-    result = None
+    result, provider = None, None
     with Path(path).open() as stream:
         for line in stream:
             event = json.loads(line)
             payload = event.get("payload", {})
+            if event.get("type") == "session_meta":
+                provider = payload.get("model_provider")
             if event.get("type") == "turn_context" and payload.get("turn_id") == turn_id:
                 result = {key: payload.get(key) for key in ("model", "model_provider", "effort")}
+    if result is not None and result["model_provider"] is None:
+        result["model_provider"] = provider
     return result
 
 
