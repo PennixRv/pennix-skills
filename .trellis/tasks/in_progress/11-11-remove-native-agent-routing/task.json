@@ -1,0 +1,136 @@
+{
+  "id": "remove-native-agent-routing",
+  "name": "remove-native-agent-routing",
+  "title": "移除共享路由中的宿主原生代理路线",
+  "description": "按根任务已批准彻底移除合同，修订共享路由及必要合同验证，随原生集合发布并部署。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-11",
+  "completedAt": null,
+  "branch": "fix/remove-native-agent-routing",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "task_workflow": {
+      "schema_version": 1,
+      "task_route_revision": "1",
+      "task_kind": "implementation",
+      "complexity": "simple",
+      "project_context": "existing",
+      "phase_ids": [
+        "goal_exploration_and_requirements",
+        "solution_design_and_convergence",
+        "task_implementation",
+        "delivery_review_and_closeout"
+      ],
+      "current_phase_id": "task_implementation",
+      "input_revision": "6",
+      "phases": {
+        "goal_exploration_and_requirements": {
+          "status": "accepted",
+          "input_revision": "2",
+          "artifact_revision": "c539632bccec6b9cf0f21d62611fb3c24b179f0cb2e26ccd89fc7f6b6a1ed119",
+          "artifact_refs": [
+            "prd.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "prd.md",
+          "outcome_kind": "accepted",
+          "reason": null,
+          "evidence_refs": [
+            "execution.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "c539632bccec6b9cf0f21d62611fb3c24b179f0cb2e26ccd89fc7f6b6a1ed119",
+            "result_revision": "1",
+            "input_revision": "2",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "execution.md"
+            ]
+          }
+        },
+        "solution_design_and_convergence": {
+          "status": "accepted",
+          "input_revision": "5",
+          "artifact_revision": "f934d1b3039dd6b07f7313ddc77fcb54a1fd002da79b8c31f4b0e3fe5c624d78",
+          "artifact_refs": [
+            "design.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "design.md",
+          "outcome_kind": "implementation_contract",
+          "reason": null,
+          "evidence_refs": [
+            "execution.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "f934d1b3039dd6b07f7313ddc77fcb54a1fd002da79b8c31f4b0e3fe5c624d78",
+            "result_revision": "1",
+            "input_revision": "5",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "execution.md"
+            ]
+          }
+        },
+        "task_implementation": {
+          "status": "active",
+          "input_revision": "6",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        },
+        "delivery_review_and_closeout": {
+          "status": "not_started",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        }
+      },
+      "route_dependency_admission": null,
+      "implementation_authorization": {
+        "contract_ref": "design.md",
+        "contract_revision": "f934d1b3039dd6b07f7313ddc77fcb54a1fd002da79b8c31f4b0e3fe5c624d78",
+        "approval_ref": "execution.md",
+        "task_route_revision": "1"
+      },
+      "closeout_disposition": null,
+      "skip_records": {
+        "decision_space_construction_and_merging": {
+          "reason": "根任务已完成需求和决策并获统一批准，本组件只登记已批准执行范围",
+          "evidence_refs": [
+            "execution.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "return_record": null
+    }
+  }
+}

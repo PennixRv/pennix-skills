@@ -102,6 +102,14 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("仅在当前操作适合 Grok（例如需要 X 来源）或用户/路线明确选择 Grok", content)
         self.assertNotIn("普通外部检索必须先走 `$pennix-grok-search`", content)
 
+    def test_collaboration_routes_keep_current_contract_and_two_native_owners(self) -> None:
+        content = (SKILL.parent / "references/teamwork-routing.md").read_text(encoding="utf-8")
+        self.assertIn("主会话直接执行、trellis teamwork 只读工作包", content)
+        self.assertIn("paseo-based-parallelism 已授权实施结果包", content)
+        self.assertIn("历史执行记录与恢复摘要不重新授予权限", content)
+        self.assertIn("不得改用宿主原生代理或裸 CLI 进程", content)
+        self.assertNotIn("选择主会话、宿主原生代理或只读 Teamwork", content)
+
 
 if __name__ == "__main__":
     unittest.main()

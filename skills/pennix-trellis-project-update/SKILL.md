@@ -82,7 +82,7 @@ test -f PATH.new && test ! -L PATH.new && cmp -s -- PATH PATH.new && rm -- PATH.
 
 删除不同的 sidecar 必须有精确的拒绝记录和授权。不得使用宽泛的 `find ... -delete`、递归清理或未审查命令删除 `.new` 文件。
 
-当前 bundled native workflow 采用五阶段路线；Teamwork teammate 按只读角色交付报告，由主代理核验。平台原生可写代理遵循项目另外明确的执行模型，不能当作 Teamwork teammate。
+当前 bundled native workflow 采用五阶段路线。trellis teammates 按主会话的只读工作包返回报告；paseo delegated-agent 仅在已授权实施阶段执行完整工作包，由主会话集成和接受。不使用宿主原生子代理或独立 CLI 启动路径恢复旧执行模型，历史记录和恢复摘要不扩大授权。
 
 ## 完成核验
 
