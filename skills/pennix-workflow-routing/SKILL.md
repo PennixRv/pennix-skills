@@ -61,7 +61,7 @@ description: "跨组件职责、辅助方法组合或五阶段衔接不清时，
 | 长任务或跨轮后台执行 | 按需选择可保留所需运行语义的真实执行接口 | 任务时长本身不排除 Context Mode；需要宿主交互或当前接口无法续接时走对应宿主入口 |
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用 context-mode 限定分析或原生分页读取 | 不把原始结果重新塞回工具参数，分析结果不自动晋升为任务事实 |
 | 工作流缓存、Teamwork、输出、备份或历史资源的盘点与清理 | `$pennix-resource-cleanup`，再转资源 owner 的原生清理入口 | 默认只读；精确预览和明确授权后才允许 owner 执行 |
-| 项目 AGENTS 来源、内部生成块、内容职责或冲突 | `$pennix-project-agents-governance` | 默认只读，手工正文按请求编辑，生成块委托原生 owner |
+| 项目 AGENTS 来源、内部生成块、内容职责或冲突；明确授权的项目初始化、重初始化、刷新或移除 | `$pennix-project-agents-governance` | 默认只读；已授权动作固定项目根、宿主和选定组件，由主 Agent 串行调用原生 owner，逐步回读、失败重入并联合核验 |
 
 Context Mode 的工具参数与宿主适配以当前 MCP instructions、工具声明和原生 help 为准。owner 决定操作语义、权限和状态；其真实非交互命令可由 Context Mode 承载，前提是本次所需身份、参数、退出码与回执均可保留。不得用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
 
@@ -98,6 +98,8 @@ Trellis `task.py current --json` 的 `session_source` 表示身份，`source=unb
 - 仅在当前操作适合 Grok（例如需要 X 来源）或用户/路线明确选择 Grok 时使用 `$pennix-grok-search`。遵守该 Skill 的调用与失败合同；不因其可发现就自动调用，也不在失败后自动切换服务商。
 
 ## 组件职责
+
+项目初始化和退出涉及共享 `AGENTS.md` 时，先由治理 Skill 按[项目操作编排合同](../pennix-project-agents-governance/references/project-operations.md)核对 writer、全局／用户层 writer、消费者与可选／未知项，再调用已选 owner。系统部署交 Lifecycle，已管理 Trellis 资产更新交 project-update，CodeGraph 项目接入沿原生 local install；项目接入不隐含索引授权。保留成功项、停止失败依赖，从失败 owner 最小重入；两种 owner 顺序与最终文件、配置及加载限制共同核验。此入口不增加 CLI、执行器、registry、台账或全局事务保证。
 
 涉及知识、历史、正式交接、项目资产更新、部署或资源清理时，读取 [专项组件归属](references/component-ownership.md)。知识与规则晋升另见 [知识晋升边界](references/knowledge-promotion.md)。
 

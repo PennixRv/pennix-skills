@@ -47,6 +47,7 @@ class WorkflowRoutingContractTest(unittest.TestCase):
                 targets.append(target)
         self.assertNotIn("pennix-context-mode-integration", SKILL.read_text(encoding="utf-8"))
         self.assertIn((SKILL.parent / "references/knowledge-promotion.md").resolve(), targets)
+        self.assertIn((SKILL.parent.parent / "pennix-project-agents-governance/references/project-operations.md").resolve(), targets)
 
     def test_phase_routing_keeps_stage_skills_distinct_and_optional_components_conditional(self) -> None:
         content = (SKILL.parent / "references/phase-routing.md").read_text(encoding="utf-8")

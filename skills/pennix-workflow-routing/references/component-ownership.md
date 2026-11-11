@@ -9,6 +9,7 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 
 - `Trellis` 是项目 task、任务文件、跨会话状态和工作节点生命周期的权威；context-mode 不决定项目任务语义。正式 handoff 的 `source.rollout.session_id` 只是来源 provenance；目标绑定只能来自当前 Trellis 直接解析的 `source=session:<target-key>`，不能把旧 session 或 `session-fallback:<key>` 当作目标。
 - 项目 `AGENTS.md` 与 `.trellis/spec/` 保存项目事实、任务合同和项目特殊路由；Skill 不覆盖更近的项目规则。Trellis 原生模板、骨架与机械惯例优先，自定义中文正文采用写作方法；生成资产仍回实际模板来源修改。
+- 明确授权的项目初始化、重初始化、刷新和移除由 `$pennix-project-agents-governance` 按[项目操作合同](../../pennix-project-agents-governance/references/project-operations.md)编排已选原生 owner，保留未知块、成功项和失败重入点；不增加项目执行器或第二套状态。CodeGraph Codex local 使用普通 `install --target codex --location local --yes`；当前 `--refresh` 的全 target sweep 不受 `--target` 限制，不能冒充受限刷新。索引授权与接入分开。
 - CodeGraph 配置、使用边界和原生 MCP/CLI 手册索引交 `$pennix-codegraph-integration`；系统部署交 lifecycle，项目操作保留其原生入口与明确授权。
 - 确有独立证据价值的工作遵循当前项目选择的 Teamwork 合同；Trellis 维护 assignment、持久报告和协作生命周期，主会话保留项目事实、验收和 Git。
 - 核验后的研究事实、候选、不确定性及决定影响写回当前阶段产物、research 或 execution 等已有自然落点；不依赖不存在的研究留存 Skill，不另建事实台账。

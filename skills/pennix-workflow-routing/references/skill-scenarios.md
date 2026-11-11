@@ -19,7 +19,7 @@
 | pennix-tavily-search | 需要一般外部公开事实或先例；检索后核验相关正文及来源 | 本地事实先查本地；官方专门资料走相应入口；不外传本地资料，失败不自动换服务商 |
 | pennix-grok-search | 需要 X 来源或当前操作明确适合 Grok，或用户/既定路线选择 Grok；给相关来源证据 | 一般网页优先 Tavily；可发现不等于应调用，遵守其认证和失败合同 |
 | pennix-siyuan-knowledge | 需要用户维护的知识与经验，或明确要求整理保存知识；使用原生笔记证据或授权写入 | 原始会话历史归 trellis-session-insight，正式交接归 handoff；一般网页不转思源，读取不授权保存 |
-| pennix-project-agents-governance | 项目 AGENTS 内容职责、来源链、冲突或未知 writer；给权威来源与处理方向 | 不为每次开发审计 AGENTS；生成块由原生 owner 写，全局部署归 Lifecycle |
+| pennix-project-agents-governance | 项目 AGENTS 内容职责、来源链、冲突或未知 writer；编排明确授权的项目初始化、重初始化、刷新和移除 | 固定项目根和选定动作，原生 owner 串行写入、失败重入及联合核验；不为每次开发审计 AGENTS，系统部署归 Lifecycle，索引另需授权 |
 | pennix-trellis-asset-check | 已初始化项目生成资产、Skills 或迁移残留疑似不一致；只读诊断 | 不等于更新或初始化授权；源码规范审查仍在组件仓库 |
 | pennix-trellis-project-update | 明确要求更新已管理项目 Trellis 资产/工作流；核对原生预览、候选和冲突 | 系统安装归 Lifecycle；未初始化不自动 init，不以 force 掩盖差异 |
 | pennix-component-lifecycle | 明确要求或已批准合同包含组件发现、安装、升级、卸载、配置或核验；给原生计划和状态 | 命令缺失不自动安装；项目 init/索引/任务走组件入口；部署和修复遵守精确目标及原生事务 |

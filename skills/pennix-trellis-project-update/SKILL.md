@@ -9,6 +9,7 @@ description: "通过当前原生 Trellis CLI 安全更新已管理项目的生�
 - 全局组件安装、配置、集合替换或核验使用 `$pennix-component-lifecycle`。
 - 只读本地诊断使用 `pennix-trellis-asset-check`。
 - 已有项目的 Trellis 更新和选定工作流刷新使用本 Skill。不要从 Trellis 检出目录复制文件，也不要创建第二个更新器。
+- 明确授权的项目初始化、重初始化或移除，以及跨 owner 的 AGENTS 操作编排交 `$pennix-project-agents-governance`；本 Skill 保留已管理 Trellis 资产更新职责。不要为单个缺块改用整次 `init --force`，AGENTS 的块级保护不代表其他生成资产不会被覆盖。
 - Trellis 任务、Teamwork、交接、Hook 和平台原生协议保留各自原生归属；执行载体不模拟或接管状态机。
 
 ## 预检
