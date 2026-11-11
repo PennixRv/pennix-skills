@@ -1,0 +1,36 @@
+{
+  "id": "project-agents-initialization-governance",
+  "name": "project-agents-initialization-governance",
+  "title": "项目 AGENTS 初始化治理与路由实现",
+  "description": "承接根任务 trellis-project-governance-spec-orchestration 已批准合同 W2：现有治理 Skill 和路由的原生项目初始化编排、部分失败恢复与联合验收方法。根任务统一实施与发布部署授权，不新增执行器或独立方案。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-11",
+  "completedAt": "2026-11-11",
+  "branch": "fix/project-agents-initialization-governance",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning": {
+      "revision": 1,
+      "stage": "intake",
+      "archive": {
+        "kind": "administrative_abandonment",
+        "reason": "W2 已按根任务统一授权实施，固定源码已发布并由 Lifecycle v0.2.53 物化且验证；本项仅为组件 bookkeeping，关闭该记录而不倒填历史实施或批准状态，根任务继续产品组合验收与整体接受。",
+        "recorded_at": "2026-11-11T08:26:28.857505+00:00"
+      }
+    }
+  }
+}
