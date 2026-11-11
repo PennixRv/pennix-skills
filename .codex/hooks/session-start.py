@@ -229,19 +229,10 @@ def _resolve_task_dir(trellis_dir: Path, task_ref: str) -> Path:
 
 def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     active = _resolve_active_task(trellis_dir, hook_input)
-    if active.source_type == "unbound_ambiguous":
-        candidates = "\n".join(f"- {candidate}" for candidate in active.candidate_paths)
-        return (
-            "Status: TASK BINDING AMBIGUOUS\n"
-            f"Candidates:\n{candidates}\n"
-            "Next: Review the candidates and run `python3 ./.trellis/scripts/task.py start <task>` "
-            "with the intended task once a direct session identity is available."
-        )
     if not active.task_path:
         return (
             "Status: NO ACTIVE TASK\n"
-            "Next: Classify the current turn; simple conversation needs no task, "
-            "bounded direct work uses the direct path, and complex work creates a task only when planning is authorized."
+            "Next: Route through trellis-request-intake using the existing authorization and taskless contract."
         )
 
     task_ref = active.task_path
@@ -253,24 +244,18 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
         )
 
     task_json_path = task_dir / "task.json"
-    from common.io import read_json_checked
+    from common.io import read_json_checked  # type: ignore[import-not-found]
     task_data, _reason = read_json_checked(task_json_path)
-    if task_data is None or not isinstance(task_data.get("status"), str) or not task_data["status"].strip():
+    if task_data is None or task_data.get("status") not in ("planning", "in_progress", "completed", "cancelled"):
         return f"Status: TASK_ERROR\nTask: {task_ref}\nNext: Repair the existing task record through its owner before continuing; do not create a replacement task."
 
     task_title = task_data.get("title", task_ref)
     task_status = task_data.get("status", "unknown")
-    from common.task_planning import PlanningError, planning_record
-    try:
-        stage = planning_record(task_data).get("stage") or "unknown (legacy task)"
-    except PlanningError as exc:
-        return f"Status: TASK_ERROR\nTask: {task_ref}\nNext: Repair the existing planning record: {exc}"
 
     if task_status == "completed":
         return (
             f"Status: COMPLETED\nTask: {task_title}\n"
-            f"Next: Archive with `python3 ./.trellis/scripts/task.py archive {task_dir.name}` "
-            "or start a new task."
+            "Next: Start another task or end the session; finish-work only records the session journal."
         )
 
     present = [
@@ -281,17 +266,27 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     present_line = ", ".join(present) if present else "none"
 
     if task_status == "planning":
+        next_action = (
+            "Follow the current per-turn workflow-state. Task lifecycle status and artifact presence "
+            "do not identify the business phase. If no phase route is initialized, inspect recorded "
+            "requirements and authorization, choose applicable ordered phases with evidence for omissions, "
+            "then initialize through Trellis CLI and load the current phase Skill. Reuse valid confirmations."
+        )
+        if any(
+            path.is_file() and not _has_curated_jsonl_entry(path)
+            for path in (task_dir / "implement.jsonl", task_dir / "check.jsonl")
+        ):
+            next_action += " Curate task context manifests only when a dispatched agent needs them."
         return (
-            f"Status: PLANNING\nTask: {task_title}\nStage: {stage}\nPresent: {present_line}\n"
-            "Next: Load trellis-idea-to-closed-plan and resume the recorded planning stage; "
-            "artifact presence does not establish readiness."
+            f"Status: PLANNING\nTask: {task_title}\nPresent: {present_line}\n"
+            f"Next: {next_action}"
         )
 
     return (
         f"Status: {task_status.upper()}\nTask: {task_title}\nPresent: {present_line}\n"
-        f"Stage: {stage}\n"
-        "Next: Follow the matching per-turn workflow-state. Context order is jsonl entries, "
-        "prd.md, design.md if present, implement.md if present."
+        "Next: Follow the matching per-turn workflow-state; task lifecycle status does not "
+        "identify the business phase. Context order is jsonl entries, `prd.md`, `design.md` "
+        "if present, `implement.md` if present."
     )
 
 
@@ -330,31 +325,12 @@ def _repo_relative(repo_root: Path, path: Path) -> str:
         return str(path)
 
 
-def _collect_spec_index_paths(trellis_dir: Path) -> list[str]:
-    paths: list[str] = []
-    guides_index = trellis_dir / "spec" / "guides" / "index.md"
-    if guides_index.is_file():
-        paths.append(".trellis/spec/guides/index.md")
-
-    spec_dir = trellis_dir / "spec"
-    if not spec_dir.is_dir():
-        return paths
-
-    for sub in sorted(spec_dir.iterdir()):
-        if not sub.is_dir() or sub.name.startswith(".") or sub.name == "guides":
-            continue
-        index_file = sub / "index.md"
-        if index_file.is_file():
-            paths.append(f".trellis/spec/{sub.name}/index.md")
-            continue
-        for nested in sorted(sub.iterdir()):
-            if not nested.is_dir():
-                continue
-            nested_index = nested / "index.md"
-            if nested_index.is_file():
-                paths.append(f".trellis/spec/{sub.name}/{nested.name}/index.md")
-
-    return paths
+def _collect_spec_index_paths(trellis_dir: Path, input_data: dict | None = None) -> list[str]:
+    scripts = str(trellis_dir / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from common.packages_context import collect_spec_index_paths  # type: ignore[import-not-found]
+    return collect_spec_index_paths(trellis_dir.parent, input_data, platform="codex")
 
 
 def _build_compact_current_state(
@@ -380,10 +356,7 @@ def _build_compact_current_state(
     lines.append(_format_git_state(repo_root))
 
     active = _resolve_active_task(trellis_dir, hook_input)
-    if active.source_type == "unbound_ambiguous":
-        candidates = ", ".join(active.candidate_paths)
-        lines.append(f"Current task: ambiguous; candidates={candidates}; bind explicitly.")
-    elif active.task_path:
+    if active.task_path:
         task_dir = _resolve_task_dir(trellis_dir, active.task_path)
         status = "task_error"
         task_json = task_dir / "task.json"
@@ -392,7 +365,7 @@ def _build_compact_current_state(
                 data = json.loads(task_json.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
                     value = data.get("status")
-                    if isinstance(value, str) and value.strip():
+                    if value in ("planning", "in_progress", "completed", "cancelled"):
                         status = value
             except (json.JSONDecodeError, OSError):
                 pass  # Optional task metadata; fall back to generic status.
@@ -422,19 +395,28 @@ def _build_compact_current_state(
     return "\n".join(lines)
 
 
-def _extract_range(content: str, start_header: tuple[str, ...], end_header: tuple[str, ...]) -> str:
+def _extract_range(content: str, start_header: str, end_header: str) -> str:
     """Extract lines starting at `## start_header` up to (but excluding) `## end_header`."""
     lines = content.splitlines()
     start: "int | None" = None
     end: int = len(lines)
-    start_matches = {f"## {header}" for header in start_header}
-    end_matches = {f"## {header}" for header in end_header}
+    start_matches = {f"## {start_header}", "## 阶段索引", "## Phase Index"}
+    end_matches = {
+        f"## {end_header}",
+        f"### {end_header}",
+    }
+    phase_titles = ("目标探索与需求核对阶段", "Goal Exploration and Requirements Confirmation Phase")
     for i, line in enumerate(lines):
         stripped = line.strip()
         if start is None and stripped in start_matches:
             start = i
             continue
-        if start is not None and stripped in end_matches:
+        heading = stripped.lstrip("#").strip()
+        is_phase_heading = stripped.startswith(("## ", "### ")) and any(
+            heading == title or heading.endswith((f"：{title}", f": {title}"))
+            for title in phase_titles
+        )
+        if start is not None and (stripped in end_matches or is_phase_heading):
             end = i
             break
     if start is None:
@@ -482,11 +464,11 @@ def _build_workflow_toc(workflow_path: Path) -> str:
 
     out_lines = [
         "# Development Workflow - Session Summary",
-        "Full guide: .trellis/workflow.md. Step detail: `python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>`.",
+        "Full guide: .trellis/workflow.md. Phase detail: load the Skill named in the active phase breadcrumb.",
         "",
     ]
 
-    phases = _extract_range(content, ("阶段索引（Phase Index）", "Phase Index"), ("阶段一：规划（Phase 1: Plan）", "Phase 1: Plan"))
+    phases = _extract_range(content, "阶段索引", "目标探索与需求核对阶段")
     if phases:
         out_lines.append(_strip_breadcrumb_tag_blocks(phases).rstrip())
 
@@ -494,6 +476,20 @@ def _build_workflow_toc(workflow_path: Path) -> str:
 
 
 def main() -> None:
+    if os.environ.get("TRELLIS_DELEGATION_CONTEXT"):
+        try:
+            locator = Path(os.environ["TRELLIS_DELEGATION_CONTEXT"])
+            if locator.is_symlink() or locator.stat().st_size > 256 * 1024:
+                raise ValueError("invalid delegation context")
+            context = json.loads(locator.read_text(encoding="utf8"))
+            result = subprocess.run([sys.executable, str(Path(context["control_root"]) / ".trellis/scripts/get_context.py")], capture_output=True, text=True, timeout=15)
+            message = result.stdout.strip() if result.returncode == 0 else "Delegated node blocked: invalid/stale context; preserve resources and report to controller."
+            if len(message.encode()) > 256 * 1024:
+                raise ValueError("oversized delegation context")
+        except (OSError, ValueError, KeyError, subprocess.TimeoutExpired):
+            message = "Delegated node blocked: missing/invalid execution context; do not enter controller workflow."
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": message}}))
+        return
     if should_skip_injection():
         sys.exit(0)
 
@@ -514,7 +510,7 @@ def main() -> None:
     configure_project_encoding(project_dir)
 
     trellis_dir = project_dir / ".trellis"
-    spec_index_paths = _collect_spec_index_paths(trellis_dir)
+    spec_index_paths = _collect_spec_index_paths(trellis_dir, hook_input)
 
     output = StringIO()
 

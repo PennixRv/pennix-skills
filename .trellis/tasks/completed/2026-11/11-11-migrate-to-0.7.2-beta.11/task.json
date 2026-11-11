@@ -1,0 +1,123 @@
+{
+  "id": "migrate-to-0.7.2-beta.11",
+  "name": "migrate-to-0.7.2-beta.11",
+  "title": "Migrate to v0.7.2-beta.11",
+  "description": "Breaking change migration from v0.7.0-beta.54 to v0.7.2-beta.11",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "migration",
+  "package": null,
+  "priority": "P1",
+  "creator": "trellis-update",
+  "assignee": "penn",
+  "createdAt": "2026-11-11",
+  "completedAt": "2026-11-11",
+  "branch": "fix/project-agents-initialization-governance",
+  "base_branch": null,
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "task_workflow": {
+      "schema_version": 1,
+      "task_route_revision": "1",
+      "task_kind": "analysis",
+      "complexity": "simple",
+      "project_context": "existing",
+      "phase_ids": [
+        "goal_exploration_and_requirements",
+        "delivery_review_and_closeout"
+      ],
+      "current_phase_id": null,
+      "input_revision": "5",
+      "phases": {
+        "goal_exploration_and_requirements": {
+          "status": "accepted",
+          "input_revision": "2",
+          "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
+          "artifact_refs": [
+            "prd.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "prd.md",
+          "outcome_kind": "accepted",
+          "reason": null,
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
+            "result_revision": "1",
+            "input_revision": "2",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "prd.md"
+            ]
+          }
+        },
+        "delivery_review_and_closeout": {
+          "status": "accepted",
+          "input_revision": "4",
+          "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
+          "artifact_refs": [
+            "prd.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "prd.md",
+          "outcome_kind": "delivery_ready",
+          "reason": null,
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
+            "result_revision": "1",
+            "input_revision": "4",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "prd.md"
+            ]
+          }
+        }
+      },
+      "route_dependency_admission": null,
+      "implementation_authorization": null,
+      "closeout_disposition": "delivery_ready",
+      "skip_records": {
+        "decision_space_construction_and_merging": {
+          "reason": "同一根任务已授权原生资产更新；这里只核验已执行更新及必要布局迁移结果，不另建方案或倒填历史阶段",
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "solution_design_and_convergence": {
+          "reason": "同一根任务已授权原生资产更新；这里只核验已执行更新及必要布局迁移结果，不另建方案或倒填历史阶段",
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "task_implementation": {
+          "reason": "同一根任务已授权原生资产更新；这里只核验已执行更新及必要布局迁移结果，不另建方案或倒填历史阶段",
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "return_record": null
+    }
+  }
+}

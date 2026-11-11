@@ -22,7 +22,7 @@ from .trellis_config import parse_simple_yaml
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 DEFAULT_SESSION_AUTO_COMMIT = True
-DEFAULT_CODEX_DISPATCH_MODE = "inline"
+DEFAULT_CODEX_DISPATCH_MODE = "auto"
 
 CONFIG_FILE = "config.yaml"
 
@@ -118,12 +118,11 @@ def get_max_journal_lines(repo_root: Path | None = None) -> int:
 def get_session_auto_commit(repo_root: Path | None = None) -> bool:
     """Whether scripts should auto-stage + auto-commit session/task changes.
 
-    Governs both ``add_session.py:_auto_commit_workspace`` and
-    ``task_store.py:_auto_commit_archive``.
+    Governs ``add_session.py:_auto_commit_workspace``.
 
     Default: ``True`` (existing behavior — auto-stage + auto-commit).
     Set ``session_auto_commit: false`` in ``.trellis/config.yaml`` to skip
-    auto-staging entirely; the journal/archive files are still written to
+    auto-staging entirely; journal files are still written to
     disk, but the user manages ``git add`` / ``git commit`` themselves.
 
     Accepts native YAML booleans (``true`` / ``false``) and the string
@@ -140,10 +139,9 @@ def get_session_auto_commit(repo_root: Path | None = None) -> bool:
 def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:
     """Return Codex dispatch mode.
 
-    Default is ``inline``: the main session carries out implementation and
-    verification directly. ``auto`` explicitly enables Trellis sub-agents and
-    native context injection with a child-side fallback. ``sub-agent`` remains
-    a backwards-compatible alias for ``auto``.
+    Default is ``auto``, which dispatches Trellis sub-agents and uses native
+    context injection with a child-side fallback. ``inline`` is an explicit
+    opt-out. ``sub-agent`` remains a backwards-compatible alias for ``auto``.
 
     Invalid explicit configuration falls back to ``inline`` rather than
     unexpectedly dispatching a sub-agent. This CLI-facing parser is the only
@@ -282,7 +280,7 @@ def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:
     """Get hook commands for a lifecycle event.
 
     Args:
-        event: Event name (e.g. "after_create", "after_archive").
+        event: Event name (e.g. "after_create", "after_complete").
         repo_root: Repository root path.
 
     A hook the user believes is installed and which silently never runs is the
@@ -303,6 +301,11 @@ def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:
             file=sys.stderr,
         )
         return []
+    if event == "after_complete" and "after_archive" in hooks:
+        print(
+            "[WARN] ignoring legacy hook `after_archive`; rename it to `after_complete` in config.yaml",
+            file=sys.stderr,
+        )
     commands = hooks.get(event)
     if commands is None:
         return []

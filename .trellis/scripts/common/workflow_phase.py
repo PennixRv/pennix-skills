@@ -13,7 +13,7 @@ Platform marker syntax in workflow.md:
     [/Claude Code, Cursor, ...]
 
 Provides:
-    get_phase_index   - Extract the Phase Index section (no --step)
+    get_phase_index   - Extract the phase index section (no --step)
     get_step          - Extract a single step (#### X.X) section
     filter_platform   - Strip platform blocks that don't include the given name
 """
@@ -35,9 +35,9 @@ _MARKER_RE = re.compile(r"^\[(/?)([A-Za-z][^\[\]]*)\]\s*$")
 # Step heading: "#### 1.0 Title" or "#### 1.0 ..."
 _STEP_HEADING_RE = re.compile(r"^####\s+(\d+\.\d+)\b.*$")
 
-# Phase Index starts here; Phase 1/2/3 step bodies follow; ends at Breadcrumbs.
-_PHASE_INDEX_HEADINGS = {"## Phase Index", "## 阶段索引（Phase Index）"}
-_PHASE_ONE_HEADINGS = {"## Phase 1: Plan", "## 阶段一：规划（Phase 1: Plan）"}
+# Phase Index ends at the first section heading that follows it.
+_PHASE_INDEX_HEADINGS = {"## 阶段索引", "## Phase Index"}
+_NEXT_PHASE_SECTION_RE = re.compile(r"^#{2,3}\s+")
 
 
 def _read_workflow() -> str:
@@ -65,7 +65,7 @@ def get_phase_index() -> str:
     """Return the compact Phase Index summary from workflow.md.
 
     SessionStart and no-step phase context use this small summary as their
-    orientation payload. Detailed Phase 1/2/3 instructions are loaded with
+    orientation payload. Detailed phase instructions are loaded with
     ``get_step`` on demand. ``[workflow-state:STATUS]`` tag blocks are
     consumed by the per-turn hook, so they're stripped from this output.
     """
@@ -79,7 +79,7 @@ def get_phase_index() -> str:
         if start is None and stripped in _PHASE_INDEX_HEADINGS:
             start = i
             continue
-        if start is not None and stripped in _PHASE_ONE_HEADINGS:
+        if start is not None and _NEXT_PHASE_SECTION_RE.match(stripped):
             end = i
             break
 
@@ -183,7 +183,7 @@ def resolve_effective_platform(platform: str, config: dict) -> str:
     if label:
         return label
     if platform == "codex":
-        mode = "inline"
+        mode = "auto"
         codex_cfg = config.get("codex") if isinstance(config, dict) else None
         if codex_cfg is not None:
             if not isinstance(codex_cfg, dict):
