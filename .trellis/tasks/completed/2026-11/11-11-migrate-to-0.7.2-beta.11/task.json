@@ -34,16 +34,16 @@
         "delivery_review_and_closeout"
       ],
       "current_phase_id": null,
-      "input_revision": "5",
+      "input_revision": "10",
       "phases": {
         "goal_exploration_and_requirements": {
           "status": "accepted",
-          "input_revision": "2",
-          "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
+          "input_revision": "7",
+          "artifact_revision": "4dd4b1b225aa968e7edc6d72cb785fc4b0a80732e61e1ce3c46720a1d14b2da8",
           "artifact_refs": [
             "prd.md"
           ],
-          "result_revision": "1",
+          "result_revision": "2",
           "result_ref": "prd.md",
           "outcome_kind": "accepted",
           "reason": null,
@@ -51,9 +51,9 @@
             "prd.md"
           ],
           "acceptance": {
-            "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
-            "result_revision": "1",
-            "input_revision": "2",
+            "artifact_revision": "4dd4b1b225aa968e7edc6d72cb785fc4b0a80732e61e1ce3c46720a1d14b2da8",
+            "result_revision": "2",
+            "input_revision": "7",
             "task_route_revision": "1",
             "evidence_refs": [
               "prd.md"
@@ -62,12 +62,12 @@
         },
         "delivery_review_and_closeout": {
           "status": "accepted",
-          "input_revision": "4",
-          "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
+          "input_revision": "9",
+          "artifact_revision": "4dd4b1b225aa968e7edc6d72cb785fc4b0a80732e61e1ce3c46720a1d14b2da8",
           "artifact_refs": [
             "prd.md"
           ],
-          "result_revision": "1",
+          "result_revision": "2",
           "result_ref": "prd.md",
           "outcome_kind": "delivery_ready",
           "reason": null,
@@ -75,9 +75,9 @@
             "prd.md"
           ],
           "acceptance": {
-            "artifact_revision": "434ee87ed27ae6dfc49539838efc35afca1933c7b755dce9ddc8423cbc3fc075",
-            "result_revision": "1",
-            "input_revision": "4",
+            "artifact_revision": "4dd4b1b225aa968e7edc6d72cb785fc4b0a80732e61e1ce3c46720a1d14b2da8",
+            "result_revision": "2",
+            "input_revision": "9",
             "task_route_revision": "1",
             "evidence_refs": [
               "prd.md"
@@ -117,7 +117,30 @@
           "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       },
-      "return_record": null
-    }
+      "return_record": {
+        "from": "delivery_review_and_closeout",
+        "to": "goal_exploration_and_requirements",
+        "return_kind": "contract_change",
+        "authorization_retained": false,
+        "reason": "目标证据 PRD 的格式发生变化，重新绑定目标与交付摘要；迁移结果和范围不变",
+        "evidence_refs": [
+          "prd.md"
+        ],
+        "task_route_revision": "1"
+      }
+    },
+    "task_lifecycle_recoveries": [
+      {
+        "from_status": "completed",
+        "to_status": "planning",
+        "reason": "提交差异检查发现原生生成 PRD 多余 EOF 空行；仅修正文档并重新绑定原生验收，不改变迁移结果或产品内容",
+        "evidence_refs": [
+          "prd.md"
+        ],
+        "reopened_at": "2026-11-11T09:05:03.575261+00:00",
+        "terminal_completed_at": "2026-11-11",
+        "terminal_cancellation": null
+      }
+    ]
   }
 }

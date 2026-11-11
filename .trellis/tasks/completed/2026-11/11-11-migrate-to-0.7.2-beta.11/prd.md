@@ -73,7 +73,6 @@ Upgrade through the beta channel to 0.7.2-beta.1, then run the native trellis up
 When helping with this migration:
 
 The CLI owns FIFO dispatch, retries, background monitoring, and batch recovery. Teammates submit conclusions and evidence only. After the full batch returns, the main agent reviews each report and records a disposition bound to its digest and frozen acceptance contract. Preserve attempt evidence and use native reconcile, review, retry, and cleanup-artifacts commands. Unknown process identity remains fail closed unless explicitly confirmed through the auditable native reconciliation entry point.
-
 ---
 
 ## v0.7.2-beta.2 Migration Guide
@@ -85,4 +84,3 @@ Upgrade through the beta channel to 0.7.2-beta.2, then run the native trellis up
 When helping with this migration:
 
 The CLI owns FIFO dispatch, retries, background monitoring, and batch recovery. Teammates submit conclusions and evidence only. After the full batch returns, the main agent reviews each report and records a disposition bound to its digest and frozen acceptance contract. Preserve attempt evidence and use native reconcile, review, retry, and cleanup-artifacts commands. Unknown process identity remains fail closed unless explicitly confirmed through the auditable native reconciliation entry point.
-
