@@ -11,6 +11,10 @@ description: "跨组件职责、辅助方法组合或五阶段衔接不清时，
 
 ## 业务场景与方法组合
 
+先核对当前角色，再采用下文方法。Trellis 团队协作（Trellis Teamwork）的执行者称为 Trellis 团队成员（Trellis teammate；复数 Trellis teammates），仅承接明确的只读研究、审查或验证包；Paseo 并行协作（Paseo-based-parallelism）的执行者称为 Paseo 委派 Agent（Paseo delegated-agent），仅承接主 Agent 已授权的第四阶段实施包。机制、执行者、session、工作树和 attempt 分别命名，原生接口标识保持不变。
+
+两类执行者均不直接询问用户、不代答、不把用户提问工具列为必需能力；缺项、范围外选择或冲突按本机制原生结果合同返回限制、unresolved 或 blocked，由主 Agent 先补证或调整分工，确需用户决定时再询问。读取通用方法不使执行者进入主控需求、方案或阶段接受流程。团队成员只写指定报告；获准的委派 Agent 可在实施包内修改、测试和提交，最终接受、集成与收尾仍归主 Agent／owner。
+
 需要在主集合与 extra 中比较或组合方法时，读取 [全量业务场景](references/skill-scenarios.md)。它说明场景、相邻方法、权限与返回位置；成员及安装来源仍以各自 `collection.json` 和 owner 回执为准。只为阶段衔接时读取 [阶段路由](references/phase-routing.md)，不必同时读取全部引用。
 
 采用方法后完成相关证据或产物，返回当前 task 或任务外请求。读取或披露名称不等于采用；方法不拥有任务阶段、结果接受或动作授权。问题变化、阶段切换和恢复时重新判断适用性，同一问题已有有效正文不重复加载。目标、合同或依赖实质改变时交 Trellis 原生回流；局部问题在已有授权内继续。
@@ -43,9 +47,9 @@ description: "跨组件职责、辅助方法组合或五阶段衔接不清时，
 | --- | --- | --- |
 | Trellis 任务/阶段、组件 CLI 与系统部署 | 使用 owner 的真实命令和接口；符合当前调用语义时可由 Context Mode 执行并分析回执 | Context Mode 不接管 owner 协议、状态写入或授权；不以 shell 模拟专属协议 |
 | Teamwork continuation、Codex 交互/Hook、原生 MCP/TUI | 对应宿主或组件原生入口 | 保留实时状态与排他等待，不包装宿主总线 |
-| 宿主工具面与 Hook 路由核验 | 按当前问题核对宿主直接声明、编排器嵌套工具、MCP 或 Hook 的实际入口；不必每次穷举所有层 | `request_user_input` 等直接工具不要求出现在 `functions.exec` 的 `ALL_TOOLS` 或 MCP 清单中；局部缺项不代表宿主缺失，参数、用途、权限和环境失败保留原类别 |
+| 宿主工具面与 Hook 路由核验 | 按当前问题核对宿主直接声明、编排器嵌套工具、MCP 或 Hook 的实际入口；不必每次穷举所有层 | Codex 的 `request_user_input` 等直接工具不要求出现在 `functions.exec` 的 `ALL_TOOLS` 或 MCP 清单中；其他宿主按其真实声明核验。执行者无需用户提问工具；局部缺项不代表宿主缺失，参数、用途、权限和环境失败保留原类别 |
 | Grok、Tavily、Windsurf、CodeGraph 或 `openai-docs` 检索 | 先按问题选择来源，再按其真实 MCP／CLI 接口调用；MCP 直接调用，大输出可按需交 Context Mode 分析 | 载体不接管来源、凭据、认证输出或降级；已送入上下文的 MCP 输出再复制到执行器不能追回上下文成本 |
-| 源码、配置、任务文档等文本的语义创建/修改 | 宿主原生 `apply_patch` | 不通过执行器或 shell/Python 写入脚本代写；生成资产仍由其生成接口写入 |
+| 源码、配置、任务文档等文本的语义创建/修改 | Codex 使用宿主原生 `apply_patch`；其他宿主使用其声明的原生语义编辑入口 | 先满足当前角色与目标的写入授权；不通过执行器或 shell/Python 写入脚本代写，生成资产仍由其生成接口写入 |
 | 自定义中文技术文档的撰写、改写、校对或审阅 | `$pennix-chinese-tech-writing`，按内容加载参考 | 新增技术文档默认中文，明确语言要求除外；Trellis 原生机械惯例优先，编辑、任务状态和保存仍走各自接口 |
 | 日常答复、复杂交付或批准前方案展示需要检查覆盖、详略、重点、结构或图表关系 | `$pennix-agent-output-quality`；中文技术内容再组合 `$pennix-chinese-tech-writing` | 输出质量 Skill 负责内容组织和语义复核，语言 Skill 负责中文表达与保真；简单事实走短路径，不改变任务状态、批准或安装 owner |
 | 普通本地文件、非交互命令、构建/测试、递归检索或大输出分析 | 遵循当前宿主与 Context Mode v2 的原生行为；小而有界的输出直接读取，需要筛选、计算或压缩大输出时使用 Context Mode | 支持输出替换的宿主先执行再处理真实输出；全文要求须完整取得，索引与摘要不能代替全文 |

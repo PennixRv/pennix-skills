@@ -9,7 +9,7 @@ description: 仅在用户明确要求正式跨会话交接时，创建、核验�
 用户明确请求正式交接时，先完成并核验必须让下一会话看到的工作。准备请求前，使用当前宿主的真实会话身份解析 rollout：
 
 ```bash
-python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" --project-root . \
+python3 "${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" --project-root . \
   resolve-rollout
 ```
 
@@ -52,7 +52,7 @@ core JSON 与同目录 `session-handoff-history.jsonl` 共同组成规范资产�
 运行：
 
 ```bash
-python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" --project-root . \
+python3 "${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" --project-root . \
   write --request <request.json> --explicit-user-request
 ```
 
@@ -68,7 +68,7 @@ python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}
 以后只对明确路径执行只读检查：
 
 ```bash
-python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" \
+python3 "${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py" \
   --project-root . validate --handoff .trellis/session-handoffs/<handoff-id>/session-handoff.json
 ```
 
@@ -118,7 +118,7 @@ python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view his
 设置一次现有辅助程序路径：
 
 ```bash
-PENNIX_HANDOFF="${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py"
+PENNIX_HANDOFF="${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py"
 ```
 
 以下命令只在用户明确要求正式交接时使用：
@@ -233,7 +233,7 @@ Trellis 的只读 `continuity show` 用于记录 CR 观察状态和当前投影�
 需要新会话入口 prompt 时，在精确 `validate` 返回 `ready` 后执行一次：
 
 ```bash
-python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-session-handoff/scripts/render_handoff_prompt.py" \
+python3 "${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-session-handoff/scripts/render_handoff_prompt.py" \
   --project-root <absolute-project-root> \
   --handoff .trellis/session-handoffs/<handoff-id>/session-handoff.json
 ```

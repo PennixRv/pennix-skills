@@ -5,7 +5,7 @@ description: 只读诊断已初始化 Trellis 项目的生成资产、Skills 和
 # 工作流诊断
 在项目根目录运行只读诊断：
 ```bash
-python3 "${PENNIX_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills/pennix-skills}/pennix-trellis-asset-check/scripts/doctor.py" --project-root .
+python3 "${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-trellis-asset-check/scripts/doctor.py" --project-root .
 ```
 
 输出会区分项目必须具备的生成资产，以及可选的本地 Trellis 源代码检出和包信息。普通消费者不需要 `Trellis/` 检出目录。`degraded` 是诊断信息，不是悄悄修复或安装任何内容的授权。检查报告文件的归属仓库，再明确选择下一项任务。
