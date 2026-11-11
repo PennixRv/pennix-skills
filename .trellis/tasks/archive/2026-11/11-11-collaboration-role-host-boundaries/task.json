@@ -1,0 +1,36 @@
+{
+  "id": "collaboration-role-host-boundaries",
+  "name": "collaboration-role-host-boundaries",
+  "title": "协作角色与宿主工具边界修订",
+  "description": "关联根任务 collaboration-tool-capability-audit 第11版已批准合同 WP2：修正角色优先、宿主工具条件、共享集合路径和协作命名，不增加Skills数量或交互协议。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-11",
+  "completedAt": "2026-11-11",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning": {
+      "revision": 1,
+      "stage": "intake",
+      "archive": {
+        "kind": "administrative_abandonment",
+        "reason": "WP2已按根任务第11版合同完成实现、公开来源、原生安装及现场验证；当前仅补齐组件任务记录与Git收尾，详见closeout.md。",
+        "recorded_at": "2026-11-11T05:33:54.470205+00:00"
+      }
+    }
+  }
+}
