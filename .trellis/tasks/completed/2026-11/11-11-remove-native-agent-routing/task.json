@@ -3,7 +3,7 @@
   "name": "remove-native-agent-routing",
   "title": "移除共享路由中的宿主原生代理路线",
   "description": "按根任务已批准彻底移除合同，修订共享路由及必要合同验证，随原生集合发布并部署。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "penn",
   "assignee": "penn",
   "createdAt": "2026-11-11",
-  "completedAt": null,
+  "completedAt": "2026-11-11",
   "branch": "fix/remove-native-agent-routing",
   "base_branch": "main",
   "worktree_path": null,
@@ -35,8 +35,8 @@
         "task_implementation",
         "delivery_review_and_closeout"
       ],
-      "current_phase_id": "task_implementation",
-      "input_revision": "6",
+      "current_phase_id": null,
+      "input_revision": "11",
       "phases": {
         "goal_exploration_and_requirements": {
           "status": "accepted",
@@ -87,28 +87,56 @@
           }
         },
         "task_implementation": {
-          "status": "active",
-          "input_revision": "6",
-          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-          "artifact_refs": [],
-          "result_revision": "0",
-          "result_ref": null,
-          "outcome_kind": null,
+          "status": "accepted",
+          "input_revision": "8",
+          "artifact_revision": "870037c1f922749ba4b7f4f54d2b20ce9b549fee545897a1a3befcbf6e73c8bd",
+          "artifact_refs": [
+            "validation.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "validation.md",
+          "outcome_kind": "implementation_complete",
           "reason": null,
-          "evidence_refs": [],
-          "acceptance": null
+          "evidence_refs": [
+            "execution.md",
+            "validation.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "870037c1f922749ba4b7f4f54d2b20ce9b549fee545897a1a3befcbf6e73c8bd",
+            "result_revision": "1",
+            "input_revision": "8",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "execution.md",
+              "validation.md"
+            ]
+          }
         },
         "delivery_review_and_closeout": {
-          "status": "not_started",
-          "input_revision": "1",
-          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-          "artifact_refs": [],
-          "result_revision": "0",
-          "result_ref": null,
-          "outcome_kind": null,
+          "status": "accepted",
+          "input_revision": "10",
+          "artifact_revision": "5bc1c6e3fe4bb6cd693c138ca19c8b7e6b7c41f5245c9ae01ccda83607034de6",
+          "artifact_refs": [
+            "closeout.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "closeout.md",
+          "outcome_kind": "delivery_ready",
           "reason": null,
-          "evidence_refs": [],
-          "acceptance": null
+          "evidence_refs": [
+            "validation.md",
+            "closeout.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "5bc1c6e3fe4bb6cd693c138ca19c8b7e6b7c41f5245c9ae01ccda83607034de6",
+            "result_revision": "1",
+            "input_revision": "10",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "validation.md",
+              "closeout.md"
+            ]
+          }
         }
       },
       "route_dependency_admission": null,
@@ -118,7 +146,7 @@
         "approval_ref": "execution.md",
         "task_route_revision": "1"
       },
-      "closeout_disposition": null,
+      "closeout_disposition": "delivery_ready",
       "skip_records": {
         "decision_space_construction_and_merging": {
           "reason": "根任务已完成需求和决策并获统一批准，本组件只登记已批准执行范围",

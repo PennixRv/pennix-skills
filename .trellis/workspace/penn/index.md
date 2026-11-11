@@ -7,9 +7,9 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **活动文件（Active File）**: `journal-1.md`
-- **会话总数（Total Sessions）**: 40
-- **最近活动（Last Active）**: 2026-11-10
+- **Active File**: `journal-1.md`
+- **Total Sessions**: 41
+- **Last Active**: 2026-11-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -17,9 +17,9 @@
 ## Active Documents
 
 <!-- @@@auto:active-documents -->
-| 文件（File） | 行数（Lines） | 状态（Status） |
+| File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1052 | 活动（Active） |
+| `journal-1.md` | ~1083 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | 日期（Date） | 标题（Title） | 提交（Commits） | 分支（Branch） |
 |---|------|-------|---------|--------|
+| 41 | 2026-11-11 | 原生代理路线移除与固定集合部署收尾 | `823c3b69049d421e39d0768031669914e33f384a` | `fix/remove-native-agent-routing` |
 | 40 | 2026-11-10 | 引入 Office 与 PDF 阅读 Skills 并验收正式运行时 | `1fab5b4`, `3624514` | `main` |
 | 39 | 2026-11-08 | 原生提问规则与真实宿主验收 | `3ef9af4`, `75952b9`, `3224ff7` | `main` |
 | 38 | 2026-11-08 | Context Mode v2 消费者适配与真实验收 | `6524b22`, `eab57ee`, `9f9cb21`, `0b8a1c6`, `6dedda7`, `aa686f3` | `main` |

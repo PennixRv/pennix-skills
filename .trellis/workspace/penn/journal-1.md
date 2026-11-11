@@ -1050,3 +1050,34 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### 状态（Status）
 
 [OK] **已完成（Completed）**
+
+
+## Session 41: 原生代理路线移除与固定集合部署收尾
+<!-- trellis-session: v=2 fp=7c67c6708772aebf -->
+
+**Date**: 2026-11-11
+**Task**: 原生代理路线移除与固定集合部署收尾
+**Branch**: `fix/remove-native-agent-routing`
+
+### Summary
+
+路由仅保留主会话、只读 trellis teammates 与已授权 paseo delegated-agent；固定产品已原生安装，项目资产更新至 beta.17，任务已原生归档。
+
+### Main Changes
+
+- 移除宿主原生代理和裸 CLI 的替代实施指引，历史与工具可用性不扩大授权。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `823c3b69049d421e39d0768031669914e33f384a` | fix: remove native agent fallback from workflow routing |
+
+### Testing
+
+- [OK] manifest 19 Skills、2 commands；集合 15 项、路由 7 项通过；实际 Hook 3 项通过。
+- [OK] 原生 owner match、recover idle；459 项保护内容和 3 份混合配置完整；根侧组合 54 通过、4 项覆盖边界未运行。
+
+### Status
+
+[OK] **Completed**
