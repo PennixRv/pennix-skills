@@ -87,15 +87,17 @@
           }
         },
         "task_implementation": {
-          "status": "active",
+          "status": "blocked",
           "input_revision": "5",
           "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
           "artifact_refs": [],
           "result_revision": "0",
           "result_ref": null,
           "outcome_kind": null,
-          "reason": null,
-          "evidence_refs": [],
+          "reason": "集合方法已交付并重装；项目 spec 迁移等待 Trellis beta.18 公共发行与原生安装",
+          "evidence_refs": [
+            "validation.md"
+          ],
           "acceptance": null
         },
         "delivery_review_and_closeout": {
