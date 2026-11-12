@@ -114,6 +114,32 @@ class RetentionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_historical_retention_observes_native_ownership_without_current_phase_projection(self):
+        payload = json.loads(self.core.read_text())
+        payload["schema_version"] = 9
+        payload["work_context"]["task"] = {"id": "old-task", "path": ".trellis/tasks/old-task"}
+        self.core.write_text(json.dumps(payload))
+        (self.root / ".trellis/scripts/task.py").write_text(
+            "import json, pathlib, sys\n"
+            "assert sys.argv[1:3] == ['transfer', 'status']\n"
+            "if '--include-current' in sys.argv:\n"
+            "    print(json.dumps({'code': 'TASK_CONTINUITY_WITHHELD', 'reason': 'task phase classification or route is invalid'}))\n"
+            "    raise SystemExit(1)\n"
+            "value = json.loads(pathlib.Path('native-observation.json').read_text())\n"
+            "print(json.dumps(value))\n"
+            "raise SystemExit(1 if value['status'] == 'unknown' else 0)\n"
+        )
+        for observation, eligible in (
+            ({"status": "absent"}, True),
+            ({"status": "claimed", "package_id": self.identifier}, False),
+            ({"status": "unknown", "reason": "ownership unreadable"}, False),
+        ):
+            with self.subTest(observation=observation):
+                (self.root / "native-observation.json").write_text(json.dumps(observation))
+                result = handoff.inspect_handoff(self.root, self.relative)
+                self.assertEqual(result["qualification"]["eligible"], eligible, result)
+                self.assertEqual(result["current_task_observation"]["status"], observation["status"])
+
     def test_purge_rename_delete_and_final_publication_failures_retain_exact_recovery(self):
         self.execute("archive")
         with mock.patch.object(handoff.os, "rename", side_effect=OSError("injected rename failure")):

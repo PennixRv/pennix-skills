@@ -17,3 +17,9 @@
 新增失败覆盖包括 archive 提交后镜像失败、purge 目录切换/部分删除/最终发布失败、restore 发布失败、未知 tombstone 成员、原生 Task 成功而本地收据失败、明确 CAS 拒绝清除本次 intent、release 只读结果恢复及旧目标被原生恢复围栏后的接续。跨 owner RPC 期间固定 handoff 锁可由其他进程取得。当前 prompt 在保留前校验，ZIP manifest 操作与保留日志绑定。恢复和历史读取均不重授 Task authority。
 
 collection verify 为 19 Skills、2 commands；根测试 15 项和离线评估 driver 已通过。全集合测试及根组合验收继续核验。尚未发布、更新安装或处置真实历史。
+
+## 真实现场复查与发布后修正
+
+首个交付提交 `5761d9ff00d73dd6f50083c3dd5acbfbe3865a38` 已推送并通过 CI，由 Lifecycle 0.2.57 固定来源完成原生 update 和 repair。最终独立串行资源门再次通过：76 次操作，893.429 秒，RSS 95.54296875 MiB、临时盘 643.563931 MiB、单次最长 76.227 秒。此前与全量测试并行的一次运行触发 renderer 内部 30 秒超时，未改门槛，串行重跑成功。
+
+只读检查根项目 28 个真实交接 ID，发现一个旧归档因原生 status 的 `--include-current` 触发已过时任务阶段分类而阻断封存。保留检查仅需要未绑定包的当前原生 ownership 事实，现移除完整阶段投影要求；严格 validate/admit 的当前准入不变。新增进程级原生接口 fixture 覆盖旧阶段失效但 ownership absent 可保留、同包 claimed 必须阻断、未知 ownership 必须阻断。完整交接测试 76 项通过，资源门默认跳过 1 项；本次一行修正不涉及已测 taskless 资源路径。两个缺少生命周期证据或消费未完成的 schema 12 包继续保护。真实历史尚未迁移或删除。

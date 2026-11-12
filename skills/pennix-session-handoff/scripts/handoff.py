@@ -1773,7 +1773,7 @@ def _retention_observation(root: Path, identifier: str, core: Path, identity: di
     if context["task"] is None:
         return {"status": "not_applicable"}
     task_id, task_path = _ownership_task(identity)
-    return _ownership_call(root, "status", task_id, task_path, identifier, _ownership_core_digest(core).removeprefix("sha256:"), None, explicit=False, include_current=True, bind_package=False)
+    return _ownership_call(root, "status", task_id, task_path, identifier, _ownership_core_digest(core).removeprefix("sha256:"), None, explicit=False, bind_package=False)
 
 
 def inspect_handoff(root: Path, handoff_path: str) -> dict:
