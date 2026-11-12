@@ -3,7 +3,7 @@
   "name": "existing-project-spec-convergence",
   "title": "既有项目 spec 治理与方法衔接",
   "description": "复用根任务第2版合同和用户完整推进授权，修改既有治理、路由、更新 Skill，收敛本项目 spec 并验证固定集合。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "penn",
   "assignee": "penn",
   "createdAt": "2026-11-12",
-  "completedAt": null,
+  "completedAt": "2026-11-12",
   "branch": "fix/existing-project-spec-convergence",
   "base_branch": "main",
   "worktree_path": null,
@@ -35,8 +35,8 @@
         "task_implementation",
         "delivery_review_and_closeout"
       ],
-      "current_phase_id": "task_implementation",
-      "input_revision": "5",
+      "current_phase_id": null,
+      "input_revision": "9",
       "phases": {
         "goal_exploration_and_requirements": {
           "status": "accepted",
@@ -87,30 +87,52 @@
           }
         },
         "task_implementation": {
-          "status": "blocked",
-          "input_revision": "5",
-          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-          "artifact_refs": [],
-          "result_revision": "0",
-          "result_ref": null,
-          "outcome_kind": null,
-          "reason": "集合方法已交付并重装；项目 spec 迁移等待 Trellis beta.18 公共发行与原生安装",
+          "status": "accepted",
+          "input_revision": "6",
+          "artifact_revision": "26ed143b74a0b6947ca24a2d70f9c5176204aec8027c04286a138cd8a40a3750",
+          "artifact_refs": [
+            "validation.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "validation.md",
+          "outcome_kind": "implementation_complete",
+          "reason": null,
           "evidence_refs": [
             "validation.md"
           ],
-          "acceptance": null
+          "acceptance": {
+            "artifact_revision": "26ed143b74a0b6947ca24a2d70f9c5176204aec8027c04286a138cd8a40a3750",
+            "result_revision": "1",
+            "input_revision": "6",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "validation.md"
+            ]
+          }
         },
         "delivery_review_and_closeout": {
-          "status": "not_started",
-          "input_revision": "1",
-          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-          "artifact_refs": [],
-          "result_revision": "0",
-          "result_ref": null,
-          "outcome_kind": null,
+          "status": "accepted",
+          "input_revision": "8",
+          "artifact_revision": "54831d5f1cf735d5251ed7217638412d3340025224e3361ded3a7ccbd0816f6e",
+          "artifact_refs": [
+            "closeout.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "closeout.md",
+          "outcome_kind": "delivery_ready",
           "reason": null,
-          "evidence_refs": [],
-          "acceptance": null
+          "evidence_refs": [
+            "validation.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "54831d5f1cf735d5251ed7217638412d3340025224e3361ded3a7ccbd0816f6e",
+            "result_revision": "1",
+            "input_revision": "8",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "validation.md"
+            ]
+          }
         }
       },
       "route_dependency_admission": null,
@@ -120,7 +142,7 @@
         "approval_ref": "implementation-contract.md",
         "task_route_revision": "1"
       },
-      "closeout_disposition": null,
+      "closeout_disposition": "delivery_ready",
       "skip_records": {
         "decision_space_construction_and_merging": {
           "reason": "复用根已接受需求、方案与用户完整授权",

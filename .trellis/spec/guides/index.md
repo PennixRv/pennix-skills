@@ -2,6 +2,8 @@
 
 > **Purpose**: Expand your thinking to catch things you might not have considered.
 
+本目录提供思考方法。历史案例说明当时的问题，不定义当前工作流、授权或协作机制；当前合同以活动工作流、任务和实际适用的项目规范为准。
+
 ---
 
 ## Why Thinking Guides?

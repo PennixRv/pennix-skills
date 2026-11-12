@@ -1,32 +1,7 @@
 # Quality Guidelines
 
-> Code quality standards for backend development.
-
----
-
-## Overview
-
-<!--
-Document your project's quality standards here.
-
-Questions to answer:
-- What patterns are forbidden?
-- What linting rules do you enforce?
-- What are your testing requirements?
-- What code review standards apply?
--->
-
-(To be filled by the team)
-
----
-
-## Forbidden Patterns
-
-<!-- Patterns that should never be used and why -->
-
-(To be filled by the team)
-
----
+Collection, document Skill, handoff and evaluation contracts for this repository.
+The existing path is retained for active references; it does not require a backend layer.
 
 ## Collection Manifest Contract
 
@@ -194,19 +169,3 @@ Questions to answer:
 - 回归必须覆盖 false 标志下同步调用、旧 turn 的异步调用不混入新 turn、身份及路径拒绝。
   summary 保留宿主标志与工具计数两类事实；未读取原生工具证据时保持 unknown，
   基线未复现不能改报为修复前失败。评估中未选异步，不代表宿主已技术移除该工具。
-
----
-
-## Testing Requirements
-
-<!-- What level of testing is expected -->
-
-(To be filled by the team)
-
----
-
-## Code Review Checklist
-
-<!-- What reviewers should check -->
-
-(To be filled by the team)
