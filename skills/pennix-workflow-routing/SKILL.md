@@ -62,6 +62,7 @@ description: "跨组件职责、辅助方法组合或五阶段衔接不清时，
 | 已有工具支持文件输出的大型结构化结果 | 原工具先写入已批准文件，再用 context-mode 限定分析或原生分页读取 | 不把原始结果重新塞回工具参数，分析结果不自动晋升为任务事实 |
 | 工作流缓存、Teamwork、输出、备份或历史资源的盘点与清理 | `$pennix-resource-cleanup`，再转资源 owner 的原生清理入口 | 默认只读；精确预览和明确授权后才允许 owner 执行 |
 | 项目 AGENTS 来源、内部生成块、内容职责或冲突；明确授权的项目初始化、重初始化、刷新或移除 | `$pennix-project-agents-governance` | 默认只读；已授权动作固定项目根、宿主和选定组件，由主 Agent 串行调用原生 owner，逐步回读、失败重入并联合核验 |
+| 建立或刷新项目 `.trellis/spec/` 规范 | 宿主实际声明的 `trellis-spec-bootstrap` | 复用当前任务与授权，从源码整理实际主题；入口准备不等于规范有效，未声明时报告限制，不猜路径或自动安装 |
 
 Context Mode 的工具参数与宿主适配以当前 MCP instructions、工具声明和原生 help 为准。owner 决定操作语义、权限和状态；其真实非交互命令可由 Context Mode 承载，前提是本次所需身份、参数、退出码与回执均可保留。不得用 shell HTTP、自造 JSON、后台化或代理轮询替代组件协议。
 

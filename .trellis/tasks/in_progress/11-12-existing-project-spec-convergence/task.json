@@ -1,0 +1,136 @@
+{
+  "id": "existing-project-spec-convergence",
+  "name": "existing-project-spec-convergence",
+  "title": "既有项目 spec 治理与方法衔接",
+  "description": "复用根任务第2版合同和用户完整推进授权，修改既有治理、路由、更新 Skill，收敛本项目 spec 并验证固定集合。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-12",
+  "completedAt": null,
+  "branch": "fix/existing-project-spec-convergence",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "task_workflow": {
+      "schema_version": 1,
+      "task_route_revision": "1",
+      "task_kind": "implementation",
+      "complexity": "standard",
+      "project_context": "existing",
+      "phase_ids": [
+        "goal_exploration_and_requirements",
+        "solution_design_and_convergence",
+        "task_implementation",
+        "delivery_review_and_closeout"
+      ],
+      "current_phase_id": "task_implementation",
+      "input_revision": "5",
+      "phases": {
+        "goal_exploration_and_requirements": {
+          "status": "accepted",
+          "input_revision": "2",
+          "artifact_revision": "ad034beebabbece87dc9e8bf5e798bb9ce4b977ebe998e9bee0d8bdd6306a693",
+          "artifact_refs": [
+            "prd.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "prd.md",
+          "outcome_kind": "accepted",
+          "reason": null,
+          "evidence_refs": [
+            "implementation-contract.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "ad034beebabbece87dc9e8bf5e798bb9ce4b977ebe998e9bee0d8bdd6306a693",
+            "result_revision": "1",
+            "input_revision": "2",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "implementation-contract.md"
+            ]
+          }
+        },
+        "solution_design_and_convergence": {
+          "status": "accepted",
+          "input_revision": "4",
+          "artifact_revision": "f0a08f8356cf6c0f03e5905071352cfd729339d7fb5a407a676832d85202dbef",
+          "artifact_refs": [
+            "implementation-contract.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "implementation-contract.md",
+          "outcome_kind": "implementation_contract",
+          "reason": null,
+          "evidence_refs": [
+            "implementation-contract.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "f0a08f8356cf6c0f03e5905071352cfd729339d7fb5a407a676832d85202dbef",
+            "result_revision": "1",
+            "input_revision": "4",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "implementation-contract.md"
+            ]
+          }
+        },
+        "task_implementation": {
+          "status": "active",
+          "input_revision": "5",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        },
+        "delivery_review_and_closeout": {
+          "status": "not_started",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        }
+      },
+      "route_dependency_admission": null,
+      "implementation_authorization": {
+        "contract_ref": "implementation-contract.md",
+        "contract_revision": "f0a08f8356cf6c0f03e5905071352cfd729339d7fb5a407a676832d85202dbef",
+        "approval_ref": "implementation-contract.md",
+        "task_route_revision": "1"
+      },
+      "closeout_disposition": null,
+      "skip_records": {
+        "decision_space_construction_and_merging": {
+          "reason": "复用根已接受需求、方案与用户完整授权",
+          "evidence_refs": [
+            "implementation-contract.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "return_record": null
+    }
+  }
+}

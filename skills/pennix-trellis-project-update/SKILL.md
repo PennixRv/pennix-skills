@@ -44,6 +44,8 @@ trellis update --skip-all
 
 通用更新期间保留以下项目或运行态内容：`.trellis/spec/`、`.trellis/tasks/`、`.trellis/workspace/`、`.trellis/.runtime/`、凭据、缓存、日志、数据库和无关用户文件。由原生 Trellis 决定哪些受管平台文件及根目录受管块可以安全刷新。
 
+普通 update 不补总索引，也不建立项目规范。请求同时包含 spec 建立／收敛时，将其作为当前任务明确的后续步骤：入口缺失由 `$pennix-project-agents-governance` 编排已授权原生重入，内容刷新采用宿主实际声明的 `trellis-spec-bootstrap`。先盘点真实条目与引用，分别报告资产更新和规范验证，不为单个缺口运行整次 `init --force`。
+
 ## 工作流刷新
 
 工作流选择独立于 `trellis update`。先发现模板：
