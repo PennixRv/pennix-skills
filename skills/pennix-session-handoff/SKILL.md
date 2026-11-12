@@ -74,7 +74,7 @@ python3 "${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-sessio
 
 `validate` 返回 `ready` 只证明 core/history 结构与绑定有效。生命周期就绪还要求观察到源边界；接纳另行核验配对 prompt，包含任务的包还要求原生 Trellis quiesce 与 seal 收据及当前归属状态。目标必须协调当前任务、Git、证据和 rollout；目标 attestation 不能绕过源门禁。本 Skill 不直接改变任务状态、不控制工作节点，也不复制凭据、缓存或运行台账。
 
-新包使用 schema 12。当前入口只接受该合同；旧包不迁移、不准入，也不使用旧版分页或生命周期语义。历史旧文件可用普通只读文件工具审阅；继续正式交接要从当前事实创建新三文件包。
+新包使用 schema 12，`validate`、`prepare`、`admit` 和归属变更继续严格检查该合同。`read` 和 `inspect` 可以只读访问受支持的旧原始格式，不把它们转换为当前 schema 或恢复接管资格；未知格式保留并报告限制。继续正式交接仍须从当前事实创建新包。
 
 ## 必读核心与历史阅读
 
@@ -83,11 +83,14 @@ python3 "${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-sessio
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view core --offset 0 --length 4096
 python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view history --event-index <n> --offset 0 --length 4096
+python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view prompt --offset 0 --length 4096
 ```
 
 核心视图包含所有非历史字段及历史统计、引用。必须从 `offset=0` 开始，按返回的 `next_offset` 逐页读取，直到 `complete=true`，再完整阅读配对 prompt。`offset`、`next_offset` 和 `total_chars` 按 Unicode 字符计数；依次拼接每页 `text` 可恢复完整视图。宿主输出若截断、页缺失或读取中断，不能声明已完整阅读；减小 `length` 后补读缺失范围。接口只读，不自动记录消费或推进任务。
 
 历史视图指定 `event_index` 时返回一条完整候选的确定性 JSON，不指定时返回规范历史 JSONL。事实冲突、关键反转或用户要求追溯依据时，按需阅读相应历史；程序完成结构校验不能算代理读过历史。保留现有公开消息投影和规范化，不裁掉长消息或较早事件；已识别秘密按值或敏感区间脱敏，其他上下文保留。
+
+历史审阅无需先恢复当前任务权限。逻辑 `<id>/session-handoff.json` 自动解析展开包、`<id>.zip` 或已知旧 archive，调用者不手动解压。旧嵌入历史的 `core` 保持原文；没有外部历史文件时 `history` 返回同一原始 core，明确标记只读资格，不提供伪造的候选序号。`prompt` 仍沿 next_offset 读到 complete；缺失旧 prompt 单独报告，不补造历史。只读结果不能用于声明新会话已完成正式接纳。
 
 目标 attestation 使用以下字段；任务为空时使用 `task_disposition="none"` 和 `task_path=null`：
 
@@ -111,8 +114,10 @@ python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view his
 不可变 core 不是消费状态数据库。单独的本地追加收据可以记录源收敛、目标协调和保留，位于 Git 外：
 
 ```text
-.trellis/.runtime/handoff-lifecycle/<handoff-id>.jsonl
-.trellis/.runtime/handoff-archive/<handoff-id>/
+.trellis/session-handoffs/<handoff-id>/lifecycle.jsonl
+.trellis/session-handoffs/<handoff-id>/retention-events.jsonl
+.trellis/session-handoffs/<handoff-id>.zip
+.trellis/.runtime/handoff.lock
 ```
 
 设置一次现有辅助程序路径：
@@ -121,14 +126,15 @@ python3 "$PENNIX_HANDOFF" --project-root . read --handoff <core.json> --view his
 PENNIX_HANDOFF="${PENNIX_SKILLS_ROOT:-$HOME/.agents/skills/pennix-skills}/pennix-session-handoff/scripts/handoff.py"
 ```
 
-以下命令只在用户明确要求正式交接时使用：
+新 lifecycle 与存储操作证据随对应保留单元保存；固定 handoff.lock 只保护短事务，不锁可移动日志的 inode，也不承担 Task authority。未迁移旧包继续兼容读既有 runtime receipt/archive。具名 retention 预览列出旧源及完整字节映射，历史不会因升级自动搬迁或删除。
+
+以下接纳命令只在用户明确要求正式交接时使用：
 
 ```bash
 python3 "$PENNIX_HANDOFF" --project-root . prepare --handoff <core.json> --mode core_only
 python3 "$PENNIX_HANDOFF" --project-root . seal --handoff <core.json> --explicit-user-request
 python3 "$PENNIX_HANDOFF" --project-root . finalize --handoff <core.json> --observation <project-relative-proof.json>
 python3 "$PENNIX_HANDOFF" --project-root . admit --handoff <core.json> --attestation <project-relative-attestation.json>
-python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.json> --confirm-handoff-id <handoff-id>
 ```
 
 `PENNIX_HANDOFF` 是上文已设置的现有辅助程序路径。`prepare` 固定本地 `core_only` 模式和直接源会话。`finalize` 记录本地边界观察；追加收据只保留非秘密本地证据引用。
@@ -150,7 +156,19 @@ write -> validate -> render -> prepare(core_only)
 
 接纳从不执行 `pending.next_action`，不启动任务，不改变任务指针，也不关闭任务。后续继续必须另行获得授权，依次执行归属 `claim` 和 `consume`，再依据当前任务分类和阶段使用 `$trellis-continue`；两项归属操作不推进任务阶段。只读 `analysis_only` 研究保持 planning，不运行 `task.py start`；变更任务只有在当前阶段授权与接受门禁满足时才 start，已经运行的工作恢复已有检查点。任务关闭按 `$trellis-delivery-review-and-closeout` 核验后，通过原生 `complete` 或 `cancel` 使用当前精确任务路径；它们分别进入 `completed/YYYY-MM` 或 `cancelled`。`$trellis-finish-work` 只记录进展，不代替生命周期关闭，不制造会话指针。
 
-协调接纳后，`retention archive` 核验整包与 prompt，再原子复制 core/history/prompt 三文件；恢复也按整包核验和目录事务进行。重试归档是幂等的；失败归档仍可再次归档，不重复 intake。`restore`、`reopen` 和 `purge` 都要求同一交接 ID。`purge` 在归档核验后通过目录切换移除规范三文件，收据写入失败时恢复原目录；发现未知资产则拒绝清理。它不删除任务、rollout、会话、记忆、资源、watch、日志或远程数据。收据按 JSONL 逐记录处理，保留为审计证据。`status --handoff <core.json>` 用于查看选定生命周期模式是否 ready；渲染器拒绝 pending 高保证模式。
+需要盘点、封存或退出历史源时，沿现有清理授权使用同一 owner；不必重新发起正式交接：
+
+```bash
+python3 "$PENNIX_HANDOFF" --project-root . inspect --handoff <core.json>
+python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.json>
+python3 "$PENNIX_HANDOFF" --project-root . retention archive --handoff <core.json> --confirm-handoff-id <id> --confirm <fresh-digest>
+```
+
+`inspect` 分别给出存储完整性、历史生命周期、当前接纳适用性和当前原生 Task 观察。当前包封存要求源已封边、目标已消费且没有未决接管或恢复；消费后的任务仍可继续工作，不要求整个任务结束。旧包按原始字节、明确身份、当前无相关未决操作及精确批准取得 `historical_readonly` 资格，不伪造当前 archive_eligible。
+
+`archive`、`purge`、`restore`、`reopen` 都默认只读预览；只有 ID 和当前 digest 同时匹配才变更。旧仅传 ID 的调用也返回预览。先审查源清单、引用、阻断和净空间影响，再按已有授权确认对应对象。`archive` 用标准库无损 ZIP 保存全部原始成员、旧 lifecycle/ownership 原始字节、控制证据及成员清单；校验完整容器后原子发布，再镜像同一已提交事件，保留展开源，不能宣称已有净释放。
+
+`purge` 是另一次精确确认：先把源集合和 tombstone 意图提交到完整 ZIP，再退出获批源，最后提交完成事件。失败保留完整 ZIP 与定位证据，按新预览重试或 `restore`；未知成员、非前缀日志分叉或内容冲突保护该对象，不扩大删除范围。`restore` 私有展开并校验完整单元后原子发布，ZIP 留存；`reopen` 仅记录保留处置，不重新 claim/consume 或恢复实施批准。旧 ownership 只作历史成员，当前 authority 始终由 Task CLI 管理。不得删除 ZIP 唯一历史、原始 rollout、任务、当前 ownership/continuity 或其他 owner 的数据。渲染器只生成当前正式交接入口，不把封存历史渲染为可接管的新提示。
 
 ## 新会话收尾
 

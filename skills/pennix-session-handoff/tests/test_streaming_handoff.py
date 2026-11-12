@@ -152,94 +152,58 @@ class StreamingHandoffTests(unittest.TestCase):
                 handoff.build(self.root, request, identifier, self.root / "second.jsonl")
         self.assertFalse(destination.parent.exists())
 
-    def test_restore_failure_preserves_previous_directory_and_receipt_scan_is_streaming(self):
-        self.write()
-        relative = str(self.core.relative_to(self.root))
-        self.core.with_name("session-handoff-prompt.md").write_text("prompt\n")
-        handoff.lifecycle_prepare(self.root, relative, "core_only")
-        handoff.lifecycle_seal(self.root, relative, explicit=True)
-        archive = self.root / handoff.ARCHIVE_RUNTIME / self.core.parent.name
-        handoff._archive_copy(self.root, self.core.parent.name, self.core)
-        before = {p.name: p.read_bytes() for p in self.core.parent.iterdir()}
-        native_rename = handoff.os.rename
-        def fail_publish(source, destination):
-            if ".restore-" in str(source):
-                raise OSError("injected restore failure")
-            return native_rename(source, destination)
-        with mock.patch.object(handoff.os, "rename", side_effect=fail_publish):
-            with self.assertRaises(OSError):
-                handoff._restore_package(self.root, archive, self.core.parent, self.core.parent.name)
-        self.assertEqual({p.name: p.read_bytes() for p in self.core.parent.iterdir()}, before)
-        with mock.patch.object(Path, "read_text", side_effect=AssertionError("whole-file receipt read")):
-            events = handoff._read_events(handoff._lifecycle_path(self.root, self.core.parent.name), self.core.parent.name)
-            self.assertEqual(handoff._state(events)["source"], "boundary_sealed")
-            self.assertEqual(len(list(events)), 2)
 
-    def test_failed_restore_rollback_keeps_previous_package_backup(self):
-        self.write()
-        relative = str(self.core.relative_to(self.root))
-        self.core.with_name("session-handoff-prompt.md").write_text("prompt\n")
-        handoff.lifecycle_prepare(self.root, relative, "core_only")
-        handoff.lifecycle_seal(self.root, relative, explicit=True)
-        archive = self.root / handoff.ARCHIVE_RUNTIME / self.core.parent.name
-        handoff._archive_copy(self.root, self.core.parent.name, self.core)
-        before = {p.name: p.read_bytes() for p in self.core.parent.iterdir()}
-        native_rename = handoff.os.rename
 
-        def fail_publish_and_rollback(source, destination):
-            if ".restore-" in str(source) or (".backup-" in str(source) and destination == self.core.parent):
-                raise OSError("injected restore and rollback failure")
-            return native_rename(source, destination)
 
-        with mock.patch.object(handoff.os, "rename", side_effect=fail_publish_and_rollback):
-            with self.assertRaisesRegex(handoff.ContractError, "previous package preserved"):
-                handoff._restore_package(self.root, archive, self.core.parent, self.core.parent.name)
-        self.assertFalse(self.core.parent.exists())
-        backups = list(self.core.parent.parent.glob(".*.backup-*"))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual({p.name: p.read_bytes() for p in backups[0].iterdir()}, before)
-
-    def test_purge_rename_or_receipt_failure_restores_the_entire_package(self):
+    def ready_retention_package(self):
         payload = self.write()
         relative, identifier = str(self.core.relative_to(self.root)), payload["handoff_id"]
         self.core.with_name("session-handoff-prompt.md").write_text("prompt\n")
         handoff.lifecycle_prepare(self.root, relative, "core_only")
         handoff.lifecycle_seal(self.root, relative, explicit=True)
         handoff._append_event(self.root, identifier, "admit", {"source": "boundary_sealed", "target": "reconciled", "retention": "archive_eligible"}, ["target=session:target"])
-        handoff.lifecycle_retention(self.root, "archive", relative, identifier)
+        return relative, identifier
+
+    def confirmed_retention(self, action, relative, identifier):
+        preview = handoff.lifecycle_retention(self.root, action, relative, identifier)[1]
+        self.assertTrue(preview["eligible"], preview["blockers"])
+        return handoff.lifecycle_retention(self.root, action, relative, identifier, preview["digest"])
+
+    def test_receipt_scan_remains_streaming_at_canonical_location(self):
+        _, identifier = self.ready_retention_package()
+        receipt = handoff._lifecycle_path(self.root, identifier)
+        self.assertEqual(receipt.parent, self.core.parent)
+        with mock.patch.object(Path, "read_text", side_effect=AssertionError("whole-file receipt read")):
+            events = handoff._read_events(receipt, identifier)
+            self.assertEqual(handoff._state(events)["source"], "boundary_sealed")
+            self.assertEqual(len(list(events)), 3)
+
+    def test_restore_preserves_existing_expanded_package_and_unknown_assets(self):
+        relative, identifier = self.ready_retention_package()
+        self.confirmed_retention("archive", relative, identifier)
         before = {p.name: p.read_bytes() for p in self.core.parent.iterdir()}
-        native_append = handoff._append_event
-        def fail_receipt(root, handoff_id, event_type, *args):
-            if event_type == "purge":
-                raise OSError("injected purge receipt failure")
-            return native_append(root, handoff_id, event_type, *args)
-        for target, error in (("rename", OSError("injected purge rename failure")), ("_append_event", fail_receipt)):
-            with self.subTest(target=target):
-                owner = handoff.os if target == "rename" else handoff
-                with mock.patch.object(owner, target, side_effect=error):
-                    expected = OSError if target == "rename" else handoff.ContractError
-                    with self.assertRaises(expected):
-                        handoff.lifecycle_retention(self.root, "purge", relative, identifier)
-                self.assertEqual({p.name: p.read_bytes() for p in self.core.parent.iterdir()}, before)
-        native_rmtree = handoff.shutil.rmtree
-        failed_once = False
-
-        def fail_purge_delete(path, *args, **kwargs):
-            nonlocal failed_once
-            if ".purge-" in str(path) and not failed_once:
-                failed_once = True
-                raise OSError("injected purge removal failure")
-            return native_rmtree(path, *args, **kwargs)
-
-        with mock.patch.object(handoff.shutil, "rmtree", side_effect=fail_purge_delete):
-            with self.assertRaisesRegex(handoff.ContractError, "package restored"):
-                handoff.lifecycle_retention(self.root, "purge", relative, identifier)
+        archive = handoff.storage.zip_path(self.root, identifier)
+        archived = archive.read_bytes()
+        self.assertEqual(self.confirmed_retention("restore", relative, identifier)[1]["status"], "idempotent")
         self.assertEqual({p.name: p.read_bytes() for p in self.core.parent.iterdir()}, before)
-        events = handoff._read_events(handoff._lifecycle_path(self.root, identifier), identifier)
-        self.assertEqual(handoff._state(events)["retention"], "archived")
-        self.assertFalse(any(event["event_type"] == "purge" for event in events))
-        handoff.lifecycle_retention(self.root, "purge", relative, identifier)
-        self.assertFalse(self.core.parent.exists())
+        unknown = self.core.with_name("user-file")
+        unknown.write_text("preserve")
+        with self.assertRaisesRegex(handoff.ContractError, "unknown"):
+            handoff.lifecycle_retention(self.root, "restore", relative, identifier)
+        self.assertEqual(archive.read_bytes(), archived)
+        self.assertEqual(unknown.read_text(), "preserve")
+
+    def test_id_only_purge_previews_without_mutating_source_or_archive(self):
+        relative, identifier = self.ready_retention_package()
+        self.confirmed_retention("archive", relative, identifier)
+        before = {p.name: p.read_bytes() for p in self.core.parent.iterdir()}
+        archive = handoff.storage.zip_path(self.root, identifier)
+        archived = archive.read_bytes()
+        result = self.fixture.run_cli(self.root, "retention", "purge", "--handoff", relative, "--confirm-handoff-id", identifier)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "preview")
+        self.assertEqual({p.name: p.read_bytes() for p in self.core.parent.iterdir()}, before)
+        self.assertEqual(archive.read_bytes(), archived)
 
     def test_coverage_cannot_hide_missing_records_or_records_after_partial_tail(self):
         rollout = self.root / "empty-message.jsonl"
@@ -331,10 +295,10 @@ class StreamingHandoffTests(unittest.TestCase):
                     for _ in range(n):
                         handle.write(json.dumps(event) + "\n")
             run(fixtures.SCRIPT, "status", "--handoff", relative)
-            run(fixtures.SCRIPT, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", identifier)
-            run(fixtures.SCRIPT, "retention", "purge", "--handoff", relative, "--confirm-handoff-id", identifier)
-            run(fixtures.SCRIPT, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", identifier)
-            run(fixtures.SCRIPT, "status", "--handoff", relative)
+            for action in ("archive", "purge", "restore"):
+                preview = run(fixtures.SCRIPT, "retention", action, "--handoff", relative, "--confirm-handoff-id", identifier)
+                run(fixtures.SCRIPT, "retention", action, "--handoff", relative, "--confirm-handoff-id", identifier, "--confirm", preview["digest"])
+            run(fixtures.SCRIPT, "inspect", "--handoff", relative)
             task = self.root / ".trellis/tasks/resource"
             task.mkdir(parents=True, exist_ok=True)
             (task / "task.json").write_text(json.dumps({"id": "resource-task", "status": "in_progress"}))
@@ -351,9 +315,10 @@ class StreamingHandoffTests(unittest.TestCase):
             total = sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file())
             self.assertLess(total, 1024 * 1024 * 1024)
             metrics.append({"scale": scale, "temporary_bytes": total, "core_bytes": core.stat().st_size})
-            shutil.rmtree(self.root / handoff.HANDOFFS)
-            shutil.rmtree(self.root / handoff.ARCHIVE_RUNTIME)
-            shutil.rmtree(self.root / handoff.LIFECYCLE_RUNTIME)
+            for relative in (handoff.HANDOFFS, handoff.ARCHIVE_RUNTIME, handoff.LIFECYCLE_RUNTIME):
+                directory = self.root / relative
+                if directory.exists():
+                    shutil.rmtree(directory)
         Path("/tmp/pennix-handoff-resource-results.json").write_text(json.dumps(metrics, indent=2) + "\n")
 
 

@@ -505,7 +505,7 @@ class HandoffTests(unittest.TestCase):
         self.assertIn("sha256", payload["history"])
         self.assertEqual(json.loads(self.run_cli(root, "validate", "--handoff", relative).stdout)["status"], "ready")
         self.assertEqual(self.run_cli(root, "prepare", "--handoff", relative, "--mode", "core_only").returncode, 0)
-        receipt = json.loads((root / handoff.LIFECYCLE_RUNTIME / (Path(relative).parts[-2] + ".jsonl")).read_text(encoding="utf-8"))
+        receipt = json.loads(handoff._lifecycle_path(root, Path(relative).parts[-2]).read_text(encoding="utf-8"))
         self.assertEqual(receipt["cr_source_digest"], "c" * 64)
         self.assertNotIn("integrity", receipt)
         self.assertNotIn("package_digest", receipt)
@@ -692,46 +692,55 @@ class HandoffTests(unittest.TestCase):
 
         prompt.unlink()
         missing_canonical_prompt = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
-        self.assertNotEqual(missing_canonical_prompt.returncode, 0)
+        self.assertEqual(missing_canonical_prompt.returncode, 0)
+        self.assertFalse(json.loads(missing_canonical_prompt.stdout)["eligible"])
         self.assertEqual(json.loads(self.run_cli(root, "status", "--handoff", relative).stdout)["state"]["retention"], "archive_eligible")
-        archive = root / handoff.ARCHIVE_RUNTIME / handoff_id
+        archive = handoff.storage.zip_path(root, handoff_id)
         self.assertFalse(archive.exists())
         prompt.write_text("handoff prompt\n", encoding="utf-8")
 
-        archived = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        def retention(action):
+            preview = self.run_cli(root, "retention", action, "--handoff", relative, "--confirm-handoff-id", handoff_id)
+            self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)
+            receipt = json.loads(preview.stdout)
+            self.assertEqual(receipt["status"], "preview")
+            return self.run_cli(root, "retention", action, "--handoff", relative, "--confirm-handoff-id", handoff_id, "--confirm", receipt["digest"])
+        archived = retention("archive")
         self.assertEqual(archived.returncode, 0, archived.stderr)
-        self.assertEqual({path.name for path in archive.iterdir()}, {"session-handoff.json", handoff.HISTORY_NAME, "session-handoff-prompt.md"})
-        repeated_archive = self.run_cli(root, "retention", "archive", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        manifest = handoff.storage.verify(archive, handoff_id)
+        self.assertEqual(set(manifest["members"]), handoff.storage.PRIMARY | {handoff.storage.LIFECYCLE, handoff.storage.JOURNAL})
+        repeated_archive = retention("archive")
         self.assertEqual(repeated_archive.returncode, 0, repeated_archive.stderr)
         self.assertEqual(json.loads(repeated_archive.stdout)["status"], "idempotent")
 
         core = root / relative
-        purged = self.run_cli(root, "retention", "purge", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        purged = retention("purge")
         self.assertEqual(purged.returncode, 0, purged.stderr)
         self.assertFalse(core.exists())
         self.assertFalse(prompt.exists())
         self.assertFalse(core.with_name(handoff.HISTORY_NAME).exists())
         self.assertTrue((root / "evidence.md").exists())
 
-        archived_prompt = archive / "session-handoff-prompt.md"
-        archived_prompt.unlink()
-        events_before = list(handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id))
+        archived_bytes = archive.read_bytes()
+        archive.write_bytes(b"incomplete ZIP")
         incomplete_status = self.run_cli(root, "status", "--handoff", relative)
         self.assertNotEqual(incomplete_status.returncode, 0)
         incomplete_restore = self.run_cli(root, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", handoff_id)
         self.assertNotEqual(incomplete_restore.returncode, 0)
-        self.assertEqual(list(handoff._read_events(handoff._lifecycle_path(root, handoff_id), handoff_id)), events_before)
-        archived_prompt.write_text("handoff prompt\n", encoding="utf-8")
+        self.assertEqual(archive.read_bytes(), b"incomplete ZIP")
+        self.assertFalse(core.exists())
+        archive.write_bytes(archived_bytes)
 
-        restored = self.run_cli(root, "retention", "restore", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        restored = retention("restore")
         self.assertEqual(restored.returncode, 0, restored.stderr)
         self.assertTrue(core.is_file())
         self.assertTrue(prompt.is_file())
         self.assertTrue(core.with_name(handoff.HISTORY_NAME).is_file())
         status = self.run_cli(root, "status", "--handoff", relative)
-        self.assertEqual(status.returncode, 0, status.stderr)
-        self.assertEqual(json.loads(status.stdout)["status"], "ready")
-        reopened = self.run_cli(root, "retention", "reopen", "--handoff", relative, "--confirm-handoff-id", handoff_id)
+        self.assertEqual(status.returncode, 2, status.stderr)
+        self.assertEqual(json.loads(status.stdout)["status"], "pending")
+        self.assertEqual(json.loads(status.stdout)["historical_lifecycle"]["state"]["retention"], "restored")
+        reopened = retention("reopen")
         self.assertEqual(reopened.returncode, 0, reopened.stderr)
 
     def test_lifecycle_rejects_source_session_reuse_and_serializes_idempotence(self) -> None:
@@ -832,7 +841,10 @@ class HandoffTests(unittest.TestCase):
                 with self.assertRaises(handoff.ContractError):
                     handoff.validate(root, payload, payload["handoff_id"])
                 self.assertEqual(self.run_cli(root, "validate", "--handoff", relative).returncode, 2)
-                self.assertEqual(self.run_cli(root, "read", "--handoff", relative, "--view", "core").returncode, 2)
+                historical = self.run_cli(root, "read", "--handoff", relative, "--view", "core")
+                self.assertEqual(historical.returncode, 0 if version in (8, 9) else 2)
+                if version in (8, 9):
+                    self.assertFalse(json.loads(historical.stdout)["admission_eligible"])
                 self.assertEqual(self.run_cli(root, "status", "--handoff", relative).returncode, 2)
                 archive = root / handoff.ARCHIVE_RUNTIME / payload["handoff_id"]
                 archive.mkdir(parents=True, exist_ok=True)
@@ -852,7 +864,10 @@ class HandoffTests(unittest.TestCase):
                 }
                 for label, args in operations.items():
                     result = self.run_cli(root, *args, "--handoff", relative)
-                    self.assertEqual(result.returncode, 2, label)
+                    preview_only = label in {"retention", "restore", "reopen", "purge"} and version in (8, 9)
+                    self.assertEqual(result.returncode, 0 if preview_only else 2, label)
+                    if preview_only:
+                        self.assertEqual(json.loads(result.stdout)["status"], "preview")
                     self.assertNotIn("Traceback", result.stderr)
                 self.assertEqual(self.run_cli(root, "ownership", "status", "--handoff", relative).returncode, 2)
                 self.assertEqual((core.read_bytes(), receipt.read_bytes()), before)
@@ -1002,6 +1017,9 @@ class HandoffTests(unittest.TestCase):
             "        raise SystemExit(0)\n"
             "    generations = {'quiesce': 1, 'seal': 2, 'retire': 3, 'claim': 4, 'consume': 5, 'release': 1}\n"
             "    statuses = {'quiesce': 'quiescing', 'seal': 'sealed', 'retire': 'ready', 'claim': 'claimed', 'consume': 'consumed', 'release': 'released'}\n"
+            "    if op == 'claim' and args[args.index('--expected-generation') + 1] != '3':\n"
+            "        print(json.dumps({'code': 'TASK_TRANSFER_STALE_GENERATION', 'reason': 'fixture rejected stale claim'}))\n"
+            "        raise SystemExit(1)\n"
             "    open('.trellis/.runtime/ownership-status', 'w').write(statuses[op])\n"
             "    print(json.dumps({'status': statuses[op], 'generation': generations[op], 'package_digest': args[args.index('--package-digest') + 1], 'continuity_digest': '" + "c" * 64 + "'}))\n"
             "else:\n"
@@ -1061,7 +1079,7 @@ class HandoffTests(unittest.TestCase):
         calls = [json.loads(line) for line in (root / ".trellis/.runtime/ownership-args.jsonl").read_text().splitlines()]
         self.assertEqual(calls[-1][calls[-1].index("--task-path") + 1], "demo")
         self.assertEqual((root / relative).read_bytes(), before)
-        events = (root / handoff.LIFECYCLE_RUNTIME / (handoff_id + ".jsonl")).read_text(encoding="utf-8").splitlines()
+        events = handoff._lifecycle_path(root, handoff_id).read_text(encoding="utf-8").splitlines()
         self.assertEqual(sum('"event_type": "ownership_claim"' in line for line in events), 1)
 
 

@@ -47,8 +47,8 @@ The existing path is retained for active references; it does not require a backe
 - core 与 history 视图为只读、确定性序列化的 UTF-8 文本，偏移量按 Unicode
   字符计算。读取范围不修改交接包，也不创建持久游标。接纳收据记录实际读取的
   历史范围；结构校验不代表代理已语义阅读。
-- 当前入口拒绝旧 schema。普通文件工具可以检查旧资产，但不得迁移旧包或沿用旧
-  生命周期、接纳语义。
+- 当前接纳和所有权写入仍严格要求 Schema 12。历史存储入口只读识别 Schema
+  4/6/8/9/11，保留原始字节，不升级 schema、不恢复任务权限，也不宣称满足当前接纳。
 - 测试覆盖共享入口拒绝畸形字段、长 Unicode 文本无损分页、收据范围边界和历史
   写入授权门。
 - 再次交接的回归须经过真实 CLI 解析器，将当前代数传入
@@ -62,9 +62,15 @@ The existing path is retained for active references; it does not require a backe
 - 检查解码后的字段值是否命中已知秘密模式；只脱敏历史中的敏感片段或值，请求、
   core 和收据命中则拒绝，并且不得回显可疑内容。测试包括带引号、转义和嵌套的
   JSON、token/xai/Bearer/私钥、普通文字及受控 CLI 错误。检测范围仍是有限的。
-- 归档和恢复先校验 core/history/prompt，再以原子方式整体发布；清除通过目录切换
-  移除整包，收据写入失败时恢复原目录。目标目录含未知资产或归档字节不一致时
-  停止。Trellis 原生任务所有权仍只绑定 core_digest；core 负责绑定其历史文件。
+- 保留操作默认预览，写入必须绑定精确 ID 和新鲜预览摘要。当前包校验
+  core/history/prompt；旧包按原始内容与身份投影限定资格。ZIP 是保留提交点，
+  原始文件、旧收据和关联旧所有权记录均逐项记录 SHA-256；manifest 操作须与
+  保留日志一致。归档保留展开源，清除先提交 intent，再切换目录并逐项退出；
+  失败保留可恢复 ZIP 和精确残留，不宣称成功。恢复不授予当前任务权限。
+- 固定 handoff 锁只保护短存储提交，不跨 Trellis Task CLI。跨 owner 操作先提交
+  本地 intent；不确定结果保留并由原生代数、会话与包身份核对恢复，不重复 CAS。
+  目标目录含未知资产、符号链接或归档字节不一致时停止。Trellis 原生任务
+  所有权仍只绑定 core_digest；core 负责绑定其历史文件。
 
 ---
 

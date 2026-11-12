@@ -19,9 +19,11 @@ description: 用户要求盘点、预览或清理 Pennix 工作流组件产生�
 ## 入口归属
 
 - Trellis Teamwork：先读取当前 `trellis teamwork --help` 与项目 Skill，由当前原生资源入口核验活动 session、assignment、进程及报告保留要求；不调用已退役的 channel 命令，不猜造 prune 子命令或自行删除运行目录。
+- Trellis 任务运行资产：使用当前项目 `task.py runtime` 默认预览，再按对应 digest 确认已获批对象；固定同步锚点、有效 Task/continuity/ownership、恢复记录及未知字段保留。任务 complete/cancel 不授予删除历史权限；终态 delegate-inspect 是历史只读，不重开任务。
+- 正式交接历史：使用 `pennix-session-handoff` 的 inspect/read/retention；先核验完整字节、历史和当前依赖，再分别预览 archive 与 purge。ID 加新 digest 才变更，archive 只建立无损 ZIP，不自动退出源。旧 lifecycle/ownership 归此 owner 按 ID 保真迁移，不能让 Task runtime 跨 owner 删除；缺失旧 prompt 或旧 schema 不等于整包垃圾，restore/reopen 不恢复接管权限。
 - Trellis 资产备份：使用 `trellis backup list` 盘点，`inspect`／`verify` 分别核验选定完整快照；`trellis backup prune --keep 3` 默认预览，已有明确授权后再带 `--yes`。日常至少保留三个完整快照，不自动 TTL。用户明确要求全部移除时使用 `--all`；包括已确认归属的旧更新快照和受管迁移单文件备份时再带 `--include-legacy`。执行前重新核对预览与实际状态，报告成功、保留、失败、文件数和字节；未知、损坏、不完整和未解决恢复对象分别报告并保护，不能按名称强删。备份内容与源任务、会话及 ablation 恢复事务是不同对象。
 - Grok Search 输出：使用 owner 的 `grok-search prune`；默认预览，确认后才带 `--yes`。遵守 TTL、总字节数、文件数和活动写入保护。
-- Context Mode：使用 `ctx_purge` 明确声明 session/project 范围与确认；只清当前核验数据根，普通卸载保留数据。自动派生会话数据遵守组件的 30 天活动保留合同，不直接删数据库或目录。
+- Context Mode：使用 `ctx_purge` 明确声明当前工具支持的 session/source/project 精确范围；普通卸载保留数据。复用 owner 当前版本的空闲维护、内容预算和活动保护，不从旧任务推定统一保留期限，不直接删数据库或目录。
 - 其他服务、Docker、系统包管理器、思源笔记、Hikari、NAS 或远程主机：只有在该 owner 已提供并被当前任务允许的原生清理入口时才继续；否则只报告证据门，不猜测或代为删除。
 - `pennix-skills`、`pennix-skills-extra` 及其他工作流组件的安装集合：使用 `pennix status|check|uninstall`。未知目录、漂移集合和无法证明 owner 的内容不授予删除权限，其他集合仍遵守自身入口。
 

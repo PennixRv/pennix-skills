@@ -113,7 +113,7 @@ def _render_document(root: Path, relative: str, payload: Mapping[str, Any]) -> s
         "4. 运行 `$trellis-start`，再将捕获的任务、Git 状态、证据和 pending action 与当前事实比较。",
         "5. 初次接纳期间不要调用 `task.py start` 或 claim 归属，也不要从此快照关闭任务。核心视图缺页、输出截断或中断时不得声明已读；完整的必读和协调序列结束前不要记录接纳。",
         "6. 后续用户指令授权继续此任务时，先依次执行归属 `claim` 和 `consume`；两者只完成当前直接目标会话的任务归属变更，不推进阶段。随后使用 `$trellis-continue` 按实际分类和阶段继续。只读 `analysis_only` 研究保持 planning，不调用 `task.py start`；变更工作只有在当前阶段授权与接受门禁满足时才开始；已经运行的工作恢复其检查点。",
-        "7. 任务推进和收尾按 Trellis 当前生命周期处理：`$trellis-delivery-review-and-closeout` 核验后使用原生 `complete` 或 `cancel`；`$trellis-finish-work` 仅记录进展。如需保留交接包，再单独按用户要求执行 `retention archive`。",
+        "7. 任务推进和收尾按 Trellis 当前生命周期处理：`$trellis-delivery-review-and-closeout` 核验后使用原生 `complete` 或 `cancel`；`$trellis-finish-work` 仅记录进展。历史封存按已有清理授权先预览 `retention archive`，核对具体 ID 和当前 digest 后才确认；归档保留源，purge 是独立批准的源退出，restore/reopen 不恢复接管权限。",
         "8. 协调后停止。没有后续用户指令时，不执行 pending next action，也不开始实施。",
         "9. 当前用户指令、Trellis、Issue 状态、Git 和当前文件是更高优先级事实。", "",
         "## 已核验项目快照", "", "- 任务：%s" % task_text,

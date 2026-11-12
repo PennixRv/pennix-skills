@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -13,6 +14,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import zipfile
 from datetime import datetime, timezone
 from contextlib import contextmanager
 from pathlib import Path
@@ -24,6 +26,7 @@ from workflow_contracts import (  # noqa: E402
     load_json_file, safe_id, validate_attestation,
     validate_observation,
 )
+import handoff_storage as storage  # noqa: E402
 
 
 SCHEMA_VERSION = 12
@@ -917,10 +920,49 @@ def _history_page(path: Path, offset: int, length: int) -> str:
     return "".join(pieces)
 
 
+def _text_page(path: Path, offset: int, length: int) -> tuple[str, int]:
+    _regular_file(path, "handoff text view")
+    total, parts = 0, []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        for chunk in iter(lambda: handle.read(64 * 1024), ""):
+            if total + len(chunk) > offset and total < offset + length:
+                parts.append(chunk[max(0, offset - total):max(0, offset + length - total)])
+            total += len(chunk)
+    if offset > total:
+        raise ContractError("read offset exceeds view length")
+    return "".join(parts), total
+
+
 def read_view(root: Path, handoff_path: str, view: str, offset: int, length: int, event_index: Optional[int] = None) -> Dict[str, Any]:
-    handoff_id, core, payload = _core(root, handoff_path)
+    handoff_id, _ = _destination(root, handoff_path=handoff_path)
+    with storage.open_package(root, handoff_id) as (directory, kind):
+        return _read_package_view(root, handoff_id, directory, kind, view, offset, length, event_index)
+
+
+def _read_package_view(root: Path, handoff_id: str, directory: Path, kind: str, view: str, offset: int, length: int, event_index: Optional[int]) -> Dict[str, Any]:
     _integer(offset, "read offset")
     _integer(length, "read length", 1)
+    core = directory / HANDOFF_NAME
+    identity = storage.historical_identity(core)
+    version = identity.get("schema_version")
+    if identity.get("handoff_id") != handoff_id or identity.get("kind") != KIND or not isinstance(identity.get("project"), dict) or identity["project"].get("name") != root.name:
+        raise ContractError("historical package identity differs")
+    historical = version != SCHEMA_VERSION
+    if historical:
+        if version not in {4, 6, 8, 9, 11}:
+            raise ContractError("historical schema is unknown; inspect original asset without admission")
+        if event_index is not None or view not in {"core", "history", "prompt"}:
+            raise ContractError("historical original view has no candidate index")
+        file = directory / "session-handoff-prompt.md" if view == "prompt" else core if view == "core" or not (directory / HISTORY_NAME).exists() else directory / HISTORY_NAME
+        text, total = _text_page(file, offset, length)
+        return {"handoff_id": handoff_id, "view": view, "event_index": None, "offset": offset, "next_offset": min(offset + length, total), "total_chars": total, "complete": offset + length >= total, "text": text, "storage_kind": kind, "schema_version": version, "qualification": "historical_original_readonly", "admission_eligible": False}
+    payload = load_json_file(core)
+    validate(root, payload, handoff_id, core.with_name(HISTORY_NAME))
+    if view == "prompt" and event_index is None:
+        text, total = _text_page(directory / "session-handoff-prompt.md", offset, length)
+        if contains_secret(text):
+            raise ContractError("paired handoff prompt contains a possible credential")
+        return {"handoff_id": handoff_id, "view": view, "event_index": None, "offset": offset, "next_offset": min(offset + length, total), "total_chars": total, "complete": offset + length >= total, "text": text, "storage_kind": kind}
     content = None
     if view == "core" and event_index is None:
         content = _json_view(payload)
@@ -934,7 +976,7 @@ def read_view(root: Path, handoff_path: str, view: str, offset: int, length: int
         raise ContractError("read offset exceeds view length")
     end = min(offset + length, total)
     text = content[offset:end] if content is not None else _history_page(core.with_name(HISTORY_NAME), offset, length)
-    return {"handoff_id": handoff_id, "view": view, "event_index": event_index, "offset": offset, "next_offset": end, "total_chars": total, "complete": end == total, "text": text}
+    return {"handoff_id": handoff_id, "view": view, "event_index": event_index, "offset": offset, "next_offset": end, "total_chars": total, "complete": end == total, "text": text, "storage_kind": kind}
 
 
 def _validate_history_reading(root: Path, payload: Dict[str, Any], attestation: Dict[str, Any]) -> None:
@@ -1004,7 +1046,23 @@ def _lifecycle_path(root: Path, handoff_id: str) -> Path:
     for path in (runtime, base):
         if path.is_symlink():
             raise ContractError("handoff lifecycle directory is unsafe")
-    return base / (handoff_id + ".jsonl")
+    legacy = base / (handoff_id + ".jsonl")
+    canonical = storage.package_directory(root, handoff_id) / storage.LIFECYCLE
+    if canonical.exists():
+        if legacy.exists() and not _receipt_prefix(legacy, canonical):
+            raise ContractError("handoff lifecycle copies diverge; inspect exact package")
+        return canonical
+    return legacy if legacy.exists() else canonical
+
+
+def _receipt_prefix(prefix: Path, full: Path) -> bool:
+    _regular_file(prefix, "lifecycle prefix")
+    _regular_file(full, "lifecycle copy")
+    with prefix.open("rb") as left, full.open("rb") as right:
+        for chunk in iter(lambda: left.read(storage.CHUNK), b""):
+            if right.read(len(chunk)) != chunk:
+                return False
+    return True
 
 
 def _archive_path(root: Path, handoff_id: str) -> Path:
@@ -1030,12 +1088,18 @@ def _core(root: Path, handoff_path: str, *, mutable: bool = False) -> tuple[str,
         raise ContractError("handoff core is not ready")
     if mutable:
         _require_current(payload)
+        if storage.zip_path(root, handoff_id).exists():
+            raise ContractError("archived handoff cannot change admission or task ownership; use a new handoff")
     return handoff_id, destination, payload
 
 
 def _read_paired_prompt(root: Path, handoff_path: str) -> None:
     _, core = _destination(root, handoff_path=handoff_path)
-    prompt = _regular_file(core.with_name("session-handoff-prompt.md"), "paired handoff prompt")
+    _read_paired_prompt_directory(core.parent)
+
+
+def _read_paired_prompt_directory(directory: Path) -> None:
+    prompt = _regular_file(directory / "session-handoff-prompt.md", "paired handoff prompt")
     try:
         if contains_secret(prompt.read_text(encoding="utf-8")):
             raise ContractError("paired handoff prompt contains a possible credential")
@@ -1260,20 +1324,54 @@ def _source_task_ready(payload: Dict[str, Any], events: list[Dict[str, Any]]) ->
     )
 
 
+def _read_ownership_intent(path: Path, handoff_id: str) -> Optional[dict]:
+    if not path.exists():
+        return None
+    _regular_file(path, "ownership operation intent")
+    if path.stat().st_size > 64 * 1024:
+        raise ContractError("ownership operation intent exceeds budget")
+    value = load_json_file(path)
+    required = {"schema_version", "kind", "handoff_id", "operation", "session", "package_digest", "expected_generation", "expected_continuity_digest", "native_before_digest", "receipt_fingerprint"}
+    if set(value) != required or type(value["schema_version"]) is not int or value["schema_version"] != 1 or value["kind"] != "pennix-handoff-ownership-intent" or value["handoff_id"] != handoff_id:
+        raise ContractError("ownership operation intent identity is invalid")
+    if value["operation"] not in {"quiesce", "seal", "retire", "claim", "consume", "release"}:
+        raise ContractError("ownership operation intent action is invalid")
+    safe_id(value["session"], "ownership operation session")
+    _integer(value["expected_generation"], "ownership intent generation")
+    for key in ("package_digest", "native_before_digest", "expected_continuity_digest"):
+        if key == "expected_continuity_digest" and value[key] is None:
+            continue
+        if not isinstance(value[key], str) or not re.fullmatch(r"[a-f0-9]{64}", value[key]):
+            raise ContractError("ownership operation intent digest is invalid")
+    record = value["receipt_fingerprint"]
+    if not isinstance(record, list) or len(record) != 5 or not all(type(part) is int for part in record):
+        raise ContractError("ownership operation receipt identity is invalid")
+    return value
+
+
 def _append_event(
+    root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str],
+    *, cr_observation: Optional[Dict[str, Any]] = None, operation_intent: Optional[dict] = None,
+) -> dict[str, Any]:
+    with storage.lock(root):
+        _regular_file(storage.package_directory(root, handoff_id) / HANDOFF_NAME, "lifecycle package")
+        if storage.zip_path(root, handoff_id).exists():
+            raise ContractError("handoff is archived; retention does not restore admission authority")
+        intent_path = storage.package_directory(root, handoff_id) / storage.OWNERSHIP_INTENT
+        observed = _read_ownership_intent(intent_path, handoff_id)
+        if observed != operation_intent:
+            raise ContractError("handoff ownership operation is pending or its identity changed")
+        return _append_event_locked(root, handoff_id, event_type, desired, evidence_refs, cr_observation=cr_observation)
+
+
+def _append_event_locked(
     root: Path, handoff_id: str, event_type: str, desired: dict[str, str], evidence_refs: list[str],
     *, cr_observation: Optional[Dict[str, Any]] = None,
 ) -> dict[str, Any]:
     path = _lifecycle_path(root, handoff_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)
-    # ponytail: one per-handoff advisory lock; upgrade to a lock service only if concurrent writers become measurable.
     with path.open("a+", encoding="utf-8") as handle:
-        try:
-            import fcntl
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        except (ImportError, OSError) as exc:
-            raise ContractError("lifecycle lock unavailable") from exc
         handle.seek(0)
         events = _read_events(path, handoff_id)
         current = _state(events)
@@ -1363,6 +1461,7 @@ def _ownership_call(
     package_digest: str, expected_generation: Optional[int], *, explicit: bool,
     expected_continuity_digest: Optional[str] = None,
     include_current: bool = False,
+    bind_package: bool = True,
 ) -> dict[str, Any]:
     script = _regular_file(root / ".trellis/scripts/task.py", "task.py")
     # The immutable package keeps its captured path; Trellis resolves moved tasks.
@@ -1370,8 +1469,9 @@ def _ownership_call(
     command = [
         sys.executable, str(script), "transfer", operation,
         "--task-id", task_id, "--task-path", task_ref,
-        "--package-id", handoff_id, "--package-digest", package_digest,
     ]
+    if bind_package:
+        command += ["--package-id", handoff_id, "--package-digest", package_digest]
     if expected_generation is not None:
         command += ["--expected-generation", str(expected_generation)]
     if expected_continuity_digest is not None:
@@ -1399,7 +1499,7 @@ def _ownership_call(
     return value
 
 
-def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[str, Any]) -> dict[str, Any]:
+def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[str, Any], *, intent: Optional[dict] = None) -> dict[str, Any]:
     events = _read_events(_lifecycle_path(root, handoff_id), handoff_id)
     if not events:
         raise ContractError("handoff lifecycle is not prepared")
@@ -1408,10 +1508,14 @@ def _ownership_event(root: Path, handoff_id: str, operation: str, result: dict[s
         "ownership_status=" + _text(result.get("status"), "ownership.status"),
         "ownership_generation=" + str(result.get("generation")),
     ]
+    if intent is not None:
+        refs += ["operation_intent=" + storage.digest(intent), "operation_session=" + intent["session"], "expected_generation=" + str(intent["expected_generation"]), "package_digest=" + intent["package_digest"]]
+        if intent["expected_continuity_digest"] is not None:
+            refs.append("expected_continuity_digest=" + intent["expected_continuity_digest"])
     receipt = _append_event(
         root, handoff_id, "ownership_" + operation,
         {"source": state["source"], "target": state["target"], "retention": state["retention"]},
-        refs,
+        refs, operation_intent=intent,
     )
     return {"ownership": result, "lifecycle": receipt}
 
@@ -1428,7 +1532,8 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
     package_digest = _ownership_core_digest(core).removeprefix("sha256:")
     if operation == "status":
         result = _ownership_call(root, operation, task_id, task_path, handoff_id, package_digest, None, explicit=False, include_current=include_current)
-        return {"handoff_id": handoff_id, "ownership": result}
+        intent_path = core.parent / storage.OWNERSHIP_INTENT
+        return {"handoff_id": handoff_id, "ownership": result, "pending_operation": _read_ownership_intent(intent_path, handoff_id)}
     if not explicit:
         raise ContractError("ownership writes require --explicit-user-request")
     if operation not in {"quiesce", "seal", "retire", "claim", "consume", "release"}:
@@ -1439,6 +1544,7 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
     generation = 0 if operation == "quiesce" and expected_generation is None else expected_generation
     if generation is None:
         raise ContractError("expected ownership generation is required")
+    _integer(generation, "expected ownership generation")
     if operation == "quiesce":
         current = _task_current(root).get("current_task")
         if not isinstance(current, dict) or current.get("id") != task_id or current.get("dir") != task_path:
@@ -1449,6 +1555,7 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
         _ownership_gate(root, _prepared_mode(events), _state(events), archive_observation or "not_required")
     captured = payload["work_context"]["task"]["continuity"]["source_digest"]
     recovering_pointer = False
+    previous = None
     if operation in {"claim", "retire"}:
         previous = _ownership_call(root, "status", task_id, task_path, handoff_id, package_digest, None, explicit=False)
         if captured is not None and previous.get("continuity_digest") != captured:
@@ -1460,156 +1567,108 @@ def ownership_operation(root: Path, operation: str, handoff_path: str, *, explic
             and previous.get("generation") == generation
             and previous.get(identity_field) == _direct_session_id(root)
         )
-    result = _ownership_call(
-        root, operation, task_id, task_path, handoff_id, package_digest, generation,
-        explicit=True,
-        expected_continuity_digest=captured if operation == "quiesce" else expected_continuity_digest,
-    )
+    if previous is None:
+        previous = _ownership_call(root, "status", task_id, task_path, handoff_id, package_digest, None, explicit=False)
+    receipt_path = _lifecycle_path(root, handoff_id)
+    _regular_file(receipt_path, "prepared lifecycle receipt")
+    receipt_fingerprint = storage.fingerprint(receipt_path, content=False)
+    if not _read_events(receipt_path, handoff_id):
+        raise ContractError("handoff lifecycle is not prepared")
+    core_fingerprint = storage.fingerprint(core, content=False)
+    intent_path = core.parent / storage.OWNERSHIP_INTENT
+    request_identity = {"schema_version": 1, "kind": "pennix-handoff-ownership-intent", "handoff_id": handoff_id, "operation": operation, "session": _direct_session_id(root), "package_digest": package_digest, "expected_generation": generation, "expected_continuity_digest": captured if operation == "quiesce" else expected_continuity_digest}
+    pending = _read_ownership_intent(intent_path, handoff_id)
+    if pending and {key: pending.get(key) for key in request_identity} != request_identity:
+        # Only native recovery evidence can fence a different session's unfinished claim.
+        recovered = (
+            pending["operation"] == "claim"
+            and previous.get("package_id") == handoff_id and previous.get("package_digest") == pending["package_digest"]
+            and type(previous.get("generation")) is int and previous["generation"] > pending["expected_generation"] + 1
+            and any(isinstance(item, dict) and item.get("target_session_id") == pending["session"] and item.get("generation") == pending["expected_generation"] + 1 for item in previous.get("recovery_history", []))
+        )
+        if recovered:
+            _ownership_event(root, handoff_id, "recovered_observation", previous, intent=pending)
+            with storage.lock(root):
+                if _read_ownership_intent(intent_path, handoff_id) != pending:
+                    raise ContractError("handoff recovery intent changed")
+                intent_path.unlink()
+                storage.fsync_directory(core.parent)
+            receipt_fingerprint = storage.fingerprint(receipt_path, content=False)
+    resuming_intent = False
+    with storage.lock(root):
+        if storage.zip_path(root, handoff_id).exists() or storage.fingerprint(core, content=False) != core_fingerprint or storage.fingerprint(receipt_path, content=False) != receipt_fingerprint:
+            raise ContractError("handoff source changed before native ownership operation")
+        if intent_path.exists():
+            intent = _read_ownership_intent(intent_path, handoff_id)
+            if {key: intent.get(key) for key in request_identity} != request_identity:
+                raise ContractError("another handoff ownership operation requires recovery")
+            resuming_intent = True
+        else:
+            intent = {**request_identity, "native_before_digest": storage.digest(previous), "receipt_fingerprint": receipt_fingerprint}
+            storage.atomic_record(intent_path, intent)
+    try:
+        completed_states = {"quiesce": "quiescing", "seal": "sealed", "retire": "ready", "claim": "claimed", "consume": "consumed"}
+        actor_field = "target_session_id" if operation in {"claim", "consume"} else "source_session_id"
+        completed = (
+            resuming_intent and previous.get("status") == completed_states.get(operation)
+            and previous.get("generation") == generation + (0 if recovering_pointer else 1)
+            and previous.get("package_id") == handoff_id and previous.get("package_digest") == package_digest
+            and previous.get(actor_field) == intent["session"]
+            and (intent["expected_continuity_digest"] is None or previous.get("target_continuity_digest", previous.get("continuity_digest")) == intent["expected_continuity_digest"])
+        )
+        if resuming_intent and operation == "release" and previous.get("status") == "absent":
+            current = _task_current(root)
+            selected = current.get("current_task")
+            if current.get("source") != "session:" + intent["session"] or not isinstance(selected, dict) or selected.get("id") != task_id or selected.get("dir") != task_path:
+                raise ContractError("release recovery requires the source's direct native task pointer")
+            result = {"status": "release_observed", "generation": generation, "task_id": task_id, "observation": "native ownership absent; direct source task pointer present"}
+        elif completed:
+            result = previous
+        else:
+            result = _ownership_call(
+                root, operation, task_id, task_path, handoff_id, package_digest, generation,
+                explicit=True,
+                expected_continuity_digest=captured if operation == "quiesce" else expected_continuity_digest,
+            )
+    except ContractError:
+        try:
+            unchanged = storage.digest(_ownership_call(root, "status", task_id, task_path, handoff_id, package_digest, None, explicit=False)) == intent["native_before_digest"]
+            with storage.lock(root):
+                if unchanged and _read_ownership_intent(intent_path, handoff_id) == intent and storage.fingerprint(receipt_path, content=False) == intent["receipt_fingerprint"]:
+                    intent_path.unlink()
+                    storage.fsync_directory(core.parent)
+        except (ContractError, OSError):
+            pass
+        raise
     if operation != "release" and result.get("generation") != generation + (0 if recovering_pointer else 1):
         raise ContractError("Trellis task transfer returned an unexpected generation")
-    receipt = _ownership_event(root, handoff_id, operation, result)
+    receipt = _ownership_event(root, handoff_id, operation, result, intent=intent)
     if operation == "seal" and result.get("status") == "sealed":
         state = _state(_read_events(_lifecycle_path(root, handoff_id), handoff_id))
         receipt["boundary"] = _append_event(
             root, handoff_id, "boundary_sealed",
             {"source": "boundary_sealed", "target": state["target"], "retention": state["retention"]},
             ["trellis_seal=" + handoff_id],
+            operation_intent=intent,
         )
+    with storage.lock(root):
+        if _read_ownership_intent(intent_path, handoff_id) != intent:
+            raise ContractError("handoff ownership intent changed before completion")
+        intent_path.unlink()
+        storage.fsync_directory(core.parent)
     return {"handoff_id": handoff_id, **receipt}
 
 
-def _archive_snapshot(root: Path, archive: Path, handoff_id: str) -> list[str]:
-    if not archive.is_dir() or archive.is_symlink():
-        raise ContractError("handoff archive is unavailable")
-    names = {path.name for path in archive.iterdir()}
-    if names != {HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"}:
-        raise ContractError("handoff archive must contain core/history/prompt")
-    core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
-    payload = load_json_file(core)
-    _validate_payload_shape(root, payload, handoff_id, core.with_name(HISTORY_NAME))
-    refs = ["archive=" + handoff_id]
-    prompt = _regular_file(archive / "session-handoff-prompt.md", "archived prompt")
-    try:
-        if contains_secret(prompt.read_text(encoding="utf-8")):
-            raise ContractError("archived prompt contains a possible credential")
-    except (OSError, UnicodeError) as exc:
-        raise ContractError("archived prompt is unreadable") from exc
-    return refs
 
 
-def _archive_copy(root: Path, handoff_id: str, core: Path) -> list[str]:
-    archive = _archive_path(root, handoff_id)
-    if archive.exists():
-        refs = _archive_snapshot(root, archive, handoff_id)
-        for name in (HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"):
-            _regular_file(core.with_name(name), "canonical archive asset")
-            if _ownership_core_digest(core.with_name(name)) != _ownership_core_digest(archive / name):
-                raise ContractError("existing archive differs from canonical package")
-        return refs
-    parent = archive.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    os.chmod(parent, 0o700)
-    temporary = Path(tempfile.mkdtemp(prefix="." + handoff_id + ".", dir=parent))
-    try:
-        os.chmod(temporary, 0o700)
-        shutil.copyfile(core, temporary / HANDOFF_NAME)
-        os.chmod(temporary / HANDOFF_NAME, 0o600)
-        history = _regular_file(core.with_name(HISTORY_NAME), "handoff history")
-        shutil.copyfile(history, temporary / HISTORY_NAME)
-        os.chmod(temporary / HISTORY_NAME, 0o600)
-        prompt = _regular_file(core.parent / "session-handoff-prompt.md", "handoff prompt")
-        shutil.copyfile(prompt, temporary / "session-handoff-prompt.md")
-        os.chmod(temporary / "session-handoff-prompt.md", 0o600)
-        _archive_snapshot(root, temporary, handoff_id)
-        for name in (HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"):
-            with (temporary / name).open("rb") as handle:
-                os.fsync(handle.fileno())
-        directory_fd = os.open(temporary, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-        os.replace(temporary, archive)
-        directory_fd = os.open(parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-    except Exception:
-        shutil.rmtree(temporary, ignore_errors=True)
-        raise
-    return _archive_snapshot(root, archive, handoff_id)
 
 
-def _restore_copy(source: Path, destination: Path) -> None:
-    _regular_file(source, "archived restore source")
-    temporary: Optional[Path] = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as handle:
-            temporary = Path(handle.name)
-        shutil.copyfile(source, temporary)
-        os.chmod(temporary, 0o600)
-        with temporary.open("rb") as handle:
-            os.fsync(handle.fileno())
-        os.replace(temporary, destination)
-        directory_fd = os.open(destination.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-    except Exception:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-        raise
 
 
-def _restore_package(root: Path, archive: Path, destination: Path, handoff_id: str) -> None:
-    names = {HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"}
-    if destination.exists():
-        if destination.is_symlink() or not destination.is_dir() or {p.name for p in destination.iterdir()} - names:
-            raise ContractError("restore destination contains unknown assets")
-        for item in destination.iterdir():
-            _regular_file(item, "existing restore asset")
-            if _ownership_core_digest(item) != _ownership_core_digest(archive / item.name):
-                raise ContractError("restore destination differs from archive")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix="." + handoff_id + ".restore-", dir=destination.parent))
-    backup = None
-    try:
-        for name in names:
-            _restore_copy(archive / name, temporary / name)
-        _archive_snapshot(root, temporary, handoff_id)
-        if destination.exists():
-            backup = Path(tempfile.mkdtemp(prefix="." + handoff_id + ".backup-", dir=destination.parent))
-            backup.rmdir()
-            os.rename(destination, backup)
-        try:
-            os.rename(temporary, destination)
-            directory_fd = os.open(destination.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
-        except Exception:
-            try:
-                if destination.exists():
-                    shutil.rmtree(destination)
-                if backup is not None:
-                    os.rename(backup, destination)
-                    backup = None
-            except Exception as rollback_error:
-                preserved = backup
-                backup = None
-                raise ContractError("restore rollback failed; previous package preserved at %s" % preserved) from rollback_error
-            raise
-    finally:
-        shutil.rmtree(temporary, ignore_errors=True)
-        if backup is not None:
-            shutil.rmtree(backup, ignore_errors=True)
 
 
 def _lifecycle_result(operation: str, handoff_id: str, result: dict[str, Any]) -> None:
-    emit(operation, result["status"], handoff_id=handoff_id, **{key: value for key, value in result.items() if key != "status"})
+    emit(operation, result["status"], handoff_id=handoff_id, **{key: value for key, value in result.items() if key not in {"status", "handoff_id"}})
 
 
 def lifecycle_prepare(root: Path, handoff_path: str, mode: str) -> tuple[str, dict[str, Any]]:
@@ -1707,82 +1766,431 @@ def lifecycle_admit(root: Path, handoff_path: str, attestation_path: str) -> tup
     return handoff_id, result
 
 
-def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation: str) -> tuple[str, dict[str, Any]]:
-    handoff_id, core_path = _destination(root, handoff_path=handoff_path)
-    if confirmation != handoff_id:
-        raise ContractError("exact handoff id confirmation is required")
-    if action == "restore":
-        archive = _archive_path(root, handoff_id)
-        archived_core = _regular_file(archive / HANDOFF_NAME, "archived handoff")
-        archived_payload = load_json_file(archived_core)
-        _validate_payload_shape(root, archived_payload, handoff_id, archive / HISTORY_NAME)
-        _require_current(archived_payload)
-        core = core_path
-    else:
-        handoff_id, core, _ = _core(root, handoff_path, mutable=True)
-    receipt = _lifecycle_path(root, handoff_id)
-    events = _read_events(receipt, handoff_id)
+def _retention_observation(root: Path, identifier: str, core: Path, identity: dict) -> dict:
+    context = identity.get("work_context")
+    if not isinstance(context, dict) or "task" not in context:
+        raise ContractError("historical task association is unknown")
+    if context["task"] is None:
+        return {"status": "not_applicable"}
+    task_id, task_path = _ownership_task(identity)
+    return _ownership_call(root, "status", task_id, task_path, identifier, _ownership_core_digest(core).removeprefix("sha256:"), None, explicit=False, include_current=True, bind_package=False)
+
+
+def inspect_handoff(root: Path, handoff_path: str) -> dict:
+    identifier, _ = _destination(root, handoff_path=handoff_path)
+    with storage.open_package(root, identifier) as (directory, kind):
+        core = directory / HANDOFF_NAME
+        identity = storage.historical_identity(core)
+        if identity.get("handoff_id") != identifier or identity.get("kind") != KIND:
+            raise ContractError("historical package identity differs")
+        project = identity.get("project")
+        if not isinstance(project, dict) or project.get("name") != root.name:
+            raise ContractError("historical project association differs")
+        version = identity.get("schema_version")
+        current = type(version) is int and version == SCHEMA_VERSION
+        if current:
+            validate(root, load_json_file(core), identifier, directory / HISTORY_NAME)
+        elif type(version) is not int or version not in {4, 6, 8, 9, 11}:
+            raise ContractError("historical schema is unknown")
+        receipt = directory / storage.LIFECYCLE
+        if not receipt.exists():
+            receipt = _lifecycle_path(root, identifier)
+        historical: dict = {"status": "absent"}
+        blockers = []
+        intent_path = directory / storage.OWNERSHIP_INTENT
+        pending_operation = _read_ownership_intent(intent_path, identifier)
+        if pending_operation is not None:
+            blockers.append("A handoff ownership operation has unresolved local intent")
+        try:
+            events = _read_events(receipt, identifier)
+            if events:
+                state = _state(events)
+                historical = {"status": "recorded", "state": state}
+                if current and (state["source"] != "boundary_sealed" or state["target"] != "reconciled" or state["retention"] not in {"archive_eligible", "archived", "retained", "restored", "reopened", "purged"}):
+                    blockers.append("Current handoff has incomplete boundary/consumption")
+            elif current:
+                blockers.append("Current handoff has no committed lifecycle evidence")
+        except ContractError:
+            if current:
+                raise
+            historical = {"status": "historical_original_uninterpreted"}
+        try:
+            observation = _retention_observation(root, identifier, core, identity)
+            if observation.get("package_id", identifier) == identifier and observation.get("status") not in {"absent", "consumed", "released", "not_applicable"}:
+                blockers.append("This handoff still has a pending native ownership operation")
+        except ContractError as exc:
+            observation = {"status": "unknown", "reason": str(exc)}
+            blockers.append("Cannot verify current task ownership/recovery dependencies")
+        if current and not (directory / "session-handoff-prompt.md").is_file():
+            blockers.append("Current handoff paired prompt is missing")
+        elif current:
+            _read_paired_prompt_directory(directory)
+        return {
+            "handoff_id": identifier, "storage_integrity": {"status": "verified", "kind": kind, "schema_version": version, "level": "current_schema" if current else "original_bytes_and_identity_projection"},
+            "historical_lifecycle": historical,
+            "current_admission": {"status": "requires_native_current_checks" if current and kind == "plain" else "not_applicable", "restores_authority": False},
+            "current_task_observation": observation,
+            "qualification": {"kind": "current_lifecycle" if current else "historical_readonly", "basis": ["original identity", "native current ownership observation", "exact retention approval"], "eligible": not blockers},
+            "blockers": blockers,
+            "storage_operation": storage.last_operation(directory / storage.JOURNAL, identifier),
+            "pending_operation": pending_operation,
+            "missing": sorted(storage.PRIMARY - {member.name for member in directory.iterdir()}),
+        }
+
+
+def _storage_event(path: Path, identifier: str, action: str, retention: str, content_digest: str) -> None:
+    events = _read_events(path, identifier)
     state = _state(events)
-    if action == "archive":
-        if state["retention"] == "archived":
-            _archive_copy(root, handoff_id, core)
-            return handoff_id, {"status": "idempotent", "state": state}
-        if state["retention"] != "archive_eligible":
-            raise ContractError("handoff is not archive eligible")
-        refs = _archive_copy(root, handoff_id, core)
-        result = _append_event(root, handoff_id, "archive", {"source": state["source"], "target": state["target"], "retention": "archived"}, refs)
-    elif action == "restore":
-        archive = _archive_path(root, handoff_id)
-        refs = _archive_snapshot(root, archive, handoff_id)
-        _restore_package(root, archive, core.parent, handoff_id)
-        result = _append_event(root, handoff_id, "restore", {"source": state["source"], "target": state["target"], "retention": "restored"}, refs)
-    elif action == "reopen":
-        if state["retention"] not in {"archived", "retained", "restored"}:
-            raise ContractError("handoff is not reopenable")
-        refs = _archive_copy(root, handoff_id, core)
-        result = _append_event(root, handoff_id, "reopen", {"source": state["source"], "target": state["target"], "retention": "reopened"}, refs)
-    elif action == "purge":
-        if state["retention"] not in {"archived", "retained", "restored", "reopened"}:
-            raise ContractError("handoff is not purgeable")
-        refs = _archive_copy(root, handoff_id, core)
-        if {p.name for p in core.parent.iterdir()} != {HANDOFF_NAME, HISTORY_NAME, "session-handoff-prompt.md"}:
-            raise ContractError("purge package contains unknown assets")
-        _append_event(root, handoff_id, "purge_intent", {"source": state["source"], "target": state["target"], "retention": state["retention"]}, refs)
-        removed = Path(tempfile.mkdtemp(prefix="." + handoff_id + ".purge-", dir=core.parent.parent))
-        removed.rmdir()
-        os.rename(core.parent, removed)
-        try:
-            directory_fd = os.open(core.parent.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
-        except Exception:
-            os.rename(removed, core.parent)
-            raise
-        try:
-            shutil.rmtree(removed)
-            result = _append_event(root, handoff_id, "purge", {"source": state["source"], "target": state["target"], "retention": "purged"}, refs)
-        except Exception as purge_error:
-            try:
-                _restore_package(root, _archive_path(root, handoff_id), core.parent, handoff_id)
-            except Exception as rollback_error:
-                raise ContractError("purge failed; verified archive retained for recovery") from rollback_error
-            shutil.rmtree(removed, ignore_errors=True)
-            raise ContractError("purge failed; package restored from verified archive") from purge_error
-    else:
+    if not _transition("retention", state["retention"], retention):
+        raise ContractError("retention transition is invalid")
+    event = {
+        "schema_version": LIFECYCLE_SCHEMA_VERSION, "kind": LIFECYCLE_EVENT_KIND,
+        "handoff_id": identifier, "event_type": action,
+        "source_status": state["source"], "target_status": state["target"],
+        "retention_status": retention,
+        "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
+        "actor": LIFECYCLE_ACTOR, "evidence_refs": ["content_sha256=" + content_digest],
+    }
+    _event_shape(event, identifier)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=True, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _retention_members(root: Path, identifier: str, private: Path) -> tuple[dict[str, Path], Optional[dict]]:
+    archive = storage.zip_path(root, identifier)
+    manifest = storage.extract(archive, identifier, private) if archive.exists() else None
+    members = {name: private / name for name in manifest["members"]} if manifest else {}
+    for name, source in storage.sources(root, identifier).items():
+        target = private / name
+        if name in members:
+            if name in storage.CONTROLS:
+                if storage.is_prefix(source, target):
+                    continue
+                if not storage.is_prefix(target, source):
+                    raise ContractError("handoff lifecycle copies diverge")
+            elif storage.fingerprint(source)[-1] != storage.fingerprint(target)[-1]:
+                raise ContractError("existing ZIP differs from original source")
+            else:
+                continue
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        os.chmod(target, 0o600)
+        members[name] = target
+    return members, manifest
+
+
+def _publish_storage(candidate: Path, archive: Path) -> None:
+    os.replace(candidate, archive)
+    storage.fsync_directory(archive.parent)
+
+
+def _purge_tombstone(root: Path, identifier: str, tombstone: Path, approved: list[dict]) -> None:
+    canonical = storage.package_directory(root, identifier)
+    storage.safe_path(root, tombstone)
+    if tombstone.parent != canonical.parent or not re.fullmatch(r"\." + re.escape(identifier) + r"\.purge-[0-9a-f]{16}", tombstone.name):
+        raise ContractError("purge intent tombstone is outside its exact owner scope")
+    if not tombstone.exists():
+        return
+    expected = {Path(item["path"]).relative_to(canonical.relative_to(root)).as_posix(): item["fingerprint"] for item in approved if (root / item["path"]).is_relative_to(canonical)}
+    entries = list(itertools.islice(tombstone.rglob("*"), storage.MAX_MEMBERS * 2 + 1))
+    if len(entries) > storage.MAX_MEMBERS * 2:
+        raise ContractError("purge tombstone member budget exceeded")
+    directories = {parent.as_posix() for name in expected for parent in Path(name).parents if parent != Path(".")}
+    files = []
+    for member in entries:
+        storage.safe_path(root, member)
+        name = member.relative_to(tombstone).as_posix()
+        if member.is_dir():
+            if name not in directories:
+                raise ContractError("purge tombstone contains an unknown directory")
+        elif name not in expected or storage.fingerprint(member, content=False) != expected[name][:5]:
+            raise ContractError("purge tombstone contains changed or unknown evidence")
+        else:
+            files.append(member)
+    with storage.lock(root):
+        for member in files:
+            if storage.fingerprint(member, content=False) != expected[member.relative_to(tombstone).as_posix()][:5]:
+                raise ContractError("purge tombstone changed before unlink")
+            member.unlink()
+        for member in sorted((item for item in entries if item.is_dir()), key=lambda item: len(item.parts), reverse=True):
+            member.rmdir()
+        tombstone.rmdir()
+        storage.fsync_directory(tombstone.parent)
+
+
+def _checked_recovery_sources(root: Path, identifier: str, operation: dict) -> list[dict]:
+    sources = operation.get("sources")
+    if not isinstance(sources, list) or len(sources) > storage.MAX_MEMBERS:
+        raise ContractError("purge intent source set is invalid")
+    archive_path = storage.zip_path(root, identifier)
+    manifest = storage.verify(archive_path, identifier)
+    for item in sources:
+        if not isinstance(item, dict) or set(item) != {"path", "fingerprint"} or not isinstance(item["path"], str):
+            raise ContractError("purge intent source identity is invalid")
+        path = storage.safe_path(root, root / item["path"])
+        relative = path.relative_to(root).parts
+        canonical = storage.package_directory(root, identifier)
+        member = None
+        if path.is_relative_to(canonical):
+            name = path.relative_to(canonical).as_posix()
+            if name in storage.PRIMARY | storage.CONTROLS or name.startswith("legacy/"):
+                member = name
+        elif relative == (".trellis", ".runtime", "handoff-lifecycle", identifier + ".jsonl"):
+            member = "legacy/handoff-lifecycle/" + relative[-1]
+        elif relative[:4] == (".trellis", ".runtime", "handoff-archive", identifier) and len(relative) == 5 and relative[-1] in storage.PRIMARY:
+            member = "legacy/handoff-archive/" + relative[-1]
+        elif relative[:3] == (".trellis", ".runtime", "handoff-ownership") and len(relative) == 5 and relative[-1] == identifier + ".json":
+            member = "legacy/handoff-ownership/" + "/".join(relative[-2:])
+        record = item["fingerprint"]
+        if member not in manifest["members"] or not isinstance(record, list) or len(record) != 6 or not all(type(value) is int for value in record[:5]) or record[2] < 0 or not isinstance(record[-1], str) or not re.fullmatch(r"[a-f0-9]{64}", record[-1]):
+            raise ContractError("purge intent source is outside its exact owner scope")
+        stored = manifest["members"][member]
+        if member not in storage.CONTROLS:
+            if stored["bytes"] != record[2] or stored["sha256"] != record[-1]:
+                raise ContractError("purge source is not preserved by the verified ZIP")
+        else:
+            if record[2] > stored["bytes"]:
+                raise ContractError("purge control prefix exceeds the verified ZIP")
+            hasher, remaining = hashlib.sha256(), record[2]
+            with zipfile.ZipFile(archive_path) as archive, archive.open(member) as handle:
+                while remaining:
+                    chunk = handle.read(min(storage.CHUNK, remaining))
+                    if not chunk:
+                        raise ContractError("purge control prefix is incomplete")
+                    hasher.update(chunk)
+                    remaining -= len(chunk)
+            if hasher.hexdigest() != record[-1]:
+                raise ContractError("purge control source differs from preserved prefix")
+    return sources
+
+
+def _tombstone_observation(root: Path, identifier: str, tombstone: Path) -> dict | None:
+    if tombstone.parent != storage.package_directory(root, identifier).parent or not re.fullmatch(r"\." + re.escape(identifier) + r"\.purge-[0-9a-f]{16}", tombstone.name):
+        raise ContractError("purge observation is outside its exact owner scope")
+    if not tombstone.exists():
+        return None
+    storage.safe_path(root, tombstone)
+    entries = list(itertools.islice(tombstone.rglob("*"), storage.MAX_MEMBERS * 2 + 1))
+    if len(entries) > storage.MAX_MEMBERS * 2:
+        raise ContractError("purge recovery member budget exceeded")
+    result = {}
+    for entry in entries:
+        storage.safe_path(root, entry)
+        result[entry.relative_to(tombstone).as_posix()] = {"kind": "directory"} if entry.is_dir() else storage.fingerprint(entry)
+    return result
+
+
+def lifecycle_retention(root: Path, action: str, handoff_path: str, confirmation: Optional[str] = None, confirm: Optional[str] = None) -> tuple[str, dict[str, Any]]:
+    identifier, core = _destination(root, handoff_path=handoff_path)
+    if action not in {"archive", "purge", "restore", "reopen"}:
         raise ContractError("retention action is unsupported")
-    return handoff_id, result
+    if confirmation is not None and confirmation != identifier:
+        raise ContractError("exact handoff id confirmation differs")
+    inspection = inspect_handoff(root, handoff_path)
+    before = storage.snapshot(root, identifier)
+    archive = storage.zip_path(root, identifier)
+    previous = storage.verify(archive, identifier) if archive.exists() else None
+    blockers = list(inspection["blockers"])
+    if action in {"purge", "restore"} and previous is None:
+        # A unique old archive must first be preserved as the complete ZIP unit.
+        blockers.append("Create and verify the lossless ZIP before source exit or restore")
+    if action == "reopen" and not core.exists():
+        blockers.append("Restore the expanded package before reopening storage")
+    approved_sources = [
+        {"path": path.relative_to(root).as_posix(), "fingerprint": before["files"][name]}
+        for name, path in storage.sources(root, identifier).items()
+    ]
+    approved_sources = list({item["path"]: item for item in approved_sources}.values())
+    preview = {"handoff_id": identifier, "action": action, "inspection": inspection, "snapshot": before, "sources": approved_sources, "target": archive.relative_to(root).as_posix(), "blockers": blockers, "eligible": not blockers, "removes_sources": action == "purge", "restores_authority": False}
+    last_operation = inspection["storage_operation"] or {}
+    restored = last_operation.get("action") == "restore" and last_operation.get("status") == "complete"
+    recovery = previous is not None and previous["operation"].get("action") == "purge" and previous["operation"].get("status") == "intent" and not restored
+    pending_tombstones = last_operation.get("pending_tombstones", []) if restored else []
+    if not isinstance(pending_tombstones, list) or len(pending_tombstones) > storage.MAX_MEMBERS:
+        raise ContractError("pending recovery proof is invalid")
+    if recovery:
+        original_sources = _checked_recovery_sources(root, identifier, previous["operation"])
+        tombstone = storage.safe_path(root, root / previous["operation"].get("tombstone", ""))
+        if tombstone.parent != core.parent.parent or not re.fullmatch(r"\." + re.escape(identifier) + r"\.purge-[0-9a-f]{16}", tombstone.name):
+            raise ContractError("purge recovery tombstone identity is invalid")
+        preview["recovery_intent"] = previous["operation"]
+        preview["tombstone"] = _tombstone_observation(root, identifier, tombstone)
+        if action == "restore" and tombstone.exists():
+            pending_tombstones = [{"path": tombstone.relative_to(root).as_posix(), "sources": original_sources}]
+        if action == "purge":
+            approved_sources = original_sources
+            preview["sources"] = approved_sources
+    if pending_tombstones:
+        preview["pending_tombstones"] = [{**item, "observation": _tombstone_observation(root, identifier, storage.safe_path(root, root / item["path"]))} for item in pending_tombstones]
+    preview_digest = storage.digest(preview)
+    preview.update({"status": "preview", "digest": preview_digest})
+    if confirm is None:
+        return identifier, preview
+    if confirmation != identifier or confirm != preview_digest:
+        raise ContractError("retention preview changed; exact ID and fresh digest are required")
+    if blockers:
+        raise ContractError("retention is protected: " + "; ".join(blockers))
+    base = storage.package_directory(root, identifier).parent
+    base.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="." + identifier + ".retention-", dir=base) as temporary:
+        private = Path(temporary)
+        expanded = private / "package"
+        expanded.mkdir(mode=0o700)
+        members, old = _retention_members(root, identifier, expanded)
+        originals = {name: [storage.fingerprint(path)[2], storage.fingerprint(path)[-1]] for name, path in members.items() if name not in storage.CONTROLS}
+        content_digest = storage.digest(originals)
+        lifecycle = members.get(storage.LIFECYCLE)
+        input_digest = storage.fingerprint(lifecycle)[-1] if lifecycle else None
+        current = inspection["qualification"]["kind"] == "current_lifecycle"
+        operation = {"action": action, "status": "complete", "sources": approved_sources, "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds")}
+        if pending_tombstones:
+            operation["pending_tombstones"] = pending_tombstones
+        candidate = private / "candidate.zip"
+        canonical = storage.package_directory(root, identifier)
+        tombstone = root / old["operation"]["tombstone"] if recovery else base / ("." + identifier + ".purge-" + preview_digest[:16])
+
+        def prepare_zip():
+            journal = expanded / storage.JOURNAL
+            storage.append_operation(journal, identifier, operation)
+            members[storage.JOURNAL] = journal
+            locations = {name: path.relative_to(root).as_posix() for name, path in storage.sources(root, identifier).items()}
+            for name in members:
+                if name not in locations:
+                    locations[name] = old["members"][name]["source"] if old and name in old["members"] else (canonical / name).relative_to(root).as_posix()
+            return storage.write(candidate, identifier, members, root, qualification=inspection["qualification"], operation=operation, input_lifecycle_digest=input_digest, source_locations=locations)
+
+        def prepare_mirrors():
+            mirrors = {}
+            for name in storage.CONTROLS:
+                if name in members:
+                    mirror = private / name
+                    shutil.copyfile(members[name], mirror)
+                    os.chmod(mirror, 0o600)
+                    with mirror.open("rb") as handle:
+                        os.fsync(handle.fileno())
+                    mirrors[name] = mirror
+            return mirrors
+
+        def publish_mirrors(mirrors):
+            for name, mirror in mirrors.items():
+                os.replace(mirror, canonical / name)
+            storage.fsync_directory(canonical)
+
+        def recheck():
+            if _retention_observation(root, identifier, expanded / HANDOFF_NAME, storage.historical_identity(expanded / HANDOFF_NAME)) != inspection["current_task_observation"]:
+                raise ContractError("native task ownership changed after preview")
+
+        if action == "archive" and old is not None:
+            # ZIP publication already committed the archive; repair only its prefix mirror.
+            recheck()
+            mirrors = prepare_mirrors()
+            with storage.lock(root):
+                storage.unchanged(root, identifier, before)
+                if canonical.is_dir():
+                    publish_mirrors(mirrors)
+                storage.fsync_directory(base)
+            return identifier, {"status": "idempotent", "digest": preview_digest, "source_retained": True, "zip_verified": True}
+
+        if action == "restore":
+            if canonical.exists():
+                return identifier, {"status": "idempotent", "source_retained": True, "restores_authority": False}
+            if current and lifecycle:
+                _storage_event(lifecycle, identifier, "restore", "restored", content_digest)
+            storage.append_operation(expanded / storage.JOURNAL, identifier, operation)
+            recheck()
+            # The complete private package includes all raw legacy proof members.
+            for directory, _, _ in os.walk(expanded, topdown=False):
+                storage.fsync_directory(Path(directory))
+            with storage.lock(root):
+                storage.unchanged(root, identifier, before)
+                if canonical.exists():
+                    raise ContractError("restore target appeared after preview")
+                os.rename(expanded, canonical)
+                storage.fsync_directory(base)
+            return identifier, {"status": "recorded", "action": action, "zip_retained": True, "restores_authority": False}
+
+        if action == "reopen":
+            if current and lifecycle:
+                _storage_event(lifecycle, identifier, "reopen", "reopened", content_digest)
+            journal = expanded / storage.JOURNAL
+            storage.append_operation(journal, identifier, operation)
+            members[storage.JOURNAL] = journal
+            recheck()
+            mirrors = prepare_mirrors()
+            with storage.lock(root):
+                storage.unchanged(root, identifier, before)
+                publish_mirrors(mirrors)
+            return identifier, {"status": "recorded", "action": action, "restores_authority": False}
+
+        if action == "archive":
+            if current and lifecycle:
+                _storage_event(lifecycle, identifier, "archive", "archived", content_digest)
+            prepare_zip()
+            mirrors = prepare_mirrors()
+            recheck()
+            with storage.lock(root):
+                storage.unchanged(root, identifier, before)
+                _publish_storage(candidate, archive)
+                if canonical.is_dir():
+                    publish_mirrors(mirrors)
+            return identifier, {"status": "recorded", "action": action, "zip_verified": True, "source_retained": True, "net_released_bytes": 0}
+
+        operation.update({"status": "intent", "tombstone": tombstone.relative_to(root).as_posix(), "content_digest": content_digest})
+        if current and lifecycle and not recovery:
+            _storage_event(lifecycle, identifier, "purge_intent", _state(_read_events(lifecycle, identifier))["retention"], content_digest)
+        prepare_zip()
+        recheck()
+        with storage.lock(root):
+            storage.unchanged(root, identifier, before)
+            if tombstone.exists() and canonical.exists():
+                raise ContractError("purge tombstone already exists; inspect recovery intent")
+            _publish_storage(candidate, archive)
+            if canonical.exists():
+                os.rename(canonical, tombstone)
+                storage.fsync_directory(base)
+        intent_fingerprint = storage.fingerprint(archive)
+        try:
+            for item in pending_tombstones:
+                old_sources = _checked_recovery_sources(root, identifier, {"sources": item["sources"]})
+                _purge_tombstone(root, identifier, root / item["path"], old_sources)
+            if tombstone.exists():
+                _purge_tombstone(root, identifier, tombstone, approved_sources)
+            for item in approved_sources:
+                source = storage.safe_path(root, root / item["path"])
+                if source.is_relative_to(canonical) or not source.exists():
+                    continue
+                if storage.fingerprint(source) != item["fingerprint"]:
+                    raise ContractError("legacy source changed after purge intent; retained")
+                source.unlink()
+                storage.fsync_directory(source.parent)
+            if current and lifecycle:
+                _storage_event(lifecycle, identifier, "purge", "purged", content_digest)
+            operation["status"] = "complete"
+            prepare_zip()
+            with storage.lock(root):
+                if storage.fingerprint(archive, content=False) != intent_fingerprint[:5]:
+                    raise ContractError("purge intent ZIP changed before completion")
+                _publish_storage(candidate, archive)
+        except (Exception, KeyboardInterrupt) as exc:
+            raise ContractError("purge incomplete; verified ZIP and exact intent retained for restore/retry") from exc
+        return identifier, {"status": "recorded", "action": action, "zip_retained": True, "sources_removed": [item["path"] for item in approved_sources], "restores_authority": False}
+
+
 
 
 def lifecycle_status(root: Path, handoff_path: str) -> dict[str, Any]:
     handoff_id, destination = _destination(root, handoff_path=handoff_path)
+    if storage.zip_path(root, handoff_id).exists() or (not destination.exists() and _archive_path(root, handoff_id).exists()):
+        inspection = inspect_handoff(root, handoff_path)
+        historical = inspection["historical_lifecycle"]
+        return {"status": "pending", "handoff_id": handoff_id, "reason": "Archived history does not grant current admission", **inspection, **({"state": historical["state"]} if "state" in historical else {})}
     payload: Optional[Dict[str, Any]] = None
     if destination.exists():
         handoff_id, _, payload = _core(root, handoff_path)
     else:
-        _archive_snapshot(root, _archive_path(root, handoff_id), handoff_id)
-        payload = load_json_file(_archive_path(root, handoff_id) / HANDOFF_NAME)
+        raise ContractError("handoff package is unavailable")
     path = _lifecycle_path(root, handoff_id)
     if not path.exists():
         return {"status": "absent", "handoff_id": handoff_id}
@@ -1839,7 +2247,7 @@ def main() -> int:
     check.add_argument("--handoff", required=True)
     read = sub.add_parser("read")
     read.add_argument("--handoff", required=True)
-    read.add_argument("--view", required=True, choices=("core", "history"))
+    read.add_argument("--view", required=True, choices=("core", "history", "prompt"))
     read.add_argument("--event-index", type=int)
     read.add_argument("--offset", type=int, default=0)
     read.add_argument("--length", type=int, default=4096)
@@ -1857,6 +2265,8 @@ def main() -> int:
     admit.add_argument("--attestation", required=True)
     status = sub.add_parser("status")
     status.add_argument("--handoff", required=True)
+    inspect = sub.add_parser("inspect")
+    inspect.add_argument("--handoff", required=True)
     ownership = sub.add_parser("ownership")
     ownership_sub = ownership.add_subparsers(dest="ownership_command", required=True)
     for name in ("quiesce", "seal", "retire", "claim", "consume", "release", "status"):
@@ -1876,7 +2286,8 @@ def main() -> int:
     retention.add_argument("action_positional", nargs="?", choices=("archive", "restore", "reopen", "purge"))
     retention.add_argument("--action", dest="action_option", choices=("archive", "restore", "reopen", "purge"))
     retention.add_argument("--handoff", required=True)
-    retention.add_argument("--confirm-handoff-id", required=True)
+    retention.add_argument("--confirm-handoff-id")
+    retention.add_argument("--confirm")
     args = parser.parse_args()
     try:
         root = _root(str(args.project_root))
@@ -1886,16 +2297,19 @@ def main() -> int:
         if args.command == "validate":
             handoff_id, destination = _destination(root, handoff_path=args.handoff)
             relative = destination.relative_to(root).as_posix()
-            if not destination.exists():
+            if not destination.exists() and not storage.zip_path(root, handoff_id).exists() and not _archive_path(root, handoff_id).exists():
                 emit("validate", "absent", handoff_path=relative, handoff_id=handoff_id)
                 return 2
-            _regular_file(destination, "handoff path")
-            payload = load_json_file(destination)
-            status = validate(root, payload, handoff_id)
-            emit("validate", status, handoff_path=relative, handoff_id=handoff_id)
+            with storage.open_package(root, handoff_id) as (directory, kind):
+                payload = load_json_file(directory / HANDOFF_NAME)
+                status = validate(root, payload, handoff_id, directory / HISTORY_NAME)
+            emit("validate", status, handoff_path=relative, handoff_id=handoff_id, storage_kind=kind)
             return 0 if status == "ready" else 2
         if args.command == "read":
             emit("read", "ready", **read_view(root, args.handoff, args.view, args.offset, args.length, args.event_index))
+            return 0
+        if args.command == "inspect":
+            emit("inspect", "ready", **inspect_handoff(root, args.handoff))
             return 0
         if args.command == "prepare":
             handoff_id, result = lifecycle_prepare(root, args.handoff, args.mode)
@@ -1933,7 +2347,7 @@ def main() -> int:
             action = args.action_positional or args.action_option
             if action is None:
                 raise ContractError("retention action is required")
-            handoff_id, result = lifecycle_retention(root, action, args.handoff, args.confirm_handoff_id)
+            handoff_id, result = lifecycle_retention(root, action, args.handoff, args.confirm_handoff_id, args.confirm)
             _lifecycle_result("retention", handoff_id, result)
             return 0
         if not args.explicit_user_request:
