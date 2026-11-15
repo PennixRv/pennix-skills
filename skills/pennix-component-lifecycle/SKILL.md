@@ -11,12 +11,11 @@ metadata:
 
 ## 两阶段部署
 
-新机使用已核验的固定发行。以下 `v0.2.28` bootstrap 准备受支持的 Arch Linux/WSL2 环境和工具运行依赖，把 `pennix` 安装到用户目录；组件安装由后续工具动作负责：
-
-```bash
-curl --proto '=https' --tlsv1.2 -fsSLo /tmp/pennix-bootstrap.sh https://github.com/PennixRv/pennix-lifecycle/releases/download/v0.2.28/bootstrap.sh
-bash /tmp/pennix-bootstrap.sh install --release v0.2.28
-```
+新机先核验 Lifecycle 公开发行，选定本次部署已接受的固定 tag；按
+[owner 原生安装说明](https://github.com/PennixRv/pennix-lifecycle#readme)
+取得同一发行的 `bootstrap.sh`，并将该 tag 显式传给 `--release`。bootstrap 准备
+受支持的 Arch Linux/WSL2 环境和工具运行依赖，把 `pennix` 安装到用户目录；
+组件安装由后续工具动作负责。版本和载荷来源由 Lifecycle owner 及本轮验收记录确定。
 
 准备完成后，所有工作流配置和组件动作由同一个工具处理：
 
@@ -29,6 +28,12 @@ pennix apply             # 按计划执行
 pennix status
 pennix check
 ```
+
+已有工具先按当前 `pennix --help` 核对能力，再用 `pennix updates --json` 审阅工具、
+已选组件和完整系统升级影响。工具自身用 `pennix tool update` 升级，切换后以新进程
+重新审阅；整套维护使用 `pennix update --all`，复用原生确认、候选冻结和 journal。
+旧工具缺少这些入口时，按 owner 当前 bootstrap 路线升级。集合来源仍按 catalog 固定
+提交维护，项目 Trellis 资产继续使用项目原生更新入口。
 
 `config edit` 和配置文件执行共用 Linux Kconfig 模型。`workflow.config` 是带格式主版本标记的 Kconfig 值文件；选项使用 bool/choice，ID、URL 和路径等数据使用 string，容量使用有范围的 int。未知、重复、互斥冲突、非法值、格式主版本不兼容和依赖未满足必须拒绝并保留原文件。无 TTY 部署可直接编辑该文件，无需运行 `config edit`。
 
@@ -44,6 +49,7 @@ pennix check
 使用：
 
 ```bash
+pennix secrets check --json
 pennix secrets edit
 pennix secrets --help
 pennix secrets import-ssh --help
@@ -51,7 +57,11 @@ pennix secrets import-ssh --help
 
 `secrets edit` 打开用户私有的 `secrets.toml`，以可见文本编辑，保存前由操作者核对。文件权限为 `0600`；秘密不进入任务材料、差异、日志或回答。秘密文件只保存凭据，URL、ID 和路径属于 `workflow.config`。Codex provider 使用自定义 Responses API URL 与静态 API Key；运行时由生成的 `auth.command` 按工具原生合同读取私有 Key，不调用 `codex login` 或要求 ChatGPT 登录。其他组件凭据由各自 owner 接收。OAuth、会话数据库和 daemon 身份继续由原生 owner 管理。
 
-已有可信 SSH alias 时，按 `pennix secrets import-ssh --help` 选择服务，导入固定 owner 凭据字段。它不复制整份认证、不带入 URL/ID/路径，也不执行任意远端命令；手工填写秘密文件仍是等价路径。参数以当前原生 help 为准，Skill 不复制秘密子命令协议。
+`secrets check` 核对当前配置所需字段，只返回完整性。已有可信 SSH alias 时，
+按 `pennix secrets import-ssh --help` 使用 `--field` 读取源 Lifecycle 中央库的精确字段，
+或用 `--service` 导入固定 owner 文件中的登记字段；两种来源互斥。它不复制整份认证、
+不带入 URL/ID/路径，也不执行任意远端命令；手工填写秘密文件仍是等价路径。
+参数以当前原生 help 为准，Skill 不复制秘密子命令协议。
 
 组件的原生入口优先于生命周期包装：
 
@@ -97,7 +107,7 @@ Paseo 自启动在配置中明确选择“关闭 / 登录启动 / 无登录常�
 
 ## 输出与验证
 
-默认输出应回答当前动作、目标、状态、下一步和阻塞原因；JSON 输出用于脚本化但必须脱敏。`status` 只报告状态，`check` 对已选择目标执行完整非敏感核验，未选择的可选连接不会造成全局失败。真实付费/网络功能测试只有在配置中显式开启时才运行。
+默认输出应回答当前动作、目标、状态、下一步和阻塞原因；JSON 输出用于脚本化但必须脱敏。`status` 只报告状态，`check` 对已选择目标执行完整非敏感核验，未选择的可选连接不会造成全局失败。`pennix check` 仅在配置显式开启功能检查时发真实请求；用户已授权的有限功能验证按合同选择原生 owner 入口及预算，不扩大为整套请求。
 
 不要把“命令存在”“包版本匹配”“配置文件存在”混写成 ready。实际 owner 回执、服务状态、连接结果和用户选择分别保留；无法核验时报告 `blocked` 或 `unknown`。
 
