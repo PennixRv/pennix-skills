@@ -1,0 +1,13 @@
+# W05 实施验证
+
+真实Grok源cbac893b47aef95837b6b4203eddd3ede52a0a05已提交推送，源SKILL与providers参考一致声明Tavily普通优先、Grok适用／明确选择及整条失败不自动Hikari后备。源npm test和quick_validate通过。collection.json更新固定提交后，用git archive完整再物化62文件并核对全部文件字节，没有在物化树保留overlay。
+
+Windsurf源码772b7174188615b1d24835c6e2d6103de72925d1已推送，仅开发资产迁移，运行载荷与既有不可变v0.1.18完全相同，不另发npm版本。集合调用正式scripts/release/build-package.mjs，再核对owner返回tarball路径／摘要并提取19文件；完整文件字节比对通过。sync workflow同步此入口，YAML及bash语法通过；collection verify新增消费者manifest拒绝scripts／devDependencies门禁及隔离正反例，保持原schema枚举，不复制成员白名单。
+
+Tavily退役引用改为当前请求及已有阶段自然落点，无任务／当前Trellis／旧项目均不强制新台账。SiYuan参考按当前CLI config init/edit、secrets edit/check、siyuan目标和siyuan.api_token纠正；说明编辑器为私有明文，不假称隐藏提示；header helper仅metadata可诊断，不为配置验收读笔记本。
+
+PPTX详细示例从DOC_WORK列出本次绝对路径，清除不存在的rm动作描述；PDF详细OCR示例显式chi_sim+eng、缺包前置、页1—3上限及渲染／OCR超时、唯一临时目录，原始来源说明同步记录适配。只改已登记本地适配文件，许可与上游原件摘要保持。
+
+已运行collection verify（19 Skills／2 commands）、根单元16、评估fixture19及8个成员Python测试目录，全部通过；不代表新增真实模型评估。通过uv tool dir及uv-receipt entrypoints核验受管markitdown Python，实际合成文档smoke通过DOCX中英表格、XLSX公式／缺缓存、PPTX页序／备注、PDF分页表格、中文OCR、Office渲染、doc／ppt／xls往返、坏PDF及原件哈希保护。直接执行修订后的PDF代码，验证中英OCR及缺chi_sim时在渲染前拒绝；实际执行PPTX shell示例，2页本次图像、不读取cwd旧图，空输出明确失败。仅合成材料与临时目录，无真实笔记、秘密或模型调用，根预算仍0/12。
+
+完整再物化后的最终根测试与必要差异核验后提交推送；两端实际集合repair、固定身份、路由／宿主加载及整体验收仍归根W08—W11。

@@ -116,6 +116,10 @@ def verify():
         license_path = directory / entry["license"] if entry["license"] else None
         if license_path is not None and (not license_path.is_file() or not license_path.read_bytes()):
             raise ContractError(f"manifest license is missing: {name}")
+        if manifest["materialized"].get(name, {}).get("snapshot") == "npm-pack":
+            package = json.loads((directory / "package.json").read_text(), object_pairs_hook=_unique_json)
+            if not isinstance(package, dict) or "scripts" in package or "devDependencies" in package:
+                raise ContractError(f"materialized package must use the source owner's consumer projection: {name}")
     for name, target in manifest["commands"].items():
         parts = relative(target).parts
         path = ROOT / relative(manifest["skills"][parts[0]]["path"]) / Path(*parts[1:])

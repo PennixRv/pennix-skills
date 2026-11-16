@@ -7,6 +7,7 @@
 原始文件共 56 个，完整路径与原始 SHA-256 见 `upstream-files.sha256`。除下列本地适配外，上游文件保持原始字节；新增文件为本说明、摘要清单及适用第三方声明摘录。上游既有代码的修改标记见本节和脚本头部。
 
 - `SKILL.md`：中文发现、默认只读、真实路径、受管 Python 与依赖缺失处理、临时目录及原件保护；保留原创建编辑方法，仅在明确写入请求时使用。
+- 图像转换示例从本次唯一DOC_WORK列出绝对路径，失败或无输出时停止，不误看cwd旧图片；移除不存在的rm动作说明。
 - `scripts/office/soffice.py`：移除 AF_UNIX 检测、C shim 编译和 LD_PRELOAD 注入；保留临时 profile，并在新 profile 禁止不受信宏。环境限制仍生效。
 
 上游根 `THIRD_PARTY_NOTICES.md` 已逐类检查：四个目录不含字体、imageio、imageio-ffmpeg 或 FFmpeg 发行资产；这些资产未随本集合复制。PDF/PPTX 脚本使用 Pillow 时依赖由独立运行时发行，相关上游 HPND 声明保留在其目录。OOXML schema 保留原始文件及现有头部，没有增加其他来源文件。系统软件及运行时包的许可随其原生发行保留，不将 Apache 2.0 扩展到这些依赖。

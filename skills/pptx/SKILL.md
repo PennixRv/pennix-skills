@@ -234,10 +234,10 @@ Convert presentations to individual slide images for visual inspection:
 DOC_WORK=$(mktemp -d)
 "$DOC_PYTHON" scripts/office/soffice.py --headless --convert-to pdf --outdir "$DOC_WORK" /absolute/output.pptx
 pdftoppm -jpeg -r 150 "$DOC_WORK/output.pdf" "$DOC_WORK/slide"
-ls -1 "$PWD"/slide-*.jpg
+ls -1 "$DOC_WORK"/slide-*.jpg
 ```
 
-**Pass the absolute paths printed above directly to the view tool.** The `rm` clears stale images from prior runs. `pdftoppm` zero-pads based on page count: `slide-1.jpg` for decks under 10 pages, `slide-01.jpg` for 10-99, `slide-001.jpg` for 100+.
+**将上面列出的绝对路径直接交给查看工具。** 每轮创建新的 `DOC_WORK`，输出仅来自本次转换；命令失败或没有匹配图片时停止，不改看 cwd 中的旧图。`pdftoppm` 按页数补零：少于10页为 `slide-1.jpg`，10–99页为 `slide-01.jpg`，100页以上为 `slide-001.jpg`。
 
 **After fixes, rerun all four commands above** — the PDF must be regenerated from the edited `.pptx` before `pdftoppm` can reflect your changes.
 

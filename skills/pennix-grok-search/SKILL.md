@@ -6,7 +6,7 @@ metadata:
 ---
 # Grok Search
 
-一般外部检索优先使用 `$pennix-tavily-search`；只有操作适合 Grok 或用户/当前路线明确选择 Grok 时，才按本 Skill 的命令合同执行。
+一般外部检索优先使用 `$pennix-tavily-search`；操作适合 Grok 或用户／当前路线明确选择 Grok 时，按本 Skill 的命令合同执行。
 
 输出目录维护使用同一 owner 的 `grok-search prune`，不通过 shell 删除输出文件。
 
@@ -67,7 +67,7 @@ grok-search map https://docs.example.com --limit 20
 
 每个脚本都输出一个 JSON 对象，失败时也如此（退出码非零时另有 stderr 行）。
 
-- `error` 核对 `error.message`、`error.code` 和 `diagnostics.provider_attempts`。`DEADLINE_EXCEEDED` 表示命令用尽时间预算（默认 240 秒，可用 `--deadline N`）。CLI 内部受控尝试不授权代理重起命令、切换模型或服务商；整条 Grok 命令不可用时报告检索缺口，并按本 Skill 的失败合同处理。
+- `error` 核对 `error.message`、`error.code` 和 `diagnostics.provider_attempts`。`DEADLINE_EXCEEDED` 表示命令用尽时间预算（默认 240 秒，可用 `--deadline N`）。CLI 内部受控尝试不授权代理重起命令、切换模型或服务商；整条命令失败时报告已有诊断与限定检索缺口并停止，不自动启动 Hikari 后备。后续调用须符合用户明确指定的来源、当前路线和预算；配置缺失或权限／信任拒绝不能通过更换入口绕过。
 - `diagnostics.warnings` 和 `diagnostics.provider_attempts` 说明跳过、失败或提供内容的服务商，以及中继是否实际使用了不同模型。
 - search 读取 `answer.text` 和 `sources.items`（合并后最多 12 条）。`source_type` 为 `citation` 表示用于答案，`searched` 表示只列出；`opened: true` 表示 Grok 读取了页面。`sources.raw_path` 在启用运行记录时指向记录文件（完整来源、答案和工具调用）；只在 card 不足时分块读取。检查 `diagnostics.degraded`、`cost_usd` 和 `search_budget`，后者是建议预算而非实际调用上限。
 - fetch 读取 `content.text`；`content.truncated` 为真时按需分块读取 `content.full_path`，保留真实续页，不为读取已有全文重发网络命令。`metadata` 在服务商提供时包含标题、作者和发布时间。`diagnostics.run_path` 是运行记录。

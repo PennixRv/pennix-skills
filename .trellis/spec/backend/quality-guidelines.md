@@ -28,6 +28,11 @@ The existing path is retained for active references; it does not require a backe
   lock and receipt bind the installed revision. Do not copy a member table,
   execute a staged collection's verifier during installation, or add a
   collection-CI dependency on Lifecycle's mutable catalog.
+- `npm-pack` snapshots invoke the source owner's `scripts/release/build-package.mjs`
+  and verify its returned artifact digest before extraction. Do not pack the
+  maintainer manifest directly; delivered consumer manifests contain no scripts
+  or devDependencies. Compare unpacked file bytes rather than assuming gzip
+  output is identical across Node/npm environments.
 
 ---
 

@@ -45,7 +45,20 @@ jobs:
             elif [[ "$snapshot" == npm-pack ]]; then
               (
                 cd "$source"
-                tarball="$(npm pack --ignore-scripts --silent)"
+                package_dir="$RUNNER_TEMP/package-$name"
+                report="$RUNNER_TEMP/package-$name.json"
+                node scripts/release/build-package.mjs --output "$package_dir" > "$report"
+                tarball="$(python3 - "$report" "$package_dir" <<'PY'
+          import hashlib, json, pathlib, sys
+          result = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          artifact = pathlib.Path(result["tarball"]).resolve(strict=True)
+          if artifact.parent != pathlib.Path(sys.argv[2]).resolve(strict=True):
+              raise SystemExit("owner package is outside staging")
+          if hashlib.sha256(artifact.read_bytes()).hexdigest() != result["sha256"]:
+              raise SystemExit("owner package digest differs")
+          print(artifact)
+          PY
+                )"
                 test -f "$tarball"
                 tar -xzf "$tarball" --strip-components=1 -C "$GITHUB_WORKSPACE/skills/$name"
               )

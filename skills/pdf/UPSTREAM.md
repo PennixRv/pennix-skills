@@ -8,6 +8,7 @@
 
 - `SKILL.md`：中文发现、默认只读、真实路径、受管 Python 与依赖缺失处理、临时目录及原件保护；保留原创建编辑方法，仅在明确写入请求时使用。
 - `SKILL.md` 同时修正 reference.md/forms.md 大小写引用及空页提取返回 None 的示例。
+- 扫描PDF详细示例显式核验chi_sim／eng语言包、限定页范围和超时，使用唯一临时目录；不以默认英文OCR替代入口合同。
 
 上游根 `THIRD_PARTY_NOTICES.md` 已逐类检查：四个目录不含字体、imageio、imageio-ffmpeg 或 FFmpeg 发行资产；这些资产未随本集合复制。PDF/PPTX 脚本使用 Pillow 时依赖由独立运行时发行，相关上游 HPND 声明保留在其目录。OOXML schema 保留原始文件及现有头部，没有增加其他来源文件。系统软件及运行时包的许可随其原生发行保留，不将 Apache 2.0 扩展到这些依赖。
 

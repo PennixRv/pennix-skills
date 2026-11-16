@@ -1,0 +1,136 @@
+{
+  "id": "workflow-health-remediation",
+  "name": "workflow-health-remediation",
+  "title": "工作流体检：集合固定源与文档指引收敛",
+  "description": "执行根已批准W05：先修真实源再物化、原生消费者包合同、退役入口及文档例修正；沿main，不增加真实调用。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-16",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "task_workflow": {
+      "schema_version": 1,
+      "task_route_revision": "1",
+      "task_kind": "implementation",
+      "complexity": "complex",
+      "project_context": "existing",
+      "phase_ids": [
+        "goal_exploration_and_requirements",
+        "solution_design_and_convergence",
+        "task_implementation",
+        "delivery_review_and_closeout"
+      ],
+      "current_phase_id": "task_implementation",
+      "input_revision": "5",
+      "phases": {
+        "goal_exploration_and_requirements": {
+          "status": "accepted",
+          "input_revision": "2",
+          "artifact_revision": "5e03f6749c20f4e18a10a9301638b186f09c89b6f3773624a4bfdbd590529012",
+          "artifact_refs": [
+            "prd.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "prd.md",
+          "outcome_kind": "accepted",
+          "reason": null,
+          "evidence_refs": [
+            "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "5e03f6749c20f4e18a10a9301638b186f09c89b6f3773624a4bfdbd590529012",
+            "result_revision": "1",
+            "input_revision": "2",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md"
+            ]
+          }
+        },
+        "solution_design_and_convergence": {
+          "status": "accepted",
+          "input_revision": "4",
+          "artifact_revision": "bf54fefe9f8f208b7bf0bb00aadaa5cd5323e0c15d82cee085cdbe08886a6d15",
+          "artifact_refs": [
+            "design.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "design.md",
+          "outcome_kind": "implementation_contract",
+          "reason": null,
+          "evidence_refs": [
+            "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "bf54fefe9f8f208b7bf0bb00aadaa5cd5323e0c15d82cee085cdbe08886a6d15",
+            "result_revision": "1",
+            "input_revision": "4",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md"
+            ]
+          }
+        },
+        "task_implementation": {
+          "status": "active",
+          "input_revision": "5",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        },
+        "delivery_review_and_closeout": {
+          "status": "not_started",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        }
+      },
+      "route_dependency_admission": null,
+      "implementation_authorization": {
+        "contract_ref": "design.md",
+        "contract_revision": "bf54fefe9f8f208b7bf0bb00aadaa5cd5323e0c15d82cee085cdbe08886a6d15",
+        "approval_ref": "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md",
+        "task_route_revision": "1"
+      },
+      "closeout_disposition": null,
+      "skip_records": {
+        "decision_space_construction_and_merging": {
+          "reason": "承接根任务已明确批准的W05完整实施合同",
+          "evidence_refs": [
+            "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "return_record": null
+    }
+  }
+}

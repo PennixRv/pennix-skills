@@ -243,16 +243,23 @@ pdftk input.pdf rotate 1east output rotated.pdf
 # Requires the managed pytesseract/pdf2image runtime; do not install here.
 import pytesseract
 from pdf2image import convert_from_path
+from tempfile import TemporaryDirectory
 
-# Convert PDF to images
-images = convert_from_path('scanned.pdf')
+required = {"chi_sim", "eng"}
+available = set(pytesseract.get_languages(config=""))
+if not required <= available:
+    raise RuntimeError("缺少所选 OCR 语言包；交由 Lifecycle 处理，不改用默认语言")
 
-# OCR each page
-text = ""
-for i, image in enumerate(images):
-    text += f"Page {i+1}:\n"
-    text += pytesseract.image_to_string(image)
-    text += "\n\n"
+# Explicitly select the pages needed for this request; expand only when needed.
+first_page, last_page = 1, 3
+with TemporaryDirectory(prefix="pdf-ocr-") as work:
+    images = convert_from_path('/absolute/scanned.pdf', first_page=first_page,
+                              last_page=last_page, output_folder=work, timeout=120)
+    text = ""
+    for page_number, image in enumerate(images, first_page):
+        text += f"Page {page_number}:\n"
+        text += pytesseract.image_to_string(image, lang="chi_sim+eng", timeout=60)
+        text += "\n\n"
 
 print(text)
 ```

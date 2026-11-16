@@ -13,6 +13,22 @@ import collection
 
 
 class CollectionTests(unittest.TestCase):
+    def test_npm_snapshot_refuses_a_maintainer_manifest_but_accepts_the_consumer_projection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            member = root / 'skills/example-skill';member.mkdir(parents=True)
+            (member / 'SKILL.md').write_text('---\nname: example-skill\ndescription: fixture\n---\n')
+            manifest = {'schema': 1, 'name': 'pennix-skills', 'skills': {'example-skill': {'path': 'skills/example-skill', 'license': None}},
+                        'commands': {}, 'materialized': {'example-skill': {'name': 'example-skill', 'repo': 'example/source',
+                            'ref': 'a'*40, 'commit': 'a'*40, 'snapshot': 'npm-pack'}}}
+            (root / 'collection.json').write_text(json.dumps(manifest))
+            for field in ['scripts', 'devDependencies']:
+                (member / 'package.json').write_text(json.dumps({'name': 'example', 'version': '1.0.0', field: {}}))
+                with self.subTest(field=field), patch.object(collection, 'ROOT', root), self.assertRaisesRegex(collection.ContractError, 'consumer projection'):
+                    collection.verify()
+            (member / 'package.json').write_text(json.dumps({'name': 'example', 'version': '1.0.0', 'files': ['SKILL.md']}))
+            with patch.object(collection, 'ROOT', root):collection.verify()
+
     def test_sources_validates_manifest_before_members_are_materialized(self):
         source = {
             "repo": "example/skill", "ref": "a" * 40, "commit": "a" * 40,
