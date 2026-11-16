@@ -3,7 +3,7 @@
   "name": "workflow-health-remediation",
   "title": "工作流体检：集合固定源与文档指引收敛",
   "description": "执行根已批准W05：先修真实源再物化、原生消费者包合同、退役入口及文档例修正；沿main，不增加真实调用。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "penn",
   "assignee": "penn",
   "createdAt": "2026-11-16",
-  "completedAt": null,
+  "completedAt": "2026-11-17",
   "branch": "main",
   "base_branch": "main",
   "worktree_path": null,
@@ -35,8 +35,8 @@
         "task_implementation",
         "delivery_review_and_closeout"
       ],
-      "current_phase_id": "task_implementation",
-      "input_revision": "5",
+      "current_phase_id": null,
+      "input_revision": "17",
       "phases": {
         "goal_exploration_and_requirements": {
           "status": "accepted",
@@ -64,61 +64,85 @@
         },
         "solution_design_and_convergence": {
           "status": "accepted",
-          "input_revision": "4",
+          "input_revision": "12",
           "artifact_revision": "bf54fefe9f8f208b7bf0bb00aadaa5cd5323e0c15d82cee085cdbe08886a6d15",
           "artifact_refs": [
             "design.md"
           ],
-          "result_revision": "1",
+          "result_revision": "2",
           "result_ref": "design.md",
           "outcome_kind": "implementation_contract",
           "reason": null,
           "evidence_refs": [
-            "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md"
+            "current-closeout-approval.md"
           ],
           "acceptance": {
             "artifact_revision": "bf54fefe9f8f208b7bf0bb00aadaa5cd5323e0c15d82cee085cdbe08886a6d15",
-            "result_revision": "1",
-            "input_revision": "4",
+            "result_revision": "2",
+            "input_revision": "12",
             "task_route_revision": "1",
             "evidence_refs": [
-              "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md"
+              "current-closeout-approval.md"
             ]
           }
         },
         "task_implementation": {
-          "status": "active",
-          "input_revision": "5",
-          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-          "artifact_refs": [],
-          "result_revision": "0",
-          "result_ref": null,
-          "outcome_kind": null,
+          "status": "accepted",
+          "input_revision": "14",
+          "artifact_revision": "b848075b441d455f3d50772cff604a1951d5227a39f781126d6606ee41bb5bb8",
+          "artifact_refs": [
+            "current-closeout-review.md"
+          ],
+          "result_revision": "2",
+          "result_ref": "current-closeout-review.md",
+          "outcome_kind": "implementation_result",
           "reason": null,
-          "evidence_refs": [],
-          "acceptance": null
+          "evidence_refs": [
+            "current-closeout-approval.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "b848075b441d455f3d50772cff604a1951d5227a39f781126d6606ee41bb5bb8",
+            "result_revision": "2",
+            "input_revision": "14",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "current-closeout-approval.md"
+            ]
+          }
         },
         "delivery_review_and_closeout": {
-          "status": "not_started",
-          "input_revision": "1",
-          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-          "artifact_refs": [],
-          "result_revision": "0",
-          "result_ref": null,
-          "outcome_kind": null,
+          "status": "accepted",
+          "input_revision": "16",
+          "artifact_revision": "b848075b441d455f3d50772cff604a1951d5227a39f781126d6606ee41bb5bb8",
+          "artifact_refs": [
+            "current-closeout-review.md"
+          ],
+          "result_revision": "2",
+          "result_ref": "current-closeout-review.md",
+          "outcome_kind": "delivery_ready",
           "reason": null,
-          "evidence_refs": [],
-          "acceptance": null
+          "evidence_refs": [
+            "current-closeout-approval.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "b848075b441d455f3d50772cff604a1951d5227a39f781126d6606ee41bb5bb8",
+            "result_revision": "2",
+            "input_revision": "16",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "current-closeout-approval.md"
+            ]
+          }
         }
       },
       "route_dependency_admission": null,
       "implementation_authorization": {
         "contract_ref": "design.md",
         "contract_revision": "bf54fefe9f8f208b7bf0bb00aadaa5cd5323e0c15d82cee085cdbe08886a6d15",
-        "approval_ref": "/home/penn/devel/codex-workflow-optimization/.trellis/tasks/in_progress/11-16-workflow-health-remediation-release-deploy/approval.md",
+        "approval_ref": "current-closeout-approval.md",
         "task_route_revision": "1"
       },
-      "closeout_disposition": null,
+      "closeout_disposition": "delivery_ready",
       "skip_records": {
         "decision_space_construction_and_merging": {
           "reason": "承接根任务已明确批准的W05完整实施合同",
@@ -130,7 +154,31 @@
           "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       },
-      "return_record": null
-    }
+      "return_record": {
+        "from": "delivery_review_and_closeout",
+        "to": "solution_design_and_convergence",
+        "return_kind": "contract_change",
+        "authorization_retained": false,
+        "reason": "原生重开后的局部格式修正；当前批准语义不变，重新绑定正确字节和摘要。",
+        "evidence_refs": [
+          "current-closeout-review.md",
+          "current-closeout-approval.md"
+        ],
+        "task_route_revision": "1"
+      }
+    },
+    "task_lifecycle_recoveries": [
+      {
+        "from_status": "completed",
+        "to_status": "planning",
+        "reason": "当前复核文档末尾空行触发默认diff检查；按已批准合同修正文案格式并重新接受，裁决及历史原件不变。",
+        "evidence_refs": [
+          "current-closeout-review.md"
+        ],
+        "reopened_at": "2026-11-16T23:56:44.808115+00:00",
+        "terminal_completed_at": "2026-11-17",
+        "terminal_cancellation": null
+      }
+    ]
   }
 }
