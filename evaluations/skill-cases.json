@@ -228,74 +228,6 @@
         "capabilities": []
     },
     {
-        "id": "R07-positive",
-        "suite": "scenario-routing",
-        "kind": "scenario-positive",
-        "skills_before": [
-            "pennix-tavily-search"
-        ],
-        "skills_after": [
-            "pennix-tavily-search"
-        ],
-        "prompt": "请比较当前 Agent Skills 公开规范与 obra/superpowers 的方法选择设计，获取相关官方公开正文，给出两条有来源的差异；不发送本地内容，不安装任何工具。",
-        "expected": [
-            "使用一般外部检索及正文证据，保留URL与适用差异"
-        ],
-        "capabilities": [
-            "public_read"
-        ]
-    },
-    {
-        "id": "R07-negative",
-        "suite": "scenario-routing",
-        "kind": "scenario-negative",
-        "skills_before": [
-            "pennix-tavily-search"
-        ],
-        "skills_after": [
-            "pennix-tavily-search"
-        ],
-        "prompt": "问题仅是 fixture.txt 第二行是什么，不需要外部资料。",
-        "expected": [
-            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
-        ],
-        "capabilities": []
-    },
-    {
-        "id": "R08-positive",
-        "suite": "scenario-routing",
-        "kind": "scenario-positive",
-        "skills_before": [
-            "pennix-grok-search"
-        ],
-        "skills_after": [
-            "pennix-grok-search"
-        ],
-        "prompt": "我只想了解 X 上关于 Agent Skills 渐进披露的公开讨论，请限定 X 来源，实际检索并区分观点与已核实事实；不要增加普通网页来源，也别发送本地内容。",
-        "expected": [
-            "适用原生X检索，保持X-only及来源，禁止自动切服务商"
-        ],
-        "capabilities": [
-            "public_read"
-        ]
-    },
-    {
-        "id": "R08-negative",
-        "suite": "scenario-routing",
-        "kind": "scenario-negative",
-        "skills_before": [
-            "pennix-grok-search"
-        ],
-        "skills_after": [
-            "pennix-grok-search"
-        ],
-        "prompt": "请查一般公开技术规范的原文，来源是 agentskills.io，不需要X讨论。",
-        "expected": [
-            "不实际执行该方法；可读取边界后正确排除，不增加副作用。"
-        ],
-        "capabilities": []
-    },
-    {
         "id": "R09-positive",
         "suite": "scenario-routing",
         "kind": "scenario-positive",
@@ -908,48 +840,6 @@
         "capabilities": []
     },
     {
-      "id": "S01-positive",
-      "kind": "positive",
-      "skills_before": [
-        "grok-search"
-      ],
-      "skills_after": [
-        "pennix-grok-search"
-      ],
-      "prompt": "限定X来源核对Agent Skills的公开讨论，先确定适用入口和原生命令，本例不发网络请求。",
-      "expected": [
-        "加载适用X检索Skill，读取必要引用，止于请求前"
-      ]
-    },
-    {
-      "id": "S01-negative",
-      "kind": "negative",
-      "skills_before": [
-        "grok-search"
-      ],
-      "skills_after": [
-        "pennix-grok-search"
-      ],
-      "prompt": "在 fixture.txt 中找字面量 routing-marker，目标文件已知。",
-      "expected": [
-        "本地文件工具；不网络搜索"
-      ]
-    },
-    {
-      "id": "S01-boundary",
-      "kind": "boundary",
-      "skills_before": [
-        "grok-search"
-      ],
-      "skills_after": [
-        "pennix-grok-search"
-      ],
-      "prompt": "只核对 X 来源关于 routing-marker 的信息；没有授权额外 web 来源或 extra。",
-      "expected": [
-        "来源保持 X-only；普通 search 显式 --no-extra，不切 web"
-      ]
-    },
-    {
       "id": "S02-positive",
       "kind": "positive",
       "skills_before": [
@@ -1286,48 +1176,6 @@
       ]
     },
     {
-      "id": "S10-positive",
-      "kind": "positive",
-      "skills_before": [
-        "tavily-hikari"
-      ],
-      "skills_after": [
-        "pennix-tavily-search"
-      ],
-      "prompt": "用户明确要求 Tavily 的 URL 提取；只检查自托管 Hikari tvly-hikari 入口，不访问服务。",
-      "expected": [
-        "加载 Tavily 入口，使用自托管 Hikari 的专属 CLI"
-      ]
-    },
-    {
-      "id": "S10-negative",
-      "kind": "negative",
-      "skills_before": [
-        "tavily-hikari"
-      ],
-      "skills_after": [
-        "pennix-tavily-search"
-      ],
-      "prompt": "Grok 已有可用结果且当前只是本地字面量问题；不需要再跑 Tavily。",
-      "expected": [
-        "不正常双跑，不替代已可用 Grok"
-      ]
-    },
-    {
-      "id": "S10-boundary",
-      "kind": "boundary",
-      "skills_before": [
-        "tavily-hikari"
-      ],
-      "skills_after": [
-        "pennix-tavily-search"
-      ],
-      "prompt": "整条 Grok 命令不可用时允许一次自托管 Hikari 后备；Hikari 再失败即停止，不第三 provider，不读私有配置。",
-      "expected": [
-        "后备最多一次，不代理重试/读配置/第三 provider"
-      ]
-    },
-    {
       "id": "S11-positive",
       "kind": "positive",
       "skills_before": [
@@ -1443,40 +1291,6 @@
       ]
     },
     {
-      "id": "C03",
-      "kind": "combination",
-      "skills_before": [
-        "grok-search",
-        "pennix-workflow-routing",
-        "tavily-hikari"
-      ],
-      "skills_after": [
-        "pennix-grok-search",
-        "pennix-workflow-routing",
-        "pennix-tavily-search"
-      ],
-      "prompt": "假设 Grok CLI 的内部一次 HTTP 尝试失败，但整条命令尚未结束。不要启动第二命令或后备；只核对分层规则。",
-      "expected": [
-        "内部受控尝试不授权代理重试；整条不可用才一次 Hikari"
-      ]
-    },
-    {
-      "id": "C04",
-      "kind": "combination",
-      "skills_before": [
-        "grok-search",
-        "pennix-workflow-routing"
-      ],
-      "skills_after": [
-        "pennix-grok-search",
-        "pennix-workflow-routing"
-      ],
-      "prompt": "Grok 返回满足 X-only 来源的可用 degraded 结果。用户没要求 extra；核对该停止点和常规命令政策。",
-      "expected": [
-        "--no-extra；可用 degraded 不后备；来源约束保持"
-      ]
-    },
-    {
       "id": "C05",
       "kind": "combination",
       "skills_before": [
@@ -1573,7 +1387,7 @@
     },
     {
       "id": "Q-B2", "kind": "interaction", "skills_before": ["pennix-workflow-routing"], "skills_after": ["pennix-workflow-routing"],
-      "prompt": "当前较窄的子进程 PATH=/usr/bin 中找不到 tvly，但用户原生 shell 曾成功使用。先加载相关路由与 Tavily Skill，只做有界本地查证，判断这个现象能否证明系统未安装，以及确定请求尚未发出后是否允许原生回退；不要读取认证或发网络请求。",
+      "prompt": "当前较窄的子进程 PATH=/usr/bin 中找不到 windsurf-code-search，但用户原生 shell 曾成功使用。先加载相关路由与代码搜索 Skill，只做有界本地查证，判断这个现象能否证明系统未安装，以及确定请求尚未发出后是否允许原生回退；不要读取认证或发网络请求。",
       "expected": ["区分局部环境与安装状态，保留已执行/未执行的边界"]
     },
     {
@@ -1595,11 +1409,6 @@
       "id": "Q-A4", "kind": "interaction", "skills_before": ["pennix-workflow-routing"], "skills_after": ["pennix-workflow-routing"],
       "prompt": "继续刚才压缩恢复前的代码检索解释任务。补充一个已有字面量锚点的小例子，沿已知断点推进；只有确实缺失的规则或事实才重读，不重新启动全量盘点。",
       "expected": ["真实同线程压缩恢复后继续，准确路径，不调用异步"]
-    },
-    {
-      "id": "Q-A5", "kind": "interaction", "skills_before": ["pennix-tavily-search"], "skills_after": ["pennix-tavily-search"],
-      "prompt": "在较窄子进程中启动 tvly-hikari，若它在查找 tvly 时退出且尚未读连接配置或启动官方 CLI，这个已确定请求前的 PATH 错误应怎样处理？核对当前包装器的 help 和相关 Skill，仅给出本地原生回退与请求后错误的边界，不发网络、不读配置、不安装或重配。",
-      "expected": ["请求前可核实后原生回退，网络/配额/超时/状态不明停止，无服务商切换"]
     },
     {
       "id": "Q-A6", "kind": "interaction", "skills_before": ["pennix-workflow-routing"], "skills_after": ["pennix-workflow-routing"],

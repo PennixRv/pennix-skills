@@ -83,7 +83,7 @@ def load_manifest():
                 or not isinstance(source["ref"], str) or not SHA.fullmatch(source["ref"])
                 or source.get("commit") != source.get("ref")
                 or source.get("snapshot") not in ("archive", "npm-pack")
-                or source.get("post_install", []) not in ([], ["grok-search-runtime"])):
+                or source.get("post_install", []) != []):
             raise ContractError(f"invalid materialized source: {name}")
     return value
 

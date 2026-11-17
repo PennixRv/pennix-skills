@@ -16,5 +16,5 @@ SiYuan 的 `web_search`、`web_fetch` 和 `http_request` 只服务实际知识�
 - 已初始化项目的 Trellis 资产更新和已选 workflow 刷新由 `$pennix-trellis-project-update` 负责，必须调用当前 Trellis fork 的原生 `trellis update` / `trellis workflow`；系统级组件部署仍由 `$pennix-component-lifecycle` 负责，`$pennix-trellis-asset-check` 只做只读诊断。
 - `pennix-session-handoff` 只处理用户明确要求的正式交接；其 immutable core、append-only lifecycle receipt 和确定性 retention 归它所有，但不拥有 Trellis task/pointer。对带 task 的新协议，Skill 只编排 Trellis 原生 `ownership quiesce|seal|retire|claim|consume|archive`，不得自行写 pointer；正式交接通过本地来源封口和配对包验证记录来源收敛。初始 admission 只在 core、prompt、`$trellis-start` 和当前事实完整核对后记录一次 `reconciled`，不完整消费不写 target reservation；后续 `claim` 必须有新的明确继续授权。
 - 系统组件部署和 Skills 物化由 `$pennix-component-lifecycle` 编排已登记动作；CodeGraph 项目操作归其原生入口，Hook 实现和配置归事件所属组件及宿主的原生入口。普通路由请求不授权这些高影响动作。
-- 工作流资源清理由 `$pennix-resource-cleanup` 负责流程路由；Trellis、Grok、context-mode、服务、容器、系统和远程主机仍分别拥有自己的资源与清理合同。路由 Skill 不执行全局回收，也不替 owner 删除目录。
+- 工作流资源清理由 `$pennix-resource-cleanup` 负责流程路由；Trellis、context-mode、服务、容器、系统和远程主机仍分别拥有自己的资源与清理合同。路由 Skill 不执行全局回收，也不替 owner 删除目录。
 - Hook/config 和拥有该行为的运行时负责必须发生的事件、阻断、信任、生命周期和审计；提示词只能表达决策原则，不能宣称确定性保证。

@@ -14,7 +14,7 @@
 | CodeGraph global 操作 | 全局配置 writer；当前 Codex/OpenCode 路径保留用户 AGENTS | `src/installer/targets/codex.ts` 等 target 的 location 分支；不得将 global 与 local 混用 |
 | Context Mode | 指令消费者／宿主配置 owner；不是项目 AGENTS writer | `src/setup/registry.ts:assertWritable` 禁写 AGENTS、AGENTS.override 等指令文件；遵循原生 setup 边界 |
 | Pennix Skills | 治理方法与只读 inspector；人工正文按授权编辑 | `pennix-project-agents-governance/scripts/inspect_chain.py`、本 Skill 及项目资产诊断；生成块委托原生 owner，不成为第二 writer |
-| extra、Windsurf、Tavily、Grok、Paseo relay／translation、cch-status | 有界源码检索未发现直接项目 writer | 当时根组件字面检索仅为初筛，不能排除动态调用、依赖或外部插件；新动作须追到真实调用方 |
+| extra、Windsurf、Paseo relay／translation、cch-status | 有界源码检索未发现直接项目 writer | 当时根组件字面检索仅为初筛，不能排除动态调用、依赖或外部插件；新动作须追到真实调用方 |
 | Agent of Empires | 可选项目入口，尚未证明为 AGENTS writer | catalog 为 project-only；当时原生 help 的 init 对象为 `.agent-of-empires/config.toml`；先查 hooks／启动链，不据组件可用就选入 |
 | GitNexus、未知标记或项目脚本 | 项目特定／未知 writer | 现有 gitnexus 块只能证明内容存在；查初始化器、Hook、package lifecycle 和源模板。保留未知内容，不自动安装、索引、迁移或认领 |
 

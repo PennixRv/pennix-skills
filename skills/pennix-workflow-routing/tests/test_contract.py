@@ -96,11 +96,12 @@ class WorkflowRoutingContractTest(unittest.TestCase):
         self.assertIn("只有存在必要用户决定或合同要求用户接受时", delivery_row)
         self.assertIn("`pennix-decision-grill`", delivery_row)
 
-    def test_external_search_prefers_tavily_and_routes_grok_conditionally(self) -> None:
+    def test_external_search_uses_native_capabilities_and_preserves_code_search(self) -> None:
         content = SKILL.read_text(encoding="utf-8")
-        self.assertIn("优先 `$pennix-tavily-search`", content)
-        self.assertIn("仅在当前操作适合 Grok（例如需要 X 来源）或用户/路线明确选择 Grok", content)
-        self.assertNotIn("普通外部检索必须先走 `$pennix-grok-search`", content)
+        self.assertIn('web_search="live"', content)
+        self.assertIn("web_fetch", content)
+        self.assertIn("$pennix-windsurf-code-search", content)
+        self.assertNotRegex(content, r"pennix-(?:grok|tavily)-search")
 
     def test_collaboration_routes_keep_current_contract_and_two_native_owners(self) -> None:
         content = (SKILL.parent / "references/teamwork-routing.md").read_text(encoding="utf-8")

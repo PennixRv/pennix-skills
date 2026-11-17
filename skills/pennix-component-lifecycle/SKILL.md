@@ -67,7 +67,7 @@ pennix secrets import-ssh --help
 
 - `trellis init`、Trellis 任务、Teamwork、交接、Hook 和宿主原生交互继续使用各自接口。
 - Codex provider 的 URL、模型和偏好由 owner 按当前 CLI 配置接口更新；静态 Key 只走上述 `auth.command` 读取接口。插件使用 Codex 原生 plugin 命令。
-- CCH、Hikari、Grok 和思源的秘密从 `secrets.toml` 交给各自 owner；Windsurf 默认兼容中央输入，也可明确开启 `PENNIX_WINDSURF_OWNER_CREDENTIAL`，由其原生 owner 使用专属文件，缺文件时从既有 Devin 登录导入，不新增中央副本。环境覆盖、外部文件、漂移或不安全权限仍阻断。未选连接保持关闭，状态输出不回显凭据。
+- CCH 和思源的秘密从 `secrets.toml` 交给各自 owner；Windsurf 默认兼容中央输入，也可明确开启 `PENNIX_WINDSURF_OWNER_CREDENTIAL`，由其原生 owner 使用专属文件，缺文件时从既有 Devin 登录导入，不新增中央副本。环境覆盖、外部文件、漂移或不安全权限仍阻断。未选连接保持关闭，状态输出不回显凭据。已退役网页搜索组件的中央旧秘密仅兼容读取，不再导入、配置或部署。
 - 项目初始化、索引建立和服务端部署必须由目标组件的原生流程完成；系统安装不会替代它们。
 
 Copilot CLI 的 CodeGraph、Context Mode 接入使用 Lifecycle 配置中的独立选择和 `PENNIX_COPILOT_HOME`，默认关闭；Codex 的既有选择不因此扩大。原生配置、回执和目标登记按宿主及实际目录核验。共享 Skills 缺项时通过 Copilot 原生目录登记补足，不复制集合或 Codex 配置。用户禁用、管理策略、未知归属或内容漂移先报告阻断；不得自动改成启用或覆盖。委派执行者按主 Agent 的明确工作包使用已部署能力，不自行配置用户环境或发起用户询问。

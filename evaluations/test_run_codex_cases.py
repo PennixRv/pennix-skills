@@ -24,19 +24,19 @@ class EvaluationDriverTests(unittest.TestCase):
             return runner.summarize(path, "completed")
 
     def test_first_failure_survives_a_successful_retry(self):
-        wrong = "/home/test/.codex/skills/pennix-grok-search/SKILL.md"
-        correct = "/home/test/.codex/skills/pennix-skills/pennix-grok-search/SKILL.md"
+        wrong = "/home/test/.codex/skills/pennix-windsurf-code-search/SKILL.md"
+        correct = "/home/test/.codex/skills/pennix-skills/pennix-windsurf-code-search/SKILL.md"
         summary = self.summarize_items(
             {"type": "command_execution", "command": f"cat {wrong}", "exit_code": 1,
              "aggregated_output": "No such file"},
             {"type": "command_execution", "command": f"cat {correct}", "exit_code": 0,
-             "aggregated_output": "---\nname: pennix-grok-search\n---\n# Search"},
+             "aggregated_output": "---\nname: pennix-windsurf-code-search\n---\n# Search"},
         )
         observations = summary["skill_path_observations"]
         self.assertEqual([wrong, correct], [x["path"] for x in observations])
         self.assertEqual(["failed", "read"], [x["outcome"] for x in observations])
         self.assertLess(observations[0]["event"], observations[1]["event"])
-        self.assertEqual(["pennix-grok-search"], summary["skill_read_candidates"])
+        self.assertEqual(["pennix-windsurf-code-search"], summary["skill_read_candidates"])
         self.assertEqual({"read": 1, "failed": 1, "unknown": 0}, summary["skill_read_counts"])
 
     def test_failed_read_is_a_candidate_without_a_success(self):
@@ -50,7 +50,7 @@ class EvaluationDriverTests(unittest.TestCase):
     def test_project_extra_expanded_alias_and_relative_paths_keep_all_levels(self):
         paths = [".agents/skills/trellis-before-dev/SKILL.md",
                  "/home/test/.codex/skills/pennix-skills-extra/diagnosing-bugs/SKILL.md",
-                 "/declared/r0/pennix-skills/pennix-grok-search/SKILL.md",
+                 "/declared/r0/pennix-skills/pennix-windsurf-code-search/SKILL.md",
                  "../pennix-workflow-routing/SKILL.md"]
         for path in paths:
             with self.subTest(path=path):
@@ -88,15 +88,15 @@ class EvaluationDriverTests(unittest.TestCase):
         data, digest = runner.load_cases()
         self.assertEqual(64, len(digest))
         legacy = [x for x in data["cases"] if x.get("suite") not in {"scenario-routing", "document-reading"}]
-        self.assertEqual(36, sum(x["kind"] not in {"combination", "interaction"} for x in legacy))
-        self.assertEqual(10, sum(x["kind"] == "combination" for x in data["cases"]))
-        self.assertEqual(8, sum(x["kind"] == "interaction" for x in data["cases"]))
+        self.assertEqual(30, sum(x["kind"] not in {"combination", "interaction"} for x in legacy))
+        self.assertEqual(8, sum(x["kind"] == "combination" for x in data["cases"]))
+        self.assertEqual(7, sum(x["kind"] == "interaction" for x in data["cases"]))
         self.assertTrue(all(name.startswith("pennix-") for x in legacy for name in x["skills_after"]))
         scenarios = [x for x in data["cases"] if x.get("suite") == "scenario-routing"]
         positive = {x["skills_after"][0] for x in scenarios if x["kind"] == "scenario-positive"}
         negative = {x["skills_after"][0] for x in scenarios if x["kind"] == "scenario-negative"}
         self.assertEqual(positive, negative)
-        self.assertEqual(25, len(positive))
+        self.assertEqual(23, len(positive))
         self.assertEqual(5, sum(x["kind"] == "scenario-combination" for x in scenarios))
         documents = [x for x in data["cases"] if x.get("suite") == "document-reading"]
         self.assertEqual({"docx", "pdf", "pptx", "xlsx"},
@@ -275,9 +275,9 @@ class EvaluationDriverTests(unittest.TestCase):
         self.assertTrue(result["compaction_observed"])
 
     def test_app_server_preserves_declaration_and_first_read_failure_after_retry(self):
-        path = "/home/test/.agents/skills/pennix-skills/pennix-grok-search/SKILL.md"
-        wrong = "/home/test/.agents/skills/pennix-grok-search/SKILL.md"
-        declared = [{"name": "pennix-grok-search", "path": path, "scope": "user"}]
+        path = "/home/test/.agents/skills/pennix-skills/pennix-windsurf-code-search/SKILL.md"
+        wrong = "/home/test/.agents/skills/pennix-windsurf-code-search/SKILL.md"
+        declared = [{"name": "pennix-windsurf-code-search", "path": path, "scope": "user"}]
         events = [{"method": "evaluation/skillDeclarations", "params": declared}]
         for target, status, body in [(wrong, 1, "missing"), (path, 0, "Skill body")]:
             events.append({"method": "item/completed", "params": {"item": {

@@ -329,7 +329,7 @@ def summarize(path, native_status):
                 text = item.get("command", "")
                 if not isinstance(text, str):
                     text = ""
-                owner = "native_cli" if any(x in text for x in ("task.py", "trellis ", "grok-search", "tvly-hikari", "windsurf-code-search")) else "host_shell"
+                owner = "native_cli" if any(x in text for x in ("task.py", "trellis ", "windsurf-code-search")) else "host_shell"
                 result["tool_actions"].append({"type": "command_execution", "owner": owner,
                                                "exit_code": item.get("exit_code")})
             elif item.get("type") == "mcp_tool_call":

@@ -15,7 +15,6 @@ class OwnerProtocolTests(unittest.TestCase):
     def test_validate_has_no_filesystem_effect_and_execution_is_bound(self):
         cases = [
             ("siyuan", "pennix-siyuan-knowledge", {"url": "https://notes.example.test/mcp", "default_notebook": "20260101000000-abcdefg"}, {"api_token": "synthetic-secret"}),
-            ("hikari", "pennix-tavily-search", {"base_url": "https://hikari.example.test"}, {"token": "th-abcd-123456789012"}),
         ]
         for target, skill, values, secrets in cases:
             with self.subTest(target=target), tempfile.TemporaryDirectory() as directory:
@@ -48,8 +47,7 @@ class OwnerProtocolTests(unittest.TestCase):
                 self.assertEqual(reply["effect"], "changed")
                 result, reply = run("configure")
                 self.assertEqual(result.returncode, 0)
-                config = (root / "config" / "pennix-siyuan" / "connection.json" if target == "siyuan"
-                          else root / "config" / "tavily-hikari-cli" / "config.json")
+                config = root / "config" / "pennix-siyuan" / "connection.json"
                 config.unlink()
                 result, reply = run("inspect")
                 self.assertEqual(reply["state"], "orphaned")

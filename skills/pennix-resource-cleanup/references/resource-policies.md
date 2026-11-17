@@ -4,7 +4,6 @@
 
 | 组件 / owner | 对象、可重建性 | 默认保留 / 容量边界 | 原生入口与保护 / 所需证据 |
 | --- | --- | --- | --- |
-| Grok Search | 完整结果、运行输出；可重新请求但可能有成本 | 30 天、1 GiB、4096 文件；单次维护最多 8192 条目 / 5 秒 | `grok-search prune` 默认预览，授权后 `--yes`；临时文件、符号链接、活动 grace 保护；回执核对候选、失败和实际文件字节 |
 | Context Mode v2 | 共用项目库中的 journal events、sources 与 chunks；原始 Codex 历史归宿主 | 按上游策略过期所有索引，不为当前 session 或主动索引增加永久保护；默认根 `~/.context-mode` | `ctx_purge` 严格选择一个参数：`session: <id>`、`source: <label/handle>` 或 `project: true`，以当前工具声明为准；project 会影响 Git common directory 对应的共享项目库及其他 worktree。先核验项目、范围并取得删除授权，无原生预览时只读盘点；普通卸载保留数据，v1 旧根只能用经核验的一次性 owner 清理入口 |
 | Trellis Teamwork | Session 事件、attempt 报告、worklog、诊断与恢复证据 | 不按统一 TTL 淘汰证据；settled、无 worker 或目录名都不充分 | 先核接受证据、结果引用和恢复义务，再预览 cleanup-artifacts；获批 attempt 处置后再查 rm/prune 的 session 重放职责。rm 默认预览，prune 保留筛选与 --yes，执行均需当前 digest；旧版本不支持该合同则保留。真实 result/evidence/recovery 引用保护，普通盘点提及不自动产生永久保留；kill/reconcile 的合法中断能力独立保留 |
 | Trellis backup | 受管资产快照及迁移单文件副本；不可凭空重建旧定制 | 日常保留最近至少 3 个已核验完整快照；无自动 TTL | `trellis backup list`、`inspect`、`verify`、`prune --keep 3` 默认预览；授权后 `--yes`。显式全清用 `prune --all --include-legacy`，只纳入已核实旧 writer 的快照及受管迁移 `.backup`；活动更新／恢复及其回退快照、未知／不完整对象受保护。恢复先预览并核对 `--review`，任务布局及阶段运行时不兼容时拒绝 |
@@ -15,7 +14,6 @@
 | CCH | 派生 snapshot、状态缓存与临时文件 | 已有 owner 限定的年龄/数量维护，当前有效配置为准 | 原生 CCH 状态/维护入口；不读取凭据或原始日志补造统计，已有维护不重复实现 |
 | CodeGraph | 项目派生索引、resolver、WAL、daemon | 已有 LRU、失效与 WAL 维护 | 项目明确授权的原生 `uninit` / 重建；可重建索引与项目源码分开，不能用全局 rm 替代 |
 | Windsurf Code Search | 一次调用的进程和输出；无共同持久结果缓存 | 已有调用时间、读取与输出预算，退出清理 | 查询入口不授予凭据/config 清理；无持久响应缓存无需添加 LRU |
-| Hikari / Tavily / NAS | 服务数据库、爬取结果、日志与缓存 | 客户端机制不能证明 NAS 配置或物理回收 | 先只读取实际部署版本、有效策略、owner、占用和触发入口；逻辑 TTL 不等于数据库/磁盘已释放 |
 | SiYuan | 用户知识、历史、资源、派生索引 | 内核策略与用户配置为准；知识不是缓存 | 原生知识/内核接口及明确意图；禁止直接 SQL、资源目录删除或跨 NAS 清理 |
 | tmux | 会话、pane 历史与服务进程 | 当前 tmux 选项；会话保留不等于缓存 GC | 原生会话管理，需精确会话授权；不能因无活动客户端就推断会话可删 |
 | Pennix lifecycle / 两套 Skill 集合 | 安装树、静态配置与工具自有状态 | 权威安装状态；正常事务清理，不适用 LRU | `pennix status|check|uninstall`；漂移、未知 owner 和外部维护内容保留，不直接删除目录或状态文件 |
