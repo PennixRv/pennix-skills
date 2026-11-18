@@ -1,0 +1,144 @@
+{
+  "id": "codegraph-proactive-routing",
+  "name": "codegraph-proactive-routing",
+  "title": "增强 CodeGraph 主动路由消费指引",
+  "description": "承接已批准根任务 W03，更新 CodeGraph 固定原生手册与结构问题路由，验证并发布集合。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-18",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "task_workflow": {
+      "schema_version": 1,
+      "task_route_revision": "1",
+      "task_kind": "implementation",
+      "complexity": "standard",
+      "project_context": "existing",
+      "phase_ids": [
+        "goal_exploration_and_requirements",
+        "task_implementation",
+        "delivery_review_and_closeout"
+      ],
+      "current_phase_id": "delivery_review_and_closeout",
+      "input_revision": "8",
+      "phases": {
+        "goal_exploration_and_requirements": {
+          "status": "accepted",
+          "input_revision": "5",
+          "artifact_revision": "57283adf014400e9406bbb4e12fa6c663b720fe5812e05a3c553b279aec072b3",
+          "artifact_refs": [
+            "prd.md"
+          ],
+          "result_revision": "2",
+          "result_ref": "prd.md",
+          "outcome_kind": "accepted",
+          "reason": null,
+          "evidence_refs": [
+            "approval.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "57283adf014400e9406bbb4e12fa6c663b720fe5812e05a3c553b279aec072b3",
+            "result_revision": "2",
+            "input_revision": "5",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "approval.md"
+            ]
+          }
+        },
+        "task_implementation": {
+          "status": "accepted",
+          "input_revision": "7",
+          "artifact_revision": "6c9c79fa77324a49e60580d13030e3b1b017ccdcb24ce176a6ab68332ba0988e",
+          "artifact_refs": [
+            "validation.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "validation.md",
+          "outcome_kind": "implementation_result",
+          "reason": null,
+          "evidence_refs": [
+            "validation.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "6c9c79fa77324a49e60580d13030e3b1b017ccdcb24ce176a6ab68332ba0988e",
+            "result_revision": "1",
+            "input_revision": "7",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "validation.md"
+            ]
+          }
+        },
+        "delivery_review_and_closeout": {
+          "status": "active",
+          "input_revision": "8",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        }
+      },
+      "route_dependency_admission": null,
+      "implementation_authorization": {
+        "contract_ref": "prd.md",
+        "contract_revision": "57283adf014400e9406bbb4e12fa6c663b720fe5812e05a3c553b279aec072b3",
+        "approval_ref": "approval.md",
+        "task_route_revision": "1"
+      },
+      "closeout_disposition": null,
+      "skip_records": {
+        "decision_space_construction_and_merging": {
+          "reason": "根任务已收敛并获批准，本组件仅分解既定 W03",
+          "evidence_refs": [
+            "approval.md",
+            "prd.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "solution_design_and_convergence": {
+          "reason": "根任务已收敛并获批准，本组件仅分解既定 W03",
+          "evidence_refs": [
+            "approval.md",
+            "prd.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "return_record": {
+        "from": "task_implementation",
+        "to": "goal_exploration_and_requirements",
+        "return_kind": "contract_change",
+        "authorization_retained": false,
+        "reason": "补齐组件实施合同机械必需的验收覆盖表，既有范围与根授权不变",
+        "evidence_refs": [
+          "approval.md"
+        ],
+        "task_route_revision": "1"
+      }
+    }
+  }
+}
