@@ -3,7 +3,7 @@
   "name": "codegraph-proactive-routing",
   "title": "增强 CodeGraph 主动路由消费指引",
   "description": "承接已批准根任务 W03，更新 CodeGraph 固定原生手册与结构问题路由，验证并发布集合。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "penn",
   "assignee": "penn",
   "createdAt": "2026-11-18",
-  "completedAt": null,
+  "completedAt": "2026-11-18",
   "branch": "main",
   "base_branch": "main",
   "worktree_path": null,
@@ -34,8 +34,8 @@
         "task_implementation",
         "delivery_review_and_closeout"
       ],
-      "current_phase_id": "delivery_review_and_closeout",
-      "input_revision": "8",
+      "current_phase_id": null,
+      "input_revision": "10",
       "phases": {
         "goal_exploration_and_requirements": {
           "status": "accepted",
@@ -86,16 +86,28 @@
           }
         },
         "delivery_review_and_closeout": {
-          "status": "active",
-          "input_revision": "8",
-          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-          "artifact_refs": [],
-          "result_revision": "0",
-          "result_ref": null,
-          "outcome_kind": null,
+          "status": "accepted",
+          "input_revision": "9",
+          "artifact_revision": "76a82f6db79a72897993b8257539ecf6577a80d0036f9e329a74e59a953859ce",
+          "artifact_refs": [
+            "closeout.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "closeout.md",
+          "outcome_kind": "delivery_ready",
           "reason": null,
-          "evidence_refs": [],
-          "acceptance": null
+          "evidence_refs": [
+            "closeout.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "76a82f6db79a72897993b8257539ecf6577a80d0036f9e329a74e59a953859ce",
+            "result_revision": "1",
+            "input_revision": "9",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "closeout.md"
+            ]
+          }
         }
       },
       "route_dependency_admission": null,
@@ -105,7 +117,7 @@
         "approval_ref": "approval.md",
         "task_route_revision": "1"
       },
-      "closeout_disposition": null,
+      "closeout_disposition": "delivery_ready",
       "skip_records": {
         "decision_space_construction_and_merging": {
           "reason": "根任务已收敛并获批准，本组件仅分解既定 W03",
