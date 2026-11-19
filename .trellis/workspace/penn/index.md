@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 41
-- **Last Active**: 2026-11-11
+- **Total Sessions**: 42
+- **Last Active**: 2026-11-19
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1083 | Active |
+| `journal-1.md` | ~1105 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | 日期（Date） | 标题（Title） | 提交（Commits） | 分支（Branch） |
 |---|------|-------|---------|--------|
+| 42 | 2026-11-19 | 原生项目初始化的一次策略说明 | `ed03f19` | `main` |
 | 41 | 2026-11-11 | 原生代理路线移除与固定集合部署收尾 | `823c3b69049d421e39d0768031669914e33f384a` | `fix/remove-native-agent-routing` |
 | 40 | 2026-11-10 | 引入 Office 与 PDF 阅读 Skills 并验收正式运行时 | `1fab5b4`, `3624514` | `main` |
 | 39 | 2026-11-08 | 原生提问规则与真实宿主验收 | `3ef9af4`, `75952b9`, `3224ff7` | `main` |

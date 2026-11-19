@@ -1081,3 +1081,25 @@ Trellis beta.51 双包公开发布后完成用户级 CLI 升级；本项目原�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 42: 原生项目初始化的一次策略说明
+<!-- trellis-session: v=2 fp=e8dbbb9742a32859 -->
+
+**Date**: 2026-11-19
+**Task**: 原生项目初始化的一次策略说明
+**Branch**: `main`
+
+### Summary
+
+完成根P4的项目治理和CodeGraph说明，集合验证及12项测试通过；发行和两机物化由根任务继续。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ed03f19` | docs: align project setup with explicit native policy |
+
+### Status
+
+[OK] **Completed**
