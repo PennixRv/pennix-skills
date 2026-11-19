@@ -32,6 +32,8 @@
 
 通常先 Trellis 后 CodeGraph，每步验证后再执行下一步。若现场先有 CodeGraph，Trellis 也必须保留 C 和正文；两种顺序都是合同内的兼容场景，不能以推荐顺序掩盖 writer 缺陷。只选一个 owner 时不安装另一个。
 
+具备新原生能力且 Lifecycle 已明确开启项目初始化策略时，主动 `trellis init --codex` 本身负责串行编排。Trellis 只写自己的资产并通过 Codex 原生接口接入精确信任；CodeGraph local、首次／恢复索引与持续同步仍归 CodeGraph。原生完整回执优先于下面的人工分步路线，不重复执行安装或索引。显式 opt-out 优先，--yes／--force 本身不增加授权；工具缺失、未知配置及修改脚本不能由自动化覆盖。仅使用 WSL 内部项目，不自动安装 Git 同步 Hook。
+
 | 动作 | 原生入口与范围 | 后置条件及限制 |
 | --- | --- | --- |
 | Trellis 首次接入／明确重初始化 | 明确项目根与已选平台后按实际 `trellis init --help` 调用 | 目标 N2 行为：无 AGENTS 时创建；已有正文且无 T 时普通初始化（含 `--yes`）严格预检后安全追加 T；已有合法 T 普通初始化保留，重复不重复块；显式 `--skip-existing` 保留并报告缺块未接入 |

@@ -1,0 +1,120 @@
+{
+  "id": "project-init-policy",
+  "name": "project-init-policy",
+  "title": "说明原生项目自动初始化授权边界",
+  "description": "承接根任务 project-init-trust-automation 已批准P4；更新原生自动初始化、Lifecycle一次策略和CodeGraph项目边界说明，验证集合并交付固定提交。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "penn",
+  "assignee": "penn",
+  "createdAt": "2026-11-19",
+  "completedAt": null,
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "task_workflow": {
+      "schema_version": 1,
+      "task_route_revision": "1",
+      "task_kind": "implementation",
+      "complexity": "standard",
+      "project_context": "existing",
+      "phase_ids": [
+        "goal_exploration_and_requirements",
+        "task_implementation",
+        "delivery_review_and_closeout"
+      ],
+      "current_phase_id": "task_implementation",
+      "input_revision": "3",
+      "phases": {
+        "goal_exploration_and_requirements": {
+          "status": "accepted",
+          "input_revision": "2",
+          "artifact_revision": "8d475b222d890c86ee321fde0b8a054fea5b50a35f3b130cd25694e35d4976bc",
+          "artifact_refs": [
+            "prd.md"
+          ],
+          "result_revision": "1",
+          "result_ref": "prd.md",
+          "outcome_kind": "accepted",
+          "reason": null,
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "acceptance": {
+            "artifact_revision": "8d475b222d890c86ee321fde0b8a054fea5b50a35f3b130cd25694e35d4976bc",
+            "result_revision": "1",
+            "input_revision": "2",
+            "task_route_revision": "1",
+            "evidence_refs": [
+              "prd.md"
+            ]
+          }
+        },
+        "task_implementation": {
+          "status": "active",
+          "input_revision": "3",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        },
+        "delivery_review_and_closeout": {
+          "status": "not_started",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "artifact_refs": [],
+          "result_revision": "0",
+          "result_ref": null,
+          "outcome_kind": null,
+          "reason": null,
+          "evidence_refs": [],
+          "acceptance": null
+        }
+      },
+      "route_dependency_admission": null,
+      "implementation_authorization": {
+        "contract_ref": "prd.md",
+        "contract_revision": "8d475b222d890c86ee321fde0b8a054fea5b50a35f3b130cd25694e35d4976bc",
+        "approval_ref": "prd.md",
+        "task_route_revision": "1"
+      },
+      "closeout_disposition": null,
+      "skip_records": {
+        "decision_space_construction_and_merging": {
+          "reason": "沿根已接受P4合同实施有界文档更新，不重复候选与批准",
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "solution_design_and_convergence": {
+          "reason": "沿根已接受P4合同实施有界文档更新，不重复候选与批准",
+          "evidence_refs": [
+            "prd.md"
+          ],
+          "task_route_revision": "1",
+          "input_revision": "1",
+          "artifact_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "return_record": null
+    }
+  }
+}
